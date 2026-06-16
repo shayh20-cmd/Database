@@ -283,6 +283,9 @@ button:focus:not(:focus-visible),input:focus:not(:focus-visible){outline:none;}
 /* Sub badge */
 .sub-badge{font-size:10px;font-weight:600;color:var(--text-3);background:var(--bg);border:1px solid var(--border-strong);border-radius:8px;padding:0 6px;white-space:nowrap;cursor:pointer;flex-shrink:0;min-width:30px;text-align:center;box-sizing:border-box;}
 .sub-badge:hover{color:var(--blue);border-color:var(--blue);}
+/* Fixed-width reserved slot so badges (subtask count, event count/add-button) line up
+   into columns across rows, whether or not a given row actually has content for them. */
+.badge-slot{display:inline-flex;align-items:center;justify-content:center;width:36px;flex-shrink:0;}
 
 /* Done circle — regular task (empty) */
 .done-btn{width:13px;height:13px;border-radius:50%;border:1.5px solid #8E8E8E;background:transparent;cursor:pointer;flex-shrink:0;transition:border-color .15s,background .15s;padding:0;}
@@ -2598,24 +2601,28 @@ function SubtaskRow({subtask, onUpdate, onDelete, onOpenProcess, autoFocus=false
                   {subtask.title||(isProc?<span style={{color:'var(--text-3)'}}>תהליך ללא שם</span>:<span style={{color:'var(--text-3)'}}>ללא שם</span>)}
                 </span>
           }
-          {isProc&&(subtask.subtasks||[]).length>0&&onToggleNested&&(()=>{
-            const nested=subtask.subtasks||[];
-            const doneCnt=nested.filter(s=>s.done).length;
-            return(
-              <span className="sub-badge" onClick={e=>{e.stopPropagation();onToggleNested();}}
-                title={nestedOpen?'הסתר תתי-משימות':'הצג תתי-משימות'}
-                style={{cursor:'pointer',display:'inline-flex',alignItems:'center',gap:3}}>
-                <span style={{transition:'transform .15s',display:'inline-block',fontSize:8,
-                  transform:nestedOpen?'rotate(0deg)':'rotate(-90deg)'}}>▾</span>
-                {doneCnt}/{nested.length}
-              </span>
-            );
-          })()}
-          {isProc
-            ?<span className="sub-badge" title="רצף עדכונים" onClick={e=>{e.stopPropagation();onOpenProcess&&onOpenProcess();}}
-                style={{cursor:'pointer',color:'var(--accent)',background:'rgba(99,102,241,.10)'}}>⊡ {evCount}</span>
-            :<button className="add-ev-inline" title="הוסף עדכון"
-                onClick={e=>{e.stopPropagation();onOpenProcess&&onOpenProcess();}}>+</button>}
+          <span className="badge-slot">
+            {(subtask.subtasks||[]).length>0&&onToggleNested&&(()=>{
+              const nested=subtask.subtasks||[];
+              const doneCnt=nested.filter(s=>s.done).length;
+              return(
+                <span className="sub-badge" onClick={e=>{e.stopPropagation();onToggleNested();}}
+                  title={nestedOpen?'הסתר תתי-משימות':'הצג תתי-משימות'}
+                  style={{cursor:'pointer',display:'inline-flex',alignItems:'center',gap:3}}>
+                  <span style={{transition:'transform .15s',display:'inline-block',fontSize:8,
+                    transform:nestedOpen?'rotate(0deg)':'rotate(-90deg)'}}>▾</span>
+                  {doneCnt}/{nested.length}
+                </span>
+              );
+            })()}
+          </span>
+          <span className="badge-slot">
+            {isProc
+              ?<span className="sub-badge" title="רצף עדכונים" onClick={e=>{e.stopPropagation();onOpenProcess&&onOpenProcess();}}
+                  style={{cursor:'pointer',color:'var(--accent)',background:'rgba(99,102,241,.10)'}}>⊡ {evCount}</span>
+              :<button className="add-ev-inline" title="הוסף עדכון"
+                  onClick={e=>{e.stopPropagation();onOpenProcess&&onOpenProcess();}}>+</button>}
+          </span>
           <button className="del-btn" onClick={onDelete}>✕</button>
         </div>
       </td>
@@ -3635,19 +3642,25 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
                 {task.title||<span style={{color:'var(--text-3)'}}>ללא שם</span>}
               </span>
           }
-          {subtasks.length>0&&!expanded&&(
-            <span className="sub-badge" onClick={e=>{e.stopPropagation();setExpanded(true);}}>
-              {doneCount}/{subtasks.length}
-            </span>
-          )}
-          {/* Same slot, two states: permanent event-count badge once there's a timeline,
-              hover-only add-event button before the first event exists. */}
-          {isProcess
-            ?<span className="sub-badge" title="רצף עדכונים"
-                onClick={e=>{e.stopPropagation();setPanelSubId('__task__');}}
-                style={{cursor:'pointer',color:'var(--accent)',background:'rgba(99,102,241,.10)'}}>⊡ {events.length}</span>
-            :<button className="add-ev-inline" title="הוסף עדכון"
-                onClick={e=>{e.stopPropagation();setPanelSubId('__task__');}}>+</button>}
+          {/* Fixed-width slots so badges line up into columns across rows,
+              whether or not a given row actually has subtasks/events. */}
+          <span className="badge-slot">
+            {subtasks.length>0&&!expanded&&(
+              <span className="sub-badge" onClick={e=>{e.stopPropagation();setExpanded(true);}}>
+                {doneCount}/{subtasks.length}
+              </span>
+            )}
+          </span>
+          <span className="badge-slot">
+            {/* Same slot, two states: permanent event-count badge once there's a timeline,
+                hover-only add-event button before the first event exists. */}
+            {isProcess
+              ?<span className="sub-badge" title="רצף עדכונים"
+                  onClick={e=>{e.stopPropagation();setPanelSubId('__task__');}}
+                  style={{cursor:'pointer',color:'var(--accent)',background:'rgba(99,102,241,.10)'}}>⊡ {events.length}</span>
+              :<button className="add-ev-inline" title="הוסף עדכון"
+                  onClick={e=>{e.stopPropagation();setPanelSubId('__task__');}}>+</button>}
+          </span>
           <button className="del-btn" onClick={onDelete}>✕</button>
         </div>
       </td>
