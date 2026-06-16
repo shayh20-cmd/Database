@@ -695,13 +695,11 @@ const BUILTIN_FIELDS = [
   {id:'__comment',      label:'הערות',        type:'text',     icon:'≡'},
 ];
 
-/* Effective process events for a task: prefer live task.processEvents, but fall back to
-   the migrated subtask-process's events — processToSubtask() moves legacy task-level
-   events there on load and clears task.processEvents, so readers must check both. */
+/* A task's own event timeline. After migration (see migrateTask), every task
+   carries its events directly — there is no more legacy fallback to a
+   synthetic "process subtask". */
 function getTaskProcessEvents(task) {
-  if (task.processEvents?.length) return task.processEvents;
-  const procSub = (task.subtasks||[]).find(s => s.isProcess);
-  return procSub?.events || [];
+  return task.events || [];
 }
 
 /* Derive the current responsible discipline from a process task's latest event.
@@ -715,11 +713,12 @@ function getProcessResponsible(task) {
   })[0]?.assignee || null;
 }
 
-/* Get the most recent event status from a process task, mapped to task statusId.
-   Returns the event status if found, otherwise returns the task's own statusId. */
+/* Get the most recent event status from a task that has timeline events, mapped
+   to task statusId. Returns the event status if found, otherwise the task's own
+   statusId (covers tasks with zero events, which behave exactly as "simple"). */
 function getMostRecentEventStatus(task) {
   const events = getTaskProcessEvents(task);
-  if (task.taskType !== 'process' || !events.length) {
+  if (!events.length) {
     return task.statusId;
   }
 
