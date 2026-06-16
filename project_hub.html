@@ -281,7 +281,7 @@ button:focus:not(:focus-visible),input:focus:not(:focus-visible){outline:none;}
 .cmt-input{width:100%;border:none;outline:none;background:transparent;font-size:12px;font-family:inherit;color:var(--text-2);}
 
 /* Sub badge */
-.sub-badge{font-size:10px;font-weight:600;color:var(--text-3);background:var(--bg);border:1px solid var(--border-strong);border-radius:8px;padding:0 6px;white-space:nowrap;cursor:pointer;flex-shrink:0;}
+.sub-badge{font-size:10px;font-weight:600;color:var(--text-3);background:var(--bg);border:1px solid var(--border-strong);border-radius:8px;padding:0 6px;white-space:nowrap;cursor:pointer;flex-shrink:0;min-width:30px;text-align:center;box-sizing:border-box;}
 .sub-badge:hover{color:var(--blue);border-color:var(--blue);}
 
 /* Done circle — regular task (empty) */
@@ -2611,8 +2611,11 @@ function SubtaskRow({subtask, onUpdate, onDelete, onOpenProcess, autoFocus=false
               </span>
             );
           })()}
-          {isProc&&<span className="sub-badge" title="רצף עדכונים" onClick={()=>onOpenProcess&&onOpenProcess()}
-            style={{cursor:'pointer',color:'var(--accent)',background:'rgba(99,102,241,.10)'}}>⊡ {evCount}</span>}
+          {isProc
+            ?<span className="sub-badge" title="רצף עדכונים" onClick={e=>{e.stopPropagation();onOpenProcess&&onOpenProcess();}}
+                style={{cursor:'pointer',color:'var(--accent)',background:'rgba(99,102,241,.10)'}}>⊡ {evCount}</span>
+            :<button className="add-ev-inline" title="הוסף עדכון"
+                onClick={e=>{e.stopPropagation();onOpenProcess&&onOpenProcess();}}>+</button>}
           <button className="del-btn" onClick={onDelete}>✕</button>
         </div>
       </td>
@@ -3504,7 +3507,6 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
   const events = task.events || [];
   const isProcess = events.length > 0;
   const [expanded,setExpanded]=useState(false);
-  const [subsFirst,setSubsFirst]=useState(false); // processes before simples
   const [newSubId,setNewSubId]=useState(null);
   const inputRef=useRef(null);
   useEffect(()=>{if(autoFocus&&inputRef.current)inputRef.current.focus();},[]);
@@ -3679,21 +3681,6 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
       <td/>
     </tr>
     {expanded&&(()=>{
-      const simples  = subtasks.filter(s=>!(s.events||[]).length);
-      const procs    = subtasks.filter(s=>(s.events||[]).length>0);
-      const colSpan  = visibleColIds.length + 1;
-      const showHeaders = simples.length > 0 && procs.length > 0;
-      const SectionHdr = ({label, icon, isFirst}) => (
-        <tr style={{cursor: showHeaders ? 'grab' : 'default'}} onClick={showHeaders ? ()=>setSubsFirst(v=>!v) : undefined}>
-          <td colSpan={colSpan} className="sticky-td"
-            style={{padding:'4px 16px 2px',borderBottom:'1px solid var(--border)',background:'var(--bg)',userSelect:'none'}}>
-            <span style={{fontSize:10,fontWeight:700,color:'#888',letterSpacing:.5,textTransform:'uppercase',display:'inline-flex',alignItems:'center',gap:5}}>
-              {icon} {label}
-              {showHeaders && <span style={{fontSize:9,opacity:.5,marginRight:4}}>⇅</span>}
-            </span>
-          </td>
-        </tr>
-      );
       const NestedRows = ({sub}) => {
         const [open, setOpen] = React.useState(false);
         const nestedSubs = sub.subtasks || [];
@@ -3733,18 +3720,7 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
         );
       };
       const makeRow = sub => <NestedRows key={sub.id} sub={sub}/>;
-      const firstGroup  = sortSubtasks(subsFirst ? simples : procs);
-      const firstIcon   = subsFirst ? '○' : '⊡';
-      const firstLabel  = subsFirst ? 'תתי משימות' : 'תהליכים';
-      const secondGroup = sortSubtasks(subsFirst ? procs : simples);
-      const secondIcon  = subsFirst ? '⊡' : '○';
-      const secondLabel = subsFirst ? 'תהליכים' : 'תתי משימות';
-      return <>
-        {showHeaders && <SectionHdr icon={firstIcon}  label={firstLabel}/>}
-        {firstGroup.map(makeRow)}
-        {showHeaders && <SectionHdr icon={secondIcon} label={secondLabel}/>}
-        {secondGroup.map(makeRow)}
-      </>;
+      return <>{sortSubtasks(subtasks).map(makeRow)}</>;
     })()}
     {expanded&&(
       <tr className="sub-row">
