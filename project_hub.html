@@ -2351,10 +2351,9 @@ function SubtaskOwnerCell({subtask, onUpdate, threshold=null}) {
     return()=>document.removeEventListener('mousedown',h);
   },[panel]);
 
-  // Owner status is derived from process events — meaningless for non-process subtasks
-  if (!subtask.isProcess) {
-    return <td style={{padding:'0 8px',verticalAlign:'middle',background:'inherit'}}/>;
-  }
+  // (intentionally no early return here: the cell already degrades gracefully to a
+  // dashed "+" placeholder + always-visible add-event button when subtask.events
+  // is empty — see hasChip / add-ev-inline further below)
 
   // Owner status = latest event in this process subtask's event sequence
   const events = subtask.events || [];
@@ -2576,15 +2575,14 @@ function SubtaskRow({subtask, onUpdate, onDelete, onOpenProcess, autoFocus=false
     else onDelete();
     setEditing(false);
   };
-  const isProc = !!subtask.isProcess;
   const evCount = (subtask.events||[]).length;
+  const isProc = evCount > 0;
   return(
     <tr className="sub-row" style={{opacity:subtask.done?.5:1}}>
       <td className="sticky-td">
         <div className="sub-name-inner">
           <div onClick={()=>onUpdate({...subtask,done:!subtask.done})}
-            title={isProc?'תת-תהליך — קליק ימני להחזרה לרגיל':'לחץ לסימון הושלם | קליק ימני → תהליך'}
-            onContextMenu={e=>{e.preventDefault();onUpdate({...subtask,isProcess:!isProc,events:subtask.events||[]});}}
+            title={isProc?'יש טיימליין עדכונים — לחץ לסימון הושלם':'לחץ לסימון הושלם'}
             style={{width:13,height:13,borderRadius:'50%',flexShrink:0,cursor:'pointer',
               border:`1.5px solid ${subtask.done?'#059669':'#8E8E8E'}`,
               background:subtask.done?'#059669':(isProc?'#8E8E8E':'transparent'),
