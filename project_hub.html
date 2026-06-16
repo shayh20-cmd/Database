@@ -3685,8 +3685,8 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
       <td/>
     </tr>
     {expanded&&(()=>{
-      const simples  = subtasks.filter(s=>!s.isProcess);
-      const procs    = subtasks.filter(s=>!!s.isProcess);
+      const simples  = subtasks.filter(s=>!(s.events||[]).length);
+      const procs    = subtasks.filter(s=>(s.events||[]).length>0);
       const colSpan  = visibleColIds.length + 1;
       const showHeaders = simples.length > 0 && procs.length > 0;
       const SectionHdr = ({label, icon, isFirst}) => (
@@ -3702,7 +3702,7 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
       );
       const NestedRows = ({sub}) => {
         const [open, setOpen] = React.useState(false);
-        const nestedSubs = sub.isProcess ? (sub.subtasks||[]) : [];
+        const nestedSubs = sub.subtasks || [];
         return (
           <React.Fragment>
             <SubtaskRow subtask={sub}
