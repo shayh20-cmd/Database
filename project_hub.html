@@ -3511,7 +3511,8 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
   const [editTitle,setEditTitle]=useState(autoFocus);
   const [title,setTitle]=useState(task.title);
   const [panelSubId,setPanelSubId]=useState(null);
-  const isProcess = task.taskType==='process';
+  const events = task.events || [];
+  const isProcess = events.length > 0;
   const [expanded,setExpanded]=useState(false);
   const [subsFirst,setSubsFirst]=useState(false); // processes before simples
   const [newSubId,setNewSubId]=useState(null);
@@ -3619,21 +3620,25 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
             title="תת-משימות" onClick={e=>{e.stopPropagation();setExpanded(o=>!o);}}>
             {expanded?'▼':'▶'}
           </button>
-          {/* Done/type toggle */}
+          {/* Done toggle — shape reflects whether the task has any timeline events */}
           {isProcess
             ?<button className={`proc-btn${task.done?' is-done':''}`}
-                title="משימת תהליך — לחץ לסימון הושלם"
-                onContextMenu={e=>{e.preventDefault();onUpdate({...task,taskType:'simple'});}}
+                title="יש טיימליין עדכונים — לחץ לסימון הושלם"
                 onClick={e=>{e.stopPropagation();onUpdate({...task,done:!task.done});}}>
                 {task.done&&'✓'}
               </button>
             :<button className={`done-btn${task.done?' is-done':''}`}
-                title="לחץ לסימון הושלם | לחץ ימני → תהליך"
-                onContextMenu={e=>{e.preventDefault();onUpdate({...task,taskType:'process',processEvents:task.processEvents||[]});}}
+                title="לחץ לסימון הושלם"
                 onClick={e=>{e.stopPropagation();onUpdate({...task,done:!task.done});}}>
                 {task.done&&'✓'}
               </button>
           }
+          {/* Add-event button — visible on row hover, opens this task's own timeline panel */}
+          <button className="add-ev-inline" title="הוסף עדכון"
+            onClick={e=>{e.stopPropagation();setPanelSubId('__task__');}}>+</button>
+          {isProcess&&<span className="sub-badge" title="רצף עדכונים"
+            onClick={e=>{e.stopPropagation();setPanelSubId('__task__');}}
+            style={{cursor:'pointer',color:'var(--accent)',background:'rgba(99,102,241,.10)'}}>⊡ {events.length}</span>}
           {editTitle
             ?<input ref={inputRef} className="name-edit-input" value={title}
                 onChange={e=>setTitle(e.target.value)} onBlur={commitTitle}
@@ -3765,15 +3770,16 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
         <td style={{background:'inherit'}}/>
       </tr>
     )}
-    {/* Per-subtask events panel */}
+    {/* Events panel — either the task's own timeline ('__task__') or a subtask's */}
     {panelSubId&&(()=>{
-      const node=subtasks.find(s=>s.id===panelSubId);
+      const isTaskNode = panelSubId==='__task__';
+      const node = isTaskNode ? task : subtasks.find(s=>s.id===panelSubId);
       if(!node) return null;
       return <ProcessTaskPanel key={panelSubId} parentTitle={task.title} node={node}
         threshold={daysThreshold}
         parentStartDate={task.startDate||''}
         parentDueDate={task.dueDate||''}
-        onUpdate={updated=>updateSubtask(updated)}
+        onUpdate={updated=>isTaskNode ? onUpdate(updated) : updateSubtask(updated)}
         onAddToMain={sub=>addSubToMain(sub)}
         onClose={()=>setPanelSubId(null)}/>;
     })()}
