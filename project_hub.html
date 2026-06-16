@@ -1490,9 +1490,10 @@ function makeDefaultData() {
 /* ── Tracks model (v4) ──────────────────────────────────────────
    A "track" = one consultant/discipline's own lane within a task:
    its own ordered event-chain + its own open subtasks.
-   migrateTask() is ADDITIVE and non-breaking: it derives task.tracks
-   from legacy processEvents/subtasks without removing the old fields,
-   so existing UI that reads task.processEvents keeps working. */
+   migrateTask() derives task.tracks from legacy processEvents/subtasks
+   AND removes the old fields (taskType, isProcess, processEvents) as it
+   folds them into the unified task.events/subtasks shape, so no legacy
+   keys remain on migrated tasks. */
 /* Hoist legacy per-event subtasks (ev.subtasks) into the canonical
    task.subtasks list, tagging each with fromEventId for provenance. */
 function hoistEventSubtasks(task) {
@@ -1521,11 +1522,12 @@ function foldLegacyProcessEvents(task) {
   return {...task, events: [...(task.events||[]), ...task.processEvents], processEvents:[]};
 }
 
-/* Strip the old isProcess flag and guarantee `events`/`subtasks` exist, at
+/* Strip the old isProcess flag and legacy processEvents key (not just empty
+   it — actually delete it), and guarantee `events`/`subtasks` exist, at
    every nesting depth. Idempotent — safe to run on already-migrated data. */
 function stripProcessFlags(node) {
   if (!node) return node;
-  const {isProcess, ...rest} = node;
+  const {isProcess, processEvents, ...rest} = node;
   return {
     ...rest,
     events: rest.events || [],
