@@ -1796,7 +1796,7 @@ function DisciplineCell({discipline, onChange}) {
    - Simple tasks: editable discipline dropdown stored in task.responsible           */
 function ResponsibleCell({task, onChange}) {
   const {disciplines} = useContext(ListsCtx);
-  const isProcess = task.taskType === 'process';
+  const isProcess = (task.events||[]).length > 0;
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -2090,7 +2090,7 @@ function DateRangeCell({startDate, dueDate, onChange, isParent=false, minDate=''
 
 /* Days In Status Cell — shows how many days the latest status has been active (process tasks only) */
 function DaysInStatusCell({task, threshold=null}) {
-  const isProcess = task.taskType === 'process';
+  const isProcess = (task.events||[]).length > 0;
   const events = getTaskProcessEvents(task);
 
   if (!isProcess || !events?.length) {
@@ -2141,7 +2141,7 @@ function DaysInStatusCell({task, threshold=null}) {
 ══════════════════════════════════════ */
 function StatusOwnerCell({task, onChangeResponsible, threshold=null}) {
   const {disciplines} = useContext(ListsCtx);
-  const isProcess = task.taskType === 'process';
+  const isProcess = (task.events||[]).length > 0;
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
