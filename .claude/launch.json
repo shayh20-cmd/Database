@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "planning-dashboard",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "C:\\Users\\Omega\\Database", "--listen", "3400", "--no-clipboard"],
+      "port": 3400
+    },
+    {
+      "name": "project-hub",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "C:\\Users\\Omega\\Database", "--listen", "3401", "--no-clipboard"],
+      "port": 3401
+    }
+  ]
+}

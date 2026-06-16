@@ -1,0 +1,40 @@
+<h2>מראה סופי — אישור לפני כתיבת ספסיפיקציה</h2>
+<p class="subtitle">מודל מאוחד: אין taskType / isProcess נפרד. האייקון משתנה דינמית לפי מספר ה-events</p>
+
+<div class="mockup">
+  <div class="mockup-header">תצוגת שורת משימה — 3 מצבים</div>
+  <div class="mockup-body">
+    <div class="mock-content" style="font-family:monospace;font-size:14px;line-height:2.4">
+      <div>⭕ &nbsp;בדיקת תקן בטיחות אש &nbsp;<span style="opacity:.5">— 0 עדכונים, מצב התחלתי</span></div>
+      <div>◐ &nbsp;בדיקת אטימות מעטפת &nbsp;<span style="background:#2d3a4d;color:#7fb8ff;border-radius:8px;padding:1px 7px;font-size:11px">2 עדכונים</span> <span style="opacity:.5">— נפתח טיימליין, יש events</span></div>
+      <div>⭕ &nbsp;אישור רשות העתיקות &nbsp;<span style="opacity:.5">— נמחקו כל ה-events, חוזר אוטומטית ל-○</span></div>
+    </div>
+    <hr style="border-color:#333;margin:16px 0"/>
+    <div style="font-size:13px;opacity:.7">בפתיחת השורה (expand) — כפתור קבוע:</div>
+    <div class="mock-content" style="font-family:monospace;font-size:13px;margin-top:8px">
+      <button class="mock-button">+ עדכון</button>
+      <span style="opacity:.5;margin-right:10px">— מוסיף event ראשון לטיימליין → האייקון הופך ל-◐ והתג מופיע</span>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+<p class="label">סיכום ההחלטות</p>
+<ul style="line-height:1.8">
+  <li><b>מודל:</b> אין שדה <code>taskType</code>/<code>isProcess</code> נבחר מראש — הסטטוס מחושב לפי <code>events.length &gt; 0</code>, גם למשימות וגם לתת-משימות</li>
+  <li><b>אייקון:</b> ⭕ (0 events) ↔ ◐ (1+ events) — אותו גודל, ללא קפיצת לייאאוט</li>
+  <li><b>תג:</b> מספר עדכונים מוצג לצד הכותרת כשיש events, בדומה ל-sub-badge הקיים</li>
+  <li><b>כניסה לטיימליין:</b> כפתור "+ עדכון" קבוע וגלוי תמיד בפתיחת שורה — לא צריך "להמיר" משימה לסוג אחר</li>
+</ul>
+</div>
+
+<div class="options" style="margin-top:20px">
+  <div class="option" data-choice="approve" onclick="toggleSelect(this)">
+    <div class="letter">✓</div>
+    <div class="content"><h3>מאשר — להמשיך לכתיבת ספק</h3><p>המראה והלוגיקה נכונים</p></div>
+  </div>
+  <div class="option" data-choice="changes" onclick="toggleSelect(this)">
+    <div class="letter">✗</div>
+    <div class="content"><h3>רוצה שינוי</h3><p>אגיב בטרמינל מה לשנות</p></div>
+  </div>
+</div>

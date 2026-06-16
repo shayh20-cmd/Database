@@ -1,0 +1,103 @@
+<h2>שתי שאלות עיצוב: מודל המשימות + סימון גרפי</h2>
+<p class="subtitle">תרשים של המצב הקיים, ואז 3 הצעות לסימון גרפי שונה לתהליך</p>
+
+<div class="section">
+<h3>1. המודל הנתוני — מה דעתך?</h3>
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">קיים: הפרדה בין simple ↔ process</div>
+    <div class="mockup-body">
+      <div class="mock-content" style="font-family:monospace;font-size:13px;line-height:1.7">
+        <div>○ &nbsp;משימה רגילה (simple)</div>
+        <div style="opacity:.6;margin-right:14px">— ללא טיימליין, רק done/not-done</div>
+        <br/>
+        <div>◐ &nbsp;משימת תהליך (process)</div>
+        <div style="opacity:.6;margin-right:14px">— טיימליין של events (נשלח/תגובה/אושר...)</div>
+        <br/>
+        <div style="color:#888">לחיצה ימנית מחליפה בין הסוגים</div>
+      </div>
+    </div>
+  </div>
+  <div class="mockup">
+    <div class="mockup-header">מוצע: כל משימה = תהליך פוטנציאלי</div>
+    <div class="mockup-body">
+      <div class="mock-content" style="font-family:monospace;font-size:13px;line-height:1.7">
+        <div>○ &nbsp;משימה (אין עדכונים עדיין)</div>
+        <div style="opacity:.6;margin-right:14px">— נראית כמו "פשוטה", done/not-done</div>
+        <br/>
+        <div>◐ &nbsp;אותה משימה, אחרי שהוסיפו עדכון ראשון</div>
+        <div style="opacity:.6;margin-right:14px">— הופכת אוטומטית לבעלת טיימליין</div>
+        <br/>
+        <div style="color:#888">אין יותר "בחירת סוג" — המשתמש פשוט מוסיף עדכון כשרלוונטי</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="options" style="margin-top:24px">
+  <div class="option" data-choice="keep-split" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>לשמור על ההפרדה הקיימת</h3>
+      <p>simple / process נשארים שני סוגים נפרדים, עם בחירה מפורשת (קליק ימני)</p>
+    </div>
+  </div>
+  <div class="option" data-choice="unify" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>לאחד — כל משימה יכולה לקבל עדכונים</h3>
+      <p>אין taskType נפרד; המשימה "הופכת" לתהליך ברגע שמוסיפים לה event ראשון בטיימליין</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:32px">
+<h3>2. סימון גרפי — 3 הצעות לאיך לסמן "יש תהליך/טיימליין"</h3>
+<p class="subtitle">כפתור הסטטוס בתחילת השורה (היום: עיגול ⭕ ל-simple, חצי-עיגול ◐ ל-process)</p>
+</div>
+
+<div class="cards">
+  <div class="card" data-choice="marker-dot" onclick="toggleSelect(this)">
+    <div class="card-image" style="display:flex;align-items:center;justify-content:center;height:90px;background:#1c1c1f">
+      <div style="display:flex;align-items:center;gap:10px;font-family:monospace;font-size:14px;color:#eee">
+        <span style="position:relative">⭕<span style="position:absolute;top:-3px;right:-5px;width:7px;height:7px;border-radius:50%;background:#4da3ff"></span></span>
+        משימת בדיקת אטימות
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>נקודה כחולה קטנה</h3>
+      <p>אינדיקטור עדין בפינת כפתור הסטטוס — לא תופס מקום, רק "יש כאן היסטוריה"</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="marker-icon" onclick="toggleSelect(this)">
+    <div class="card-image" style="display:flex;align-items:center;justify-content:center;height:90px;background:#1c1c1f">
+      <div style="display:flex;align-items:center;gap:10px;font-family:monospace;font-size:14px;color:#eee">
+        🕒 משימת בדיקת אטימות
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>אייקון שעון/טיימליין</h3>
+      <p>אייקון נפרד לצד הכותרת מחליף את צורת הכפתור — קריא, אבל מוסיף רכיב</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="marker-badge" onclick="toggleSelect(this)">
+    <div class="card-image" style="display:flex;align-items:center;justify-content:center;height:90px;background:#1c1c1f">
+      <div style="display:flex;align-items:center;gap:10px;font-family:monospace;font-size:14px;color:#eee">
+        ⭕ משימת בדיקת אטימות
+        <span style="background:#2d3a4d;color:#7fb8ff;border-radius:8px;padding:1px 7px;font-size:11px">3 עדכונים</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>תג/Badge עם מספר עדכונים</h3>
+      <p>כמו ה-sub-badge הקיים לתת-משימות — עקבי עם השפה הוויזואלית הקיימת באפליקציה</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:20px">
+  <p class="label">המלצה שלי</p>
+  <p>B (איחוד המודל) + Badge עם מספר עדכונים — עקבי עם <code>sub-badge</code> הקיים, לא דורש החלטה מוקדמת מהמשתמש, וברור מבלי לפתוח את השורה.</p>
+</div>
