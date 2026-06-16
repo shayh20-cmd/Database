@@ -3048,7 +3048,7 @@ function TrackSection({track, threshold=null, open, onToggle, onChange, onDelete
   );
 }
 
-function SubPanelRow({sub, onUpdate, onDelete, autoFocus, fromEvent, selected=false, onSelect, onMakeProcess, eventCount=0, onAddToMain}) {
+function SubPanelRow({sub, onUpdate, onDelete, autoFocus, fromEvent, onAddToMain}) {
   const {disciplines} = useContext(ListsCtx);
   const [title,setTitle]=useState(sub.title);
   const ref=useRef(null);
@@ -3057,8 +3057,8 @@ function SubPanelRow({sub, onUpdate, onDelete, autoFocus, fromEvent, selected=fa
   const disc = sub.discipline ? disciplines.find(d=>d.id===sub.discipline) : null;
   const hasMeta = disc || sub.startDate || sub.dueDate;
   return(
-    <div className={`tp-sub-row${selected?' selected':''}`} onClick={onSelect?(e=>{if(!e.target.closest('input,button'))onSelect();}):undefined}
-      style={{alignItems:hasMeta?'flex-start':'center',...(onSelect?{cursor:'pointer',...(selected?{background:'var(--accent-soft, rgba(99,102,241,.10))',borderRadius:7}:{})}:{})}}>
+    <div className="tp-sub-row"
+      style={{alignItems:hasMeta?'flex-start':'center'}}>
       <button className={`tp-sub-cb${sub.done?' done':''}`} style={{marginTop:hasMeta?3:0}}
         onClick={()=>onUpdate({...sub,done:!sub.done})}>
         {sub.done&&'✓'}
@@ -3080,20 +3080,12 @@ function SubPanelRow({sub, onUpdate, onDelete, autoFocus, fromEvent, selected=fa
           </div>
         )}
       </div>
-      {sub.isProcess && eventCount>0 && (
-        <span title="רצף עדכונים" style={{flexShrink:0,fontSize:9,fontWeight:700,color:'var(--accent)',background:'rgba(99,102,241,.10)',borderRadius:5,padding:'1px 5px',whiteSpace:'nowrap'}}>
-          ⊡ {eventCount}
-        </span>
-      )}
       {fromEvent && (
         <span title={`מעדכון: ${EV_STATUSES[fromEvent.status]?.label||''}`}
           style={{flexShrink:0,fontSize:9,fontWeight:700,color:'var(--text-3)',background:'var(--border)',borderRadius:5,padding:'1px 5px',whiteSpace:'nowrap'}}>
           ⊡ {EV_STATUSES[fromEvent.status]?.symbol||''}
         </span>
       )}
-      {sub.isProcess
-        ? (onSelect && <button className="tp-sub-del" onClick={onSelect} title="הצג רצף עדכונים" style={{color:'var(--accent)'}}>‹</button>)
-        : (onMakeProcess && <button className="tp-sub-del" onClick={onMakeProcess} title="הפוך לתהליך" style={{color:'var(--text-3)',fontSize:13}}>⊡</button>)}
       {onAddToMain && (
         <button onClick={e=>{e.stopPropagation();onAddToMain();}}
           title="הוסף לרשימה הראשית"
