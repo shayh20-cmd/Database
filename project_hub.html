@@ -3588,7 +3588,7 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
   const doneCount=subtasks.filter(s=>s.done).length;
   const addSubtask=()=>{
     const id=uid();
-    onUpdate({...task,subtasks:[...subtasks,{id,title:'',done:false,statusId:'N',priority:'',discipline:''}]});
+    onUpdate({...task,subtasks:[...subtasks,{id,title:'',done:false,statusId:'N',priority:'',discipline:'',events:[]}]});
     setNewSubId(id);setExpanded(true);
   };
   const updateSubtask=s=>onUpdate({...task,subtasks:subtasks.map(x=>x.id===s.id?s:x)});
@@ -4415,21 +4415,11 @@ function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState,
       {/* Add task */}
       <div ref={addMenuRef} style={{position:'relative'}}>
         <div className="btn-add-wrap">
-          <button className="btn-add-main" onClick={()=>onAddTask('simple')}>+ הוסף משימה</button>
+          <button className="btn-add-main" onClick={()=>onAddTask()}>+ הוסף משימה</button>
           <button className="btn-add-arr" onClick={()=>setShowAddMenu(o=>!o)}>▾</button>
         </div>
         {showAddMenu&&(
           <div className="dp" style={{right:0,left:'auto',minWidth:170,top:'calc(100% + 6px)'}}>
-            <div className="dp-title">סוג משימה</div>
-            <div className="dp-opt" onClick={()=>{onAddTask('simple');setShowAddMenu(false);}}>
-              <span style={{width:14,height:14,borderRadius:'50%',border:'2px solid var(--text-3)',display:'inline-block',flexShrink:0}}/>
-              משימה
-            </div>
-            <div className="dp-opt" onClick={()=>{onAddTask('process');setShowAddMenu(false);}}>
-              <span style={{width:14,height:14,borderRadius:2,border:'2px solid var(--text-3)',display:'inline-block',flexShrink:0}}/>
-              תהליך
-            </div>
-            <div className="dp-sep"/>
             <div className="dp-title">מבנה</div>
             <div className="dp-opt" onClick={()=>{onAddGroup();setShowAddMenu(false);}}>
               <span style={{width:14,height:3,background:'var(--text-3)',borderRadius:1,display:'inline-block',flexShrink:0,marginBottom:1}}/>
@@ -5505,12 +5495,11 @@ function ListView({data, save}) {
     document.addEventListener('mousemove',onMove);
     document.addEventListener('mouseup',onUp);
   };
-  const addTask=(type='simple', targetGroupId=null)=>{
+  const addTask=(targetGroupId=null)=>{
     const gId=targetGroupId||groups[0]?.id;
     if(!gId)return;
     const id=uid();
-    const isProcess=type==='process';
-    savePartial({tasks:[...tasks,{id,groupId:gId,title:'',statusId:'N',priority:'',discipline:'',startDate:'',dueDate:'',comment:'',done:false,subtasks:[],fieldValues:{},taskType:isProcess?'process':'simple',processEvents:isProcess?[]:undefined}]});
+    savePartial({tasks:[...tasks,{id,groupId:gId,title:'',statusId:'N',priority:'',discipline:'',startDate:'',dueDate:'',comment:'',done:false,subtasks:[],fieldValues:{},events:[]}]});
     setNewTaskId(id);
   };
   const addGroup=(afterGroupId=null)=>{
@@ -5815,7 +5804,7 @@ function ListView({data, save}) {
               const addTaskForVg=()=>{
                 const gId=groups[0]?.id; if(!gId)return;
                 const id=uid(); const fieldPatch={[vg.field]:vg.value};
-                savePartial({tasks:[...tasks,{id,groupId:gId,title:'',statusId:'N',priority:'',discipline:'',startDate:'',dueDate:'',comment:'',done:false,subtasks:[],fieldValues:{},taskType:'simple',...fieldPatch}]});
+                savePartial({tasks:[...tasks,{id,groupId:gId,title:'',statusId:'N',priority:'',discipline:'',startDate:'',dueDate:'',comment:'',done:false,subtasks:[],fieldValues:{},events:[],...fieldPatch}]});
                 setNewTaskId(id);
               };
               const renderVgTaskRows=(taskList,doneKey)=>{
