@@ -3780,7 +3780,7 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
         parentStartDate={task.startDate||''}
         parentDueDate={task.dueDate||''}
         onUpdate={updated=>isTaskNode ? onUpdate(updated) : updateSubtask(updated)}
-        onAddToMain={sub=>addSubToMain(sub)}
+        onAddToMain={isTaskNode ? undefined : (sub=>addSubToMain(sub))}
         onClose={()=>setPanelSubId(null)}/>;
     })()}
     </>
