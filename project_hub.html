@@ -1512,21 +1512,33 @@ function hoistEventSubtasks(task) {
   return {...task, processEvents: events, subtasks: [...(task.subtasks||[]), ...hoisted]};
 }
 
-/* New model: event sequences live on subtasks marked isProcess, not on the
-   task itself. Convert any legacy task-level processEvents into a single
-   subtask-process so existing data stays visible. Idempotent (clears the
-   source list). */
-function processToSubtask(task) {
+/* Unified model: every task/subtask has its own `events` array — no more
+   "isProcess" flag and no more routing legacy task-level events into a
+   synthetic subtask. Fold any legacy task.processEvents directly into
+   task.events. Idempotent (drains processEvents on first run). */
+function foldLegacyProcessEvents(task) {
   if (!task || !task.processEvents || !task.processEvents.length) return task;
-  const sub = {id:uid(), title: 'תהליך ראשי', done:false, isProcess:true,
-               events: task.processEvents, fromEventId:null};
-  return {...task, processEvents:[], subtasks:[...(task.subtasks||[]), sub]};
+  return {...task, events: [...(task.events||[]), ...task.processEvents], processEvents:[]};
+}
+
+/* Strip the old isProcess flag and guarantee `events`/`subtasks` exist, at
+   every nesting depth. Idempotent — safe to run on already-migrated data. */
+function stripProcessFlags(node) {
+  if (!node) return node;
+  const {isProcess, ...rest} = node;
+  return {
+    ...rest,
+    events: rest.events || [],
+    subtasks: (rest.subtasks || []).map(stripProcessFlags),
+  };
 }
 
 function migrateTask(task) {
   task = hoistEventSubtasks(task);
-  const legacyEvents = task.processEvents || [];   // capture before processToSubtask drains it
-  task = processToSubtask(task);
+  const legacyEvents = task.processEvents || [];   // captured for the (unused-but-kept) tracks computation below
+  task = foldLegacyProcessEvents(task);
+  const {taskType, ...withoutType} = task;
+  task = stripProcessFlags(withoutType);
   if (!task || task.tracks) return task;              // already migrated
   const tracks = [];
   const evs = legacyEvents;
