@@ -3623,12 +3623,6 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
                 {task.done&&'✓'}
               </button>
           }
-          {/* Add-event button — visible on row hover, opens this task's own timeline panel */}
-          <button className="add-ev-inline" title="הוסף עדכון"
-            onClick={e=>{e.stopPropagation();setPanelSubId('__task__');}}>+</button>
-          {isProcess&&<span className="sub-badge" title="רצף עדכונים"
-            onClick={e=>{e.stopPropagation();setPanelSubId('__task__');}}
-            style={{cursor:'pointer',color:'var(--accent)',background:'rgba(99,102,241,.10)'}}>⊡ {events.length}</span>}
           {editTitle
             ?<input ref={inputRef} className="name-edit-input" value={title}
                 onChange={e=>setTitle(e.target.value)} onBlur={commitTitle}
@@ -3644,6 +3638,14 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
               {doneCount}/{subtasks.length}
             </span>
           )}
+          {/* Same slot, two states: permanent event-count badge once there's a timeline,
+              hover-only add-event button before the first event exists. */}
+          {isProcess
+            ?<span className="sub-badge" title="רצף עדכונים"
+                onClick={e=>{e.stopPropagation();setPanelSubId('__task__');}}
+                style={{cursor:'pointer',color:'var(--accent)',background:'rgba(99,102,241,.10)'}}>⊡ {events.length}</span>
+            :<button className="add-ev-inline" title="הוסף עדכון"
+                onClick={e=>{e.stopPropagation();setPanelSubId('__task__');}}>+</button>}
           <button className="del-btn" onClick={onDelete}>✕</button>
         </div>
       </td>
@@ -5944,7 +5946,7 @@ function ListView({data, save}) {
                   ))}
                   <tr className="add-task-row">
                     <td colSpan={colSpan}>
-                      <button className="add-task-btn" onClick={addTask}>
+                      <button className="add-task-btn" onClick={()=>addTask(g.id)}>
                         <span style={{fontSize:16,lineHeight:1,color:'var(--accent)'}}>+</span> הוסף משימה
                       </button>
                     </td>
