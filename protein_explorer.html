@@ -90,13 +90,66 @@ function handleFile(file) {
       if (!sheet) { showError('No "Report" sheet found in this file.'); return; }
       const raw = XLSX.utils.sheet_to_json(sheet, { defval: null });
       if (!raw.length) { showError('Report sheet appears to be empty.'); return; }
-      state.rows = raw;
+      state.rows = parseRows(raw);
       launchApp();
     } catch(err) {
       showError('Failed to parse file: ' + err.message);
     }
   };
   reader.readAsArrayBuffer(file);
+}
+
+// Column name → JS key mapping
+const COL = {
+  'Protein ID':                                   'proteinId',
+  'Entry Name':                                   'entryName',
+  'Gene':                                         'gene',
+  'Organism':                                     'organism',
+  'Description':                                  'description',
+  '# peptides':                                   'peptides',
+  'Protein Length':                               'proteinLength',
+  'Protein Probability':                          'proteinProbability',
+  'Top Peptide Probability':                      'topPeptideProbability',
+  // Exp vs CD2
+  "Student's T-test p-value Exp vs CD2":          'pExpCD2',
+  "Student's T-test q-value Exp_CD2":             'qExpCD2',
+  'Ratio Exp/CD2':                                'ratioExpCD2',
+  "Student's T-test Difference Exp_CD2":          'diffExpCD2',
+  // Exp vs Ctrl
+  "Student's T-test p-value Exp vs Ctrl":         'pExpCtrl',
+  "Student's T-test q-value Exp_Ctrl":            'qExpCtrl',
+  'Ratio Exp/Ctrl':                               'ratioExpCtrl',
+  "Student's T-test Difference Exp_Ctrl":         'diffExpCtrl',
+  // CD2 vs Ctrl
+  "Student's T-test p-value CD2 vs Ctrl":         'pCD2Ctrl',
+  "Student's T-test q-value CD2_Ctrl":            'qCD2Ctrl',
+  'Ratio CD2/Ctrl':                               'ratioCD2Ctrl',
+  "Student's T-test Difference CD2_Ctrl":         'diffCD2Ctrl',
+};
+
+// Comparison definitions
+const COMPARISONS = {
+  ExpCD2:  { label: 'Exp / CD2',  p: 'pExpCD2',  q: 'qExpCD2',  ratio: 'ratioExpCD2',  diff: 'diffExpCD2'  },
+  ExpCtrl: { label: 'Exp / Ctrl', p: 'pExpCtrl', q: 'qExpCtrl', ratio: 'ratioExpCtrl', diff: 'diffExpCtrl' },
+  CD2Ctrl: { label: 'CD2 / Ctrl', p: 'pCD2Ctrl', q: 'qCD2Ctrl', ratio: 'ratioCD2Ctrl', diff: 'diffCD2Ctrl' },
+};
+
+function parseRows(raw) {
+  return raw.map(r => {
+    const row = {};
+    for (const [col, key] of Object.entries(COL)) {
+      row[key] = r[col] ?? null;
+    }
+    // Normalise organism to short name
+    row.organism = (row.organism || '').replace('Drosophila melanogaster', 'D. melanogaster')
+                                       .replace('Saccharomyces cerevisiae (strain ATCC 204508 / S288c)', 'S. cerevisiae')
+                                       .replace('Homo sapiens', 'H. sapiens')
+                                       .replace('Bos taurus', 'B. taurus')
+                                       .replace('Ovis aries', 'O. aries')
+                                       .replace('Gallus gallus', 'G. gallus')
+                                       .replace('Sus scrofa', 'S. scrofa');
+    return row;
+  });
 }
 </script>
 </body>
