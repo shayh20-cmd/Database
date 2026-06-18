@@ -369,7 +369,7 @@ function showDetail(row) {
   const panel = document.getElementById('detail-panel');
   if (!panel) return;
 
-  const uniprotUrl = `https://www.uniprot.org/uniprot/${escapeHtml(row.proteinId)}`;
+  const uniprotUrl = row.proteinId ? `https://www.uniprot.org/uniprot/${escapeHtml(row.proteinId)}` : '#';
 
   const statsRows = Object.entries(COMPARISONS).map(([key, c]) => {
     const p = row[c.p];
