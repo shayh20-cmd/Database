@@ -36,6 +36,86 @@
 
   /* Main app (hidden until data loaded) */
   #app { display: none; flex-direction: column; height: 100vh; }
+
+/* App layout */
+#app-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 16px; background: #16213e; border-bottom: 1px solid #0f3460;
+  flex-shrink: 0;
+}
+#app-header h1 { font-size: 1.1rem; color: #7eb3ff; }
+#header-right { display: flex; align-items: center; gap: 12px; }
+#protein-count { font-size: 0.85rem; color: #aaa; }
+#export-btn {
+  padding: 5px 14px; background: transparent; border: 1px solid #7eb3ff;
+  color: #7eb3ff; border-radius: 5px; cursor: pointer; font-size: 0.85rem;
+}
+#export-btn:hover { background: rgba(126,179,255,0.1); }
+
+/* Filter bar */
+#filter-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  padding: 8px 16px; background: #0f3460; border-bottom: 1px solid #16213e;
+  flex-shrink: 0;
+}
+.filter-group { display: flex; align-items: center; gap: 6px; }
+.filter-label { font-size: 0.78rem; color: #aaa; white-space: nowrap; }
+.filter-input {
+  padding: 4px 8px; background: #16213e; border: 1px solid #2a4a7e;
+  color: #e0e0e0; border-radius: 4px; font-size: 0.82rem; width: 72px;
+}
+.filter-select {
+  padding: 4px 8px; background: #16213e; border: 1px solid #2a4a7e;
+  color: #e0e0e0; border-radius: 4px; font-size: 0.82rem;
+}
+.filter-input:focus, .filter-select:focus { outline: none; border-color: #7eb3ff; }
+#reset-btn {
+  padding: 4px 12px; background: transparent; border: 1px solid #e94560;
+  color: #e94560; border-radius: 4px; cursor: pointer; font-size: 0.8rem; margin-left: auto;
+}
+#reset-btn:hover { background: rgba(233,69,96,0.1); }
+
+/* Organism dropdown */
+#organism-dropdown-wrap { position: relative; }
+#organism-btn {
+  padding: 4px 8px; background: #16213e; border: 1px solid #2a4a7e;
+  color: #e0e0e0; border-radius: 4px; font-size: 0.82rem; cursor: pointer; white-space: nowrap;
+}
+#organism-panel {
+  display: none; position: absolute; top: 100%; left: 0; z-index: 100;
+  background: #16213e; border: 1px solid #2a4a7e; border-radius: 4px;
+  padding: 8px; min-width: 180px; max-height: 220px; overflow-y: auto;
+}
+#organism-panel.open { display: block; }
+.org-option { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 0.82rem; cursor: pointer; }
+.org-option input { cursor: pointer; }
+
+/* Main content */
+#content { display: flex; flex: 1; overflow: hidden; }
+#table-wrap { flex: 6; overflow: hidden; }
+#detail-panel {
+  flex: 4; border-left: 1px solid #0f3460; overflow-y: auto;
+  padding: 16px; background: #16213e;
+}
+#detail-panel .empty-state { color: #555; text-align: center; margin-top: 40px; font-size: 0.9rem; }
+
+/* Detail content */
+.detail-section { margin-bottom: 20px; }
+.detail-section h3 { font-size: 0.85rem; color: #7eb3ff; text-transform: uppercase;
+  letter-spacing: 0.05em; margin-bottom: 10px; border-bottom: 1px solid #0f3460; padding-bottom: 4px; }
+.detail-row { display: flex; gap: 8px; margin-bottom: 6px; font-size: 0.82rem; }
+.detail-key { color: #888; min-width: 120px; flex-shrink: 0; }
+.detail-val { color: #e0e0e0; }
+.detail-val a { color: #7eb3ff; text-decoration: none; }
+.detail-val a:hover { text-decoration: underline; }
+.detail-desc { font-size: 0.82rem; color: #ccc; line-height: 1.5; margin-top: 4px; }
+
+/* Stats table */
+.stats-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.stats-table th { color: #7eb3ff; text-align: left; padding: 4px 8px;
+  border-bottom: 1px solid #0f3460; font-weight: normal; }
+.stats-table td { padding: 5px 8px; border-bottom: 1px solid #1a2a4e; }
+.stats-table tr.sig { background: rgba(0,200,100,0.08); }
 </style>
 </head>
 <body>
@@ -150,6 +230,100 @@ function parseRows(raw) {
                                        .replace('Sus scrofa', 'S. scrofa');
     return row;
   });
+}
+
+function launchApp() {
+  document.getElementById('drop-screen').style.display = 'none';
+  const app = document.getElementById('app');
+  app.style.display = 'flex';
+
+  // Collect unique organisms
+  const organisms = [...new Set(state.rows.map(r => r.organism).filter(Boolean))].sort();
+
+  app.innerHTML = `
+    <div id="app-header">
+      <h1>🔬 Protein Explorer</h1>
+      <div id="header-right">
+        <span id="protein-count"></span>
+        <button id="export-btn">Export CSV</button>
+      </div>
+    </div>
+
+    <div id="filter-bar">
+      <div class="filter-group">
+        <span class="filter-label">Comparison:</span>
+        <select class="filter-select" id="f-comparison">
+          <option value="ExpCtrl">Exp / Ctrl</option>
+          <option value="ExpCD2">Exp / CD2</option>
+          <option value="CD2Ctrl">CD2 / Ctrl</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">p &lt;</span>
+        <input class="filter-input" id="f-pval" type="number" min="0" max="1" step="0.01" placeholder="1.0">
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">q &lt;</span>
+        <input class="filter-input" id="f-qval" type="number" min="0" max="1" step="0.01" placeholder="1.0">
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">FC &gt;</span>
+        <input class="filter-input" id="f-fc" type="number" min="0" step="0.5" placeholder="1.0">
+      </div>
+      <div class="filter-group" id="organism-dropdown-wrap">
+        <span class="filter-label">Organism:</span>
+        <button id="organism-btn" onclick="toggleOrganismPanel()">All ▾</button>
+        <div id="organism-panel">
+          <label class="org-option"><input type="checkbox" value="__all__" checked onchange="toggleAllOrganisms(this)"> All</label>
+          ${organisms.map(o => `<label class="org-option"><input type="checkbox" class="org-cb" value="${o}" checked onchange="updateOrganismBtn()"> ${o}</label>`).join('')}
+        </div>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Peptides ≥</span>
+        <input class="filter-input" id="f-peptides" type="number" min="1" step="1" placeholder="1">
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Search:</span>
+        <input class="filter-input" id="f-search" type="text" placeholder="gene / protein / desc" style="width:160px">
+      </div>
+      <button id="reset-btn" onclick="resetFilters()">Reset</button>
+    </div>
+
+    <div id="content">
+      <div id="table-wrap"></div>
+      <div id="detail-panel"><p class="empty-state">Click a row to view protein details</p></div>
+    </div>
+  `;
+
+  initTable();
+  initFilterListeners();
+  document.getElementById('export-btn').addEventListener('click', exportCSV);
+
+  // Close organism panel on outside click
+  document.addEventListener('click', e => {
+    const wrap = document.getElementById('organism-dropdown-wrap');
+    if (wrap && !wrap.contains(e.target)) document.getElementById('organism-panel').classList.remove('open');
+  });
+}
+
+function toggleOrganismPanel() {
+  document.getElementById('organism-panel').classList.toggle('open');
+}
+
+function toggleAllOrganisms(cb) {
+  document.querySelectorAll('.org-cb').forEach(el => el.checked = cb.checked);
+  updateOrganismBtn();
+  applyFilters();
+}
+
+function updateOrganismBtn() {
+  const all = document.querySelectorAll('.org-cb');
+  const checked = document.querySelectorAll('.org-cb:checked');
+  const allCb = document.querySelector('input[value="__all__"]');
+  if (allCb) allCb.checked = all.length === checked.length;
+  const btn = document.getElementById('organism-btn');
+  if (btn) btn.textContent = (all.length === checked.length ? 'All' : `${checked.length}/${all.length}`) + ' ▾';
+  applyFilters();
 }
 </script>
 </body>
