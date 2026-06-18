@@ -116,6 +116,11 @@
   border-bottom: 1px solid #0f3460; font-weight: normal; }
 .stats-table td { padding: 5px 8px; border-bottom: 1px solid #1a2a4e; }
 .stats-table tr.sig { background: rgba(0,200,100,0.08); }
+
+/* Row hover styles */
+.tabulator-row:hover { background: rgba(126,179,255,0.07) !important; cursor: pointer; }
+.tabulator-row.tabulator-selected { background: rgba(126,179,255,0.15) !important; }
+.tabulator-row.tabulator-selected:hover { background: rgba(126,179,255,0.2) !important; }
 </style>
 </head>
 <body>
@@ -406,6 +411,11 @@ function showDetail(row) {
   `;
 }
 
+function exportCSV() {
+  if (!table) return;
+  table.download('csv', 'protein_explorer_export.csv');
+}
+
 function launchApp() {
   document.getElementById('drop-screen').style.display = 'none';
   const app = document.getElementById('app');
@@ -470,6 +480,7 @@ function launchApp() {
   `;
 
   initTable();
+  setTimeout(updateCount, 200);
   initFilterListeners();
   document.getElementById('export-btn').addEventListener('click', exportCSV);
 }
