@@ -82,6 +82,7 @@ function handleFile(file) {
   if (!file) return;
   if (!file.name.match(/\.xlsx?$/i)) { showError('Please drop an .xlsx file.'); return; }
   const reader = new FileReader();
+  reader.onerror = () => showError('Failed to read file. Please try again.');
   reader.onload = e => {
     try {
       const wb = XLSX.read(e.target.result, { type: 'array' });
