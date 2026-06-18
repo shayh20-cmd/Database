@@ -236,6 +236,91 @@ function parseRows(raw) {
   });
 }
 
+let table = null;
+
+function compCols() {
+  const c = COMPARISONS[state.comparison];
+  return { p: c.p, q: c.q, ratio: c.ratio, diff: c.diff, label: c.label };
+}
+
+function fmtNum(val, decimals = 4) {
+  if (val === null || val === undefined || val === '') return '—';
+  const n = parseFloat(val);
+  if (isNaN(n)) return '—';
+  if (Math.abs(n) < 0.001 || Math.abs(n) >= 10000) return n.toExponential(2);
+  return n.toFixed(decimals);
+}
+
+function fmtRatio(val) {
+  if (val === null || val === undefined) return '—';
+  const n = parseFloat(val);
+  if (isNaN(n)) return '—';
+  return n.toFixed(2) + '×';
+}
+
+function initTable() {
+  const cc = compCols();
+  table = new Tabulator('#table-wrap', {
+    data: state.rows,
+    layout: 'fitColumns',
+    height: '100%',
+    virtualDom: true,
+    selectable: 1,
+    columns: [
+      { title: 'Gene',        field: 'gene',        width: 90, sorter: 'string',
+        formatter: cell => cell.getValue() || '<span style="color:#555">—</span>' },
+      { title: 'Description', field: 'description', minWidth: 160, sorter: 'string',
+        formatter: cell => {
+          const v = cell.getValue() || '';
+          return `<span title="${v}">${v.length > 55 ? v.slice(0,55)+'…' : v}</span>`;
+        }
+      },
+      { title: 'Organism',    field: 'organism',    width: 110, sorter: 'string' },
+      { title: 'Peptides',    field: 'peptides',    width: 75,  sorter: 'number', hozAlign: 'right' },
+      { title: 'Ratio',       field: cc.ratio,      width: 80,  sorter: 'number', hozAlign: 'right',
+        formatter: cell => fmtRatio(cell.getValue()) },
+      { title: 'p-value',     field: cc.p,          width: 90,  sorter: 'number', hozAlign: 'right',
+        formatter: cell => fmtNum(cell.getValue()) },
+      { title: 'q-value',     field: cc.q,          width: 90,  sorter: 'number', hozAlign: 'right',
+        formatter: cell => fmtNum(cell.getValue()) },
+      { title: 'Difference',  field: cc.diff,       width: 90,  sorter: 'number', hozAlign: 'right',
+        formatter: cell => fmtNum(cell.getValue(), 3) },
+    ],
+    rowClick: (_e, row) => showDetail(row.getData()),
+    dataProcessed: () => updateCount(),
+  });
+}
+
+function updateCount() {
+  const el = document.getElementById('protein-count');
+  if (el && table) el.textContent = `${table.getDataCount('active').toLocaleString()} proteins`;
+}
+
+function rebuildTableColumns() {
+  if (!table) return;
+  const cc = compCols();
+  table.setColumns([
+    { title: 'Gene',        field: 'gene',        width: 90,  sorter: 'string',
+      formatter: cell => cell.getValue() || '<span style="color:#555">—</span>' },
+    { title: 'Description', field: 'description', minWidth: 160, sorter: 'string',
+      formatter: cell => {
+        const v = cell.getValue() || '';
+        return `<span title="${v}">${v.length > 55 ? v.slice(0,55)+'…' : v}</span>`;
+      }
+    },
+    { title: 'Organism',    field: 'organism',    width: 110, sorter: 'string' },
+    { title: 'Peptides',    field: 'peptides',    width: 75,  sorter: 'number', hozAlign: 'right' },
+    { title: 'Ratio',       field: cc.ratio,      width: 80,  sorter: 'number', hozAlign: 'right',
+      formatter: cell => fmtRatio(cell.getValue()) },
+    { title: 'p-value',     field: cc.p,          width: 90,  sorter: 'number', hozAlign: 'right',
+      formatter: cell => fmtNum(cell.getValue()) },
+    { title: 'q-value',     field: cc.q,          width: 90,  sorter: 'number', hozAlign: 'right',
+      formatter: cell => fmtNum(cell.getValue()) },
+    { title: 'Difference',  field: cc.diff,       width: 90,  sorter: 'number', hozAlign: 'right',
+      formatter: cell => fmtNum(cell.getValue(), 3) },
+  ]);
+}
+
 function launchApp() {
   document.getElementById('drop-screen').style.display = 'none';
   const app = document.getElementById('app');
