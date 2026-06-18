@@ -305,6 +305,61 @@ function rebuildTableColumns() {
   table.setColumns(buildColumns());
 }
 
+function initFilterListeners() {
+  ['f-pval','f-qval','f-fc','f-peptides'].forEach(id => {
+    document.getElementById(id).addEventListener('input', applyFilters);
+  });
+  document.getElementById('f-search').addEventListener('input', applyFilters);
+  document.getElementById('f-comparison').addEventListener('change', e => {
+    state.comparison = e.target.value;
+    rebuildTableColumns();
+    applyFilters();
+  });
+  // org checkboxes wire themselves via onchange in HTML
+}
+
+function applyFilters() {
+  if (!table) return;
+  const cc = compCols();
+  const pMax      = parseFloat(document.getElementById('f-pval').value)    || Infinity;
+  const qMax      = parseFloat(document.getElementById('f-qval').value)    || Infinity;
+  const fcMin     = parseFloat(document.getElementById('f-fc').value)      || 0;
+  const pepMin    = parseInt(document.getElementById('f-peptides').value)   || 0;
+  const search    = (document.getElementById('f-search').value || '').toLowerCase().trim();
+  const orgs      = new Set([...document.querySelectorAll('.org-cb:checked')].map(el => el.value));
+
+  table.setFilter(row => {
+    if (row[cc.p]     !== null && row[cc.p]     > pMax)  return false;
+    if (row[cc.q]     !== null && row[cc.q]     > qMax)  return false;
+    if (row[cc.ratio] !== null && row[cc.ratio] < fcMin) return false;
+    if (row.peptides  !== null && row.peptides  < pepMin) return false;
+    if (!orgs.has(row.organism))                          return false;
+    if (search) {
+      const haystack = [row.gene, row.description, row.proteinId, row.entryName]
+        .map(v => (v || '').toLowerCase()).join(' ');
+      if (!haystack.includes(search)) return false;
+    }
+    return true;
+  });
+}
+
+function resetFilters() {
+  document.getElementById('f-pval').value    = '';
+  document.getElementById('f-qval').value    = '';
+  document.getElementById('f-fc').value      = '';
+  document.getElementById('f-peptides').value = '';
+  document.getElementById('f-search').value  = '';
+  document.getElementById('f-comparison').value = 'ExpCtrl';
+  state.comparison = 'ExpCtrl';
+  document.querySelectorAll('.org-cb').forEach(el => el.checked = true);
+  const allCb = document.querySelector('input[value="__all__"]');
+  if (allCb) allCb.checked = true;
+  updateOrganismBtn();
+  rebuildTableColumns();
+  table.clearFilter();
+  updateCount();
+}
+
 function launchApp() {
   document.getElementById('drop-screen').style.display = 'none';
   const app = document.getElementById('app');
