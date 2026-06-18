@@ -360,6 +360,52 @@ function resetFilters() {
   updateCount();
 }
 
+function showDetail(row) {
+  const panel = document.getElementById('detail-panel');
+  if (!panel) return;
+
+  const uniprotUrl = `https://www.uniprot.org/uniprot/${escapeHtml(row.proteinId)}`;
+
+  const statsRows = Object.entries(COMPARISONS).map(([key, c]) => {
+    const p = row[c.p];
+    const sig = p !== null && p <= 0.05;
+    return `<tr class="${sig ? 'sig' : ''}">
+      <td>${escapeHtml(c.label)}</td>
+      <td>${fmtRatio(row[c.ratio])}</td>
+      <td>${fmtNum(row[c.p])}</td>
+      <td>${fmtNum(row[c.q])}</td>
+      <td>${fmtNum(row[c.diff], 3)}</td>
+    </tr>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <div class="detail-section">
+      <h3>Identity</h3>
+      <div class="detail-row"><span class="detail-key">Gene</span><span class="detail-val">${escapeHtml(row.gene || '—')}</span></div>
+      <div class="detail-row"><span class="detail-key">Protein ID</span><span class="detail-val"><a href="${uniprotUrl}" target="_blank" rel="noopener">${escapeHtml(row.proteinId || '—')}</a></span></div>
+      <div class="detail-row"><span class="detail-key">Entry Name</span><span class="detail-val">${escapeHtml(row.entryName || '—')}</span></div>
+      <div class="detail-row"><span class="detail-key">Organism</span><span class="detail-val">${escapeHtml(row.organism || '—')}</span></div>
+      <div class="detail-row"><span class="detail-key">Length</span><span class="detail-val">${row.proteinLength ? escapeHtml(String(row.proteinLength)) + ' aa' : '—'}</span></div>
+      <div class="detail-row"><span class="detail-key">Peptides</span><span class="detail-val">${row.peptides ?? '—'}</span></div>
+      <div class="detail-row"><span class="detail-key">Protein prob.</span><span class="detail-val">${row.proteinProbability !== null ? parseFloat(row.proteinProbability).toFixed(4) : '—'}</span></div>
+      <div class="detail-row"><span class="detail-key">Top peptide prob.</span><span class="detail-val">${row.topPeptideProbability !== null ? parseFloat(row.topPeptideProbability).toFixed(4) : '—'}</span></div>
+      <div class="detail-row" style="align-items:flex-start"><span class="detail-key">Description</span></div>
+      <p class="detail-desc">${escapeHtml(row.description || '—')}</p>
+    </div>
+
+    <div class="detail-section">
+      <h3>Statistics</h3>
+      <table class="stats-table">
+        <thead><tr>
+          <th>Comparison</th><th>Ratio</th><th>p-value</th><th>q-value</th><th>Difference</th>
+        </tr></thead>
+        <tbody>${statsRows}</tbody>
+      </table>
+      <p style="font-size:0.72rem;color:#555;margin-top:6px">Green rows: p ≤ 0.05</p>
+    </div>
+  `;
+}
+
 function launchApp() {
   document.getElementById('drop-screen').style.display = 'none';
   const app = document.getElementById('app');
