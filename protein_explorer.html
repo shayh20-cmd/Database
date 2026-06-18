@@ -141,7 +141,7 @@ function parseRows(raw) {
       row[key] = r[col] ?? null;
     }
     // Normalise organism to short name
-    row.organism = (row.organism || '').replace('Drosophila melanogaster', 'D. melanogaster')
+    row.organism = (row.organism || '').trim().replace('Drosophila melanogaster', 'D. melanogaster')
                                        .replace('Saccharomyces cerevisiae (strain ATCC 204508 / S288c)', 'S. cerevisiae')
                                        .replace('Homo sapiens', 'H. sapiens')
                                        .replace('Bos taurus', 'B. taurus')
