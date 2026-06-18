@@ -143,6 +143,10 @@ const state = {
   comparison: 'ExpCtrl', // active comparison key
 };
 
+function escapeHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // ── Drop zone wiring ───────────────────────────────────────────────────────
 const dropTarget = document.getElementById('drop-target');
 const fileInput  = document.getElementById('file-input');
@@ -275,7 +279,7 @@ function launchApp() {
         <button id="organism-btn" onclick="toggleOrganismPanel()">All ▾</button>
         <div id="organism-panel">
           <label class="org-option"><input type="checkbox" value="__all__" checked onchange="toggleAllOrganisms(this)"> All</label>
-          ${organisms.map(o => `<label class="org-option"><input type="checkbox" class="org-cb" value="${o}" checked onchange="updateOrganismBtn()"> ${o}</label>`).join('')}
+          ${organisms.map(o => `<label class="org-option"><input type="checkbox" class="org-cb" value="${escapeHtml(o)}" checked onchange="updateOrganismBtn()"> ${escapeHtml(o)}</label>`).join('')}
         </div>
       </div>
       <div class="filter-group">
@@ -298,12 +302,6 @@ function launchApp() {
   initTable();
   initFilterListeners();
   document.getElementById('export-btn').addEventListener('click', exportCSV);
-
-  // Close organism panel on outside click
-  document.addEventListener('click', e => {
-    const wrap = document.getElementById('organism-dropdown-wrap');
-    if (wrap && !wrap.contains(e.target)) document.getElementById('organism-panel').classList.remove('open');
-  });
 }
 
 function toggleOrganismPanel() {
@@ -325,6 +323,15 @@ function updateOrganismBtn() {
   if (btn) btn.textContent = (all.length === checked.length ? 'All' : `${checked.length}/${all.length}`) + ' ▾';
   applyFilters();
 }
+
+// Close organism panel on outside click
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('organism-dropdown-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    const panel = document.getElementById('organism-panel');
+    if (panel) panel.classList.remove('open');
+  }
+});
 </script>
 </body>
 </html>
