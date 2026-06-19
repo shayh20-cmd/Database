@@ -293,6 +293,7 @@ function initTable() {
     layout: 'fitColumns',
     height: '100%',
     virtualDom: true,
+    resizableColumns: true,
     selectable: 1,
     columns: buildColumns(),
     rowClick: (_e, row) => showDetail(row.getData()),
