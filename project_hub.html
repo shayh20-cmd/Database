@@ -6221,6 +6221,24 @@ function ListView({data, save}) {
     savePartial({tasks:tasks.map(t=>t.id===taskDragSrc?{...t,groupId}:t)});
     setTaskDragSrc(null);setTaskDragTarget(null);
   };
+  /* Dropping a task into a group-by (virtual) row updates whatever field that row
+     represents — e.g. dragging into a "תחום: ARCH" row sets discipline:'ARCH'. For
+     field:'section' this is groupId, same as a real section drop. targetId is the
+     task being dropped onto (for reordering); null means dropped on the row header
+     itself (e.g. an empty group). */
+  const handleVgTaskDrop=(field,value,targetId)=>{
+    if(!taskDragSrc){return;}
+    const src=tasks.find(t=>t.id===taskDragSrc);
+    if(!src){setTaskDragSrc(null);setTaskDragTarget(null);return;}
+    const patch=field==='section'?{groupId:value}:field==='statusId'?{statusId:value,done:value==='C'}:{[field]:value};
+    const updatedSrc={...src,...patch};
+    const without=tasks.filter(t=>t.id!==taskDragSrc);
+    const tgtIdx=targetId&&targetId!==taskDragSrc?without.findIndex(t=>t.id===targetId):-1;
+    if(tgtIdx>=0) without.splice(tgtIdx,0,updatedSrc);
+    else without.push(updatedSrc);
+    savePartial({tasks:without});
+    setTaskDragSrc(null);setTaskDragTarget(null);
+  };
 
   /* Column width helper */
   const getColW=id=>colWidths[id]??COL_DEFS[id]?.defaultW??120;
@@ -6614,13 +6632,14 @@ function ListView({data, save}) {
                 savePartial({tasks:[...tasks,{id,groupId:gId,title:'',statusId:'N',priority:'',discipline:'',startDate:'',dueDate:'',comment:'',done:false,subtasks:[],fieldValues:{},events:[],...fieldPatch}]});
                 setNewTaskId(id);
               };
-              const renderVgTaskRows=(taskList,doneKey)=>{
+              const renderVgTaskRows=(taskList,doneKey,field,value)=>{
                 const active=taskList.filter(t=>t.statusId!=='C');
                 const done=taskList.filter(t=>t.statusId==='C');
                 const doneOpen2=openDone.has(doneKey);
                 const toggleDone2=()=>setOpenDone(prev=>{const n=new Set(prev);n.has(doneKey)?n.delete(doneKey):n.add(doneKey);return n;});
+                const taskRowPropsHere={...taskRowPropsV,onTaskDrop:id=>handleVgTaskDrop(field,value,id)};
                 return(<>
-                  {active.map(task=>(<TaskRow key={task.id} task={task} {...taskRowPropsV} autoFocus={task.id===newTaskId} onUpdate={t=>{setNewTaskId(null);updateTask(t);}} onDelete={()=>{setNewTaskId(null);deleteTask(task.id);}}/>))}
+                  {active.map(task=>(<TaskRow key={task.id} task={task} {...taskRowPropsHere} autoFocus={task.id===newTaskId} onUpdate={t=>{setNewTaskId(null);updateTask(t);}} onDelete={()=>{setNewTaskId(null);deleteTask(task.id);}}/>))}
                   {done.length>0&&(<>
                     <tr className="done-sec-row" onClick={toggleDone2}>
                       <td colSpan={colSpan2}><div style={{display:'flex',alignItems:'center',gap:7}}>
@@ -6629,7 +6648,7 @@ function ListView({data, save}) {
                         <span style={{fontSize:11,fontWeight:400,color:'#888'}}>{done.length} משימות</span>
                       </div></td>
                     </tr>
-                    {doneOpen2&&done.map(task=>(<TaskRow key={task.id} task={task} {...taskRowPropsV} autoFocus={task.id===newTaskId} onUpdate={t=>{setNewTaskId(null);updateTask(t);}} onDelete={()=>{setNewTaskId(null);deleteTask(task.id);}}/>))}
+                    {doneOpen2&&done.map(task=>(<TaskRow key={task.id} task={task} {...taskRowPropsHere} autoFocus={task.id===newTaskId} onUpdate={t=>{setNewTaskId(null);updateTask(t);}} onDelete={()=>{setNewTaskId(null);deleteTask(task.id);}}/>))}
                   </>)}
                 </>);
               };
@@ -6638,7 +6657,9 @@ function ListView({data, save}) {
                  same options menu real (non-virtual) section rows have. */
               const vgRealGroup=vg.field==='section'?groups.find(g=>g.id===vg.value):null;
               return(<React.Fragment key={vg.id}>
-                <tr className="sec-row" onClick={()=>toggleVg(vg.id)} style={{cursor:'pointer'}}>
+                <tr className="sec-row" onClick={()=>toggleVg(vg.id)} style={{cursor:'pointer'}}
+                  onDragOver={e=>{if(taskDragSrc){e.preventDefault();}}}
+                  onDrop={e=>{e.preventDefault();handleVgTaskDrop(vg.field,vg.value,null);}}>
                   <td colSpan={colSpan2}>
                     <div style={{display:'flex',alignItems:'center',gap:8}}>
                       <button onClick={e=>{e.stopPropagation();toggleVg(vg.id);}}
@@ -6688,7 +6709,9 @@ function ListView({data, save}) {
                 </tr>
                 {!vgCollapsed && (vg.subGroups
                   ?vg.subGroups.map(sg=>(<React.Fragment key={sg.id}>
-                      <tr className="sub-sec-row" onClick={()=>toggleVg(sg.id)} style={{cursor:'pointer'}}>
+                      <tr className="sub-sec-row" onClick={()=>toggleVg(sg.id)} style={{cursor:'pointer'}}
+                        onDragOver={e=>{if(taskDragSrc){e.preventDefault();}}}
+                        onDrop={e=>{e.preventDefault();handleVgTaskDrop(sg.field,sg.value,null);}}>
                         <td colSpan={colSpan2}>
                           <div style={{display:'flex',alignItems:'center',gap:7}}>
                             <button onClick={e=>{e.stopPropagation();toggleVg(sg.id);}}
@@ -6707,9 +6730,9 @@ function ListView({data, save}) {
                           </div>
                         </td>
                       </tr>
-                      {!collVg[sg.id] && renderVgTaskRows(sg.tasks,sg.id)}
+                      {!collVg[sg.id] && renderVgTaskRows(sg.tasks,sg.id,sg.field,sg.value)}
                     </React.Fragment>))
-                  :renderVgTaskRows(vg.tasks,vg.id))}
+                  :renderVgTaskRows(vg.tasks,vg.id,vg.field,vg.value))}
                 {!vgCollapsed && <tr className="add-task-row"><td colSpan={colSpan2}>
                   <button className="add-task-btn" onClick={addTaskForVg}>
                     <span style={{fontSize:16,lineHeight:1,color:'var(--accent)'}}>+</span> הוסף משימה
