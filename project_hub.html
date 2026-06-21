@@ -6433,14 +6433,23 @@ function ListView({data, save}) {
       return null;
     };
     const priOrder=Object.fromEntries(priorities.map((p,i)=>[p.id,i]));
-    const primaryValues=[...new Set(display.map(t=>fieldValueOf(primaryField,t)))];
+    /* For 'section', show every real group (even ones with 0 tasks yet) instead of only
+       values that already appear on a task — otherwise a freshly-added section is invisible
+       until something is assigned to it. */
+    const valuesOf=(field,taskList)=>{
+      const found=[...new Set(taskList.map(t=>fieldValueOf(field,t)))];
+      if(field!=='section') return found;
+      const realIds=groups.map(g=>g.id);
+      return [...realIds,...found.filter(v=>!realIds.includes(v))];
+    };
+    const primaryValues=valuesOf(primaryField,display);
     if(primaryField==='priority') primaryValues.sort((a,b)=>(priOrder[a]??99)-(priOrder[b]??99));
     return primaryValues.map(val=>{
       const gTasks=display.filter(t=>fieldValueOf(primaryField,t)===val);
       let subGroups=null;
       if(groupByState.length>=2){
         const secField=groupByState[1].field;
-        const secVals=[...new Set(gTasks.map(t=>fieldValueOf(secField,t)))];
+        const secVals=valuesOf(secField,gTasks);
         if(secField==='priority') secVals.sort((a,b)=>(priOrder[a]??99)-(priOrder[b]??99));
         subGroups=secVals.map(sval=>({
           id:`vg_${val}_${sval}`,
@@ -6663,7 +6672,7 @@ function ListView({data, save}) {
                           onClick={e=>{
                             e.stopPropagation();
                             const r=e.currentTarget.getBoundingClientRect();
-                            setSecMenu(secMenu?.id===vgRealGroup.id?null:{id:vgRealGroup.id,left:Math.max(4,r.left),y:r.bottom+4,gRef:vgRealGroup,fromVirtual:true});
+                            setSecMenu(secMenu?.id===vgRealGroup.id?null:{id:vgRealGroup.id,left:Math.max(4,r.left),y:r.bottom+4,gRef:vgRealGroup});
                           }}
                           style={{background:'none',border:'none',cursor:'pointer',
                             color:'var(--text-3)',padding:'2px 5px',borderRadius:4,display:'flex',
@@ -6860,7 +6869,7 @@ function ListView({data, save}) {
         const g = secMenu.gRef;
         const ITEMS = [
           {icon:'✏', label:'שנה שם',    action:()=>{setGroupNameDraft(g.name);setEditingGroupId(g.id);setSecMenu(null);}},
-          {icon:'+', label:'הוסף מקטע', action:()=>{addGroup(g.id);if(secMenu.fromVirtual)setGroupByState([{field:'section'}]);setSecMenu(null);}},
+          {icon:'+', label:'הוסף מקטע', action:()=>{addGroup(g.id);setSecMenu(null);}},
           {icon:'⧉', label:'שכפל מקטע', action:()=>{setDupModal({group:g,name:'עותק של '+g.name,copyTasks:true,copySubtasks:true,copyUpdates:false});setSecMenu(null);}},
           null,
           {icon:'×', label:'מחק מקטע', danger:true, action:()=>{setDelModal({group:g,choice:null});setSecMenu(null);}},
