@@ -6168,6 +6168,7 @@ function ListView({data, save}) {
   const [dragTarget,setDragTarget]=useState(null);        /* drag-over group id */
   const [secMenu,setSecMenu]=useState(null);  /* {id, x, y} — floating section menu */
   const [expandSignal,setExpandSignal]=useState(null);  /* {ids:Set, expand:bool, ts} — bulk expand/collapse all tasks in a section */
+  const [secPhase,setSecPhase]=useState({});  /* per-section open/close phase when sub-groups exist: 0=groups closed,1=groups open/tasks closed,2=groups+tasks open */
   const [collVg,setCollVg]=useState({});      /* collapsed state for virtual (group-by) rows, keyed by vg/sg id */
   const toggleVg=id=>setCollVg(c=>({...c,[id]:!c[id]}));
   const [dupModal,setDupModal]=useState(null); /* {group, name, copyTasks, copySubtasks, copyUpdates} */
@@ -6668,7 +6669,7 @@ function ListView({data, save}) {
                           onClick={e=>{
                             e.stopPropagation();
                             const r=e.currentTarget.getBoundingClientRect();
-                            setSecMenu(secMenu?.id===vgRealGroup.id?null:{id:vgRealGroup.id,left:Math.max(4,r.left),y:r.bottom+4,gRef:vgRealGroup,taskIds:vg.tasks.map(t=>t.id)});
+                            setSecMenu(secMenu?.id===vgRealGroup.id?null:{id:vgRealGroup.id,left:Math.max(4,r.left),y:r.bottom+4,gRef:vgRealGroup,taskIds:vg.tasks.map(t=>t.id),subGroupIds:vg.subGroups?vg.subGroups.map(sg=>sg.id):null});
                           }}
                           style={{background:'none',border:'none',cursor:'pointer',
                             color:'var(--text-3)',padding:'2px 5px',borderRadius:4,display:'flex',
@@ -6870,8 +6871,38 @@ function ListView({data, save}) {
           {icon:'+', label:'הוסף מקטע', action:()=>{addGroup(g.id);setSecMenu(null);}},
           {icon:'⧉', label:'שכפל מקטע', action:()=>{setDupModal({group:g,name:'עותק של '+g.name,copyTasks:true,copySubtasks:true,copyUpdates:false});setSecMenu(null);}},
           null,
-          {icon:'▾', label:'פתח את כל המשימות', action:()=>{setExpandSignal({ids:new Set(secMenu.taskIds||[]),expand:true,ts:Date.now()});setSecMenu(null);}},
-          {icon:'▴', label:'סגור את כל המשימות', action:()=>{setExpandSignal({ids:new Set(secMenu.taskIds||[]),expand:false,ts:Date.now()});setSecMenu(null);}},
+          {icon:'▾', label:'פתח את כל המשימות', action:()=>{
+            const subIds=secMenu.subGroupIds;
+            if(subIds&&subIds.length){
+              const cur=secPhase[secMenu.id]||0;
+              if(cur<1){
+                setCollVg(c=>{const n={...c};subIds.forEach(id=>n[id]=false);return n;});
+                setSecPhase(p=>({...p,[secMenu.id]:1}));
+              } else {
+                setExpandSignal({ids:new Set(secMenu.taskIds||[]),expand:true,ts:Date.now()});
+                setSecPhase(p=>({...p,[secMenu.id]:2}));
+              }
+            } else {
+              setExpandSignal({ids:new Set(secMenu.taskIds||[]),expand:true,ts:Date.now()});
+            }
+            setSecMenu(null);
+          }},
+          {icon:'▴', label:'סגור את כל המשימות', action:()=>{
+            const subIds=secMenu.subGroupIds;
+            if(subIds&&subIds.length){
+              const cur=secPhase[secMenu.id]??2;
+              if(cur>1){
+                setExpandSignal({ids:new Set(secMenu.taskIds||[]),expand:false,ts:Date.now()});
+                setSecPhase(p=>({...p,[secMenu.id]:1}));
+              } else {
+                setCollVg(c=>{const n={...c};subIds.forEach(id=>n[id]=true);return n;});
+                setSecPhase(p=>({...p,[secMenu.id]:0}));
+              }
+            } else {
+              setExpandSignal({ids:new Set(secMenu.taskIds||[]),expand:false,ts:Date.now()});
+            }
+            setSecMenu(null);
+          }},
           null,
           {icon:'×', label:'מחק מקטע', danger:true, action:()=>{setDelModal({group:g,choice:null});setSecMenu(null);}},
         ];
