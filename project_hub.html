@@ -5181,7 +5181,8 @@ function SettingsPanel({data, save, onClose}) {
 /* ══════════════════════════════════════
    Toolbar with Filter / Sort
 ══════════════════════════════════════ */
-function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState, setSortState, groupByState, setGroupByState, onSettings, settingsOpen, views, activeViewId, activeViewName, isViewDirty, onSaveView, onLoadView, onDeleteView, onRenameView, onUpdateView}) {
+function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState, setSortState, groupByState, setGroupByState, onSettings, settingsOpen, views, activeViewId, activeViewName, isViewDirty, onSaveView, onLoadView, onDeleteView, onRenameView, onUpdateView, trackOptions, stageOptions}) {
+  const groupFields = [...GROUP_FIELDS, ...((trackOptions?.length||stageOptions?.length)?[{field:'__track',label:'מסלול'},{field:'__stage',label:'שלב'}]:[])];
   const {priorities, disciplines} = useContext(ListsCtx);
   const [showFilter,setShowFilter]=useState(false);
   const [showSort,setShowSort]=useState(false);
@@ -5373,7 +5374,9 @@ function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState,
               {!filterStep&&(
                 <>
                   <div className="dp-title">סנן לפי</div>
-                  {[['priority','עדיפות'],['discipline','תחום'],['status','סטטוס']].map(([col,lbl])=>{
+                  {[['priority','עדיפות'],['discipline','תחום'],['status','סטטוס'],
+                    ...(trackOptions?.length?[['track','מסלול']]:[]),
+                    ...(stageOptions?.length?[['stage','שלב']]:[])].map(([col,lbl])=>{
                     const n=(filterMap[col]||[]).length;
                     return (
                       <div key={col} className="dp-opt" onClick={()=>setFilterStep(col)}>
@@ -5417,6 +5420,36 @@ function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState,
                   })}
                 </>
               )}
+              {filterStep==='track'&&(
+                <>
+                  <div className="dp-opt" style={{color:'var(--text-3)',fontSize:11,cursor:'pointer'}} onClick={()=>setFilterStep(null)}>‹ חזרה</div>
+                  <div className="dp-title">מסלול</div>
+                  {(trackOptions||[]).map(v=>{
+                    const sel=(filterMap.track||[]).includes(v);
+                    return (
+                      <div key={v} className="dp-opt" onClick={()=>toggleFilter('track',v)}>
+                        <span style={{width:14,fontSize:12,color:'var(--accent)'}}>{sel?'✓':''}</span>
+                        {v}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+              {filterStep==='stage'&&(
+                <>
+                  <div className="dp-opt" style={{color:'var(--text-3)',fontSize:11,cursor:'pointer'}} onClick={()=>setFilterStep(null)}>‹ חזרה</div>
+                  <div className="dp-title">שלב</div>
+                  {(stageOptions||[]).map(v=>{
+                    const sel=(filterMap.stage||[]).includes(v);
+                    return (
+                      <div key={v} className="dp-opt" onClick={()=>toggleFilter('stage',v)}>
+                        <span style={{width:14,fontSize:12,color:'var(--accent)'}}>{sel?'✓':''}</span>
+                        {v}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
               {filterStep==='status'&&(
                 <>
                   <div className="dp-opt" style={{color:'var(--text-3)',fontSize:11,cursor:'pointer'}} onClick={()=>setFilterStep(null)}>‹ חזרה</div>
@@ -5454,7 +5487,7 @@ function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState,
                     <div style={{padding:'6px 14px 8px',color:'var(--text-3)',fontSize:12}}>אין קבוצה פעילה</div>
                   )}
                   {groupList.map((g,i)=>{
-                    const lbl=GROUP_FIELDS.find(f=>f.field===g.field)?.label||g.field;
+                    const lbl=groupFields.find(f=>f.field===g.field)?.label||g.field;
                     return(
                       <div key={g.field} className={`sort-crit-row${groupDragOver===i?' sort-crit-drop':''}`}
                         draggable
@@ -5481,7 +5514,7 @@ function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState,
                     );
                   })}
                   <div style={{padding:'6px 0 4px',borderTop:groupList.length?'1px solid var(--border)':'none'}}>
-                    {groupList.length<GROUP_FIELDS.length&&(
+                    {groupList.length<groupFields.length&&(
                       <div className="dp-opt" onClick={()=>setGroupAddStep(true)}>
                         <span style={{color:'var(--blue)',fontWeight:700,fontSize:14,lineHeight:1}}>+</span> הוסף רמת קבוצה
                       </div>
@@ -5497,7 +5530,7 @@ function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState,
                 <>
                   <div className="dp-opt" style={{color:'var(--text-3)',fontSize:11,cursor:'pointer',padding:'8px 12px'}} onClick={()=>setGroupAddStep(false)}>‹ חזרה</div>
                   <div className="dp-title" style={{padding:'0 12px 6px'}}>בחר שדה</div>
-                  {GROUP_FIELDS.filter(f=>!groupList.find(g=>g.field===f.field)).map(f=>(
+                  {groupFields.filter(f=>!groupList.find(g=>g.field===f.field)).map(f=>(
                     <div key={f.field} className="dp-opt" onClick={()=>{setGroupByState([...groupList,{field:f.field}]);setGroupAddStep(false);}}>
                       {f.label}
                     </div>
@@ -6476,6 +6509,8 @@ function ListView({data, save}) {
       if(filterState.priority?.length   && !filterState.priority.includes(t.priority))    return false;
       if(filterState.discipline?.length && !filterState.discipline.includes(t.discipline))return false;
       if(filterState.status?.length     && !filterState.status.includes(t.statusId))      return false;
+      if(filterState.track?.length      && !filterState.track.includes(t.__track))        return false;
+      if(filterState.stage?.length      && !filterState.stage.includes(t.__stage))         return false;
       return true;
     });
   }
@@ -6585,7 +6620,7 @@ function ListView({data, save}) {
     const fieldValueOf=(field,t)=>field==='section'?(t.groupId||''):(t[field]??'');
     const getLabel=(field,value)=>{
       if(field==='section'){const g=groups.find(x=>x.id===value);return g?g.name:'ללא מקטע';}
-      if(!value) return 'ללא '+(GROUP_FIELDS.find(f=>f.field===field)?.label||'');
+      if(!value) return 'ללא '+([...GROUP_FIELDS,{field:'__track',label:'מסלול'},{field:'__stage',label:'שלב'}].find(f=>f.field===field)?.label||'');
       if(field==='discipline'){const d=disciplines.find(x=>x.id===value);return d?d.label:value;}
       if(field==='priority')  {const p=priorities.find(x=>x.id===value); return p?p.label:value;}
       if(field==='statusId')  {const s=STATUSES.find(x=>x.id===value);   return s?s.label:value;}
@@ -6650,7 +6685,9 @@ function ListView({data, save}) {
         views={views} activeViewId={activeViewId} activeViewName={activeView?.name}
         isViewDirty={isViewDirty} onUpdateView={updateView}
         onSaveView={saveView} onLoadView={loadView} onDeleteView={deleteView} onRenameView={renameView}
-        onSettings={()=>setShowSettings(o=>!o)} settingsOpen={showSettings}/>
+        onSettings={()=>setShowSettings(o=>!o)} settingsOpen={showSettings}
+        trackOptions={data.__combined ? [...new Set(tasks.map(t=>t.__track).filter(Boolean))] : null}
+        stageOptions={data.__combined ? [...new Set(tasks.map(t=>t.__stage).filter(Boolean))] : null}/>
 
 
       {/* Table */}
@@ -7266,6 +7303,7 @@ const NT_TRACK_TABS = [
   {id:'ongoing',   label:'ניהול שוטף',  match: s => s.track==null},
   {id:'licensing', label:'מסלול רישוי', match: s => s.track==='licensing'},
 ];
+const trackLabelOf = s => (NT_TRACK_TABS.find(t => t.match(s)) || {}).label || (s.track || 'ניהול שוטף');
 
 function NihulTikhnunView({data, save}) {
   const priorities  = data.priorities  || PRIORITIES;
@@ -7275,8 +7313,9 @@ function NihulTikhnunView({data, save}) {
   const [activeTrackTab, setActiveTrackTab] = useState(NT_TRACK_TABS[0].id);
 
   const allSheets = data.sheets || [];
+  const isCombinedTab = activeTrackTab==='combined';
   const activeTab = NT_TRACK_TABS.find(t => t.id===activeTrackTab) || NT_TRACK_TABS[0];
-  const visibleSheets = allSheets.filter(s => s.type==='list' && activeTab.match(s));
+  const visibleSheets = isCombinedTab ? [] : allSheets.filter(s => s.type==='list' && activeTab.match(s));
 
   const [collStage, setCollStage] = useState({});
   const toggleStage = id => setCollStage(c => ({...c, [id]: !c[id]}));
@@ -7285,6 +7324,48 @@ function NihulTikhnunView({data, save}) {
      ListView calls save() with the fully-merged sheet object. */
   const saveSheet = (sheetId, fullSheet) =>
     save({...data, sheets: data.sheets.map(s => s.id===sheetId ? fullSheet : s)});
+
+  /* ── Combined view — merges tasks from every stage/track into one ListView,
+     tagged with __srcSheetId/__track/__stage so מסלול/שלב become real
+     group-by + filter fields. Edits route back to their origin sheet;
+     view/column settings live in their own data.combinedView slot. */
+  const combinedSourceSheets = allSheets.filter(s => s.type==='list');
+  const combinedMeta = data.combinedView || {id:'__combined__', name:'מבט מאוחד', groups:[], fields:[], hiddenCols:{}, colOrder:[], colWidths:{}, views:[]};
+  const ongoingSheetId = (allSheets.find(s => s.type==='list' && s.track==null) || {}).id;
+  const realGroupOwner = gId => combinedSourceSheets.find(s => (s.groups||[]).some(g => g.id===gId));
+  const combinedData = isCombinedTab ? {
+    ...combinedMeta,
+    type:'list',
+    __combined:true,
+    groups: [...combinedSourceSheets.flatMap(s => s.groups||[]), ...(combinedMeta.groups||[])],
+    tasks: combinedSourceSheets.flatMap(s => (s.tasks||[]).map(t => ({...t, __srcSheetId:s.id, __track:trackLabelOf(s), __stage:s.name}))),
+  } : null;
+  const saveCombined = patch => {
+    let metaPatch = {...patch};
+    let newSheets = data.sheets;
+    if ('tasks' in patch) {
+      const bySheet = {};
+      patch.tasks.forEach(t => {
+        const sid = t.__srcSheetId || ongoingSheetId || combinedSourceSheets[0]?.id;
+        const {__srcSheetId, __track, __stage, ...clean} = t;
+        (bySheet[sid] = bySheet[sid] || []).push(clean);
+      });
+      newSheets = data.sheets.map(s => bySheet[s.id] ? {...s, tasks:bySheet[s.id]} : s);
+      delete metaPatch.tasks;
+    }
+    if ('groups' in patch) {
+      const byRealSheet = {};
+      const virtualGroups = [];
+      patch.groups.forEach(g => {
+        const owner = realGroupOwner(g.id);
+        if (owner) (byRealSheet[owner.id] = byRealSheet[owner.id] || []).push(g);
+        else virtualGroups.push(g);
+      });
+      newSheets = newSheets.map(s => byRealSheet[s.id] ? {...s, groups:byRealSheet[s.id]} : s);
+      metaPatch.groups = virtualGroups;
+    }
+    save({...data, sheets:newSheets, combinedView:{...combinedMeta, ...metaPatch}});
+  };
 
   const listTitle = t => t==='priority'?'עריכת עדיפויות':t==='status'?'עריכת סטטוסים':'עריכת תחומים';
   const listItems = t => t==='priority'?priorities:t==='status'?statuses:disciplines;
@@ -7298,7 +7379,7 @@ function NihulTikhnunView({data, save}) {
     }}>
       <div style={{flex:1, display:'flex', flexDirection:'column', overflow:'hidden'}}>
         <div style={{display:'flex', borderBottom:'1px solid var(--border)', background:'var(--surface)', flexShrink:0}}>
-          {NT_TRACK_TABS.map(t => (
+          {[...NT_TRACK_TABS, {id:'combined', label:'מבט מאוחד'}].map(t => (
             <button key={t.id} onClick={() => setActiveTrackTab(t.id)}
               style={{padding:'9px 16px', fontSize:12, fontFamily:'inherit', border:'none', cursor:'pointer',
                 background:'none', borderBottom:'2px solid',
@@ -7310,7 +7391,8 @@ function NihulTikhnunView({data, save}) {
           ))}
         </div>
         <div style={{flex:1, overflowY:'auto', background:'var(--bg)'}}>
-          {visibleSheets.map(sheet => {
+          {isCombinedTab && <ListView data={combinedData} save={saveCombined}/>}
+          {!isCombinedTab && visibleSheets.map(sheet => {
             const collapsed = collStage[sheet.id];
             return (
               <React.Fragment key={sheet.id}>
@@ -7336,7 +7418,7 @@ function NihulTikhnunView({data, save}) {
               </React.Fragment>
             );
           })}
-          {visibleSheets.length===0 && (
+          {!isCombinedTab && visibleSheets.length===0 && (
             <div style={{padding:'24px 20px', fontSize:12, color:'var(--text-3)'}}>אין שלבים במסלול זה</div>
           )}
         </div>
