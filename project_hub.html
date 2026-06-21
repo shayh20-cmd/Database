@@ -2313,7 +2313,7 @@ function StatusOwnerCell({task, onUpdate, onChangeResponsible, threshold=null}) 
 
   // Fixed total chip width, split evenly between the two halves — keeps both
   // pills a constant size regardless of how many letters/digits they contain.
-  const CHIP_W=84, HALF_W=42; // +10% over the original 76/38
+  const CHIP_W=106, HALF_W=53; // matches SubtaskOwnerCell's chip half-width
   const inner = (
     <span
       title={title}
@@ -2368,7 +2368,7 @@ function StatusOwnerCell({task, onUpdate, onChangeResponsible, threshold=null}) 
   if(isProcess){
     return (
       <td ref={ref} className="owner-status-cell" style={{position:'relative',padding:'0 6px',verticalAlign:'middle',display:'flex',alignItems:'center',gap:6}}>
-        <div style={{display:'flex',alignItems:'center',gap:6,overflow:'hidden',minWidth:0,flex:'1 1 auto'}}>
+        <div style={{display:'flex',alignItems:'center',gap:6,overflow:'hidden',minWidth:0,flex:labelText?'1 1 auto':'0 0 auto'}}>
           {inner}
           {labelText}
         </div>
