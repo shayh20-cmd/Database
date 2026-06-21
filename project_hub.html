@@ -688,6 +688,27 @@ const { useState, useEffect, useCallback, useRef, useMemo, useContext } = React;
 
 const STORAGE_KEY = 'pm_asana_v9';
 
+/* ═══ UI-state persistence (expand/collapse) — survives remounts (e.g. switching
+   sidebar tracks) but isn't part of the saved data model itself ═══ */
+const EXPANDED_TASKS_KEY = 'pm_asana_v9_expanded_tasks';
+const getExpandedTaskIds = () => {
+  try { return new Set(JSON.parse(localStorage.getItem(EXPANDED_TASKS_KEY) || '[]')); }
+  catch { return new Set(); }
+};
+const setTaskExpandedPersisted = (id, val) => {
+  const s = getExpandedTaskIds();
+  val ? s.add(id) : s.delete(id);
+  try { localStorage.setItem(EXPANDED_TASKS_KEY, JSON.stringify([...s])); } catch {}
+};
+const sheetUiKey = (kind, sheetId) => `pm_asana_v9_${kind}_${sheetId || 'default'}`;
+const loadSheetUiState = (kind, sheetId) => {
+  try { return JSON.parse(localStorage.getItem(sheetUiKey(kind, sheetId)) || '{}'); }
+  catch { return {}; }
+};
+const saveSheetUiState = (kind, sheetId, val) => {
+  try { localStorage.setItem(sheetUiKey(kind, sheetId), JSON.stringify(val)); } catch {}
+};
+
 /* ═══ Constants ═══ */
 const STATUSES = [
   {id:'I', label:'עבודה',      color:'#2563EB'},
@@ -3638,7 +3659,12 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
   const [panelSubId,setPanelSubId]=useState(null);
   const events = task.events || [];
   const isProcess = events.length > 0;
-  const [expanded,setExpanded]=useState(false);
+  const [expanded,setExpandedRaw]=useState(()=>getExpandedTaskIds().has(task.id));
+  const setExpanded=(valOrFn)=>setExpandedRaw(prev=>{
+    const next=typeof valOrFn==='function'?valOrFn(prev):valOrFn;
+    setTaskExpandedPersisted(task.id,next);
+    return next;
+  });
   useEffect(()=>{
     if(expandSignal&&expandSignal.ids.has(task.id)) setExpanded(expandSignal.expand);
   },[expandSignal]);
@@ -6160,7 +6186,8 @@ function ListView({data, save}) {
   const [newTaskId,setNewTaskId]=useState(null);
   const [showSettings,setShowSettings]=useState(false);
   const [dragOver,setDragOver]=useState(null);
-  const [openDone,setOpenDone]=useState(()=>new Set());   /* empty = all collapsed by default */
+  const [openDone,setOpenDone]=useState(()=>new Set(loadSheetUiState('opendone',data.id).ids||[]));   /* empty = all collapsed by default */
+  useEffect(()=>{saveSheetUiState('opendone',data.id,{ids:[...openDone]});},[openDone,data.id]);
   const [editingGroupId,setEditingGroupId]=useState(null);
   const [groupNameDraft,setGroupNameDraft]=useState('');
   const [selectedGroup,setSelectedGroup]=useState(null);  /* selected section id */
@@ -6168,8 +6195,10 @@ function ListView({data, save}) {
   const [dragTarget,setDragTarget]=useState(null);        /* drag-over group id */
   const [secMenu,setSecMenu]=useState(null);  /* {id, x, y} — floating section menu */
   const [expandSignal,setExpandSignal]=useState(null);  /* {ids:Set, expand:bool, ts} — bulk expand/collapse all tasks in a section */
-  const [secPhase,setSecPhase]=useState({});  /* per-section open/close phase when sub-groups exist: 0=groups closed,1=groups open/tasks closed,2=groups+tasks open */
-  const [collVg,setCollVg]=useState({});      /* collapsed state for virtual (group-by) rows, keyed by vg/sg id */
+  const [secPhase,setSecPhase]=useState(()=>loadSheetUiState('secphase',data.id));  /* per-section open/close phase when sub-groups exist: 0=groups closed,1=groups open/tasks closed,2=groups+tasks open */
+  useEffect(()=>{saveSheetUiState('secphase',data.id,secPhase);},[secPhase,data.id]);
+  const [collVg,setCollVg]=useState(()=>loadSheetUiState('collvg',data.id));      /* collapsed state for virtual (group-by) rows, keyed by vg/sg id */
+  useEffect(()=>{saveSheetUiState('collvg',data.id,collVg);},[collVg,data.id]);
   const toggleVg=id=>setCollVg(c=>({...c,[id]:!c[id]}));
   const [dupModal,setDupModal]=useState(null); /* {group, name, copyTasks, copySubtasks, copyUpdates} */
   const [delModal,setDelModal]=useState(null); /* {group, choice} */
