@@ -2236,7 +2236,7 @@ function DaysInStatusCell({task, threshold=null}) {
 /* ══════════════════════════════════════
    StatusOwnerCell — merged responsible + event status + day count
 ══════════════════════════════════════ */
-function StatusOwnerCell({task, onChangeResponsible, threshold=null}) {
+function StatusOwnerCell({task, onChangeResponsible, threshold=null, onAddEvent}) {
   const {disciplines} = useContext(ListsCtx);
   const isProcess = (task.events||[]).length > 0;
   const [open, setOpen] = useState(false);
@@ -2343,9 +2343,11 @@ function StatusOwnerCell({task, onChangeResponsible, threshold=null}) {
 
   if(isProcess){
     return (
-      <td style={{padding:'0 6px',verticalAlign:'middle',display:'flex',alignItems:'center',gap:6,overflow:'hidden'}}>
+      <td className="owner-status-cell" style={{padding:'0 6px',verticalAlign:'middle',display:'flex',alignItems:'center',gap:6,overflow:'hidden'}}>
         {inner}
         {labelText}
+        {onAddEvent&&<button className="add-ev-inline owner-status-add" title="הוסף עדכון"
+            onClick={e=>{e.stopPropagation();onAddEvent();}}>+</button>}
       </td>
     );
   }
@@ -3630,13 +3632,16 @@ function AssigneeCell({task, onUpdate}) {
   );
 }
 
-function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleColIds=[], daysThreshold=null, sortState=null, onTaskDragStart, onTaskDragEnd, taskDragSrc, taskDragTarget, onTaskDragOver, onTaskDrop, selectedIds, onSelect, onDuplicate, onShowDetail}) {
+function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleColIds=[], daysThreshold=null, sortState=null, onTaskDragStart, onTaskDragEnd, taskDragSrc, taskDragTarget, onTaskDragOver, onTaskDrop, selectedIds, onSelect, onDuplicate, onShowDetail, expandSignal}) {
   const [editTitle,setEditTitle]=useState(autoFocus);
   const [title,setTitle]=useState(task.title);
   const [panelSubId,setPanelSubId]=useState(null);
   const events = task.events || [];
   const isProcess = events.length > 0;
   const [expanded,setExpanded]=useState(false);
+  useEffect(()=>{
+    if(expandSignal&&expandSignal.ids.has(task.id)) setExpanded(expandSignal.expand);
+  },[expandSignal]);
   const [newSubId,setNewSubId]=useState(null);
   const [taskMenuPos,setTaskMenuPos]=useState(null);
   const inputRef=useRef(null);
@@ -3797,7 +3802,7 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
           case '__discipline':
             return <DisciplineCell key="__discipline" discipline={task.discipline} onChange={v=>onUpdate({...task,discipline:v})}/>;
           case '__owner_status':
-            return <StatusOwnerCell key="__owner_status" task={task} onChangeResponsible={v=>onUpdate({...task,responsible:v})} threshold={daysThreshold}/>;
+            return <StatusOwnerCell key="__owner_status" task={task} onChangeResponsible={v=>onUpdate({...task,responsible:v})} threshold={daysThreshold} onAddEvent={()=>setPanelSubId('__task__')}/>;
           case '__assignee':
             return <AssigneeCell key="__assignee" task={task} onUpdate={onUpdate}/>;
           case '__dates':
@@ -5183,12 +5188,13 @@ function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState,
         <div ref={viewsRef} style={{position:'relative'}}>
           <button className={`btn-tb${activeViewId?' on':''}`}
             onClick={()=>{
-              if(activeViewId&&isViewDirty){onUpdateView();return;}
               setShowViews(o=>!o);setShowFilter(false);setShowSort(false);setShowGroup(false);
             }}
-            title={activeViewId&&isViewDirty?'עדכן מבט':undefined}
             style={activeViewId&&isViewDirty?{borderColor:'var(--accent)',color:'var(--accent)',background:'rgba(37,99,235,.07)'}:undefined}>
-            {activeViewId&&isViewDirty ? '↻' : '☰'} {activeViewId ? activeViewName : 'מבטים'}
+            {activeViewId&&isViewDirty && (
+              <span title="עדכן מבט" onClick={e=>{e.stopPropagation();onUpdateView();}} style={{cursor:'pointer'}}>↻</span>
+            )}
+            {!(activeViewId&&isViewDirty) && '☰'} {activeViewId ? activeViewName : 'מבטים'}
             {!activeViewId && views?.length>0 && <span className="tb-badge">{views.length}</span>}
           </button>
           {showViews&&(
@@ -6161,6 +6167,7 @@ function ListView({data, save}) {
   const [dragSrc,setDragSrc]=useState(null);              /* dragging group id */
   const [dragTarget,setDragTarget]=useState(null);        /* drag-over group id */
   const [secMenu,setSecMenu]=useState(null);  /* {id, x, y} — floating section menu */
+  const [expandSignal,setExpandSignal]=useState(null);  /* {ids:Set, expand:bool, ts} — bulk expand/collapse all tasks in a section */
   const [collVg,setCollVg]=useState({});      /* collapsed state for virtual (group-by) rows, keyed by vg/sg id */
   const toggleVg=id=>setCollVg(c=>({...c,[id]:!c[id]}));
   const [dupModal,setDupModal]=useState(null); /* {group, name, copyTasks, copySubtasks, copyUpdates} */
@@ -6593,7 +6600,7 @@ function ListView({data, save}) {
               const colSpan2=visibleColIds.length+1;
               const taskRowPropsV={fields,visibleColIds,daysThreshold:data.builtinConfig?.__owner_status?.delayThreshold??null,sortState,
                 taskDragSrc,taskDragTarget,onTaskDragStart:handleTaskDragStart,onTaskDragEnd:handleTaskDragEnd,onTaskDragOver:handleTaskDragOver,onTaskDrop:handleTaskDropOnTask,
-                selectedIds,onSelect:handleSelect,onDuplicate:duplicateTask,onShowDetail:setDetailTaskId};
+                selectedIds,onSelect:handleSelect,onDuplicate:duplicateTask,onShowDetail:setDetailTaskId,expandSignal};
               const addTaskForVg=()=>{
                 const gId=groups[0]?.id; if(!gId)return;
                 const id=uid(); const fieldPatch={[vg.field]:vg.value};
@@ -6661,7 +6668,7 @@ function ListView({data, save}) {
                           onClick={e=>{
                             e.stopPropagation();
                             const r=e.currentTarget.getBoundingClientRect();
-                            setSecMenu(secMenu?.id===vgRealGroup.id?null:{id:vgRealGroup.id,left:Math.max(4,r.left),y:r.bottom+4,gRef:vgRealGroup});
+                            setSecMenu(secMenu?.id===vgRealGroup.id?null:{id:vgRealGroup.id,left:Math.max(4,r.left),y:r.bottom+4,gRef:vgRealGroup,taskIds:vg.tasks.map(t=>t.id)});
                           }}
                           style={{background:'none',border:'none',cursor:'pointer',
                             color:'var(--text-3)',padding:'2px 5px',borderRadius:4,display:'flex',
@@ -6721,7 +6728,7 @@ function ListView({data, save}) {
               const colSpan=visibleColIds.length+1;
               const taskRowProps={fields,visibleColIds,daysThreshold:data.builtinConfig?.__owner_status?.delayThreshold??null,sortState,
                 taskDragSrc,taskDragTarget,onTaskDragStart:handleTaskDragStart,onTaskDragEnd:handleTaskDragEnd,onTaskDragOver:handleTaskDragOver,onTaskDrop:handleTaskDropOnTask,
-                selectedIds,onSelect:handleSelect,onDuplicate:duplicateTask,onShowDetail:setDetailTaskId};
+                selectedIds,onSelect:handleSelect,onDuplicate:duplicateTask,onShowDetail:setDetailTaskId,expandSignal};
 
               const isDragSrc  = dragSrc===g.id;
               const isDragOver = dragTarget===g.id;
@@ -6781,7 +6788,7 @@ function ListView({data, save}) {
                           onClick={e=>{
                             e.stopPropagation();
                             const r=e.currentTarget.getBoundingClientRect();
-                            setSecMenu(secMenu?.id===g.id?null:{id:g.id,left:Math.max(4,r.left),y:r.bottom+4,gRef:g});
+                            setSecMenu(secMenu?.id===g.id?null:{id:g.id,left:Math.max(4,r.left),y:r.bottom+4,gRef:g,taskIds:gTasks.map(t=>t.id)});
                           }}
                           style={{background:'none',border:'none',cursor:'pointer',
                             color:'var(--text-3)',padding:'2px 5px',borderRadius:4,display:'flex',
@@ -6862,6 +6869,9 @@ function ListView({data, save}) {
           {icon:'✏', label:'שנה שם',    action:()=>{setGroupNameDraft(g.name);setEditingGroupId(g.id);setSecMenu(null);}},
           {icon:'+', label:'הוסף מקטע', action:()=>{addGroup(g.id);setSecMenu(null);}},
           {icon:'⧉', label:'שכפל מקטע', action:()=>{setDupModal({group:g,name:'עותק של '+g.name,copyTasks:true,copySubtasks:true,copyUpdates:false});setSecMenu(null);}},
+          null,
+          {icon:'▾', label:'פתח את כל המשימות', action:()=>{setExpandSignal({ids:new Set(secMenu.taskIds||[]),expand:true,ts:Date.now()});setSecMenu(null);}},
+          {icon:'▴', label:'סגור את כל המשימות', action:()=>{setExpandSignal({ids:new Set(secMenu.taskIds||[]),expand:false,ts:Date.now()});setSecMenu(null);}},
           null,
           {icon:'×', label:'מחק מקטע', danger:true, action:()=>{setDelModal({group:g,choice:null});setSecMenu(null);}},
         ];
