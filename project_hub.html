@@ -6414,7 +6414,10 @@ function ListView({data, save}) {
   const isDefaultGrouping = groupByState.length===1 && groupByState[0].field==='section';
   const buildVirtualGroups=()=>{
     const primaryField=groupByState[0].field;
+    /* Tasks don't carry a `section` property directly — a section is t.groupId. */
+    const fieldValueOf=(field,t)=>field==='section'?(t.groupId||''):(t[field]??'');
     const getLabel=(field,value)=>{
+      if(field==='section'){const g=groups.find(x=>x.id===value);return g?g.name:'ללא מקטע';}
       if(!value) return 'ללא '+(GROUP_FIELDS.find(f=>f.field===field)?.label||'');
       if(field==='discipline'){const d=disciplines.find(x=>x.id===value);return d?d.label:value;}
       if(field==='priority')  {const p=priorities.find(x=>x.id===value); return p?p.label:value;}
@@ -6422,6 +6425,7 @@ function ListView({data, save}) {
       return value;
     };
     const getPill=(field,value)=>{
+      if(field==='section') return null;
       if(!value) return null;
       if(field==='discipline'){const d=disciplines.find(x=>x.id===value);return d?{color:d.color,bg:d.bg}:null;}
       if(field==='priority')  {const p=priorities.find(x=>x.id===value); return p?{color:p.color,bg:p.bg}:null;}
@@ -6429,21 +6433,21 @@ function ListView({data, save}) {
       return null;
     };
     const priOrder=Object.fromEntries(priorities.map((p,i)=>[p.id,i]));
-    const primaryValues=[...new Set(display.map(t=>t[primaryField]??''))];
+    const primaryValues=[...new Set(display.map(t=>fieldValueOf(primaryField,t)))];
     if(primaryField==='priority') primaryValues.sort((a,b)=>(priOrder[a]??99)-(priOrder[b]??99));
     return primaryValues.map(val=>{
-      const gTasks=display.filter(t=>(t[primaryField]??'')===val);
+      const gTasks=display.filter(t=>fieldValueOf(primaryField,t)===val);
       let subGroups=null;
       if(groupByState.length>=2){
         const secField=groupByState[1].field;
-        const secVals=[...new Set(gTasks.map(t=>t[secField]??''))];
+        const secVals=[...new Set(gTasks.map(t=>fieldValueOf(secField,t)))];
         if(secField==='priority') secVals.sort((a,b)=>(priOrder[a]??99)-(priOrder[b]??99));
         subGroups=secVals.map(sval=>({
           id:`vg_${val}_${sval}`,
           label:getLabel(secField,sval),
           pill:getPill(secField,sval),
           field:secField,value:sval,
-          tasks:gTasks.filter(t=>(t[secField]??'')===sval),
+          tasks:gTasks.filter(t=>fieldValueOf(secField,t)===sval),
         }));
       }
       return{id:`vg_${primaryField}_${val}`,label:getLabel(primaryField,val),pill:getPill(primaryField,val),
@@ -6621,6 +6625,9 @@ function ListView({data, save}) {
                 </>);
               };
               const vgCollapsed=collVg[vg.id];
+              /* When grouping by מקטע, each vg row maps 1:1 to a real group — give it the
+                 same options menu real (non-virtual) section rows have. */
+              const vgRealGroup=vg.field==='section'?groups.find(g=>g.id===vg.value):null;
               return(<React.Fragment key={vg.id}>
                 <tr className="sec-row" onClick={()=>toggleVg(vg.id)} style={{cursor:'pointer'}}>
                   <td colSpan={colSpan2}>
@@ -6638,6 +6645,22 @@ function ListView({data, save}) {
                           :vg.label}
                       </span>
                       <span style={{fontSize:11,color:'var(--text-3)',fontWeight:400}}>{vg.tasks.length} משימות</span>
+                      {vgRealGroup&&(
+                        <button className="sec-actions-btn"
+                          onClick={e=>{
+                            e.stopPropagation();
+                            const r=e.currentTarget.getBoundingClientRect();
+                            setSecMenu(secMenu?.id===vgRealGroup.id?null:{id:vgRealGroup.id,left:Math.max(4,r.left),y:r.bottom+4,gRef:vgRealGroup});
+                          }}
+                          style={{background:'none',border:'none',cursor:'pointer',
+                            color:'var(--text-3)',padding:'2px 5px',borderRadius:4,display:'flex',
+                            alignItems:'center',flexShrink:0,transition:'color .12s'}}
+                          onMouseEnter={e=>e.currentTarget.style.color='var(--text)'}
+                          onMouseLeave={e=>e.currentTarget.style.color='var(--text-3)'}
+                          title="אפשרויות">
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="8" cy="3" r="1.2" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none"/><circle cx="8" cy="13" r="1.2" fill="currentColor" stroke="none"/></svg>
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
