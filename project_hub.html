@@ -7027,14 +7027,23 @@ function Confetti({onDone}) {
 /* ══════════════════════════════════════
    Nihul Tikhnun View
 ══════════════════════════════════════ */
+/* Which sheets show under each ניהול-תכנון sub-tab. Extending to a future
+   track (e.g. tender/execution) is adding one entry here. */
+const NT_TRACK_TABS = [
+  {id:'ongoing',   label:'ניהול שוטף',  match: s => s.track==null},
+  {id:'licensing', label:'מסלול רישוי', match: s => s.track==='licensing'},
+];
+
 function NihulTikhnunView({data, save}) {
   const priorities  = data.priorities  || PRIORITIES;
   const disciplines = data.disciplines || DISCIPLINES;
   const statuses    = data.statuses    || STATUSES;
   const [editList, setEditList] = useState(null);
+  const [activeTrackTab, setActiveTrackTab] = useState(NT_TRACK_TABS[0].id);
 
-  const allSheets  = data.sheets || [];
-  const listSheets = allSheets.filter(s => s.type==='list' && s.name!=='ניהול תכנון');
+  const allSheets = data.sheets || [];
+  const activeTab = NT_TRACK_TABS.find(t => t.id===activeTrackTab) || NT_TRACK_TABS[0];
+  const visibleSheets = allSheets.filter(s => s.type==='list' && activeTab.match(s));
 
   const [collStage, setCollStage] = useState({});
   const toggleStage = id => setCollStage(c => ({...c, [id]: !c[id]}));
@@ -7054,30 +7063,47 @@ function NihulTikhnunView({data, save}) {
       team: data.team || [],
       onEditList: type => setEditList(type),
     }}>
-      <div style={{flex:1, overflowY:'auto', background:'var(--bg)'}}>
-        {listSheets.map(sheet => {
-          const collapsed = collStage[sheet.id];
-          return (
-            <React.Fragment key={sheet.id}>
-              {/* ── Stage divider — identical visual weight to a group header ── */}
-              <div style={{
-                display:'flex', alignItems:'center', gap:10,
-                padding:'10px 20px', background:'var(--surface)',
-                borderBottom:'1px solid var(--border)', borderTop:'4px solid var(--bg)',
-                cursor:'pointer', userSelect:'none',
-              }} onClick={() => toggleStage(sheet.id)}>
-                <span style={{fontSize:10, color:'var(--text-3)', display:'inline-block',
-                  transform: collapsed ? 'rotate(-90deg)' : '', transition:'transform .15s'}}>▾</span>
-                <span style={{width:11, height:11, borderRadius:3, background:'#2563EB', flexShrink:0, display:'inline-block'}}/>
-                <span style={{fontWeight:700, fontSize:13, color:'var(--text)'}}>{sheet.name}</span>
-                <span style={{fontSize:11, color:'var(--text-3)', marginRight:'auto'}}>{(sheet.tasks||[]).length} משימות</span>
-              </div>
+      <div style={{flex:1, display:'flex', flexDirection:'column', overflow:'hidden'}}>
+        <div style={{display:'flex', borderBottom:'1px solid var(--border)', background:'var(--surface)', flexShrink:0}}>
+          {NT_TRACK_TABS.map(t => (
+            <button key={t.id} onClick={() => setActiveTrackTab(t.id)}
+              style={{padding:'9px 16px', fontSize:12, fontFamily:'inherit', border:'none', cursor:'pointer',
+                background:'none', borderBottom:'2px solid',
+                borderBottomColor: activeTrackTab===t.id ? 'var(--accent)' : 'transparent',
+                fontWeight: activeTrackTab===t.id ? 700 : 400,
+                color: activeTrackTab===t.id ? 'var(--text)' : 'var(--text-2)'}}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div style={{flex:1, overflowY:'auto', background:'var(--bg)'}}>
+          {visibleSheets.map(sheet => {
+            const collapsed = collStage[sheet.id];
+            return (
+              <React.Fragment key={sheet.id}>
+                {/* ── Stage divider — identical visual weight to a group header ── */}
+                <div style={{
+                  display:'flex', alignItems:'center', gap:10,
+                  padding:'10px 20px', background:'var(--surface)',
+                  borderBottom:'1px solid var(--border)', borderTop:'4px solid var(--bg)',
+                  cursor:'pointer', userSelect:'none',
+                }} onClick={() => toggleStage(sheet.id)}>
+                  <span style={{fontSize:10, color:'var(--text-3)', display:'inline-block',
+                    transform: collapsed ? 'rotate(-90deg)' : '', transition:'transform .15s'}}>▾</span>
+                  <span style={{width:11, height:11, borderRadius:3, background:'#2563EB', flexShrink:0, display:'inline-block'}}/>
+                  <span style={{fontWeight:700, fontSize:13, color:'var(--text)'}}>{sheet.name}</span>
+                  <span style={{fontSize:11, color:'var(--text-3)', marginRight:'auto'}}>{(sheet.tasks||[]).length} משימות</span>
+                </div>
 
-              {/* ── The exact same list view used in מסלול רישוי ── */}
-              {!collapsed && <ListView data={sheet} save={patch => saveSheet(sheet.id, patch)}/>}
-            </React.Fragment>
-          );
-        })}
+                {/* ── The exact same list view used in מסלול רישוי ── */}
+                {!collapsed && <ListView data={sheet} save={patch => saveSheet(sheet.id, patch)}/>}
+              </React.Fragment>
+            );
+          })}
+          {visibleSheets.length===0 && (
+            <div style={{padding:'24px 20px', fontSize:12, color:'var(--text-3)'}}>אין שלבים במסלול זה</div>
+          )}
+        </div>
       </div>
       {editList&&(
         <EditListModal
