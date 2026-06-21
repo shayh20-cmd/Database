@@ -130,11 +130,11 @@ button:focus:not(:focus-visible),input:focus:not(:focus-visible){outline:none;}
   padding:7px 20px;display:flex;align-items:center;gap:8px;
   border-bottom:1px solid var(--border);background:var(--surface);flex-shrink:0;
 }
-.btn-add-wrap{display:flex;border-radius:6px;box-shadow:0 1px 2px rgba(0,0,0,.1);}
-.btn-add-main{background:var(--accent);color:#fff;padding:6px 16px;font-size:13px;font-weight:600;border:none;cursor:pointer;font-family:inherit;border-radius:var(--radius-sm) 0 0 var(--radius-sm);transition:var(--transition);letter-spacing:.01em;}
+.btn-add-wrap{display:flex;border-radius:7px;overflow:hidden;box-shadow:0 1px 3px rgba(37,99,235,.25);}
+.btn-add-main{background:var(--accent);color:#fff;padding:7px 18px;font-size:13px;font-weight:600;border:none;cursor:pointer;font-family:inherit;transition:var(--transition);letter-spacing:.01em;border-left:1px solid rgba(255,255,255,.2);}
 .btn-add-main:hover{background:var(--accent-h);}
-.btn-add-arr{background:#1D4ED8;color:#fff;padding:6px 9px;font-size:10px;border:none;cursor:pointer;border-right:1px solid rgba(255,255,255,.25);border-radius:0 var(--radius-sm) var(--radius-sm) 0;transition:var(--transition);}
-.btn-add-arr:hover{background:#1648C7;}
+.btn-add-arr{background:var(--accent);color:#fff;padding:7px 10px;font-size:14px;border:none;cursor:pointer;transition:var(--transition);}
+.btn-add-arr:hover{background:var(--accent-h);}
 .tb-right{margin-right:auto;display:flex;align-items:center;gap:4px;}
 .btn-tb{display:flex;align-items:center;gap:5px;padding:5px 10px;font-size:12px;font-weight:500;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;background:var(--surface);color:var(--text-2);font-family:inherit;transition:var(--transition);white-space:nowrap;position:relative;box-shadow:var(--shadow-sm);}
 .btn-tb:hover{background:var(--bg);border-color:var(--border-strong);color:var(--text);}
@@ -212,6 +212,11 @@ button:focus:not(:focus-visible),input:focus:not(:focus-visible){outline:none;}
 /* Expanded parent row: subtle accent on sticky edge */
 .t-row.t-expanded td{background:#F8F9FF!important;}
 .t-row.t-expanded .sticky-td{box-shadow:inset -3px 0 0 var(--blue);}
+/* Selected row */
+.t-row.t-selected td{background:#EEF4FF!important;}
+.t-row.t-selected .sticky-td{background:#EEF4FF!important;box-shadow:inset -3px 0 0 var(--accent);}
+.t-row.t-selected:hover td{background:#E5EDFF!important;}
+.t-row.t-selected:hover .sticky-td{background:#E5EDFF!important;}
 .sticky-td{position:sticky;right:0;z-index:var(--z-sticky);background:var(--surface);padding:0!important;}
 
 /* Sub row */
@@ -221,7 +226,7 @@ button:focus:not(:focus-visible),input:focus:not(:focus-visible){outline:none;}
 .sub-row:hover .sticky-td{background:#E8EBF0;border-right:2px solid #C5CFDF;}
 
 /* Section header */
-.sec-row td{height:38px;padding:0 12px;border-bottom:1px solid var(--border);background:var(--surface);}
+.sec-row td{height:38px;padding:0 12px;border-bottom:1px solid var(--border);background:var(--surface);outline:none;}
 .sec-row td:first-child{border-right:3px solid transparent;}
 
 /* Completed tasks sub-header */
@@ -246,13 +251,13 @@ button:focus:not(:focus-visible),input:focus:not(:focus-visible){outline:none;}
 .done-chevron.open{transform:rotate(90deg);}
 
 /* Add task */
-.add-task-row td{height:34px;border-bottom:1px solid var(--border);}
-.add-task-btn{background:none;border:none;cursor:pointer;font-size:12px;color:var(--text-3);font-family:inherit;display:flex;align-items:center;gap:6px;height:34px;padding:0 14px;transition:color .12s;}
+.add-task-row td{height:34px;border-bottom:1px solid var(--border);background:var(--surface);}
+.add-task-btn{background:none;border:none;cursor:pointer;font-size:12px;color:var(--text-3);font-family:inherit;display:flex;align-items:center;gap:6px;height:34px;padding:0 71px 0 10px;transition:color .12s;}
 .add-task-btn:hover{color:var(--accent);}
 
-/* Name inner */
-.name-inner{display:flex;align-items:center;gap:6px;height:var(--row-h);padding:0 10px;}
-.sub-name-inner{display:flex;align-items:center;gap:6px;height:32px;padding:0 60px 0 10px;}
+/* Name inner — indented hierarchy (RTL: padding-right = distance from right edge) */
+.name-inner{display:flex;align-items:center;gap:6px;height:var(--row-h);padding:0 22px 0 10px;}
+.sub-name-inner{display:flex;align-items:center;gap:6px;height:32px;padding:0 76px 0 10px;}
 
 /* Status circle */
 .sc{width:17px;height:17px;border-radius:50%;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:800;border:1.5px solid currentColor;transition:transform .12s,opacity .12s;user-select:none;}
@@ -304,6 +309,65 @@ button:focus:not(:focus-visible),input:focus:not(:focus-visible){outline:none;}
 /* Process task panel */
 .tp-overlay{position:fixed;inset:0;z-index:var(--z-overlay);background:rgba(0,0,0,.18);}
 .tp-panel{position:fixed;top:0;left:0;bottom:0;width:min(780px,78vw);background:var(--surface);box-shadow:-6px 0 40px rgba(0,0,0,.16),-1px 0 0 rgba(0,0,0,.06);display:flex;flex-direction:column;z-index:var(--z-panel);overflow:hidden;}
+/* Task detail sidebar */
+.tds-overlay{position:fixed;inset:0;z-index:calc(var(--z-overlay) + 5);background:rgba(0,0,0,.18);}
+.tds-panel{position:fixed;top:0;left:0;bottom:0;width:400px;background:var(--surface);box-shadow:-4px 0 32px rgba(0,0,0,.18),-1px 0 0 rgba(0,0,0,.06);display:flex;flex-direction:column;z-index:calc(var(--z-panel) + 5);overflow:hidden;font-family:Heebo,system-ui,sans-serif;}
+.tds-hdr{display:flex;align-items:center;gap:10px;padding:14px 16px 12px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.tds-title{flex:1;font-size:15px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tds-body{flex:1;overflow-y:auto;padding:16px;}
+.tds-sec-lbl{font-size:11px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
+.tds-prop-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);}
+.tds-prop-lbl{font-size:12px;color:var(--text-2);flex-shrink:0;width:80px;}
+.tds-prop-val{flex:1;}
+.tds-desc-toolbar{display:flex;gap:2px;padding:4px 8px;border-bottom:1px solid var(--border);background:var(--bg);}
+.tds-tb-btn{background:none;border:1px solid transparent;border-radius:4px;cursor:pointer;padding:2px 7px;font-size:12px;color:var(--text-2);font-family:inherit;line-height:1.4;transition:background .1s;}
+.tds-tb-btn:hover{background:var(--border);color:var(--text);}
+.tds-tb-btn.active{background:rgba(37,99,235,.12);color:var(--accent);border-color:rgba(37,99,235,.25);}
+.tds-editor{min-height:90px;padding:10px 12px;font-size:13px;line-height:1.65;color:var(--text);outline:none;direction:rtl;}
+.tds-editor:empty::before{content:attr(data-placeholder);color:var(--text-3);pointer-events:none;}
+.tds-file-item{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg);border-radius:7px;margin-bottom:5px;font-size:12px;}
+.tds-add-file{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:7px;border:1.5px dashed var(--border-strong);border-radius:7px;background:none;cursor:pointer;font-size:12px;color:var(--text-3);font-family:inherit;transition:border-color .12s,color .12s;}
+.tds-add-file:hover{border-color:var(--accent);color:var(--accent);}
+@keyframes tds-slide-in{from{transform:translateX(-100%);opacity:.6}to{transform:translateX(0);opacity:1}}
+.tds-panel{animation:tds-slide-in .18s ease;}
+.tds-tabs{display:flex;flex-shrink:0;background:var(--surface);border-bottom:1px solid var(--border);}
+.tds-tab{flex:1;padding:9px 0;font-size:12px;font-weight:600;cursor:pointer;color:var(--text-3);background:none;border:none;border-bottom:2.5px solid transparent;font-family:inherit;transition:color .12s;}
+.tds-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.tds-tab:hover:not(.active){color:var(--text-2);}
+.tds-editor img{max-width:100%;height:auto;display:block;border-radius:4px;margin:4px 0;cursor:pointer;}
+.tds-editor img.tds-img-sel{outline:2px solid var(--accent);outline-offset:2px;}
+/* image resize wrapper */
+.tds-img-wrap{position:relative;display:inline-block;max-width:100%;margin:4px 0;}
+.tds-img-wrap img{display:block;border-radius:4px;cursor:pointer;}
+.tds-img-handle{position:absolute;width:10px;height:10px;background:var(--accent);border:2px solid #fff;border-radius:2px;z-index:2;box-shadow:0 1px 3px rgba(0,0,0,.3);}
+.tds-img-handle.nw{top:-5px;right:-5px;cursor:nwse-resize;}
+.tds-img-handle.ne{top:-5px;left:-5px;cursor:nesw-resize;}
+.tds-img-handle.sw{bottom:-5px;right:-5px;cursor:nesw-resize;}
+.tds-img-handle.se{bottom:-5px;left:-5px;cursor:nwse-resize;}
+.tds-img-handle.n{top:-5px;left:50%;transform:translateX(-50%);cursor:ns-resize;}
+.tds-img-handle.s{bottom:-5px;left:50%;transform:translateX(-50%);cursor:ns-resize;}
+.tds-img-handle.e{top:50%;left:-5px;transform:translateY(-50%);cursor:ew-resize;}
+.tds-img-handle.w{top:50%;right:-5px;transform:translateY(-50%);cursor:ew-resize;}
+/* annotation toolbar */
+.tds-ann-bar{position:fixed;z-index:calc(var(--z-panel) + 20);background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.18);display:flex;align-items:center;gap:3px;padding:5px 8px;flex-wrap:wrap;max-width:340px;}
+.tds-ann-sep{width:1px;background:var(--border);align-self:stretch;margin:0 3px;}
+.tds-ann-swatch{width:20px;height:20px;border-radius:4px;border:2px solid transparent;cursor:pointer;flex-shrink:0;transition:transform .1s,border-color .1s;}
+.tds-ann-swatch:hover,.tds-ann-swatch.active{border-color:var(--text);transform:scale(1.15);}
+.tds-ann-btn{background:none;border:1px solid var(--border);cursor:pointer;padding:2px 8px;border-radius:5px;font-size:12px;color:var(--text-2);font-family:inherit;transition:background .1s,color .1s;white-space:nowrap;}
+.tds-ann-btn:hover{background:var(--bg);color:var(--text);}
+.tds-ann-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.tds-ann-label{font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:.4px;text-transform:uppercase;padding:0 2px;}
+.tds-ann-size{font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer;}
+.tds-ann-picker{width:22px;height:22px;border:1px solid var(--border);border-radius:4px;cursor:pointer;padding:0;background:none;overflow:hidden;}
+.tds-ann-picker input[type=color]{width:28px;height:28px;border:none;padding:0;cursor:pointer;transform:translate(-3px,-3px);}
+.sds-sub{display:flex;align-items:center;gap:6px;padding:5px 6px;border-radius:6px;margin-bottom:3px;transition:background .1s;}
+.sds-sub:hover{background:var(--bg);}
+.sds-sub-meta{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:2px;}
+.tds-sf-menu{position:absolute;top:calc(100% + 4px);right:0;z-index:30;background:var(--surface);border:1px solid var(--border);border-radius:7px;box-shadow:0 4px 16px rgba(0,0,0,.12);padding:4px;min-width:130px;}
+.tds-sf-item{display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--text-2);}
+.tds-sf-item:hover{background:var(--bg);}
+.tds-ev-row{display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);}
+.tds-ev-row:last-child{border-bottom:none;}
 .tp-hdr{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0;}
 .tp-proc-icon{width:18px;height:18px;border-radius:4px;border:2px solid #059669;background:#059669;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;flex-shrink:0;}
 .tp-task-title{font-size:15px;font-weight:700;flex:1;color:var(--text);}
@@ -392,6 +456,10 @@ button:focus:not(:focus-visible),input:focus:not(:focus-visible){outline:none;}
 .del-btn{opacity:0;background:none;border:none;cursor:pointer;font-size:11px;color:var(--text-3);padding:2px 4px;border-radius:4px;flex-shrink:0;line-height:1;}
 .del-btn:hover{color:#EF4444;background:rgba(239,68,68,.06);}
 .t-row:hover .del-btn,.sub-row:hover .del-btn{opacity:1;}
+/* Task/subtask 3-dots action button */
+.task-actions-btn{opacity:0;background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;flex-shrink:0;color:var(--text-3);display:flex;align-items:center;transition:opacity .12s,color .12s;}
+.task-actions-btn:hover{color:var(--text);background:var(--bg);}
+.t-row:hover .task-actions-btn,.sub-row:hover .task-actions-btn{opacity:1;}
 /* Add-event button on sub-row hover */
 .add-ev-inline{opacity:0;background:var(--accent);border:none;cursor:pointer;font-size:12px;font-weight:700;color:#fff;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1;transition:opacity .12s,transform .12s;padding:0;}
 .add-ev-inline:hover{transform:scale(1.15);}
@@ -1666,22 +1734,36 @@ function loadData() {
    Cell Components
 ══════════════════════════════════════ */
 
-/* Status Circle — always filled, Hebrew first-letter */
-function StatusCircle({statusId, onChange}) {
+/* Status Square — rounded square (Linear-style), Hebrew first-letter */
+function StatusCircle({statusId, onChange, size=20}) {
   const {statuses, onEditList} = useContext(ListsCtx);
   const [open,setOpen]=useState(false);
-  const ref=useRef(null);
+  const [dropPos,setDropPos]=useState({top:0,left:0});
+  const btnRef=useRef(null);
+  const dropRef=useRef(null);
   const st=statuses.find(s=>s.id===statusId)||statuses[0];
   useEffect(()=>{
     if(!open)return;
-    const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    const h=e=>{
+      if(btnRef.current&&btnRef.current.contains(e.target))return;
+      if(dropRef.current&&dropRef.current.contains(e.target))return;
+      setOpen(false);
+    };
     document.addEventListener('mousedown',h);
     return()=>document.removeEventListener('mousedown',h);
   },[open]);
-  const circle=(s,size=20,fSize=10,pulse=false)=>(
+  const openDrop=e=>{
+    e.stopPropagation();
+    if(!open&&btnRef.current){
+      const r=btnRef.current.getBoundingClientRect();
+      setDropPos({top:r.bottom+4,right:window.innerWidth-r.right});
+    }
+    setOpen(o=>!o);
+  };
+  const sq=(s,sz,fSz,pulse=false)=>(
     <div style={{
-      width:size,height:size,borderRadius:'50%',flexShrink:0,cursor:'pointer',
-      background:s.color,color:'#fff',fontSize:fSize,fontWeight:800,
+      width:sz,height:sz,borderRadius:Math.max(3,Math.round(sz*0.22)),flexShrink:0,cursor:'pointer',
+      background:s.color,color:'#fff',fontSize:fSz,fontWeight:500,
       display:'flex',alignItems:'center',justifyContent:'center',
       userSelect:'none',lineHeight:1,border:'none',
       fontFamily:'Heebo,system-ui,sans-serif',
@@ -1691,26 +1773,30 @@ function StatusCircle({statusId, onChange}) {
     </div>
   );
   return(
-    <div ref={ref} style={{position:'relative',flexShrink:0}}>
-      <div onClick={e=>{e.stopPropagation();setOpen(o=>!o);}} title={st.label}>
-        {circle(st,20,10,statusId==='S')}
+    <div ref={btnRef} style={{flexShrink:0}}>
+      <div onClick={openDrop} title={st.label}>
+        {sq(st,size,Math.round(size*0.62),statusId==='S')}
       </div>
-      {open&&(
-        <div className="dp" style={{minWidth:170}} onClick={e=>e.stopPropagation()}>
-          <div className="dp-title">סטטוס</div>
+      {open&&ReactDOM.createPortal(
+        <div ref={dropRef} className="dp"
+          style={{position:'fixed',top:dropPos.top,right:dropPos.right,width:82,zIndex:9999,padding:3}}
+          onClick={e=>e.stopPropagation()}>
+          <div className="dp-title" style={{fontSize:9,padding:'2px 6px 4px'}}>סטטוס</div>
           {statuses.map(s=>(
             <div key={s.id} className={`dp-opt${s.id===statusId?' sel':''}`}
+              style={{padding:'4px 6px',fontSize:11,gap:5}}
               onClick={()=>{onChange(s.id);setOpen(false);}}>
-              {circle(s,14,7)}
+              {sq(s,12,6)}
               {s.label}
             </div>
           ))}
           <div className="dp-sep"/>
-          <div className="dp-opt" style={{color:'var(--text-2)',fontSize:11,gap:5}}
+          <div className="dp-opt" style={{color:'var(--text-2)',fontSize:10,gap:4,padding:'4px 6px'}}
             onClick={()=>{setOpen(false);onEditList('status');}}>
-            <span>✏️</span>ערוך רשימה
+            <span>✏️</span>ערוך
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -2557,9 +2643,10 @@ function SubtaskOwnerCell({subtask, onUpdate, threshold=null}) {
 /* ══════════════════════════════════════
    SubtaskRow
 ══════════════════════════════════════ */
-function SubtaskRow({subtask, onUpdate, onDelete, onOpenProcess, autoFocus=false, visibleColIds=[], threshold=null, parentStartDate='', parentDueDate='', nestedOpen=false, onToggleNested=null}) {
+function SubtaskRow({subtask, onUpdate, onDelete, onOpenProcess, autoFocus=false, visibleColIds=[], threshold=null, parentStartDate='', parentDueDate='', nestedOpen=false, onToggleNested=null, onDuplicateSub}) {
   const [editing,setEditing]=useState(autoFocus);
   const [title,setTitle]=useState(subtask.title);
+  const [subMenuPos,setSubMenuPos]=useState(null);
 
   /* ── Derive delayed flag — same logic as SubtaskOwnerCell ── */
   const _evts = subtask.events||[];
@@ -2580,18 +2667,14 @@ function SubtaskRow({subtask, onUpdate, onDelete, onOpenProcess, autoFocus=false
   };
   const evCount = (subtask.events||[]).length;
   const isProc = evCount > 0;
-  return(
+  return(<>
     <tr className="sub-row" style={{opacity:subtask.done?.5:1}}>
       <td className="sticky-td">
         <div className="sub-name-inner">
-          <div onClick={()=>onUpdate({...subtask,done:!subtask.done})}
-            title={isProc?'יש טיימליין עדכונים — לחץ לסימון הושלם':'לחץ לסימון הושלם'}
-            style={{width:13,height:13,borderRadius:'50%',flexShrink:0,cursor:'pointer',
-              border:`1.5px solid ${subtask.done?'#059669':'#8E8E8E'}`,
-              background:subtask.done?'#059669':(isProc?'#8E8E8E':'transparent'),
-              display:'flex',alignItems:'center',justifyContent:'center'}}>
-            {subtask.done?'✓':''}
-          </div>
+          <StatusCircle size={13}
+            statusId={effectiveStatusId}
+            onChange={v=>{onUpdate({...subtask,statusId:v,done:v==='C'});}}
+          />
           {editing
             ?<input ref={inputRef} className="name-edit-input" style={{fontSize:12}} value={title}
                 onChange={e=>setTitle(e.target.value)} onBlur={commit}
@@ -2623,7 +2706,10 @@ function SubtaskRow({subtask, onUpdate, onDelete, onOpenProcess, autoFocus=false
               :<button className="add-ev-inline" title="הוסף עדכון"
                   onClick={e=>{e.stopPropagation();onOpenProcess&&onOpenProcess();}}>+</button>}
           </span>
-          <button className="del-btn" onClick={onDelete}>✕</button>
+          <button className="task-actions-btn" title="אפשרויות"
+            onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setSubMenuPos(subMenuPos?null:{top:r.bottom+4,right:window.innerWidth-r.right});}}>
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="3" r="1.4" fill="currentColor"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/><circle cx="8" cy="13" r="1.4" fill="currentColor"/></svg>
+          </button>
         </div>
       </td>
       {visibleColIds.filter(id=>id!=='__name').map(id=>{
@@ -2647,7 +2733,36 @@ function SubtaskRow({subtask, onUpdate, onDelete, onOpenProcess, autoFocus=false
       })}
       <td style={{background:'inherit'}}/>
     </tr>
-  );
+    {subMenuPos&&ReactDOM.createPortal((()=>{
+      const SUB_ITEMS=[
+        {icon:'⧉', label:'שכפול תת-משימה', action:()=>{onDuplicateSub?.(subtask);setSubMenuPos(null);}},
+        {icon:'⊡', label:'הוספת עדכון',     action:()=>{onOpenProcess?.();setSubMenuPos(null);}},
+        {icon:'☰', label:'פרטי תת-משימה',  action:()=>{onOpenProcess?.();setSubMenuPos(null);}},
+        null,
+        {icon:'×', label:'מחק תת-משימה',   danger:true, action:()=>{onDelete();setSubMenuPos(null);}},
+      ];
+      return(<>
+        <div style={{position:'fixed',inset:0,zIndex:9998}} onClick={()=>setSubMenuPos(null)}/>
+        <div dir="rtl" style={{position:'fixed',top:subMenuPos.top,right:subMenuPos.right,minWidth:170,
+          background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,
+          boxShadow:'0 6px 20px rgba(0,0,0,.14)',zIndex:9999,padding:'4px',
+          fontFamily:'Heebo,system-ui,sans-serif'}}>
+          {SUB_ITEMS.map((item,idx)=>!item
+            ?<div key={idx} style={{height:1,background:'var(--border)',margin:'3px 0'}}/>
+            :<button key={idx} onClick={item.action}
+                style={{display:'flex',alignItems:'center',gap:9,width:'100%',padding:'8px 12px',
+                  border:'none',background:'none',cursor:'pointer',fontSize:13,fontFamily:'inherit',
+                  textAlign:'right',borderRadius:5,color:item.danger?'#EF4444':'var(--text)'}}
+                onMouseEnter={e=>e.currentTarget.style.background=item.danger?'rgba(239,68,68,.07)':'var(--bg)'}
+                onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                <span style={{color:item.danger?'#EF4444':'var(--text-3)',fontWeight:700,width:14,textAlign:'center',flexShrink:0}}>{item.icon}</span>
+                {item.label}
+              </button>
+          )}
+        </div>
+      </>);
+    })(),document.body)}
+  </>);
 }
 
 /* ══════════════════════════════════════
@@ -3507,7 +3622,7 @@ function AssigneeCell({task, onUpdate}) {
   );
 }
 
-function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleColIds=[], daysThreshold=null, sortState=null, onTaskDragStart, onTaskDragEnd, taskDragSrc, taskDragTarget, onTaskDragOver, onTaskDrop}) {
+function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleColIds=[], daysThreshold=null, sortState=null, onTaskDragStart, onTaskDragEnd, taskDragSrc, taskDragTarget, onTaskDragOver, onTaskDrop, selectedIds, onSelect, onDuplicate, onShowDetail}) {
   const [editTitle,setEditTitle]=useState(autoFocus);
   const [title,setTitle]=useState(task.title);
   const [panelSubId,setPanelSubId]=useState(null);
@@ -3515,6 +3630,7 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
   const isProcess = events.length > 0;
   const [expanded,setExpanded]=useState(false);
   const [newSubId,setNewSubId]=useState(null);
+  const [taskMenuPos,setTaskMenuPos]=useState(null);
   const inputRef=useRef(null);
   useEffect(()=>{if(autoFocus&&inputRef.current)inputRef.current.focus();},[]);
   useEffect(()=>{if(editTitle&&inputRef.current)inputRef.current.focus();},[editTitle]);
@@ -3522,6 +3638,7 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
   /* ── Auto-stuck: if any process subtask has a delayed event → set statusId='S' on it and on task ── */
   useEffect(()=>{
     if(daysThreshold===null) return;
+    if(task.statusId==='C') return; // done tasks are immune to auto-stuck
     const today=todayISO();
     const daysBetweenLocal=(a,b)=>Math.round((new Date(b)-new Date(a))/86400000);
     let taskNeedsStuck=false;
@@ -3553,9 +3670,10 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
 
   /* Sort subtask array by active sortState — mirrors top-level sort logic */
   const sortSubtasks = arr => {
-    if(!sortState?.length) return arr;
     const order=Object.fromEntries([...priorities.map((p,i)=>[p.id,i]),['',priorities.length]]);
     return [...arr].sort((a,b)=>{
+      if(!!a.done !== !!b.done) return a.done ? 1 : -1;
+      if(!sortState?.length) return 0;
       for(const {column,dir} of sortState){
         const va=column==='priority'?order[a.priority??'']:a[column]??'';
         const vb=column==='priority'?order[b.priority??'']:b[column]??'';
@@ -3568,7 +3686,7 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
 
   /* ── Derive task-level stuck: any process subtask with a delayed event ── */
   const _today = todayISO();
-  const _taskDelayed = (task.subtasks||[]).some(sub=>{
+  const _taskDelayed = task.statusId!=='C' && (task.subtasks||[]).some(sub=>{
     if(sub.statusId==='C') return false;
     if(sub.dueDate && sub.dueDate < _today) return true;
     if(daysThreshold===null) return false;
@@ -3606,12 +3724,13 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
 
   return(
     <>
-    <tr className={`t-row${task.done?' task-done':''}${expanded?' t-expanded':''}${taskDragSrc===task.id?' t-drag-src':''}${taskDragTarget===task.id?' t-drag-over':''}`}
+    <tr className={`t-row${task.done?' task-done':''}${expanded?' t-expanded':''}${taskDragSrc===task.id?' t-drag-src':''}${taskDragTarget===task.id?' t-drag-over':''}${selectedIds?.has(task.id)?' t-selected':''}`}
       draggable
       onDragStart={e=>{e.stopPropagation();e.dataTransfer.effectAllowed='move';onTaskDragStart?.(task.id);}}
       onDragEnd={e=>{e.stopPropagation();onTaskDragEnd?.();}}
       onDragOver={e=>{e.preventDefault();e.stopPropagation();onTaskDragOver?.(task.id);}}
-      onDrop={e=>{e.preventDefault();e.stopPropagation();onTaskDrop?.(task.id);}}>
+      onDrop={e=>{e.preventDefault();e.stopPropagation();onTaskDrop?.(task.id);}}
+      onClick={e=>{if(e.target.closest('button,input,textarea,select,a,[contenteditable]'))return;onSelect?.(task.id,e.ctrlKey||e.metaKey);}}>
       <td className="sticky-td">
         <div className="name-inner">
           <span className="task-drag-handle" title="גרור">⠿</span>
@@ -3619,19 +3738,11 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
             title="תת-משימות" onClick={e=>{e.stopPropagation();setExpanded(o=>!o);}}>
             {expanded?'▼':'▶'}
           </button>
-          {/* Done toggle — shape reflects whether the task has any timeline events */}
-          {isProcess
-            ?<button className={`proc-btn${task.done?' is-done':''}`}
-                title="יש טיימליין עדכונים — לחץ לסימון הושלם"
-                onClick={e=>{e.stopPropagation();onUpdate({...task,done:!task.done});}}>
-                {task.done&&'✓'}
-              </button>
-            :<button className={`done-btn${task.done?' is-done':''}`}
-                title="לחץ לסימון הושלם"
-                onClick={e=>{e.stopPropagation();onUpdate({...task,done:!task.done});}}>
-                {task.done&&'✓'}
-              </button>
-          }
+          {/* Status square — replaces done toggle; C=בוצע also marks task done */}
+          <StatusCircle size={15}
+            statusId={isProcess ? getMostRecentEventStatus(task) : taskEffectiveStatusId}
+            onChange={v=>{onUpdate({...task,statusId:v,done:v==='C'});}}
+          />
           {editTitle
             ?<input ref={inputRef} className="name-edit-input" value={title}
                 onChange={e=>setTitle(e.target.value)} onBlur={commitTitle}
@@ -3661,7 +3772,10 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
               :<button className="add-ev-inline" title="הוסף עדכון"
                   onClick={e=>{e.stopPropagation();setPanelSubId('__task__');}}>+</button>}
           </span>
-          <button className="del-btn" onClick={onDelete}>✕</button>
+          <button className="task-actions-btn" title="אפשרויות"
+            onClick={e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setTaskMenuPos(taskMenuPos?null:{top:r.bottom+4,right:window.innerWidth-r.right});}}>
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="3" r="1.4" fill="currentColor"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/><circle cx="8" cy="13" r="1.4" fill="currentColor"/></svg>
+          </button>
         </div>
       </td>
       {visibleColIds.filter(id=>id!=='__name').map(id=>{
@@ -3709,10 +3823,16 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
               onToggleNested={nestedSubs.length>0?()=>setOpen(o=>!o):null}
               onOpenProcess={()=>setPanelSubId(sub.id)}
               onUpdate={s=>{setNewSubId(null);updateSubtask(s);}}
-              onDelete={()=>{setNewSubId(null);deleteSubtask(sub.id);}}/>
+              onDelete={()=>{setNewSubId(null);deleteSubtask(sub.id);}}
+              onDuplicateSub={s=>{
+                const idx=subtasks.findIndex(x=>x.id===s.id);
+                const copy={...s,id:uid(),title:s.title+' (עותק)'};
+                const arr=[...subtasks];arr.splice(idx+1,0,copy);
+                onUpdate({...task,subtasks:arr});
+              }}/>
             {open && nestedSubs.map(ns=>(
               <tr key={ns.id} className="sub-row" style={{background:'var(--bg)'}}>
-                <td className="sticky-td" style={{paddingRight:36,paddingLeft:8,verticalAlign:'middle',background:'inherit'}}>
+                <td className="sticky-td" style={{paddingRight:108,paddingLeft:8,verticalAlign:'middle',background:'inherit'}}>
                   <div style={{display:'flex',alignItems:'center',gap:6}}>
                     <span style={{color:'var(--border-strong)',fontSize:12,flexShrink:0}}>└</span>
                     <input type="checkbox" checked={!!ns.done}
@@ -3764,8 +3884,646 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
         onAddToMain={isTaskNode ? undefined : (sub=>addSubToMain(sub))}
         onClose={()=>setPanelSubId(null)}/>;
     })()}
+    {taskMenuPos&&ReactDOM.createPortal((()=>{
+      const MENU_ITEMS=[
+        {icon:'⧉', label:'שכפול משימה',    action:()=>{onDuplicate?.(task);setTaskMenuPos(null);}},
+        {icon:'+', label:'הוספת תת-משימה', action:()=>{addSubtask();setTaskMenuPos(null);}},
+        {icon:'⊡', label:'הוספת עדכון',    action:()=>{setPanelSubId('__task__');setTaskMenuPos(null);}},
+        {icon:'☰', label:'פרטי משימה',     action:()=>{onShowDetail?.(task.id);setTaskMenuPos(null);}},
+        null,
+        {icon:'×', label:'מחק משימה',      danger:true, action:()=>{onDelete();setTaskMenuPos(null);}},
+      ];
+      return(<>
+        <div style={{position:'fixed',inset:0,zIndex:9998}} onClick={()=>setTaskMenuPos(null)}/>
+        <div dir="rtl" style={{position:'fixed',top:taskMenuPos.top,right:taskMenuPos.right,minWidth:170,
+          background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,
+          boxShadow:'0 6px 20px rgba(0,0,0,.14)',zIndex:9999,padding:'4px',
+          fontFamily:'Heebo,system-ui,sans-serif'}}>
+          {MENU_ITEMS.map((item,idx)=>!item
+            ?<div key={idx} style={{height:1,background:'var(--border)',margin:'3px 0'}}/>
+            :<button key={idx} onClick={item.action}
+                style={{display:'flex',alignItems:'center',gap:9,width:'100%',padding:'8px 12px',
+                  border:'none',background:'none',cursor:'pointer',fontSize:13,fontFamily:'inherit',
+                  textAlign:'right',borderRadius:5,color:item.danger?'#EF4444':'var(--text)'}}
+                onMouseEnter={e=>e.currentTarget.style.background=item.danger?'rgba(239,68,68,.07)':'var(--bg)'}
+                onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                <span style={{color:item.danger?'#EF4444':'var(--text-3)',fontWeight:700,width:14,textAlign:'center',flexShrink:0}}>{item.icon}</span>
+                {item.label}
+              </button>
+          )}
+        </div>
+      </>);
+    })(),document.body)}
     </>
   );
+}
+
+/* ══════════════════════════════════════
+   Task Detail Sidebar
+══════════════════════════════════════ */
+const formatBytes = n => n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFixed(1)+' MB';
+
+function SidebarSubRow({sub, onUpdate, onDelete, autoFocus=false, visibleFields}) {
+  const {priorities, disciplines} = useContext(ListsCtx);
+  const [title, setTitle] = useState(sub.title||'');
+  const ref = useRef(null);
+  useEffect(()=>{ if(autoFocus&&ref.current) ref.current.focus(); },[]);
+  const commit = () => { if(title.trim()) onUpdate({...sub,title:title.trim()}); else onDelete(); };
+  const disc  = sub.discipline ? disciplines.find(d=>d.id===sub.discipline) : null;
+  const prio  = sub.priority   ? priorities.find(p=>p.id===sub.priority)    : null;
+  const evts  = sub.events||[];
+  const hasMeta = (visibleFields.has('discipline')&&disc)||(visibleFields.has('priority')&&prio)||
+    (visibleFields.has('dates')&&(sub.startDate||sub.dueDate))||(visibleFields.has('events')&&evts.length>0);
+  return (
+    <div className="sds-sub" style={{alignItems:hasMeta?'flex-start':'center'}}>
+      {visibleFields.has('status')&&(
+        <div style={{marginTop:hasMeta?2:0,flexShrink:0}}>
+          <StatusCircle size={14} statusId={sub.statusId||'N'} onChange={v=>onUpdate({...sub,statusId:v})}/>
+        </div>
+      )}
+      <div style={{flex:1,minWidth:0}}>
+        <input ref={ref}
+          style={{width:'100%',background:'none',border:'none',outline:'none',fontSize:12,fontFamily:'inherit',
+            color:'var(--text)',padding:0,textDecoration:(sub.done||sub.statusId==='C')?'line-through':'none',
+            opacity:(sub.done||sub.statusId==='C')?.6:1}}
+          value={title} placeholder="תת-משימה..."
+          onChange={e=>setTitle(e.target.value)}
+          onBlur={commit}
+          onKeyDown={e=>{if(e.key==='Enter'||e.key==='Escape')commit();}}/>
+        {hasMeta&&(
+          <div className="sds-sub-meta">
+            {visibleFields.has('discipline')&&disc&&(
+              <span style={{fontSize:9,fontWeight:700,color:disc.color,background:disc.bg,borderRadius:4,padding:'1px 5px',whiteSpace:'nowrap'}}>{disc.label}</span>
+            )}
+            {visibleFields.has('priority')&&prio&&(
+              <span style={{fontSize:9,fontWeight:700,color:prio.color,background:prio.bg,borderRadius:4,padding:'1px 5px',whiteSpace:'nowrap'}}>{prio.label}</span>
+            )}
+            {visibleFields.has('dates')&&(sub.startDate||sub.dueDate)&&(
+              <span style={{fontSize:9,color:'var(--text-3)',fontFamily:'monospace',whiteSpace:'nowrap'}}>
+                {sub.startDate?fmtDate(sub.startDate):'—'} ‹ {sub.dueDate?fmtDate(sub.dueDate):'—'}
+              </span>
+            )}
+            {visibleFields.has('events')&&evts.length>0&&(
+              <span style={{fontSize:9,color:'var(--accent)',background:'rgba(99,102,241,.1)',borderRadius:4,padding:'1px 5px',whiteSpace:'nowrap'}}>⊡ {evts.length}</span>
+            )}
+          </div>
+        )}
+      </div>
+      <button style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',fontSize:13,padding:'0 2px',
+        lineHeight:1,flexShrink:0,marginTop:hasMeta?1:0}} onClick={onDelete}>×</button>
+    </div>
+  );
+}
+
+function SidebarEventRow({ev, onUpdate, onDelete}) {
+  const {disciplines} = useContext(ListsCtx);
+  const st = EV_STATUSES[ev.status||'missing']||EV_STATUSES.missing;
+  const disc = disciplines.find(d=>d.id===ev.assignee);
+  const [open, setOpen] = useState(false);
+  const [date, setDate] = useState(ev.date||'');
+  const [status, setStatus] = useState(ev.status||'progress');
+  const [assignee, setAssignee] = useState(ev.assignee||'');
+  const [notes, setNotes] = useState(ev.notes||'');
+  const save = (patch={}) => onUpdate({...ev,date,status,assignee,notes,...patch});
+  const curSt = EV_STATUSES[status]||EV_STATUSES.missing;
+  return (
+    <div className="tds-ev-row">
+      <div style={{width:3,alignSelf:'stretch',borderRadius:2,background:curSt.color,flexShrink:0,marginTop:2}}/>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <span style={{fontSize:10,fontWeight:700,color:curSt.color,background:curSt.bg,padding:'1px 6px',borderRadius:4,whiteSpace:'nowrap',cursor:'pointer'}}
+            onClick={()=>{
+              const idx=EV_CYCLE.indexOf(status);
+              const next=EV_CYCLE[(idx+1)%EV_CYCLE.length];
+              setStatus(next);save({status:next});
+            }}>{curSt.label}</span>
+          {disc&&<span style={{fontSize:9,fontWeight:700,color:disc.color,background:disc.bg,padding:'1px 5px',borderRadius:4,whiteSpace:'nowrap'}}>{disc.label}</span>}
+          <span style={{fontSize:10,color:'var(--text-3)',fontFamily:'monospace',marginRight:'auto',whiteSpace:'nowrap'}}>
+            {fmtDate(date)||'—'}
+          </span>
+          <button style={{background:'none',border:'none',cursor:'pointer',fontSize:11,color:'var(--text-3)',padding:'0 2px'}}
+            onClick={()=>setOpen(o=>!o)}>{open?'▲':'▼'}</button>
+          <button style={{background:'none',border:'none',cursor:'pointer',fontSize:13,color:'var(--text-3)',padding:'0 2px'}}
+            onClick={onDelete}>×</button>
+        </div>
+        {open&&(
+          <div style={{marginTop:6,display:'flex',flexDirection:'column',gap:6}}>
+            <div style={{display:'flex',gap:6}}>
+              <input type="date" value={date} onChange={e=>setDate(e.target.value)} onBlur={()=>save()}
+                style={{flex:1,fontSize:11,padding:'3px 6px',border:'1px solid var(--border)',borderRadius:5,
+                  background:'var(--bg)',color:'var(--text)',fontFamily:'inherit'}}/>
+              <select value={status} onChange={e=>{setStatus(e.target.value);save({status:e.target.value});}}
+                style={{flex:1,fontSize:11,padding:'3px 6px',border:'1px solid var(--border)',borderRadius:5,
+                  background:'var(--bg)',color:'var(--text)',fontFamily:'inherit'}}>
+                {EV_CYCLE.map(k=>(
+                  <option key={k} value={k}>{EV_STATUSES[k]?.label||k}</option>
+                ))}
+              </select>
+            </div>
+            <textarea value={notes} onChange={e=>setNotes(e.target.value)} onBlur={()=>save()}
+              placeholder="הערות..."
+              style={{width:'100%',minHeight:58,resize:'vertical',fontSize:11,color:'var(--text)',background:'var(--bg)',
+                border:'1px solid var(--border)',borderRadius:5,padding:'5px 8px',fontFamily:'inherit',
+                boxSizing:'border-box',direction:'rtl',outline:'none'}}/>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TaskDetailSidebar({task, onUpdate, onClose, data}) {
+  const {priorities, disciplines} = useContext(ListsCtx);
+  const groups    = data.groups || [];
+  const group     = groups.find(g => g.id===task.groupId);
+  const sheetName = data.sheetName || '';
+
+  /* Tabs */
+  const [activeTab, setActiveTab] = useState('desc');
+
+  /* Description rich-text editor */
+  const descRef = useRef(null);
+  useEffect(()=>{ if(descRef.current) descRef.current.innerHTML = task.description||''; },[task.id]);
+  const saveDesc = () => {
+    const html = descRef.current?.innerHTML||'';
+    if(html !== (task.description||'')) onUpdate({...task, description:html});
+  };
+  const execFmt = cmd => { descRef.current?.focus(); document.execCommand(cmd,false,null); };
+
+  /* Image handling */
+  const [imgSel, setImgSel]         = useState(null); // {el, rect}
+  const [annMode, setAnnMode]       = useState(null); // 'draw'|'highlight'|'text'|null
+  const [annColor, setAnnColor]     = useState('#ef4444');
+  const [annHlColor, setAnnHlColor] = useState('#fde68a');
+  const [annSize, setAnnSize]       = useState(3);
+  const annCanvasRef = useRef(null);
+  const annDrawing   = useRef(false);
+  const annLast      = useRef(null);
+
+  const fitImg = img => { img.style.maxWidth='100%'; img.style.width='100%'; img.style.height='auto'; };
+
+  /* wrap img in resize container */
+  const wrapImg = img => {
+    if(img.parentElement?.classList.contains('tds-img-wrap')) return img.parentElement;
+    const wrap = document.createElement('div');
+    wrap.className = 'tds-img-wrap';
+    wrap.style.width = img.style.width || img.offsetWidth+'px';
+    img.parentNode.insertBefore(wrap, img);
+    wrap.appendChild(img);
+    img.style.width = '100%';
+    img.style.maxWidth = '100%';
+    img.style.height = 'auto';
+    return wrap;
+  };
+
+  /* resize handle drag */
+  const startResize = (e, corner, wrap) => {
+    e.preventDefault(); e.stopPropagation();
+    const startX = e.clientX;
+    const startW = wrap.offsetWidth;
+    const onMove = mv => {
+      let dx = startX - mv.clientX; // RTL: drag right = smaller
+      if(corner==='ne'||corner==='se'||corner==='e') dx = mv.clientX - startX;
+      const maxW = descRef.current?.offsetWidth || 400;
+      wrap.style.width = Math.max(60, Math.min(maxW, startW + dx)) + 'px';
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      saveDesc();
+      setImgSel(s => s ? {...s, rect: s.el.getBoundingClientRect()} : s);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  const insertImg = () => {
+    const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+    inp.onchange=e=>{
+      const f=e.target.files[0]; if(!f) return;
+      const r=new FileReader(); r.onload=()=>{
+        descRef.current?.focus();
+        document.execCommand('insertImage',false,r.result);
+        const imgs=descRef.current?.querySelectorAll('img:not(.tds-img-wrap img)');
+        if(imgs?.length){ const img=imgs[imgs.length-1]; fitImg(img); wrapImg(img); }
+        saveDesc();
+      }; r.readAsDataURL(f);
+    }; inp.click();
+  };
+  const onPaste = e => {
+    for(const item of (e.clipboardData?.items||[])){
+      if(item.type.startsWith('image/')){
+        e.preventDefault();
+        const r=new FileReader(); r.onload=()=>{
+          document.execCommand('insertImage',false,r.result);
+          const imgs=descRef.current?.querySelectorAll('img:not(.tds-img-wrap img)');
+          if(imgs?.length){ const img=imgs[imgs.length-1]; fitImg(img); wrapImg(img); }
+          saveDesc();
+        }; r.readAsDataURL(item.getAsFile()); break;
+      }
+    }
+  };
+
+  const selectImg = img => {
+    descRef.current?.querySelectorAll('img.tds-img-sel').forEach(i=>i.classList.remove('tds-img-sel'));
+    img.classList.add('tds-img-sel');
+    wrapImg(img);
+    setImgSel({el:img, rect:img.getBoundingClientRect()});
+    setAnnMode(null);
+  };
+  const deselectImg = () => {
+    descRef.current?.querySelectorAll('img.tds-img-sel').forEach(i=>i.classList.remove('tds-img-sel'));
+    setImgSel(null); setAnnMode(null);
+  };
+
+  const handleEditorClick = e => {
+    if(e.target.tagName==='IMG') selectImg(e.target);
+    else if(!e.target.closest('.tds-img-wrap')) deselectImg();
+  };
+
+  /* annotation canvas drawing */
+  useEffect(()=>{
+    if(annMode!=='draw'&&annMode!=='highlight') return;
+    const canvas = annCanvasRef.current; if(!canvas) return;
+    const onDown = e => {
+      annDrawing.current=true;
+      const r=canvas.getBoundingClientRect();
+      annLast.current={x:e.clientX-r.left,y:e.clientY-r.top};
+    };
+    const onMove = e => {
+      if(!annDrawing.current||!annLast.current) return;
+      const r=canvas.getBoundingClientRect();
+      const x=e.clientX-r.left, y=e.clientY-r.top;
+      const ctx=canvas.getContext('2d');
+      ctx.strokeStyle = annMode==='highlight' ? annHlColor+'aa' : annColor;
+      ctx.lineWidth   = annMode==='highlight' ? annSize*6 : annSize;
+      ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.globalAlpha = annMode==='highlight' ? 0.5 : 1;
+      ctx.beginPath();
+      ctx.moveTo(annLast.current.x, annLast.current.y);
+      ctx.lineTo(x,y); ctx.stroke();
+      annLast.current={x,y};
+    };
+    const onUp = () => { annDrawing.current=false; annLast.current=null; };
+    canvas.addEventListener('mousedown',onDown);
+    canvas.addEventListener('mousemove',onMove);
+    canvas.addEventListener('mouseup',onUp);
+    return ()=>{ canvas.removeEventListener('mousedown',onDown); canvas.removeEventListener('mousemove',onMove); canvas.removeEventListener('mouseup',onUp); };
+  },[annMode,annColor,annHlColor,annSize]);
+
+  /* Inline title edit */
+  const [editTitle, setEditTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(task.title||'');
+  const commitTitle = () => { if(titleDraft.trim()) onUpdate({...task,title:titleDraft.trim()}); setEditTitle(false); };
+
+  /* Subtasks */
+  const subtasks = task.subtasks||[];
+  const [newSubId, setNewSubId] = useState(null);
+  const addSub = () => { const id=uid(); onUpdate({...task,subtasks:[...subtasks,{id,title:'',done:false,statusId:'N',priority:'',discipline:'',events:[]}]}); setNewSubId(id); };
+  const updateSub = s => onUpdate({...task,subtasks:subtasks.map(x=>x.id===s.id?s:x)});
+  const deleteSub = id => onUpdate({...task,subtasks:subtasks.filter(x=>x.id!==id)});
+
+  /* Subtask field visibility */
+  const SUB_FIELDS = [
+    {id:'status',    label:'סטטוס'},
+    {id:'discipline',label:'תחום'},
+    {id:'priority',  label:'עדיפות'},
+    {id:'dates',     label:'תאריכים'},
+    {id:'events',    label:'עדכונים'},
+  ];
+  const [subFields, setSubFields] = useState(new Set(['status']));
+  const [sfOpen, setSfOpen] = useState(false);
+  const sfRef = useRef(null);
+  useEffect(()=>{
+    if(!sfOpen) return;
+    const h=e=>{if(sfRef.current&&!sfRef.current.contains(e.target))setSfOpen(false);};
+    document.addEventListener('mousedown',h);
+    return()=>document.removeEventListener('mousedown',h);
+  },[sfOpen]);
+
+  /* Task events (עדכונים tab) */
+  const events = task.events||[];
+  const addEvent = () => {
+    const newEv={id:uid(),date:todayISO(),status:'progress',assignee:'',notes:''};
+    onUpdate({...task,events:[newEv,...events]});
+  };
+  const updateEvent = ev => onUpdate({...task,events:events.map(e=>e.id===ev.id?ev:e)});
+  const deleteEvent = id => onUpdate({...task,events:events.filter(e=>e.id!==id)});
+
+  /* Files */
+  const attachments = task.attachments||[];
+  const fileRef = useRef(null);
+  const addFiles = e => {
+    Promise.all([...(e.target.files||[])].map(f=>new Promise(res=>{
+      const r=new FileReader(); r.onload=()=>res({id:uid(),name:f.name,size:f.size,type:f.type,data:r.result}); r.readAsDataURL(f);
+    }))).then(arr=>onUpdate({...task,attachments:[...attachments,...arr]}));
+    e.target.value='';
+  };
+
+  const propRow = (label, content) => (
+    <div className="tds-prop-row" key={label}>
+      <span className="tds-prop-lbl">{label}</span>
+      <div className="tds-prop-val">{content}</div>
+    </div>
+  );
+
+  return ReactDOM.createPortal((
+    <>
+      <div className="tds-overlay" onClick={onClose}/>
+      <div className="tds-panel" dir="rtl" onClick={e=>e.stopPropagation()}>
+
+        {/* ── Header ── */}
+        <div className="tds-hdr">
+          <StatusCircle size={18} statusId={task.statusId}
+            onChange={v=>onUpdate({...task,statusId:v,done:v==='C'})}/>
+          {editTitle
+            ?<input autoFocus value={titleDraft}
+                onChange={e=>setTitleDraft(e.target.value)}
+                onBlur={commitTitle}
+                onKeyDown={e=>{if(e.key==='Enter')commitTitle();if(e.key==='Escape')setEditTitle(false);}}
+                style={{flex:1,fontSize:15,fontWeight:700,border:'none',outline:'1.5px solid var(--accent)',
+                  borderRadius:5,padding:'2px 6px',fontFamily:'inherit',background:'var(--bg)',color:'var(--text)'}}/>
+            :<span className="tds-title" onClick={()=>{setTitleDraft(task.title||'');setEditTitle(true);}} title="לחץ לעריכה" style={{cursor:'text'}}>
+              {task.title||<span style={{color:'var(--text-3)'}}>ללא שם</span>}
+            </span>}
+          <button onClick={onClose}
+            style={{background:'none',border:'none',cursor:'pointer',fontSize:20,color:'var(--text-3)',
+              padding:'0 4px',borderRadius:4,lineHeight:1,flexShrink:0}}>×</button>
+        </div>
+
+        {/* ── Tabs ── */}
+        <div className="tds-tabs">
+          <button className={`tds-tab${activeTab==='desc'?' active':''}`} onClick={()=>setActiveTab('desc')}>תיאור משימה</button>
+          <button className={`tds-tab${activeTab==='updates'?' active':''}`} onClick={()=>setActiveTab('updates')}>
+            עדכונים
+            {events.length>0&&<span style={{marginRight:5,fontSize:10,fontWeight:700,color:'var(--accent)',
+              background:'rgba(99,102,241,.12)',borderRadius:9,padding:'0 5px'}}>{events.length}</span>}
+          </button>
+        </div>
+
+        {/* ── Body ── */}
+        <div className="tds-body">
+
+          {/* ═══ תיאור משימה tab ═══ */}
+          {activeTab==='desc'&&(<>
+
+            {/* Breadcrumb */}
+            {(sheetName||group?.name)&&(
+              <div style={{display:'flex',alignItems:'center',gap:5,fontSize:12,color:'var(--text-2)',
+                marginBottom:14,padding:'6px 10px',background:'var(--bg)',borderRadius:7}}>
+                <span style={{fontSize:13}}>📍</span>
+                {sheetName&&<span style={{fontWeight:600,color:'var(--text)'}}>{sheetName}</span>}
+                {sheetName&&group?.name&&<span style={{color:'var(--text-3)',fontSize:10}}>›</span>}
+                {group?.name&&<span style={{color:'var(--text-2)'}}>{group.name}</span>}
+              </div>
+            )}
+
+            {/* Properties */}
+            <div style={{marginBottom:18,borderRadius:8,border:'1px solid var(--border)',overflow:'hidden'}}>
+              {propRow('עדיפות', <PriorityCell priority={task.priority} onChange={v=>onUpdate({...task,priority:v})}/>)}
+              {propRow('תחום',   <DisciplineCell discipline={task.discipline} onChange={v=>onUpdate({...task,discipline:v})}/>)}
+              {propRow('תאריכים',
+                <DateRangeCell startDate={task.startDate} dueDate={task.dueDate} isParent={true}
+                  onChange={(f,v)=>onUpdate({...task,[f]:v})}/>)}
+            </div>
+
+            {/* Description */}
+            <div style={{marginBottom:18}}>
+              <div className="tds-sec-lbl">תיאור</div>
+              <div style={{border:'1px solid var(--border)',borderRadius:8,overflow:'hidden',position:'relative'}}>
+                <div className="tds-desc-toolbar">
+                  {/* Undo / Redo */}
+                  <button className="tds-tb-btn" title="בטל (Ctrl+Z)"
+                    onMouseDown={e=>{e.preventDefault();execFmt('undo');}}>↩</button>
+                  <button className="tds-tb-btn" title="שחזר (Ctrl+Y)"
+                    onMouseDown={e=>{e.preventDefault();execFmt('redo');}}>↪</button>
+                  <div style={{width:1,background:'var(--border)',margin:'2px 4px'}}/>
+                  {/* Font size */}
+                  <select className="tds-tb-btn" title="גודל טקסט"
+                    style={{padding:'1px 2px',cursor:'pointer',fontSize:11,minWidth:44}}
+                    value=""
+                    onChange={e=>{
+                      const v=e.target.value; if(!v) return;
+                      descRef.current?.focus();
+                      document.execCommand('fontSize',false,v);
+                      e.target.value='';
+                    }}>
+                    <option value="" disabled>גד׳</option>
+                    <option value="1">קטן</option>
+                    <option value="3">רגיל</option>
+                    <option value="5">גדול</option>
+                    <option value="6">כותרת</option>
+                  </select>
+                  <div style={{width:1,background:'var(--border)',margin:'2px 4px'}}/>
+                  {/* Bold / Italic / Underline */}
+                  {[{cmd:'bold',icon:'B',style:{fontWeight:700},title:'הדגשה (Ctrl+B)'},
+                    {cmd:'italic',icon:'I',style:{fontStyle:'italic'},title:'נטוי (Ctrl+I)'},
+                    {cmd:'underline',icon:'U',style:{textDecoration:'underline'},title:'קו תחתון (Ctrl+U)'},
+                  ].map(({cmd,icon,style:s={},title})=>(
+                    <button key={cmd} className="tds-tb-btn" title={title} style={s}
+                      onMouseDown={e=>{e.preventDefault();execFmt(cmd);}}>{icon}</button>
+                  ))}
+                  <div style={{width:1,background:'var(--border)',margin:'2px 4px'}}/>
+                  {[{cmd:'insertUnorderedList',icon:'• —',title:'רשימת נקודות'},
+                    {cmd:'insertOrderedList', icon:'1. —',title:'רשימה ממוספרת'},
+                  ].map(({cmd,icon,title})=>(
+                    <button key={cmd} className="tds-tb-btn" title={title}
+                      onMouseDown={e=>{e.preventDefault();execFmt(cmd);}}>{icon}</button>
+                  ))}
+                  <div style={{width:1,background:'var(--border)',margin:'2px 4px'}}/>
+                  <button className="tds-tb-btn" title="הוסף תמונה"
+                    onMouseDown={e=>{e.preventDefault();insertImg();}}>🖼</button>
+                </div>
+                <div ref={descRef} contentEditable className="tds-editor"
+                  data-placeholder="הוסף תיאור..."
+                  suppressContentEditableWarning
+                  onBlur={saveDesc}
+                  onPaste={onPaste}
+                  onClick={handleEditorClick}/>
+              </div>
+            </div>
+
+            {/* Subtasks */}
+            <div style={{marginBottom:18}}>
+              <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:8}}>
+                <span className="tds-sec-lbl" style={{margin:0}}>תת-משימות · {subtasks.length}</span>
+                {subtasks.length>0&&<span style={{fontSize:11,fontWeight:400,color:'var(--text-3)'}}>
+                  ({subtasks.filter(s=>s.statusId==='C'||s.done).length} הושלמו)
+                </span>}
+                <div style={{marginRight:'auto',position:'relative'}} ref={sfRef}>
+                  <button onClick={()=>setSfOpen(o=>!o)}
+                    style={{background:'none',border:'1px solid var(--border)',borderRadius:5,cursor:'pointer',
+                      padding:'2px 7px',fontSize:10,color:'var(--text-3)',fontFamily:'inherit',lineHeight:1.6,
+                      transition:'border-color .1s,color .1s'}}
+                    title="בחר שדות לתצוגה">⚙ שדות</button>
+                  {sfOpen&&(
+                    <div className="tds-sf-menu">
+                      {SUB_FIELDS.map(f=>(
+                        <div key={f.id} className="tds-sf-item"
+                          onClick={()=>setSubFields(prev=>{const n=new Set(prev);n.has(f.id)?n.delete(f.id):n.add(f.id);return n;})}>
+                          <span style={{fontSize:13,color:subFields.has(f.id)?'var(--accent)':'var(--text-3)',width:14,flexShrink:0}}>
+                            {subFields.has(f.id)?'✓':'○'}
+                          </span>
+                          {f.label}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              {subtasks.map(s=>(
+                <SidebarSubRow key={s.id} sub={s} autoFocus={s.id===newSubId}
+                  visibleFields={subFields}
+                  onUpdate={updateSub} onDelete={()=>deleteSub(s.id)}/>
+              ))}
+              <button onClick={addSub}
+                style={{display:'flex',alignItems:'center',gap:6,background:'none',border:'none',
+                  cursor:'pointer',fontSize:12,color:'var(--text-3)',fontFamily:'inherit',padding:'5px 0',width:'100%'}}>
+                <span style={{fontSize:15,color:'var(--accent)',lineHeight:1}}>+</span> הוסף תת-משימה
+              </button>
+            </div>
+
+            {/* Files */}
+            <div style={{marginBottom:8}}>
+              <div className="tds-sec-lbl" style={{marginBottom:8}}>קבצים · {attachments.length}</div>
+              {attachments.map(f=>(
+                <div key={f.id} className="tds-file-item">
+                  <span style={{fontSize:18,flexShrink:0}}>📎</span>
+                  <span style={{flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'var(--text)'}}>{f.name}</span>
+                  <span style={{color:'var(--text-3)',fontSize:11,flexShrink:0}}>{formatBytes(f.size)}</span>
+                  <a href={f.data} download={f.name}
+                    style={{color:'var(--accent)',fontSize:11,flexShrink:0,textDecoration:'none'}}>הורד</a>
+                  <button onClick={()=>onUpdate({...task,attachments:attachments.filter(x=>x.id!==f.id)})}
+                    style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',fontSize:14,
+                      padding:'0 2px',lineHeight:1,flexShrink:0}}>×</button>
+                </div>
+              ))}
+              <input ref={fileRef} type="file" multiple style={{display:'none'}} onChange={addFiles}/>
+              <button className="tds-add-file" onClick={()=>fileRef.current?.click()}>
+                <span style={{fontSize:15,lineHeight:1}}>+</span> הוסף קבצים
+              </button>
+            </div>
+
+          </>)}
+
+          {/* ═══ עדכונים tab ═══ */}
+          {activeTab==='updates'&&(<>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+              <span className="tds-sec-lbl" style={{margin:0}}>עדכונים · {events.length}</span>
+              <button onClick={addEvent}
+                style={{display:'flex',alignItems:'center',gap:5,background:'var(--accent)',color:'#fff',
+                  border:'none',borderRadius:6,cursor:'pointer',fontSize:11,fontFamily:'inherit',
+                  padding:'5px 12px',fontWeight:600}}>
+                <span style={{fontSize:14,lineHeight:1}}>+</span> הוסף עדכון
+              </button>
+            </div>
+            {events.length===0&&(
+              <div style={{textAlign:'center',color:'var(--text-3)',fontSize:12,padding:'40px 0'}}>
+                אין עדכונים עדיין
+              </div>
+            )}
+            {[...events].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(ev=>(
+              <SidebarEventRow key={ev.id} ev={ev} onUpdate={updateEvent} onDelete={()=>deleteEvent(ev.id)}/>
+            ))}
+          </>)}
+
+        </div>
+
+        {/* ── Image resize handles ── */}
+        {imgSel&&ReactDOM.createPortal(
+          <div style={{position:'fixed',top:imgSel.rect.top-6,right:window.innerWidth-imgSel.rect.right-6,
+            width:imgSel.rect.width+12,height:imgSel.rect.height+12,pointerEvents:'none',zIndex:'calc(var(--z-panel) + 15)'}}>
+            {['nw','ne','sw','se','n','s','e','w'].map(c=>(
+              <div key={c} className={`tds-img-handle ${c}`} style={{pointerEvents:'all'}}
+                onMouseDown={e=>startResize(e,c,imgSel.el.parentElement?.classList.contains('tds-img-wrap')?imgSel.el.parentElement:imgSel.el)}/>
+            ))}
+          </div>,
+          document.body
+        )}
+
+        {/* ── Annotation toolbar ── */}
+        {imgSel&&ReactDOM.createPortal(
+          <div className="tds-ann-bar"
+            style={{top:imgSel.rect.top-56, right:window.innerWidth-imgSel.rect.right}}
+            onMouseDown={e=>e.preventDefault()}>
+            {/* Draw colors */}
+            <span className="tds-ann-label">סמן</span>
+            {['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#a855f7','#000000'].map(c=>(
+              <div key={c} className={`tds-ann-swatch${annMode==='draw'&&annColor===c?' active':''}`}
+                style={{background:c}} title={c}
+                onClick={()=>{setAnnMode(m=>m==='draw'&&annColor===c?null:'draw');setAnnColor(c);}}/>
+            ))}
+            <div className="tds-ann-picker" title="צבע מותאם">
+              <input type="color" value={annColor} onChange={e=>{setAnnColor(e.target.value);setAnnMode('draw');}}/>
+            </div>
+            <div className="tds-ann-sep"/>
+            {/* Highlight colors */}
+            <span className="tds-ann-label">הדגש</span>
+            {['#fde68a','#bbf7d0','#bfdbfe','#fecaca','#e9d5ff'].map(c=>(
+              <div key={c} className={`tds-ann-swatch${annMode==='highlight'&&annHlColor===c?' active':''}`}
+                style={{background:c}} title={c}
+                onClick={()=>{setAnnMode(m=>m==='highlight'&&annHlColor===c?null:'highlight');setAnnHlColor(c);}}/>
+            ))}
+            <div className="tds-ann-sep"/>
+            {/* Text box */}
+            <button className={`tds-ann-btn${annMode==='text'?' active':''}`}
+              onClick={()=>setAnnMode(m=>m==='text'?null:'text')}>T</button>
+            {/* Size */}
+            <select className="tds-ann-size" value={annSize} onChange={e=>setAnnSize(+e.target.value)}>
+              <option value={2}>דק</option>
+              <option value={3}>רגיל</option>
+              <option value={5}>עבה</option>
+              <option value={8}>עבה מאוד</option>
+            </select>
+            <div className="tds-ann-sep"/>
+            {/* Delete */}
+            <button className="tds-ann-btn" style={{color:'#ef4444'}} title="הסר תמונה"
+              onClick={()=>{
+                const wrap=imgSel.el.parentElement;
+                if(wrap?.classList.contains('tds-img-wrap')) wrap.remove(); else imgSel.el.remove();
+                deselectImg(); saveDesc();
+              }}>🗑</button>
+            <button className="tds-ann-btn" onClick={deselectImg}>✕</button>
+          </div>,
+          document.body
+        )}
+
+        {/* ── Drawing canvas overlay ── */}
+        {imgSel&&(annMode==='draw'||annMode==='highlight')&&ReactDOM.createPortal(
+          <canvas ref={annCanvasRef}
+            width={Math.round(imgSel.rect.width)} height={Math.round(imgSel.rect.height)}
+            style={{position:'fixed',top:imgSel.rect.top,right:window.innerWidth-imgSel.rect.right,
+              cursor:annMode==='highlight'?'cell':'crosshair',
+              zIndex:'calc(var(--z-panel) + 10)',pointerEvents:'all'}}/>,
+          document.body
+        )}
+
+        {/* ── Text box insertion ── */}
+        {imgSel&&annMode==='text'&&ReactDOM.createPortal(
+          <div style={{position:'fixed',top:imgSel.rect.top,right:window.innerWidth-imgSel.rect.right,
+            width:imgSel.rect.width,height:imgSel.rect.height,
+            zIndex:'calc(var(--z-panel) + 10)',cursor:'crosshair'}}
+            onClick={e=>{
+              const r=e.currentTarget.getBoundingClientRect();
+              const x=e.clientX-r.left, y=e.clientY-r.top;
+              const txt=prompt('טקסט לסימון:'); if(!txt) return;
+              const span=document.createElement('span');
+              span.textContent=txt;
+              span.style.cssText=`position:absolute;left:${x}px;top:${y}px;background:${annColor}22;
+                color:${annColor};border:1.5px solid ${annColor};border-radius:4px;padding:2px 6px;
+                font-size:${10+annSize*2}px;font-weight:600;white-space:nowrap;pointer-events:none;`;
+              const wrap=imgSel.el.parentElement;
+              if(wrap?.classList.contains('tds-img-wrap')){
+                wrap.style.position='relative'; wrap.appendChild(span);
+              }
+              saveDesc(); setAnnMode(null);
+            }}/>,
+          document.body
+        )}
+
+      </div>
+    </>
+  ), document.body);
 }
 
 /* ══════════════════════════════════════
@@ -4416,20 +5174,15 @@ function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState,
         {/* Views */}
         <div ref={viewsRef} style={{position:'relative'}}>
           <button className={`btn-tb${activeViewId?' on':''}`}
-            onClick={()=>{setShowViews(o=>!o);setShowFilter(false);setShowSort(false);setShowGroup(false);}}>
-            ☰ {activeViewId ? activeViewName : 'מבטים'}
+            onClick={()=>{
+              if(activeViewId&&isViewDirty){onUpdateView();return;}
+              setShowViews(o=>!o);setShowFilter(false);setShowSort(false);setShowGroup(false);
+            }}
+            title={activeViewId&&isViewDirty?'עדכן מבט':undefined}
+            style={activeViewId&&isViewDirty?{borderColor:'var(--accent)',color:'var(--accent)',background:'rgba(37,99,235,.07)'}:undefined}>
+            {activeViewId&&isViewDirty ? '↻' : '☰'} {activeViewId ? activeViewName : 'מבטים'}
             {!activeViewId && views?.length>0 && <span className="tb-badge">{views.length}</span>}
           </button>
-          {/* Update-view button — shown when active view has unsaved changes */}
-          {activeViewId && isViewDirty && (
-            <button onClick={onUpdateView}
-              style={{display:'flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:7,
-                border:'1px solid var(--accent)',fontSize:11,fontWeight:700,cursor:'pointer',
-                fontFamily:'inherit',background:'rgba(37,99,235,.08)',color:'var(--accent)',
-                whiteSpace:'nowrap',marginRight:4}}>
-              ↑ עדכן מבט
-            </button>
-          )}
           {showViews&&(
             <div className="dp" style={{right:0,left:'auto',minWidth:230,padding:0}} onClick={e=>e.stopPropagation()}>
               <div className="dp-title" style={{padding:'8px 12px 6px'}}>מבטים שמורים</div>
@@ -5400,8 +6153,17 @@ function ListView({data, save}) {
   const [dragSrc,setDragSrc]=useState(null);              /* dragging group id */
   const [dragTarget,setDragTarget]=useState(null);        /* drag-over group id */
   const [secMenu,setSecMenu]=useState(null);  /* {id, x, y} — floating section menu */
+  const [dupModal,setDupModal]=useState(null); /* {group, name, copyTasks, copySubtasks, copyUpdates} */
+  const [delModal,setDelModal]=useState(null); /* {group, choice} */
   const [taskDragSrc,setTaskDragSrc]=useState(null);
   const [taskDragTarget,setTaskDragTarget]=useState(null);
+  const [selectedIds,setSelectedIds]=useState(new Set());
+  const handleSelect=(id,multi)=>setSelectedIds(prev=>{
+    if(multi){const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;}
+    return prev.size===1&&prev.has(id)?new Set():new Set([id]);
+  });
+  const [detailTaskId,setDetailTaskId]=useState(null);
+  const detailTask=detailTaskId?tasks.find(t=>t.id===detailTaskId):null;
   const colGroupRef=useRef({});
   const tableRef=useRef(null);
 
@@ -5422,6 +6184,12 @@ function ListView({data, save}) {
   const savePartial=patch=>save({...data,...patch});
   const updateTask=t=>savePartial({tasks:tasks.map(x=>x.id===t.id?t:x)});
   const deleteTask=id=>savePartial({tasks:tasks.filter(t=>t.id!==id)});
+  const duplicateTask=t=>{
+    const idx=tasks.findIndex(x=>x.id===t.id);
+    const copy={...t,id:uid(),title:t.title+' (עותק)',done:false,statusId:t.statusId||'N'};
+    const arr=[...tasks];arr.splice(idx+1,0,copy);
+    savePartial({tasks:arr});
+  };
 
   const handleTaskDragStart=id=>{setTaskDragSrc(id);setTaskDragTarget(null);};
   const handleTaskDragEnd=()=>{setTaskDragSrc(null);setTaskDragTarget(null);};
@@ -5499,6 +6267,36 @@ function ListView({data, save}) {
     setEditingGroupId(ng.id);
   };
 
+  const toggleCollapse=(gId)=>{
+    savePartial({groups:groups.map(g=>g.id===gId?{...g,collapsed:!g.collapsed}:g)});
+  };
+
+  const duplicateGroup=(g,name,copyTasks,copySubtasks,copyUpdates)=>{
+    const ng={id:uid(),name:name||'עותק של '+g.name,collapsed:false};
+    const arr=[...groups];
+    arr.splice(arr.findIndex(x=>x.id===g.id)+1,0,ng);
+    let newTasks=[...tasks];
+    if(copyTasks){
+      const src=tasks.filter(t=>t.groupId===g.id);
+      newTasks=[...tasks,...src.map(t=>({...t,id:uid(),groupId:ng.id,
+        subtasks:copySubtasks?(t.subtasks||[]).map(s=>({...s,id:uid()})):[],
+        processEvents:copyUpdates?(t.processEvents||[]).map(e=>({...e,id:uid()})):undefined,
+      }))];
+    }
+    savePartial({groups:arr,tasks:newTasks});
+  };
+
+  const deleteGroup=(gId,keepTasks)=>{
+    const newGroups=groups.filter(g=>g.id!==gId);
+    if(!keepTasks){
+      savePartial({groups:newGroups,tasks:tasks.filter(t=>t.groupId!==gId)});
+    } else {
+      let orphan=newGroups.find(g=>g.name==='ללא שם');
+      if(!orphan){orphan={id:uid(),name:'ללא שם',collapsed:false};newGroups.push(orphan);}
+      savePartial({groups:newGroups,tasks:tasks.map(t=>t.groupId===gId?{...t,groupId:orphan.id}:t)});
+    }
+  };
+
   /* filter */
   let display=[...tasks];
   if(filterState){
@@ -5555,6 +6353,7 @@ function ListView({data, save}) {
       groupByState,
       hiddenCols: data.hiddenCols||{},
       colOrder: data.colOrder||[],
+      colWidths: data.colWidths||{},
     };
     savePartial({views:[...views, nv]});
     setActiveViewId(nv.id);
@@ -5569,7 +6368,7 @@ function ListView({data, save}) {
     setFilterState(v.filterState||null);
     setSortState(v.sortState||null);
     setGroupByState(v.groupByState||[{field:'section'}]);
-    savePartial({hiddenCols:v.hiddenCols||{}, colOrder:v.colOrder||[]});
+    savePartial({hiddenCols:v.hiddenCols||{}, colOrder:v.colOrder||[], colWidths:v.colWidths||{}});
   };
   const deleteView = viewId => {
     savePartial({views:views.filter(v=>v.id!==viewId)});
@@ -5585,7 +6384,7 @@ function ListView({data, save}) {
     if(!activeViewId) return;
     savePartial({views: views.map(v => v.id===activeViewId ? {
       ...v, filterState, sortState, groupByState,
-      hiddenCols: data.hiddenCols||{}, colOrder: data.colOrder||[]
+      hiddenCols: data.hiddenCols||{}, colOrder: data.colOrder||[], colWidths: data.colWidths||{}
     } : v)});
   };
 
@@ -5597,6 +6396,7 @@ function ListView({data, save}) {
     if(JSON.stringify(activeView.groupByState||[])  !== JSON.stringify(groupByState))return true;
     if(JSON.stringify(activeView.hiddenCols||{})    !== JSON.stringify(data.hiddenCols||{})) return true;
     if(JSON.stringify(activeView.colOrder||[])      !== JSON.stringify(data.colOrder||[]))   return true;
+    if(JSON.stringify(activeView.colWidths||{})     !== JSON.stringify(data.colWidths||{}))  return true;
     return false;
   })());
 
@@ -5645,7 +6445,7 @@ function ListView({data, save}) {
   /* Ordered visible columns — built-ins first (in colOrder), then custom fields */
   const builtinVis=colOrder.filter(id=>!hiddenCols[id]);
   const customVis=fields.filter(f=>!hiddenCols[f.id]).map(f=>f.id);
-  const visibleColIds=[...builtinVis,...customVis];
+  const visibleColIds=[...builtinVis,...customVis].filter(id=>id!=='__status');
   const visibleCols=visibleColIds.map(id=>{
     if(COL_DEFS[id]) return {id,...COL_DEFS[id]};
     const f=fields.find(f=>f.id===id);
@@ -5783,7 +6583,8 @@ function ListView({data, save}) {
             {virtualGroups&&virtualGroups.map(vg=>{
               const colSpan2=visibleColIds.length+1;
               const taskRowPropsV={fields,visibleColIds,daysThreshold:data.builtinConfig?.__owner_status?.delayThreshold??null,sortState,
-                taskDragSrc,taskDragTarget,onTaskDragStart:handleTaskDragStart,onTaskDragEnd:handleTaskDragEnd,onTaskDragOver:handleTaskDragOver,onTaskDrop:handleTaskDropOnTask};
+                taskDragSrc,taskDragTarget,onTaskDragStart:handleTaskDragStart,onTaskDragEnd:handleTaskDragEnd,onTaskDragOver:handleTaskDragOver,onTaskDrop:handleTaskDropOnTask,
+                selectedIds,onSelect:handleSelect,onDuplicate:duplicateTask,onShowDetail:setDetailTaskId};
               const addTaskForVg=()=>{
                 const gId=groups[0]?.id; if(!gId)return;
                 const id=uid(); const fieldPatch={[vg.field]:vg.value};
@@ -5860,7 +6661,8 @@ function ListView({data, save}) {
               });
               const colSpan=visibleColIds.length+1;
               const taskRowProps={fields,visibleColIds,daysThreshold:data.builtinConfig?.__owner_status?.delayThreshold??null,sortState,
-                taskDragSrc,taskDragTarget,onTaskDragStart:handleTaskDragStart,onTaskDragEnd:handleTaskDragEnd,onTaskDragOver:handleTaskDragOver,onTaskDrop:handleTaskDropOnTask};
+                taskDragSrc,taskDragTarget,onTaskDragStart:handleTaskDragStart,onTaskDragEnd:handleTaskDragEnd,onTaskDragOver:handleTaskDragOver,onTaskDrop:handleTaskDropOnTask,
+                selectedIds,onSelect:handleSelect,onDuplicate:duplicateTask,onShowDetail:setDetailTaskId};
 
               const isDragSrc  = dragSrc===g.id;
               const isDragOver = dragTarget===g.id;
@@ -5891,7 +6693,13 @@ function ListView({data, save}) {
                     <td colSpan={colSpan}>
                       <div style={{display:'flex',alignItems:'center',gap:8}}>
                         <span className="sec-drag-handle" title="גרור לשינוי סדר">⠿</span>
-                        <div style={{width:10,height:10,borderRadius:'50%',background:'var(--blue)',flexShrink:0}}/>
+                        <button onClick={e=>{e.stopPropagation();toggleCollapse(g.id);}}
+                          title={g.collapsed?'הרחב מקטע':'כווץ מקטע'}
+                          style={{background:'none',border:'none',cursor:'pointer',padding:'1px 2px',
+                            color:'var(--blue)',fontSize:23,lineHeight:1,display:'flex',alignItems:'center',
+                            transform:g.collapsed?'rotate(-90deg)':'rotate(0deg)',transition:'transform .18s',flexShrink:0}}>
+                          ▾
+                        </button>
                         {editingGroupId===g.id
                           ?<input autoFocus value={groupNameDraft}
                               onChange={e=>setGroupNameDraft(e.target.value)}
@@ -5916,7 +6724,7 @@ function ListView({data, save}) {
                             const r=e.currentTarget.getBoundingClientRect();
                             setSecMenu(secMenu?.id===g.id?null:{id:g.id,left:Math.max(4,r.left),y:r.bottom+4,gRef:g});
                           }}
-                          style={{marginRight:'auto',background:'none',border:'none',cursor:'pointer',
+                          style={{background:'none',border:'none',cursor:'pointer',
                             color:'var(--text-3)',padding:'2px 5px',borderRadius:4,display:'flex',
                             alignItems:'center',flexShrink:0,transition:'color .12s'}}
                           onMouseEnter={e=>e.currentTarget.style.color='var(--text)'}
@@ -5927,24 +6735,24 @@ function ListView({data, save}) {
                       </div>
                     </td>
                   </tr>
-                  {activeTasks.map(task=>(
+                  {!g.collapsed&&activeTasks.map(task=>(
                     <TaskRow key={task.id} task={task} {...taskRowProps}
                       autoFocus={task.id===newTaskId}
                       onUpdate={t=>{setNewTaskId(null);updateTask(t);}}
                       onDelete={()=>{setNewTaskId(null);deleteTask(task.id);}}/>
                   ))}
-                  <tr className="add-task-row">
+                  {!g.collapsed&&<tr className="add-task-row">
                     <td colSpan={colSpan}>
                       <button className="add-task-btn" onClick={()=>addTask(g.id)}>
                         <span style={{fontSize:16,lineHeight:1,color:'var(--accent)'}}>+</span> הוסף משימה
                       </button>
                     </td>
-                  </tr>
-                  {doneTasks.length>0&&(
+                  </tr>}
+                  {!g.collapsed&&doneTasks.length>0&&(
                     <>
                       <tr className="done-sec-row" onClick={toggleDone}>
                         <td colSpan={colSpan}>
-                          <div style={{display:'flex',alignItems:'center',gap:7}}>
+                          <div style={{display:'flex',alignItems:'center',gap:7,paddingRight:59}}>
                             <span className={`done-chevron${doneOpen?' open':''}`}>▶</span>
                             <span style={{fontSize:12,fontWeight:600,color:'#888'}}>הושלמו</span>
                             <span style={{fontSize:11,fontWeight:400,color:'#888'}}>{doneTasks.length} משימות</span>
@@ -5979,17 +6787,24 @@ function ListView({data, save}) {
         <SettingsPanel data={data} save={save} onClose={()=>setShowSettings(false)}/>
       )}
 
+      {/* Task Detail Sidebar */}
+      {detailTask&&(
+        <TaskDetailSidebar
+          task={detailTask}
+          data={data}
+          onUpdate={t=>{updateTask(t);setDetailTaskId(t.id);}}
+          onClose={()=>setDetailTaskId(null)}/>
+      )}
+
       {/* ── Floating section menu — portal to body ── */}
       {secMenu && ReactDOM.createPortal((()=>{
         const g = secMenu.gRef;
         const ITEMS = [
           {icon:'✏', label:'שנה שם',    action:()=>{setGroupNameDraft(g.name);setEditingGroupId(g.id);setSecMenu(null);}},
           {icon:'+', label:'הוסף מקטע', action:()=>{addGroup(g.id);setSecMenu(null);}},
+          {icon:'⧉', label:'שכפל מקטע', action:()=>{setDupModal({group:g,name:'עותק של '+g.name,copyTasks:true,copySubtasks:true,copyUpdates:false});setSecMenu(null);}},
           null,
-          {icon:'×', label:'מחק מקטע', danger:true, action:()=>{
-            if(!window.confirm(`למחוק את המקטע "${g.name}"?`)) return;
-            save({...data,groups:groups.filter(x=>x.id!==g.id),tasks:(data.tasks||[]).filter(t=>t.groupId!==g.id)});
-            setSecMenu(null);}},
+          {icon:'×', label:'מחק מקטע', danger:true, action:()=>{setDelModal({group:g,choice:null});setSecMenu(null);}},
         ];
         return (
           <>
@@ -6016,6 +6831,96 @@ function ListView({data, save}) {
         );
       })(), document.body)}
 
+      {/* ── Duplicate section modal ── */}
+      {dupModal&&ReactDOM.createPortal(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.45)',zIndex:10000,display:'flex',alignItems:'center',justifyContent:'center'}}
+          onClick={()=>setDupModal(null)}>
+          <div dir="rtl" style={{background:'var(--surface)',borderRadius:12,padding:'24px',minWidth:340,maxWidth:440,
+            boxShadow:'0 8px 32px rgba(0,0,0,.22)',fontFamily:'Heebo,system-ui,sans-serif'}}
+            onClick={e=>e.stopPropagation()}>
+            <h3 style={{margin:'0 0 16px',fontSize:15,fontWeight:700,color:'var(--text)'}}>שכפול מקטע</h3>
+            <label style={{fontSize:12,fontWeight:600,color:'var(--text-2)',display:'block',marginBottom:4}}>שם המקטע החדש</label>
+            <input autoFocus value={dupModal.name} onChange={e=>setDupModal(d=>({...d,name:e.target.value}))}
+              style={{width:'100%',padding:'7px 10px',border:'1px solid var(--border)',borderRadius:6,fontSize:13,
+                fontFamily:'inherit',background:'var(--bg)',color:'var(--text)',outline:'none',
+                boxSizing:'border-box',marginBottom:14}}/>
+            <div style={{fontSize:12,fontWeight:600,color:'var(--text-2)',marginBottom:8}}>מה להעתיק</div>
+            {[{key:'copyTasks',label:'משימות'},{key:'copySubtasks',label:'תת-משימות'},{key:'copyUpdates',label:'עדכונים ואירועים'}].map(({key,label})=>(
+              <label key={key} style={{display:'flex',alignItems:'center',gap:8,marginBottom:7,cursor:'pointer',fontSize:13,color:'var(--text)'}}>
+                <input type="checkbox" checked={dupModal[key]||false}
+                  onChange={e=>setDupModal(d=>({...d,[key]:e.target.checked}))}
+                  style={{accentColor:'var(--accent)',width:14,height:14,flexShrink:0}}/>
+                {label}
+              </label>
+            ))}
+            <div style={{display:'flex',gap:8,justifyContent:'flex-start',marginTop:20}}>
+              <button onClick={()=>{
+                  duplicateGroup(dupModal.group,dupModal.name,dupModal.copyTasks,dupModal.copySubtasks,dupModal.copyUpdates);
+                  setDupModal(null);}}
+                style={{padding:'7px 20px',borderRadius:6,border:'none',background:'var(--accent)',fontSize:13,
+                  cursor:'pointer',fontFamily:'inherit',color:'#fff',fontWeight:600}}>
+                שכפל
+              </button>
+              <button onClick={()=>setDupModal(null)}
+                style={{padding:'7px 16px',borderRadius:6,border:'1px solid var(--border)',background:'var(--bg)',
+                  fontSize:13,cursor:'pointer',fontFamily:'inherit',color:'var(--text)'}}>
+                ביטול
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Delete section modal ── */}
+      {delModal&&ReactDOM.createPortal(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.45)',zIndex:10000,display:'flex',alignItems:'center',justifyContent:'center'}}
+          onClick={()=>setDelModal(null)}>
+          <div dir="rtl" style={{background:'var(--surface)',borderRadius:12,padding:'24px',minWidth:340,maxWidth:460,
+            boxShadow:'0 8px 32px rgba(0,0,0,.22)',fontFamily:'Heebo,system-ui,sans-serif'}}
+            onClick={e=>e.stopPropagation()}>
+            <h3 style={{margin:'0 0 6px',fontSize:15,fontWeight:700,color:'#EF4444'}}>מחיקת מקטע</h3>
+            <p style={{margin:'0 0 16px',fontSize:13,color:'var(--text-2)'}}>
+              מה לעשות עם המשימות של <strong>"{delModal.group.name}"</strong>?
+            </p>
+            {[
+              {key:'withTasks',label:'מחק את המקטע כולל כל המשימות',desc:''},
+              {key:'keepTasks',label:'מחק רק את המקטע',desc:'המשימות יועברו אוטומטית למקטע "ללא שם"'},
+            ].map(({key,label,desc})=>(
+              <label key={key} onClick={()=>setDelModal(d=>({...d,choice:key}))}
+                style={{display:'flex',alignItems:'flex-start',gap:10,padding:'10px 12px',marginBottom:8,
+                  border:`1.5px solid ${delModal.choice===key?'var(--accent)':'var(--border)'}`,
+                  borderRadius:8,cursor:'pointer',
+                  background:delModal.choice===key?'rgba(37,99,235,.04)':'transparent',transition:'all .12s'}}>
+                <input type="radio" readOnly checked={delModal.choice===key}
+                  style={{accentColor:'var(--accent)',marginTop:3,flexShrink:0}}/>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{label}</div>
+                  {desc&&<div style={{fontSize:11,color:'var(--text-3)',marginTop:2}}>{desc}</div>}
+                </div>
+              </label>
+            ))}
+            <div style={{display:'flex',gap:8,justifyContent:'flex-start',marginTop:16}}>
+              <button onClick={()=>{
+                  if(!delModal.choice)return;
+                  deleteGroup(delModal.group.id,delModal.choice==='keepTasks');
+                  setDelModal(null);}}
+                disabled={!delModal.choice}
+                style={{padding:'7px 20px',borderRadius:6,border:'none',fontSize:13,cursor:delModal.choice?'pointer':'default',
+                  fontFamily:'inherit',color:'#fff',fontWeight:600,
+                  background:delModal.choice?'#EF4444':'var(--border)',transition:'background .15s'}}>
+                מחק
+              </button>
+              <button onClick={()=>setDelModal(null)}
+                style={{padding:'7px 16px',borderRadius:6,border:'1px solid var(--border)',background:'var(--bg)',
+                  fontSize:13,cursor:'pointer',fontFamily:'inherit',color:'var(--text)'}}>
+                ביטול
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 }
@@ -6108,6 +7013,165 @@ function Confetti({onDone}) {
     <canvas ref={canvasRef} style={{position:'fixed',top:0,left:0,
       width:'100%',height:'100%',zIndex:9999,pointerEvents:'none'}}/>,
     document.body
+  );
+}
+
+/* ══════════════════════════════════════
+   Nihul Tikhnun View
+══════════════════════════════════════ */
+function NihulTikhnunView({data}) {
+  const allSheets  = data.sheets || [];
+  const listSheets = allSheets.filter(s => s.type==='list' && s.name!=='ניהול תכנון');
+
+  const [collSec,  setCollSec]  = useState({});
+  const [collTask, setCollTask] = useState({});
+
+  const toggleSec  = id => setCollSec(c  => ({...c, [id]: !c[id]}));
+  const toggleTask = id => setCollTask(c => ({...c, [id]: !c[id]}));
+
+  const getStatus = id => STATUSES.find(s => s.id===id) || {label:'—', color:'var(--text-3)'};
+
+  const TRACK_SECTIONS = [
+    { key:'licensing', label:'מסלול רישוי', color:'#2563EB',
+      sheets: listSheets,
+      enabled: true },
+    { key:'planning',  label:'מסלול תכנון מפורט', color:'#7C3AED', sheets:[], enabled:false },
+    { key:'execution', label:'מסלול ביצוע',         color:'#059669', sheets:[], enabled:false },
+  ];
+
+  return (
+    <div style={{flex:1, overflowY:'auto', background:'var(--bg)'}}>
+      {TRACK_SECTIONS.map(track => {
+        const trackCollapsed = collSec['track_'+track.key];
+        const taskCount = track.sheets.reduce((acc,s)=>(s.tasks||[]).reduce((a,t)=>a+(t.subtasks||[]).length, acc+1), 0);
+        return (
+          <React.Fragment key={track.key}>
+            {/* ── Track header — styled as a prominent section ── */}
+            <div style={{
+              display:'flex', alignItems:'center', gap:10,
+              padding:'10px 20px', background:'var(--surface)',
+              borderBottom:'1px solid var(--border)',
+              borderTop: track.key==='licensing' ? 'none' : '4px solid var(--bg)',
+              cursor: track.enabled ? 'pointer' : 'default',
+              userSelect:'none',
+            }} onClick={() => track.enabled && toggleSec('track_'+track.key)}>
+              {track.enabled && <span style={{fontSize:10, color:'var(--text-3)', display:'inline-block',
+                transform: trackCollapsed ? 'rotate(-90deg)' : '', transition:'transform .15s'}}>▾</span>}
+              <span style={{width:11, height:11, borderRadius:3, background:track.color, flexShrink:0, display:'inline-block'}}/>
+              <span style={{fontWeight:700, fontSize:13, color:'var(--text)'}}>{track.label}</span>
+              {!track.enabled && <span style={{fontSize:11, color:'var(--text-3)', background:'var(--bg)',
+                border:'1px solid var(--border)', borderRadius:4, padding:'1px 7px'}}>בפיתוח</span>}
+              {track.enabled && <span style={{fontSize:11, color:'var(--text-3)', marginRight:'auto'}}>
+                {taskCount} פריטים
+              </span>}
+            </div>
+
+            {/* ── Table per track ── */}
+            {track.enabled && !trackCollapsed && (
+              <div style={{overflowX:'auto'}}>
+                <table className="list-table" style={{width:'100%', borderCollapse:'collapse', minWidth:600}}>
+                  <thead>
+                    <tr>
+                      <th className="c-name" style={{position:'sticky', right:0, zIndex:'var(--z-col-name)', background:'var(--surface)'}}>שם המשימה</th>
+                      <th className="c-pri">סטטוס</th>
+                      <th className="c-disc">תחום</th>
+                      <th className="c-resp">נציג</th>
+                      <th className="c-date">תאריך יעד</th>
+                      <th className="c-days">ימים</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {track.sheets.map(sheet => {
+                      const secCollapsed = collSec[sheet.id];
+                      const tasks = sheet.tasks || [];
+                      const openSubs = tasks.reduce((a,t)=>a+(t.subtasks||[]).filter(s=>!s.done).length, 0);
+                      return (
+                        <React.Fragment key={sheet.id}>
+                          {/* Stage sec-row */}
+                          <tr className="sec-row" onClick={() => toggleSec(sheet.id)} style={{cursor:'pointer'}}>
+                            <td colSpan={6}>
+                              <div style={{display:'flex', alignItems:'center', gap:8, paddingRight:4}}>
+                                <span style={{fontSize:10, color:'var(--text-3)', display:'inline-block',
+                                  transform: secCollapsed ? 'rotate(-90deg)' : '', transition:'transform .15s'}}>▾</span>
+                                <span style={{fontWeight:700, fontSize:12, color:'var(--text)'}}>{sheet.name}</span>
+                                <span style={{fontSize:11, color:'var(--text-3)'}}>{tasks.length} משימות</span>
+                                {openSubs>0 && <span style={{fontSize:11, color:'#1D4ED8', background:'#DBEAFE',
+                                  borderRadius:10, padding:'1px 7px'}}>{openSubs} תת-משימות פתוחות</span>}
+                              </div>
+                            </td>
+                          </tr>
+
+                          {!secCollapsed && tasks.map(task => {
+                            const st = getStatus(task.statusId);
+                            const subs = task.subtasks || [];
+                            const taskColl = collTask[task.id];
+                            const openSubCount = subs.filter(s=>!s.done).length;
+                            return (
+                              <React.Fragment key={task.id}>
+                                {/* Task t-row */}
+                                <tr className={`t-row${subs.length?' t-expanded':''}`}
+                                  onClick={() => subs.length && toggleTask(task.id)}
+                                  style={{cursor: subs.length ? 'pointer' : 'default'}}>
+                                  <td className="sticky-td">
+                                    <div className="name-inner" style={{paddingRight:28}}>
+                                      {subs.length>0 && <span style={{fontSize:9, color:'var(--text-3)',
+                                        display:'inline-block', flexShrink:0,
+                                        transform: taskColl ? 'rotate(-90deg)' : '', transition:'transform .15s'}}>▾</span>}
+                                      <span style={{fontSize:13, fontWeight:500, color:task.done?'var(--text-3)':'var(--text)',
+                                        textDecoration: task.done?'line-through':'none'}}>{task.title}</span>
+                                      {openSubCount>0 && <span style={{fontSize:10, color:'var(--text-3)', marginRight:6}}>
+                                        ({openSubCount})
+                                      </span>}
+                                    </div>
+                                  </td>
+                                  <td><span style={{fontSize:11, fontWeight:500, color:st.color,
+                                    background:st.color+'22', borderRadius:10, padding:'2px 9px',
+                                    border:`1px solid ${st.color}33`, whiteSpace:'nowrap'}}>{st.label}</span></td>
+                                  <td style={{fontSize:12, color:'var(--text-2)'}}>{task.discipline||'—'}</td>
+                                  <td style={{fontSize:12, color:'var(--text-2)'}}>{task.responsible||'—'}</td>
+                                  <td style={{fontSize:12, color:'var(--text-2)'}}>{task.dueDate||'—'}</td>
+                                  <td style={{fontSize:12, color:'var(--text-3)'}}>—</td>
+                                </tr>
+
+                                {/* Subtask sub-rows */}
+                                {!taskColl && subs.map(sub => {
+                                  const ss = getStatus(sub.statusId);
+                                  return (
+                                    <tr key={sub.id} className="sub-row">
+                                      <td className="sticky-td" style={{background:'#F0F2F6'}}>
+                                        <div className="name-inner" style={{paddingRight:48}}>
+                                          <span style={{fontSize:12, color: sub.done?'var(--text-3)':'var(--text)',
+                                            textDecoration: sub.done?'line-through':'none'}}>{sub.title||'—'}</span>
+                                        </div>
+                                      </td>
+                                      <td><span style={{fontSize:11, color:ss.color, background:ss.color+'22',
+                                        borderRadius:10, padding:'2px 8px', border:`1px solid ${ss.color}33`}}>{ss.label}</span></td>
+                                      <td style={{fontSize:12, color:'var(--text-2)'}}>{sub.discipline||'—'}</td>
+                                      <td style={{fontSize:12, color:'var(--text-2)'}}>{sub.responsible||'—'}</td>
+                                      <td style={{fontSize:12, color:'var(--text-2)'}}>—</td>
+                                      <td style={{fontSize:12, color:'var(--text-3)'}}>—</td>
+                                    </tr>
+                                  );
+                                })}
+                              </React.Fragment>
+                            );
+                          })}
+
+                          {!secCollapsed && tasks.length===0 && (
+                            <tr><td colSpan={6} style={{padding:'12px 32px', fontSize:12,
+                              color:'var(--text-3)', borderBottom:'1px solid var(--border)'}}>אין משימות בשלב זה</td></tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
   );
 }
 
@@ -8906,6 +9970,112 @@ function Sidebar({track, setTrack}) {
 }
 
 /* ══════════════════════════════════════
+   Action label detector (for undo history)
+══════════════════════════════════════ */
+const detectActionLabel = (oldD, newD) => {
+  if (!oldD) return 'עריכה';
+  if (oldD.projectName !== newD.projectName) return 'שינוי שם: ' + newD.projectName;
+  const oldSheets = oldD.sheets || [];
+  const newSheets = newD.sheets || [];
+  if (oldSheets.length < newSheets.length) return 'הוספת שלב';
+  if (oldSheets.length > newSheets.length) return 'מחיקת שלב';
+  for (const ns of newSheets) {
+    const os = oldSheets.find(s => s.id === ns.id);
+    if (!os) continue;
+    if (os.name !== ns.name) return 'שינוי שם שלב: ' + ns.name;
+    const ot = os.tasks || [];
+    const nt = ns.tasks || [];
+    if (nt.length > ot.length) return 'הוספת משימה';
+    if (nt.length < ot.length) return 'מחיקת משימה';
+    for (const t of nt) {
+      const ov = ot.find(x => x.id === t.id);
+      if (!ov) continue;
+      if (ov.title !== t.title) return 'כותרת: ' + (t.title || '');
+      if (ov.statusId !== t.statusId) return 'סטטוס: ' + (t.title || '');
+      if (ov.done !== t.done) return (t.done ? '✓ ' : '○ ') + (t.title || '');
+      if (JSON.stringify(ov.subtasks) !== JSON.stringify(t.subtasks)) return 'תת-משימות: ' + (t.title || '');
+      if (JSON.stringify(ov.processEvents) !== JSON.stringify(t.processEvents)) return 'אירועים: ' + (t.title || '');
+    }
+    if (JSON.stringify(os.groups) !== JSON.stringify(ns.groups)) return 'עדכון קבוצות';
+    if (JSON.stringify(os.fields) !== JSON.stringify(ns.fields)) return 'עדכון שדות';
+  }
+  if (JSON.stringify(oldD.licensingGoals) !== JSON.stringify(newD.licensingGoals)) return 'עדכון יעדים';
+  if (JSON.stringify(oldD.licensingMilestones) !== JSON.stringify(newD.licensingMilestones)) return 'עדכון אבני דרך';
+  return 'עריכה';
+};
+
+/* ══════════════════════════════════════
+   UndoRedoBtn component
+══════════════════════════════════════ */
+const UndoRedoBtn = ({icon, tooltip, items, onApply, onGoTo, disabled}) => {
+  const [open, setOpen] = React.useState(false);
+  const [dropPos, setDropPos] = React.useState({top:0,left:0});
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    if (!open) return;
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+  const hasItems = items.length > 0;
+  const toggleDropdown = () => {
+    if (!hasItems) return;
+    if (!open && ref.current) {
+      const r = ref.current.getBoundingClientRect();
+      setDropPos({top: r.bottom + 6, left: r.left});
+    }
+    setOpen(o => !o);
+  };
+  return (
+    <div ref={ref} style={{position:'relative',display:'inline-flex',alignItems:'center'}}>
+      <div style={{display:'flex',border:'1px solid var(--border)',borderRadius:6,overflow:'hidden',
+        opacity:disabled?0.4:1,transition:'opacity .15s'}}>
+        <button onClick={onApply} disabled={disabled} title={tooltip}
+          style={{padding:'3px 8px',fontSize:14,lineHeight:'1',background:'var(--surface)',border:'none',
+            cursor:disabled?'default':'pointer',color:'var(--text)',transition:'background .15s',fontFamily:'inherit'}}
+          onMouseEnter={e=>{if(!disabled)e.currentTarget.style.background='var(--hover)'}}
+          onMouseLeave={e=>e.currentTarget.style.background='var(--surface)'}>
+          {icon}
+        </button>
+        <button onClick={toggleDropdown} disabled={!hasItems} title="היסטוריה"
+          style={{padding:'3px 5px',fontSize:9,lineHeight:'1',background:'var(--surface)',border:'none',
+            borderLeft:'1px solid var(--border)',cursor:hasItems?'pointer':'default',
+            color:'var(--text-2)',transition:'background .15s'}}
+          onMouseEnter={e=>{if(hasItems)e.currentTarget.style.background='var(--hover)'}}
+          onMouseLeave={e=>e.currentTarget.style.background='var(--surface)'}>
+          ▾
+        </button>
+      </div>
+      {open && hasItems && ReactDOM.createPortal(
+        <div style={{position:'fixed',top:dropPos.top,left:dropPos.left,minWidth:210,
+          background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,
+          boxShadow:'0 6px 24px rgba(0,0,0,.16)',zIndex:9999,overflow:'hidden',direction:'rtl'}}>
+          <div style={{padding:'6px 12px 5px',fontSize:10,fontWeight:700,color:'var(--text-3)',
+            textTransform:'uppercase',letterSpacing:.5,borderBottom:'1px solid var(--border)',
+            textAlign:'right'}}>
+            {tooltip}
+          </div>
+          {items.slice().reverse().map((item, idx) => (
+            <div key={idx}
+              onClick={()=>{onGoTo(items.length - idx);setOpen(false);}}
+              style={{padding:'7px 14px',fontSize:12,cursor:'pointer',color:'var(--text)',
+                display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,
+                background:idx===0?'rgba(99,102,241,.07)':'transparent',transition:'background .12s'}}
+              onMouseEnter={e=>e.currentTarget.style.background='var(--hover)'}
+              onMouseLeave={e=>e.currentTarget.style.background=idx===0?'rgba(99,102,241,.07)':'transparent'}>
+              <span style={{color:'var(--text-3)',fontSize:10,fontVariantNumeric:'tabular-nums',
+                minWidth:16,textAlign:'left',flexShrink:0}}>{idx+1}</span>
+              <span style={{flex:1,textAlign:'right'}}>{item.label}</span>
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════
    App Root
 ══════════════════════════════════════ */
 function App() {
@@ -8919,10 +10089,17 @@ function App() {
   const [activeSheetId,setActiveSheetId]=useState(()=>sheets[0]?.id||'');
   const activeSheet = sheets.find(s=>s.id===activeSheetId)||sheets[0]||null;
 
+  const MAX_HIST = 30;
+  const [pastStack, setPastStack] = useState([]);   // [{snapshot, label}]
+  const [futureStack, setFutureStack] = useState([]); // [{snapshot, label}]
+
   const save=useCallback(nd=>{
     const d={...nd,_ts:Date.now()};
+    const label=detectActionLabel(data,nd);
+    setPastStack(p=>[...p.slice(-(MAX_HIST-1)),{snapshot:{...data},label}]);
+    setFutureStack([]);
     setData(d);localStorage.setItem(STORAGE_KEY,JSON.stringify(d));
-  },[]);
+  },[data]);
 
   /* Save updates that originate from a list-sheet's toolbar/actions */
   const saveActiveSheet=useCallback(nd=>{
@@ -8936,6 +10113,50 @@ function App() {
     }:s);
     save({...nd, sheets:updatedSheets});
   },[data,activeSheetId,save]);
+
+  const undoTo = useCallback((steps) => {
+    const n = Math.min(steps, pastStack.length);
+    if (!n) return;
+    const newPast = pastStack.slice(0, pastStack.length - n);
+    const displaced = pastStack.slice(pastStack.length - n); // oldest→newest
+    const futureEntries = [
+      {snapshot:{...data}, label:displaced[displaced.length-1].label},
+      ...displaced.slice(0,-1).reverse().map((p,i,arr)=>({
+        snapshot: arr[i+1]?.snapshot ?? displaced[displaced.length-1].snapshot,
+        label: p.label
+      }))
+    ];
+    const restored = {...displaced[0].snapshot, _ts:Date.now()};
+    setPastStack(newPast);
+    setFutureStack(fut=>[...futureEntries,...fut].slice(0,MAX_HIST));
+    setData(restored);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(restored));
+  }, [data, pastStack]);
+
+  const redoTo = useCallback((steps) => {
+    const n = Math.min(steps, futureStack.length);
+    if (!n) return;
+    const displaced = futureStack.slice(0, n);
+    const newFuture = futureStack.slice(n);
+    const pastEntries = [
+      {snapshot:{...data}, label:displaced[0].label},
+      ...displaced.slice(1).map((f,i)=>({snapshot:displaced[i].snapshot, label:f.label}))
+    ];
+    const restored = {...displaced[n-1].snapshot, _ts:Date.now()};
+    setPastStack(p=>[...p.slice(-(MAX_HIST-n)),...pastEntries]);
+    setFutureStack(newFuture);
+    setData(restored);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(restored));
+  }, [data, futureStack]);
+
+  React.useEffect(()=>{
+    const handler = e => {
+      if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='z'){e.preventDefault();undoTo(1);}
+      if((e.ctrlKey||e.metaKey)&&((e.shiftKey&&e.key==='z')||e.key==='y')){e.preventDefault();redoTo(1);}
+    };
+    document.addEventListener('keydown',handler);
+    return ()=>document.removeEventListener('keydown',handler);
+  },[undoTo,redoTo]);
 
   const commitName=()=>{if(nameDraft.trim())save({...data,projectName:nameDraft.trim()});setEditName(false);};
 
@@ -8977,6 +10198,7 @@ function App() {
     fields:activeSheet.fields||[],
     hiddenCols:activeSheet.hiddenCols||{},
     colOrder:activeSheet.colOrder||[],
+    sheetName:activeSheet.name||'',
   } : data;
 
   const SheetTab = ({s}) => editingSheetId===s.id
@@ -9036,14 +10258,20 @@ function App() {
           {/* sub-tabs for tasks track — only ניהול תכנון sheet */}
           {track==='tasks' && <span style={{color:'var(--border-strong)',marginLeft:4,marginRight:4}}>›</span>}
           {track==='tasks' && sheets.filter(s=>s.name==='ניהול תכנון').map(s=><SheetTab key={s.id} s={s}/>)}
+          {/* ── Undo / Redo ── */}
+          <div style={{marginRight:'auto',display:'flex',alignItems:'center',gap:4,paddingLeft:10,flexShrink:0}}>
+            <UndoRedoBtn icon="↩" tooltip="ביטול" items={pastStack} disabled={!pastStack.length}
+              onApply={()=>undoTo(1)} onGoTo={undoTo}/>
+            <UndoRedoBtn icon="↪" tooltip="שחזור" items={futureStack} disabled={!futureStack.length}
+              onApply={()=>redoTo(1)} onGoTo={redoTo}/>
+          </div>
         </div>
       </div>
 
       {/* ── Content ── */}
       <div style={{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}}>
         {track==='overview' && <OverviewPage data={data} save={save}/>}
-        {track==='tasks'    && activeSheet?.type==='list'      && <ListViewWithCtx data={sheetData} save={saveActiveSheet}/>}
-        {track==='tasks'    && !activeSheet                    && <ComingSoonPage iconName="tasks" title="ניהול תכנון" desc="בחר שלב מהתפריט"/>}
+        {track==='tasks'    && <NihulTikhnunView data={data}/>}
         {track==='licensing' && activeSheet?.type==='dashboard' && <DashboardView data={data} save={save} onSwitchSheet={setActiveSheetId}/>}
         {track==='licensing' && activeSheet?.type==='list' && <ListViewWithCtx data={sheetData} save={saveActiveSheet}/>}
         {track==='meetings'    && <ComingSoonPage iconName="meetings"    title="ישיבות" desc="ריכוז וניהול סיכומי ישיבות — בפיתוח"/>}
