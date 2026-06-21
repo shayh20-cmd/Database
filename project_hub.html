@@ -6323,6 +6323,15 @@ function ListView({data, save}) {
   const [filterState,setFilterState]=useState(null);
   const [sortState,setSortState]=useState(null);
   const [groupByState,setGroupByState]=useState([{field:'section'}]);
+  /* Combined view: filtering by track/stage should auto-switch grouping to match —
+     selecting a track alone shows one flat header per track (no stage breakdown);
+     selecting a stage shows one flat header per stage with its tasks underneath. */
+  useEffect(()=>{
+    if(!data.__combined) return;
+    if(filterState?.stage?.length)       setGroupByState([{field:'__stage'}]);
+    else if(filterState?.track?.length)  setGroupByState([{field:'__track'}]);
+    else                                   setGroupByState([{field:'section'}]);
+  },[JSON.stringify(filterState?.track||[]),JSON.stringify(filterState?.stage||[]),data.__combined]);
   const [newTaskId,setNewTaskId]=useState(null);
   const [showSettings,setShowSettings]=useState(false);
   const [dragOver,setDragOver]=useState(null);
