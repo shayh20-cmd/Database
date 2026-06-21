@@ -7099,7 +7099,7 @@ function NihulTikhnunView({data, save}) {
 
 function DashboardView({data, save, onSwitchSheet}) {
   const [confetti, setConfetti] = useState(false);
-  const sheets = (data.sheets||[]).filter(s=>s.type==='list');
+  const sheets = (data.sheets||[]).filter(s=>s.type==='list' && s.track==='licensing');
   const today = todayISO();
 
   /* Per-sheet date range from tasks */
@@ -10100,13 +10100,9 @@ function App() {
   /* top-level track: 'overview' | 'licensing' | future tracks */
   const [track, setTrack] = useState('licensing');
 
-  /* When switching to tasks track — auto-select first list sheet (ניהול תכנון) */
   const setTrackWithSheet = React.useCallback((newTrack) => {
     setTrack(newTrack);
-    if(newTrack==='tasks') {
-      const firstList = sheets.find(s=>s.type==='list');
-      if(firstList) setActiveSheetId(firstList.id);
-    } else if(newTrack==='licensing') {
+    if(newTrack==='licensing') {
       const dashboard = sheets.find(s=>s.type==='dashboard');
       if(dashboard) setActiveSheetId(dashboard.id);
     }
@@ -10173,13 +10169,10 @@ function App() {
             <Ic n={PROJ_TRACKS.find(t=>t.id===track)?.icon||'overview'} size={12}/>
             {PROJ_TRACKS.find(t=>t.id===track)?.label||''}
           </span>
-          {/* divider + sub-tabs for licensing — exclude ניהול תכנון sheet */}
+          {/* divider + sub-tabs for licensing — dashboard sheet always shown, list sheets filtered by track */}
           {track==='licensing' && <span style={{color:'var(--border-strong)',marginLeft:4,marginRight:4}}>›</span>}
-          {track==='licensing' && sheets.filter(s=>s.name!=='ניהול תכנון').map(s=><SheetTab key={s.id} s={s}/>)}
+          {track==='licensing' && sheets.filter(s=>s.type==='dashboard' || s.track==='licensing').map(s=><SheetTab key={s.id} s={s}/>)}
           {track==='licensing' && <button className="stab-add" title="הוסף שלב" onClick={addSheet}>+</button>}
-          {/* sub-tabs for tasks track — only ניהול תכנון sheet */}
-          {track==='tasks' && <span style={{color:'var(--border-strong)',marginLeft:4,marginRight:4}}>›</span>}
-          {track==='tasks' && sheets.filter(s=>s.name==='ניהול תכנון').map(s=><SheetTab key={s.id} s={s}/>)}
           {/* ── Undo / Redo ── */}
           <div style={{marginRight:'auto',display:'flex',alignItems:'center',gap:4,paddingLeft:10,flexShrink:0}}>
             <UndoRedoBtn icon="↩" tooltip="ביטול" items={pastStack} disabled={!pastStack.length}
