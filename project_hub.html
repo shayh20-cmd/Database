@@ -7325,7 +7325,8 @@ function NihulTikhnunView({data, save}) {
                     <span style={{fontSize:10, color:'var(--text-3)', display:'inline-block',
                       transform: collapsed ? 'rotate(-90deg)' : '', transition:'transform .15s'}}>▾</span>
                     <span style={{width:11, height:11, borderRadius:3, background:'#2563EB', flexShrink:0, display:'inline-block'}}/>
-                    <span style={{fontWeight:700, fontSize:13, color:'var(--text)'}}>{sheet.name}</span>
+                    <span style={{fontSize:10, fontWeight:600, color:'var(--text-3)', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:4, padding:'1px 6px'}}>{activeTab.label}</span>
+                    <span style={{fontWeight:700, fontSize:13, color:'var(--text)'}}>שלב: {sheet.name}</span>
                     <span style={{fontSize:11, color:'var(--text-3)', marginRight:'auto'}}>{(sheet.tasks||[]).length} משימות</span>
                   </div>
                 )}
