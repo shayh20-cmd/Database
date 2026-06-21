@@ -10091,7 +10091,7 @@ function App() {
   };
 
   const addSheet=()=>{
-    const ns=makeEmptySheet('שלב חדש');
+    const ns={...makeEmptySheet('שלב חדש'), track:'licensing'};
     const updatedSheets=[...sheets,ns];
     save({...data,sheets:updatedSheets});
     setActiveSheetId(ns.id);
