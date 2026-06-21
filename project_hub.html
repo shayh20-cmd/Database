@@ -1645,6 +1645,14 @@ function migrateTask(task) {
   return {...task, tracks, assigneeId: task.assigneeId||''};
 }
 
+function stampSheetTracks(sheets) {
+  return sheets.map(s => {
+    if (s.type !== 'list') return s;
+    if (s.name === 'ניהול תכנון') return {...s, name:'משימות שוטפות', track:null};
+    return {...s, track: 'track' in s ? s.track : 'licensing'};
+  });
+}
+
 function migrateData(d) {
   if (!d) return d;
   // Migrate old flat structure (groups/tasks) into sheets
@@ -1663,7 +1671,7 @@ function migrateData(d) {
       ],
     };
     delete d.groups; delete d.tasks; delete d.fields; delete d.hiddenCols; delete d.colOrder;
-    return d;
+    return {...d, sheets: stampSheetTracks(d.sheets)};
   }
   // Already has sheets — migrate tasks within each sheet
   if (!d.licensingMilestones) {
@@ -1687,9 +1695,9 @@ function migrateData(d) {
       staffId: OFFICE_STAFF.find(s=>s.name===m.name)?.id || m.id,
     })};
   }
-  return {...d, sheets: d.sheets.map(s =>
+  return {...d, sheets: stampSheetTracks(d.sheets.map(s =>
     s.type==='list' ? {...s, tasks:(s.tasks||[]).map(migrateTask)} : s
-  )};
+  ))};
 }
 
 function repairPrecondsSheet(data) {
