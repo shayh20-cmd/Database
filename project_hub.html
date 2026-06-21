@@ -6161,6 +6161,8 @@ function ListView({data, save}) {
   const [dragSrc,setDragSrc]=useState(null);              /* dragging group id */
   const [dragTarget,setDragTarget]=useState(null);        /* drag-over group id */
   const [secMenu,setSecMenu]=useState(null);  /* {id, x, y} — floating section menu */
+  const [collVg,setCollVg]=useState({});      /* collapsed state for virtual (group-by) rows, keyed by vg/sg id */
+  const toggleVg=id=>setCollVg(c=>({...c,[id]:!c[id]}));
   const [dupModal,setDupModal]=useState(null); /* {group, name, copyTasks, copySubtasks, copyUpdates} */
   const [delModal,setDelModal]=useState(null); /* {group, choice} */
   const [taskDragSrc,setTaskDragSrc]=useState(null);
@@ -6618,10 +6620,17 @@ function ListView({data, save}) {
                   </>)}
                 </>);
               };
+              const vgCollapsed=collVg[vg.id];
               return(<React.Fragment key={vg.id}>
-                <tr className="sec-row">
+                <tr className="sec-row" onClick={()=>toggleVg(vg.id)} style={{cursor:'pointer'}}>
                   <td colSpan={colSpan2}>
                     <div style={{display:'flex',alignItems:'center',gap:8}}>
+                      <button onClick={e=>{e.stopPropagation();toggleVg(vg.id);}}
+                        style={{background:'none',border:'none',cursor:'pointer',padding:'1px 2px',
+                          color:'var(--blue)',fontSize:23,lineHeight:1,display:'flex',alignItems:'center',
+                          transform:vgCollapsed?'rotate(-90deg)':'rotate(0deg)',transition:'transform .18s',flexShrink:0}}>
+                        ▾
+                      </button>
                       <div style={{width:10,height:10,borderRadius:'50%',background:'var(--blue)',flexShrink:0}}/>
                       <span style={{fontWeight:700,fontSize:13}}>
                         {vg.pill
@@ -6632,11 +6641,17 @@ function ListView({data, save}) {
                     </div>
                   </td>
                 </tr>
-                {vg.subGroups
+                {!vgCollapsed && (vg.subGroups
                   ?vg.subGroups.map(sg=>(<React.Fragment key={sg.id}>
-                      <tr className="sub-sec-row">
+                      <tr className="sub-sec-row" onClick={()=>toggleVg(sg.id)} style={{cursor:'pointer'}}>
                         <td colSpan={colSpan2}>
                           <div style={{display:'flex',alignItems:'center',gap:7}}>
+                            <button onClick={e=>{e.stopPropagation();toggleVg(sg.id);}}
+                              style={{background:'none',border:'none',cursor:'pointer',padding:'0 2px',
+                                color:'var(--text-3)',fontSize:16,lineHeight:1,display:'flex',alignItems:'center',
+                                transform:collVg[sg.id]?'rotate(-90deg)':'rotate(0deg)',transition:'transform .18s',flexShrink:0}}>
+                              ▾
+                            </button>
                             <div style={{width:7,height:7,borderRadius:'50%',background:'var(--border-strong)',flexShrink:0}}/>
                             <span style={{fontWeight:600,fontSize:12}}>
                               {sg.pill
@@ -6647,14 +6662,14 @@ function ListView({data, save}) {
                           </div>
                         </td>
                       </tr>
-                      {renderVgTaskRows(sg.tasks,sg.id)}
+                      {!collVg[sg.id] && renderVgTaskRows(sg.tasks,sg.id)}
                     </React.Fragment>))
-                  :renderVgTaskRows(vg.tasks,vg.id)}
-                <tr className="add-task-row"><td colSpan={colSpan2}>
+                  :renderVgTaskRows(vg.tasks,vg.id))}
+                {!vgCollapsed && <tr className="add-task-row"><td colSpan={colSpan2}>
                   <button className="add-task-btn" onClick={addTaskForVg}>
                     <span style={{fontSize:16,lineHeight:1,color:'var(--accent)'}}>+</span> הוסף משימה
                   </button>
-                </td></tr>
+                </td></tr>}
               </React.Fragment>);
             })}
             {!virtualGroups&&groups.map(g=>{
