@@ -153,6 +153,8 @@ button:focus:not(:focus-visible),input:focus:not(:focus-visible){outline:none;}
 /* Sort criterion rows inside sort panel */
 .sort-crit-row{display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid var(--border);}
 .sort-crit-row:last-child{border-bottom:none;}
+.sort-crit-handle{cursor:grab;color:var(--text-3);font-size:12px;line-height:1;}
+.sort-crit-drop{box-shadow:inset 0 2px 0 var(--blue);}
 .sort-crit-num{width:16px;height:16px;border-radius:50%;background:var(--accent);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
 .sort-crit-label{flex:1;font-size:12px;font-weight:600;color:var(--text);}
 .sort-crit-btn{background:none;border:1px solid var(--border-strong);border-radius:5px;cursor:pointer;font-size:10px;padding:2px 6px;color:var(--text-2);font-family:inherit;white-space:nowrap;}
@@ -5192,6 +5194,8 @@ function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState,
   const [filterStep,setFilterStep]=useState(null); // null | 'priority'|'discipline'|'status'
   const [sortCol,setSortCol]=useState(null);
   const [groupAddStep,setGroupAddStep]=useState(false);
+  const [groupDragSrc,setGroupDragSrc]=useState(null);
+  const [groupDragOver,setGroupDragOver]=useState(null);
   const [showAddMenu,setShowAddMenu]=useState(false);
   const filterRef=useRef(null);
   const sortRef=useRef(null);
@@ -5452,7 +5456,22 @@ function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState,
                   {groupList.map((g,i)=>{
                     const lbl=GROUP_FIELDS.find(f=>f.field===g.field)?.label||g.field;
                     return(
-                      <div key={g.field} className="sort-crit-row">
+                      <div key={g.field} className={`sort-crit-row${groupDragOver===i?' sort-crit-drop':''}`}
+                        draggable
+                        onDragStart={e=>{e.dataTransfer.effectAllowed='move';setGroupDragSrc(i);}}
+                        onDragOver={e=>{e.preventDefault();if(groupDragSrc!==null&&groupDragSrc!==i)setGroupDragOver(i);}}
+                        onDragLeave={()=>setGroupDragOver(null)}
+                        onDrop={e=>{
+                          e.preventDefault();
+                          if(groupDragSrc===null||groupDragSrc===i){setGroupDragSrc(null);setGroupDragOver(null);return;}
+                          const a=[...groupList];
+                          const [moved]=a.splice(groupDragSrc,1);
+                          a.splice(i,0,moved);
+                          setGroupByState(a);
+                          setGroupDragSrc(null);setGroupDragOver(null);
+                        }}
+                        onDragEnd={()=>{setGroupDragSrc(null);setGroupDragOver(null);}}>
+                        <span className="sort-crit-handle">⠿</span>
                         <span className="sort-crit-num">{i+1}</span>
                         <span className="sort-crit-label">{lbl}</span>
                         <button className="sort-crit-move" disabled={i===0} onClick={()=>{const a=[...groupList];[a[i-1],a[i]]=[a[i],a[i-1]];setGroupByState(a);}}>↑</button>
