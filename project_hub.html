@@ -7019,7 +7019,27 @@ function Confetti({onDone}) {
 /* ══════════════════════════════════════
    Nihul Tikhnun View
 ══════════════════════════════════════ */
+function NihulTikhnunStatusSq({statusId, statuses, size=20}) {
+  const st = statuses.find(s=>s.id===statusId) || statuses[0];
+  return (
+    <div title={st.label} style={{
+      width:size, height:size, borderRadius:Math.max(3, Math.round(size*0.22)), flexShrink:0,
+      background:st.color, color:'#fff', fontSize:Math.round(size*0.62), fontWeight:500,
+      display:'flex', alignItems:'center', justifyContent:'center', userSelect:'none', lineHeight:1,
+      fontFamily:'Heebo,system-ui,sans-serif',
+    }}>{st.label[0]}</div>
+  );
+}
+
+function NihulTikhnunPill({item}) {
+  if(!item) return <span style={{color:'var(--text-3)',fontSize:12}}>—</span>;
+  return <span className="pill" style={{color:'#fff',background:item.color,minWidth:53,justifyContent:'center'}}>{item.label}</span>;
+}
+
 function NihulTikhnunView({data}) {
+  const statuses    = data.statuses    || STATUSES;
+  const priorities  = data.priorities  || PRIORITIES;
+  const disciplines = data.disciplines || DISCIPLINES;
   const allSheets  = data.sheets || [];
   const listSheets = allSheets.filter(s => s.type==='list' && s.name!=='ניהול תכנון');
 
@@ -7029,8 +7049,6 @@ function NihulTikhnunView({data}) {
   const toggleSec  = id => setCollSec(c  => ({...c, [id]: !c[id]}));
   const toggleTask = id => setCollTask(c => ({...c, [id]: !c[id]}));
 
-  const getStatus = id => STATUSES.find(s => s.id===id) || {label:'—', color:'var(--text-3)'};
-
   const TRACK_SECTIONS = [
     { key:'licensing', label:'מסלול רישוי', color:'#2563EB',
       sheets: listSheets,
@@ -7039,8 +7057,18 @@ function NihulTikhnunView({data}) {
     { key:'execution', label:'מסלול ביצוע',         color:'#059669', sheets:[], enabled:false },
   ];
 
+  const totalTasks = listSheets.reduce((a,s)=>a+(s.tasks||[]).length, 0);
+
   return (
-    <div style={{flex:1, overflowY:'auto', background:'var(--bg)'}}>
+    <div style={{flex:1, overflowY:'auto', background:'var(--bg)', display:'flex', flexDirection:'column'}}>
+      {/* ── Toolbar — same visual language as the list view ── */}
+      <div className="toolbar">
+        <span style={{fontWeight:700, fontSize:13, color:'var(--text)'}}>כל המשימות</span>
+        <div className="tb-right">
+          <span style={{fontSize:12, color:'var(--text-3)'}}>{totalTasks} משימות</span>
+        </div>
+      </div>
+
       {TRACK_SECTIONS.map(track => {
         const trackCollapsed = collSec['track_'+track.key];
         const taskCount = track.sheets.reduce((acc,s)=>(s.tasks||[]).reduce((a,t)=>a+(t.subtasks||[]).length, acc+1), 0);
@@ -7051,7 +7079,6 @@ function NihulTikhnunView({data}) {
               display:'flex', alignItems:'center', gap:10,
               padding:'10px 20px', background:'var(--surface)',
               borderBottom:'1px solid var(--border)',
-              borderTop: track.key==='licensing' ? 'none' : '4px solid var(--bg)',
               cursor: track.enabled ? 'pointer' : 'default',
               userSelect:'none',
             }} onClick={() => track.enabled && toggleSec('track_'+track.key)}>
@@ -7073,9 +7100,9 @@ function NihulTikhnunView({data}) {
                   <thead>
                     <tr>
                       <th className="c-name" style={{position:'sticky', right:0, zIndex:'var(--z-col-name)', background:'var(--surface)'}}>שם המשימה</th>
-                      <th className="c-pri">סטטוס</th>
+                      <th className="c-pri">עדיפות</th>
                       <th className="c-disc">תחום</th>
-                      <th className="c-resp">נציג</th>
+                      <th className="c-resp">אחראי</th>
                       <th className="c-date">תאריך יעד</th>
                       <th className="c-days">ימים</th>
                     </tr>
@@ -7087,14 +7114,15 @@ function NihulTikhnunView({data}) {
                       const openSubs = tasks.reduce((a,t)=>a+(t.subtasks||[]).filter(s=>!s.done).length, 0);
                       return (
                         <React.Fragment key={sheet.id}>
-                          {/* Stage sec-row */}
+                          {/* Stage sec-row — same look as a group header in the list view */}
                           <tr className="sec-row" onClick={() => toggleSec(sheet.id)} style={{cursor:'pointer'}}>
                             <td colSpan={6}>
-                              <div style={{display:'flex', alignItems:'center', gap:8, paddingRight:4}}>
-                                <span style={{fontSize:10, color:'var(--text-3)', display:'inline-block',
-                                  transform: secCollapsed ? 'rotate(-90deg)' : '', transition:'transform .15s'}}>▾</span>
-                                <span style={{fontWeight:700, fontSize:12, color:'var(--text)'}}>{sheet.name}</span>
-                                <span style={{fontSize:11, color:'var(--text-3)'}}>{tasks.length} משימות</span>
+                              <div style={{display:'flex', alignItems:'center', gap:8}}>
+                                <span style={{background:'none', border:'none', padding:'1px 2px',
+                                  color:'var(--blue)', fontSize:23, lineHeight:1, display:'flex', alignItems:'center',
+                                  transform:secCollapsed?'rotate(-90deg)':'rotate(0deg)', transition:'transform .18s', flexShrink:0}}>▾</span>
+                                <span style={{fontWeight:700, fontSize:13, color:'var(--text)', padding:'0 2px'}}>{sheet.name}</span>
+                                <span style={{fontSize:11, color:'var(--text-3)', fontWeight:400}}>{tasks.length} משימות</span>
                                 {openSubs>0 && <span style={{fontSize:11, color:'#1D4ED8', background:'#DBEAFE',
                                   borderRadius:10, padding:'1px 7px'}}>{openSubs} תת-משימות פתוחות</span>}
                               </div>
@@ -7102,7 +7130,6 @@ function NihulTikhnunView({data}) {
                           </tr>
 
                           {!secCollapsed && tasks.map(task => {
-                            const st = getStatus(task.statusId);
                             const subs = task.subtasks || [];
                             const taskColl = collTask[task.id];
                             const openSubCount = subs.filter(s=>!s.done).length;
@@ -7113,10 +7140,13 @@ function NihulTikhnunView({data}) {
                                   onClick={() => subs.length && toggleTask(task.id)}
                                   style={{cursor: subs.length ? 'pointer' : 'default'}}>
                                   <td className="sticky-td">
-                                    <div className="name-inner" style={{paddingRight:28}}>
-                                      {subs.length>0 && <span style={{fontSize:9, color:'var(--text-3)',
-                                        display:'inline-block', flexShrink:0,
-                                        transform: taskColl ? 'rotate(-90deg)' : '', transition:'transform .15s'}}>▾</span>}
+                                    <div className="name-inner">
+                                      {subs.length>0
+                                        ? <span style={{fontSize:9, color:'var(--text-3)',
+                                            display:'inline-block', flexShrink:0,
+                                            transform: taskColl ? 'rotate(-90deg)' : '', transition:'transform .15s'}}>▾</span>
+                                        : <span style={{width:9, flexShrink:0, display:'inline-block'}}/>}
+                                      <NihulTikhnunStatusSq statusId={task.statusId} statuses={statuses} size={18}/>
                                       <span style={{fontSize:13, fontWeight:500, color:task.done?'var(--text-3)':'var(--text)',
                                         textDecoration: task.done?'line-through':'none'}}>{task.title}</span>
                                       {openSubCount>0 && <span style={{fontSize:10, color:'var(--text-3)', marginRight:6}}>
@@ -7124,35 +7154,30 @@ function NihulTikhnunView({data}) {
                                       </span>}
                                     </div>
                                   </td>
-                                  <td><span style={{fontSize:11, fontWeight:500, color:st.color,
-                                    background:st.color+'22', borderRadius:10, padding:'2px 9px',
-                                    border:`1px solid ${st.color}33`, whiteSpace:'nowrap'}}>{st.label}</span></td>
-                                  <td style={{fontSize:12, color:'var(--text-2)'}}>{task.discipline||'—'}</td>
-                                  <td style={{fontSize:12, color:'var(--text-2)'}}>{task.responsible||'—'}</td>
-                                  <td style={{fontSize:12, color:'var(--text-2)'}}>{task.dueDate||'—'}</td>
+                                  <td style={{textAlign:'center'}}><NihulTikhnunPill item={priorities.find(p=>p.id===task.priority)}/></td>
+                                  <td style={{textAlign:'center'}}><NihulTikhnunPill item={disciplines.find(d=>d.id===task.discipline)}/></td>
+                                  <td style={{fontSize:12, color:'var(--text-2)'}}>{disciplines.find(d=>d.id===task.responsible)?.label||'—'}</td>
+                                  <td style={{fontSize:12, color:'var(--text-2)'}}>{task.dueDate?fmtDateFull(task.dueDate):'—'}</td>
                                   <td style={{fontSize:12, color:'var(--text-3)'}}>—</td>
                                 </tr>
 
                                 {/* Subtask sub-rows */}
-                                {!taskColl && subs.map(sub => {
-                                  const ss = getStatus(sub.statusId);
-                                  return (
-                                    <tr key={sub.id} className="sub-row">
-                                      <td className="sticky-td" style={{background:'#F0F2F6'}}>
-                                        <div className="name-inner" style={{paddingRight:48}}>
-                                          <span style={{fontSize:12, color: sub.done?'var(--text-3)':'var(--text)',
-                                            textDecoration: sub.done?'line-through':'none'}}>{sub.title||'—'}</span>
-                                        </div>
-                                      </td>
-                                      <td><span style={{fontSize:11, color:ss.color, background:ss.color+'22',
-                                        borderRadius:10, padding:'2px 8px', border:`1px solid ${ss.color}33`}}>{ss.label}</span></td>
-                                      <td style={{fontSize:12, color:'var(--text-2)'}}>{sub.discipline||'—'}</td>
-                                      <td style={{fontSize:12, color:'var(--text-2)'}}>{sub.responsible||'—'}</td>
-                                      <td style={{fontSize:12, color:'var(--text-2)'}}>—</td>
-                                      <td style={{fontSize:12, color:'var(--text-3)'}}>—</td>
-                                    </tr>
-                                  );
-                                })}
+                                {!taskColl && subs.map(sub => (
+                                  <tr key={sub.id} className="sub-row">
+                                    <td className="sticky-td">
+                                      <div className="sub-name-inner">
+                                        <NihulTikhnunStatusSq statusId={sub.statusId} statuses={statuses} size={13}/>
+                                        <span style={{fontSize:12, color: sub.done?'var(--text-3)':'var(--text)',
+                                          textDecoration: sub.done?'line-through':'none'}}>{sub.title||'—'}</span>
+                                      </div>
+                                    </td>
+                                    <td/>
+                                    <td style={{textAlign:'center'}}><NihulTikhnunPill item={disciplines.find(d=>d.id===sub.discipline)}/></td>
+                                    <td style={{fontSize:12, color:'var(--text-2)'}}>{disciplines.find(d=>d.id===sub.responsible)?.label||'—'}</td>
+                                    <td style={{fontSize:12, color:'var(--text-2)'}}>{sub.dueDate?fmtDateFull(sub.dueDate):'—'}</td>
+                                    <td style={{fontSize:12, color:'var(--text-3)'}}>—</td>
+                                  </tr>
+                                ))}
                               </React.Fragment>
                             );
                           })}
