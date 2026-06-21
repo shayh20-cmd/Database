@@ -5231,10 +5231,20 @@ function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState,
     return()=>document.removeEventListener('mousedown',h);
   },[showViews]);
 
-  const applyFilter=(col,val)=>{setFilterState({column:col,value:val});setShowFilter(false);setFilterStep(null);};
+  const toggleFilter=(col,val)=>{
+    setFilterState(prev=>{
+      const cur=prev||{};
+      const arr=cur[col]||[];
+      const next=arr.includes(val)?arr.filter(v=>v!==val):[...arr,val];
+      const out={...cur,[col]:next};
+      if(!next.length) delete out[col];
+      return out;
+    });
+  };
 
   const sortList    = sortState||[];
-  const filterCount = filterState?1:0;
+  const filterMap    = filterState||{};
+  const filterCount = Object.values(filterMap).reduce((n,arr)=>n+(arr?.length||0),0);
   const sortCount   = sortList.length;
   const groupList   = groupByState||[{field:'section'}];
   const isDefaultGroup = groupList.length===1 && groupList[0].field==='section';
@@ -5359,48 +5369,67 @@ function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState,
               {!filterStep&&(
                 <>
                   <div className="dp-title">סנן לפי</div>
-                  {[['priority','עדיפות'],['discipline','תחום'],['status','סטטוס']].map(([col,lbl])=>(
-                    <div key={col} className="dp-opt" onClick={()=>setFilterStep(col)}>
-                      {lbl} <span style={{marginRight:'auto',color:'var(--text-3)',fontSize:11}}>›</span>
-                    </div>
-                  ))}
+                  {[['priority','עדיפות'],['discipline','תחום'],['status','סטטוס']].map(([col,lbl])=>{
+                    const n=(filterMap[col]||[]).length;
+                    return (
+                      <div key={col} className="dp-opt" onClick={()=>setFilterStep(col)}>
+                        {lbl}
+                        <span style={{marginRight:'auto',display:'flex',alignItems:'center',gap:6}}>
+                          {n>0&&<span className="tb-badge">{n}</span>}
+                          <span style={{color:'var(--text-3)',fontSize:11}}>›</span>
+                        </span>
+                      </div>
+                    );
+                  })}
                 </>
               )}
               {filterStep==='priority'&&(
                 <>
                   <div className="dp-opt" style={{color:'var(--text-3)',fontSize:11,cursor:'pointer'}} onClick={()=>setFilterStep(null)}>‹ חזרה</div>
                   <div className="dp-title">עדיפות</div>
-                  {priorities.map(p=>(
-                    <div key={p.id} className="dp-opt" onClick={()=>applyFilter('priority',p.id)}>
-                      <span className="pill" style={{color:p.color,background:p.bg}}>{p.label}</span>
-                    </div>
-                  ))}
+                  {priorities.map(p=>{
+                    const sel=(filterMap.priority||[]).includes(p.id);
+                    return (
+                      <div key={p.id} className="dp-opt" onClick={()=>toggleFilter('priority',p.id)}>
+                        <span style={{width:14,fontSize:12,color:'var(--accent)'}}>{sel?'✓':''}</span>
+                        <span className="pill" style={{color:p.color,background:p.bg}}>{p.label}</span>
+                      </div>
+                    );
+                  })}
                 </>
               )}
               {filterStep==='discipline'&&(
                 <>
                   <div className="dp-opt" style={{color:'var(--text-3)',fontSize:11,cursor:'pointer'}} onClick={()=>setFilterStep(null)}>‹ חזרה</div>
                   <div className="dp-title">תחום</div>
-                  {disciplines.map(d=>(
-                    <div key={d.id} className="dp-opt" onClick={()=>applyFilter('discipline',d.id)}>
-                      <span className="pill" style={{color:d.color,background:d.bg}}>{d.label}</span>
-                    </div>
-                  ))}
+                  {disciplines.map(d=>{
+                    const sel=(filterMap.discipline||[]).includes(d.id);
+                    return (
+                      <div key={d.id} className="dp-opt" onClick={()=>toggleFilter('discipline',d.id)}>
+                        <span style={{width:14,fontSize:12,color:'var(--accent)'}}>{sel?'✓':''}</span>
+                        <span className="pill" style={{color:d.color,background:d.bg}}>{d.label}</span>
+                      </div>
+                    );
+                  })}
                 </>
               )}
               {filterStep==='status'&&(
                 <>
                   <div className="dp-opt" style={{color:'var(--text-3)',fontSize:11,cursor:'pointer'}} onClick={()=>setFilterStep(null)}>‹ חזרה</div>
                   <div className="dp-title">סטטוס</div>
-                  {STATUSES.map(s=>(
-                    <div key={s.id} className="dp-opt" onClick={()=>applyFilter('status',s.id)}>
-                      <div className={`sc${s.id==='C'?' sc-done':''}`}
-                        style={{color:s.id==='C'?'#fff':s.color,backgroundColor:s.id==='C'?s.color:'transparent',borderColor:s.color,width:14,height:14,fontSize:6,flexShrink:0}}>
-                        {s.letter}
+                  {STATUSES.map(s=>{
+                    const sel=(filterMap.status||[]).includes(s.id);
+                    return (
+                      <div key={s.id} className="dp-opt" onClick={()=>toggleFilter('status',s.id)}>
+                        <span style={{width:14,fontSize:12,color:'var(--accent)'}}>{sel?'✓':''}</span>
+                        <div className={`sc${s.id==='C'?' sc-done':''}`}
+                          style={{color:s.id==='C'?'#fff':s.color,backgroundColor:s.id==='C'?s.color:'transparent',borderColor:s.color,width:14,height:14,fontSize:6,flexShrink:0}}>
+                          {s.letter}
+                        </div>
+                        {s.label}
                       </div>
-                      {s.label}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </>
               )}
             </div>
@@ -6423,11 +6452,11 @@ function ListView({data, save}) {
 
   /* filter */
   let display=[...tasks];
-  if(filterState){
+  if(filterState && Object.keys(filterState).length){
     display=display.filter(t=>{
-      if(filterState.column==='priority')  return t.priority===filterState.value;
-      if(filterState.column==='discipline')return t.discipline===filterState.value;
-      if(filterState.column==='status')    return t.statusId===filterState.value;
+      if(filterState.priority?.length   && !filterState.priority.includes(t.priority))    return false;
+      if(filterState.discipline?.length && !filterState.discipline.includes(t.discipline))return false;
+      if(filterState.status?.length     && !filterState.status.includes(t.statusId))      return false;
       return true;
     });
   }
