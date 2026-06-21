@@ -7164,22 +7164,24 @@ function NihulTikhnunView({data, save}) {
             const collapsed = collStage[sheet.id];
             return (
               <React.Fragment key={sheet.id}>
-                {/* ── Stage divider — identical visual weight to a group header ── */}
-                <div style={{
-                  display:'flex', alignItems:'center', gap:10,
-                  padding:'10px 20px', background:'var(--surface)',
-                  borderBottom:'1px solid var(--border)', borderTop:'4px solid var(--bg)',
-                  cursor:'pointer', userSelect:'none',
-                }} onClick={() => toggleStage(sheet.id)}>
-                  <span style={{fontSize:10, color:'var(--text-3)', display:'inline-block',
-                    transform: collapsed ? 'rotate(-90deg)' : '', transition:'transform .15s'}}>▾</span>
-                  <span style={{width:11, height:11, borderRadius:3, background:'#2563EB', flexShrink:0, display:'inline-block'}}/>
-                  <span style={{fontWeight:700, fontSize:13, color:'var(--text)'}}>{sheet.name}</span>
-                  <span style={{fontSize:11, color:'var(--text-3)', marginRight:'auto'}}>{(sheet.tasks||[]).length} משימות</span>
-                </div>
+                {/* ── Stage divider — only needed when there's more than one sheet to tell apart ── */}
+                {visibleSheets.length>1 && (
+                  <div style={{
+                    display:'flex', alignItems:'center', gap:10,
+                    padding:'10px 20px', background:'var(--surface)',
+                    borderBottom:'1px solid var(--border)', borderTop:'4px solid var(--bg)',
+                    cursor:'pointer', userSelect:'none',
+                  }} onClick={() => toggleStage(sheet.id)}>
+                    <span style={{fontSize:10, color:'var(--text-3)', display:'inline-block',
+                      transform: collapsed ? 'rotate(-90deg)' : '', transition:'transform .15s'}}>▾</span>
+                    <span style={{width:11, height:11, borderRadius:3, background:'#2563EB', flexShrink:0, display:'inline-block'}}/>
+                    <span style={{fontWeight:700, fontSize:13, color:'var(--text)'}}>{sheet.name}</span>
+                    <span style={{fontSize:11, color:'var(--text-3)', marginRight:'auto'}}>{(sheet.tasks||[]).length} משימות</span>
+                  </div>
+                )}
 
                 {/* ── The exact same list view used in מסלול רישוי ── */}
-                {!collapsed && <ListView data={sheet} save={patch => saveSheet(sheet.id, patch)}/>}
+                {(visibleSheets.length===1 || !collapsed) && <ListView data={sheet} save={patch => saveSheet(sheet.id, patch)}/>}
               </React.Fragment>
             );
           })}
