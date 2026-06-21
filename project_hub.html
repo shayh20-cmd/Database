@@ -7019,184 +7019,73 @@ function Confetti({onDone}) {
 /* ══════════════════════════════════════
    Nihul Tikhnun View
 ══════════════════════════════════════ */
-function NihulTikhnunStatusSq({statusId, statuses, size=20}) {
-  const st = statuses.find(s=>s.id===statusId) || statuses[0];
-  return (
-    <div title={st.label} style={{
-      width:size, height:size, borderRadius:Math.max(3, Math.round(size*0.22)), flexShrink:0,
-      background:st.color, color:'#fff', fontSize:Math.round(size*0.62), fontWeight:500,
-      display:'flex', alignItems:'center', justifyContent:'center', userSelect:'none', lineHeight:1,
-      fontFamily:'Heebo,system-ui,sans-serif',
-    }}>{st.label[0]}</div>
-  );
-}
-
-function NihulTikhnunPill({item}) {
-  if(!item) return <span style={{color:'var(--text-3)',fontSize:12}}>—</span>;
-  return <span className="pill" style={{color:'#fff',background:item.color,minWidth:53,justifyContent:'center'}}>{item.label}</span>;
-}
-
-function NihulTikhnunView({data}) {
-  const statuses    = data.statuses    || STATUSES;
+function NihulTikhnunView({data, save}) {
   const priorities  = data.priorities  || PRIORITIES;
   const disciplines = data.disciplines || DISCIPLINES;
+  const statuses    = data.statuses    || STATUSES;
+  const [editList, setEditList] = useState(null);
+
   const allSheets  = data.sheets || [];
   const listSheets = allSheets.filter(s => s.type==='list' && s.name!=='ניהול תכנון');
 
-  const [collSec,  setCollSec]  = useState({});
-  const [collTask, setCollTask] = useState({});
+  const [collStage, setCollStage] = useState({});
+  const toggleStage = id => setCollStage(c => ({...c, [id]: !c[id]}));
 
-  const toggleSec  = id => setCollSec(c  => ({...c, [id]: !c[id]}));
-  const toggleTask = id => setCollTask(c => ({...c, [id]: !c[id]}));
+  /* Persist a single stage sheet's patched data back into data.sheets.
+     ListView calls save() with the fully-merged sheet object. */
+  const saveSheet = (sheetId, fullSheet) =>
+    save({...data, sheets: data.sheets.map(s => s.id===sheetId ? fullSheet : s)});
 
-  const TRACK_SECTIONS = [
-    { key:'licensing', label:'מסלול רישוי', color:'#2563EB',
-      sheets: listSheets,
-      enabled: true },
-    { key:'planning',  label:'מסלול תכנון מפורט', color:'#7C3AED', sheets:[], enabled:false },
-    { key:'execution', label:'מסלול ביצוע',         color:'#059669', sheets:[], enabled:false },
-  ];
-
-  const totalTasks = listSheets.reduce((a,s)=>a+(s.tasks||[]).length, 0);
+  const listTitle = t => t==='priority'?'עריכת עדיפויות':t==='status'?'עריכת סטטוסים':'עריכת תחומים';
+  const listItems = t => t==='priority'?priorities:t==='status'?statuses:disciplines;
+  const savePartial = patch => save({...data,...patch});
 
   return (
-    <div style={{flex:1, overflowY:'auto', background:'var(--bg)', display:'flex', flexDirection:'column'}}>
-      {/* ── Toolbar — same visual language as the list view ── */}
-      <div className="toolbar">
-        <span style={{fontWeight:700, fontSize:13, color:'var(--text)'}}>כל המשימות</span>
-        <div className="tb-right">
-          <span style={{fontSize:12, color:'var(--text-3)'}}>{totalTasks} משימות</span>
-        </div>
-      </div>
-
-      {TRACK_SECTIONS.map(track => {
-        const trackCollapsed = collSec['track_'+track.key];
-        const taskCount = track.sheets.reduce((acc,s)=>(s.tasks||[]).reduce((a,t)=>a+(t.subtasks||[]).length, acc+1), 0);
-        return (
-          <React.Fragment key={track.key}>
-            {/* ── Track header — styled as a prominent section ── */}
-            <div style={{
-              display:'flex', alignItems:'center', gap:10,
-              padding:'10px 20px', background:'var(--surface)',
-              borderBottom:'1px solid var(--border)',
-              cursor: track.enabled ? 'pointer' : 'default',
-              userSelect:'none',
-            }} onClick={() => track.enabled && toggleSec('track_'+track.key)}>
-              {track.enabled && <span style={{fontSize:10, color:'var(--text-3)', display:'inline-block',
-                transform: trackCollapsed ? 'rotate(-90deg)' : '', transition:'transform .15s'}}>▾</span>}
-              <span style={{width:11, height:11, borderRadius:3, background:track.color, flexShrink:0, display:'inline-block'}}/>
-              <span style={{fontWeight:700, fontSize:13, color:'var(--text)'}}>{track.label}</span>
-              {!track.enabled && <span style={{fontSize:11, color:'var(--text-3)', background:'var(--bg)',
-                border:'1px solid var(--border)', borderRadius:4, padding:'1px 7px'}}>בפיתוח</span>}
-              {track.enabled && <span style={{fontSize:11, color:'var(--text-3)', marginRight:'auto'}}>
-                {taskCount} פריטים
-              </span>}
-            </div>
-
-            {/* ── Table per track ── */}
-            {track.enabled && !trackCollapsed && (
-              <div style={{overflowX:'auto'}}>
-                <table className="list-table" style={{width:'100%', borderCollapse:'collapse', minWidth:600}}>
-                  <thead>
-                    <tr>
-                      <th className="c-name" style={{position:'sticky', right:0, zIndex:'var(--z-col-name)', background:'var(--surface)'}}>שם המשימה</th>
-                      <th className="c-pri">עדיפות</th>
-                      <th className="c-disc">תחום</th>
-                      <th className="c-resp">אחראי</th>
-                      <th className="c-date">תאריך יעד</th>
-                      <th className="c-days">ימים</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {track.sheets.map(sheet => {
-                      const secCollapsed = collSec[sheet.id];
-                      const tasks = sheet.tasks || [];
-                      const openSubs = tasks.reduce((a,t)=>a+(t.subtasks||[]).filter(s=>!s.done).length, 0);
-                      return (
-                        <React.Fragment key={sheet.id}>
-                          {/* Stage sec-row — same look as a group header in the list view */}
-                          <tr className="sec-row" onClick={() => toggleSec(sheet.id)} style={{cursor:'pointer'}}>
-                            <td colSpan={6}>
-                              <div style={{display:'flex', alignItems:'center', gap:8}}>
-                                <span style={{background:'none', border:'none', padding:'1px 2px',
-                                  color:'var(--blue)', fontSize:23, lineHeight:1, display:'flex', alignItems:'center',
-                                  transform:secCollapsed?'rotate(-90deg)':'rotate(0deg)', transition:'transform .18s', flexShrink:0}}>▾</span>
-                                <span style={{fontWeight:700, fontSize:13, color:'var(--text)', padding:'0 2px'}}>{sheet.name}</span>
-                                <span style={{fontSize:11, color:'var(--text-3)', fontWeight:400}}>{tasks.length} משימות</span>
-                                {openSubs>0 && <span style={{fontSize:11, color:'#1D4ED8', background:'#DBEAFE',
-                                  borderRadius:10, padding:'1px 7px'}}>{openSubs} תת-משימות פתוחות</span>}
-                              </div>
-                            </td>
-                          </tr>
-
-                          {!secCollapsed && tasks.map(task => {
-                            const subs = task.subtasks || [];
-                            const taskColl = collTask[task.id];
-                            const openSubCount = subs.filter(s=>!s.done).length;
-                            return (
-                              <React.Fragment key={task.id}>
-                                {/* Task t-row */}
-                                <tr className={`t-row${subs.length?' t-expanded':''}`}
-                                  onClick={() => subs.length && toggleTask(task.id)}
-                                  style={{cursor: subs.length ? 'pointer' : 'default'}}>
-                                  <td className="sticky-td">
-                                    <div className="name-inner">
-                                      {subs.length>0
-                                        ? <span style={{fontSize:9, color:'var(--text-3)',
-                                            display:'inline-block', flexShrink:0,
-                                            transform: taskColl ? 'rotate(-90deg)' : '', transition:'transform .15s'}}>▾</span>
-                                        : <span style={{width:9, flexShrink:0, display:'inline-block'}}/>}
-                                      <NihulTikhnunStatusSq statusId={task.statusId} statuses={statuses} size={18}/>
-                                      <span style={{fontSize:13, fontWeight:500, color:task.done?'var(--text-3)':'var(--text)',
-                                        textDecoration: task.done?'line-through':'none'}}>{task.title}</span>
-                                      {openSubCount>0 && <span style={{fontSize:10, color:'var(--text-3)', marginRight:6}}>
-                                        ({openSubCount})
-                                      </span>}
-                                    </div>
-                                  </td>
-                                  <td style={{textAlign:'center'}}><NihulTikhnunPill item={priorities.find(p=>p.id===task.priority)}/></td>
-                                  <td style={{textAlign:'center'}}><NihulTikhnunPill item={disciplines.find(d=>d.id===task.discipline)}/></td>
-                                  <td style={{fontSize:12, color:'var(--text-2)'}}>{disciplines.find(d=>d.id===task.responsible)?.label||'—'}</td>
-                                  <td style={{fontSize:12, color:'var(--text-2)'}}>{task.dueDate?fmtDateFull(task.dueDate):'—'}</td>
-                                  <td style={{fontSize:12, color:'var(--text-3)'}}>—</td>
-                                </tr>
-
-                                {/* Subtask sub-rows */}
-                                {!taskColl && subs.map(sub => (
-                                  <tr key={sub.id} className="sub-row">
-                                    <td className="sticky-td">
-                                      <div className="sub-name-inner">
-                                        <NihulTikhnunStatusSq statusId={sub.statusId} statuses={statuses} size={13}/>
-                                        <span style={{fontSize:12, color: sub.done?'var(--text-3)':'var(--text)',
-                                          textDecoration: sub.done?'line-through':'none'}}>{sub.title||'—'}</span>
-                                      </div>
-                                    </td>
-                                    <td/>
-                                    <td style={{textAlign:'center'}}><NihulTikhnunPill item={disciplines.find(d=>d.id===sub.discipline)}/></td>
-                                    <td style={{fontSize:12, color:'var(--text-2)'}}>{disciplines.find(d=>d.id===sub.responsible)?.label||'—'}</td>
-                                    <td style={{fontSize:12, color:'var(--text-2)'}}>{sub.dueDate?fmtDateFull(sub.dueDate):'—'}</td>
-                                    <td style={{fontSize:12, color:'var(--text-3)'}}>—</td>
-                                  </tr>
-                                ))}
-                              </React.Fragment>
-                            );
-                          })}
-
-                          {!secCollapsed && tasks.length===0 && (
-                            <tr><td colSpan={6} style={{padding:'12px 32px', fontSize:12,
-                              color:'var(--text-3)', borderBottom:'1px solid var(--border)'}}>אין משימות בשלב זה</td></tr>
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
+    <ListsCtx.Provider value={{
+      priorities, disciplines, statuses,
+      team: data.team || [],
+      onEditList: type => setEditList(type),
+    }}>
+      <div style={{flex:1, overflowY:'auto', background:'var(--bg)'}}>
+        {listSheets.map(sheet => {
+          const collapsed = collStage[sheet.id];
+          return (
+            <React.Fragment key={sheet.id}>
+              {/* ── Stage divider — identical visual weight to a group header ── */}
+              <div style={{
+                display:'flex', alignItems:'center', gap:10,
+                padding:'10px 20px', background:'var(--surface)',
+                borderBottom:'1px solid var(--border)', borderTop:'4px solid var(--bg)',
+                cursor:'pointer', userSelect:'none',
+              }} onClick={() => toggleStage(sheet.id)}>
+                <span style={{fontSize:10, color:'var(--text-3)', display:'inline-block',
+                  transform: collapsed ? 'rotate(-90deg)' : '', transition:'transform .15s'}}>▾</span>
+                <span style={{width:11, height:11, borderRadius:3, background:'#2563EB', flexShrink:0, display:'inline-block'}}/>
+                <span style={{fontWeight:700, fontSize:13, color:'var(--text)'}}>{sheet.name}</span>
+                <span style={{fontSize:11, color:'var(--text-3)', marginRight:'auto'}}>{(sheet.tasks||[]).length} משימות</span>
               </div>
-            )}
-          </React.Fragment>
-        );
-      })}
-    </div>
+
+              {/* ── The exact same list view used in מסלול רישוי ── */}
+              {!collapsed && <ListView data={sheet} save={patch => saveSheet(sheet.id, patch)}/>}
+            </React.Fragment>
+          );
+        })}
+      </div>
+      {editList&&(
+        <EditListModal
+          title={listTitle(editList)}
+          items={listItems(editList)}
+          previewType={editList==='status'?'status':'pill'}
+          onSave={items=>{
+            if(editList==='priority') savePartial({priorities:items});
+            else if(editList==='status') savePartial({statuses:items});
+            else savePartial({disciplines:items});
+            setEditList(null);
+          }}
+          onClose={()=>setEditList(null)}
+        />
+      )}
+    </ListsCtx.Provider>
   );
 }
 
@@ -10296,7 +10185,7 @@ function App() {
       {/* ── Content ── */}
       <div style={{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}}>
         {track==='overview' && <OverviewPage data={data} save={save}/>}
-        {track==='tasks'    && <NihulTikhnunView data={data}/>}
+        {track==='tasks'    && <NihulTikhnunView data={data} save={save}/>}
         {track==='licensing' && activeSheet?.type==='dashboard' && <DashboardView data={data} save={save} onSwitchSheet={setActiveSheetId}/>}
         {track==='licensing' && activeSheet?.type==='list' && <ListViewWithCtx data={sheetData} save={saveActiveSheet}/>}
         {track==='meetings'    && <ComingSoonPage iconName="meetings"    title="ישיבות" desc="ריכוז וניהול סיכומי ישיבות — בפיתוח"/>}
