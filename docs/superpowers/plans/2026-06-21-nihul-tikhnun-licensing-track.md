@@ -45,9 +45,19 @@ Run via `mcp__Claude_Preview__preview_eval`:
 ```js
 JSON.stringify(JSON.parse(localStorage.getItem('pm_asana_v9')).sheets.map(s=>({name:s.name,type:s.type,taskCount:(s.tasks||[]).length})))
 ```
-Expected: one entry with `"name":"ניהול תכנון","type":"list","taskCount":0` (confirms the sheet exists, is empty, and is safe to rename/repurpose — matches the design doc's assumption). If `taskCount` is not `0`, STOP and re-read the sheet's tasks before proceeding — the migration in Task 2 would silently repurpose real data.
 
-This step has no code change and no commit — it's a guard before Task 2.
+**Actual result, verified 2026-06-21:**
+```json
+[{"name":"דאשבורד","type":"dashboard","taskCount":0},
+ {"name":"ניהול תכנון","type":"list","taskCount":30},
+ {"name":"תיק מידע","type":"list","taskCount":6},
+ {"name":"תנאים מקדימים","type":"list","taskCount":18},
+ {"name":"בקרת תכן","type":"list","taskCount":0}]
+```
+
+The "ניהול תכנון" sheet is **not empty** — it holds 30 tasks seeded by `makeDefaultData()` (קיק-אוף, לוח זמנים ראשי, חלוקת תפקידים, תקציב, חוזי יועצים, etc.). These are general PM/ongoing tasks, not tied to any רישוי stage — exactly the content that belongs under "משימות שוטפות". This is a **good outcome, not a blocker**: Task 2's migration renames the sheet and keeps its 30 tasks untouched (it never touches `tasks`, only `name`/`track`). The design doc has been updated (`docs/superpowers/specs/2026-06-21-nihul-tikhnun-licensing-track-design.md`) to reflect this — proceed to Task 2 as planned.
+
+This step has no code change and no commit — it's a guard before Task 2. (If a future run of this step finds genuinely unrelated/sensitive content instead of recognizable general-PM seed tasks, stop and ask before proceeding — but that is not the case here.)
 
 ---
 
