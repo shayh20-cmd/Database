@@ -6503,38 +6503,6 @@ function ListView({data, save}) {
         onSaveView={saveView} onLoadView={loadView} onDeleteView={deleteView} onRenameView={renameView}
         onSettings={()=>setShowSettings(o=>!o)} settingsOpen={showSettings}/>
 
-      {/* Active chips */}
-      {(filterState||sortState?.length||!isDefaultGrouping)&&(
-        <div className="active-bar">
-          {filterState&&(
-            <div className="f-chip">
-              {filterState.column}: {filterState.value}
-              <button onClick={()=>setFilterState(null)}>×</button>
-            </div>
-          )}
-          {sortState?.length>0&&(
-            <div className="s-chip">
-              מיון:&nbsp;
-              {sortState.map((s,i)=>{
-                const lbl=SORT_FIELDS.find(f=>f.column===s.column)?.label||s.column;
-                return <span key={s.column}>{i>0?' › ':''}{lbl} {s.dir==='asc'?'↑':'↓'}</span>;
-              })}
-              <button onClick={()=>setSortState(null)}>×</button>
-            </div>
-          )}
-          {!isDefaultGrouping&&(
-            <div className="s-chip">
-              קבוצה:&nbsp;
-              {groupByState.map((g,i)=>{
-                const lbl=GROUP_FIELDS.find(f=>f.field===g.field)?.label||g.field;
-                return <span key={g.field}>{i>0?' › ':''}{lbl}</span>;
-              })}
-              <button onClick={()=>setGroupByState([{field:'section'}])}>×</button>
-            </div>
-          )}
-          <button className="clear-all" onClick={clearAll}>נקה הכל</button>
-        </div>
-      )}
 
       {/* Table */}
       <div className="list-wrap" onClick={()=>{setSelectedGroup(null);setSecMenu(null);}}>
