@@ -6486,7 +6486,12 @@ function ListView({data, save}) {
   const loadView = viewId => {
     setActiveViewId(viewId);
     localStorage.setItem(viewStorageKey, viewId || '');
-    if(!viewId) return;
+    if(!viewId){
+      setFilterState(null);
+      setSortState(null);
+      setGroupByState([{field:'section'}]);
+      return;
+    }
     const v = views.find(x => x.id === viewId);
     if(!v) return;
     setFilterState(v.filterState||null);
