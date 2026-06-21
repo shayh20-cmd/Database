@@ -2257,10 +2257,13 @@ function DaysInStatusCell({task, threshold=null}) {
 /* ══════════════════════════════════════
    StatusOwnerCell — merged responsible + event status + day count
 ══════════════════════════════════════ */
-function StatusOwnerCell({task, onChangeResponsible, threshold=null, onAddEvent}) {
+function StatusOwnerCell({task, onUpdate, onChangeResponsible, threshold=null}) {
   const {disciplines} = useContext(ListsCtx);
   const isProcess = (task.events||[]).length > 0;
   const [open, setOpen] = useState(false);
+  const [panel, setPanel] = useState(null); // null | 'add'
+  const [addDisc,   setAddDisc]   = useState('');
+  const [addStatus, setAddStatus] = useState('progress');
   const ref = useRef(null);
 
   // Discipline: derived from latest event (process) or stored responsible (simple)
@@ -2281,11 +2284,11 @@ function StatusOwnerCell({task, onChangeResponsible, threshold=null, onAddEvent}
   const delayed = st && days !== null && threshold !== null && days > threshold;
 
   useEffect(()=>{
-    if(!open)return;
-    const h=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(false);};
+    if(!open && !panel)return;
+    const h=e=>{if(ref.current&&!ref.current.contains(e.target)){setOpen(false);setPanel(null);}};
     document.addEventListener('mousedown',h);
     return()=>document.removeEventListener('mousedown',h);
-  },[open]);
+  },[open,panel]);
 
   // Owner status is derived from process events — show nothing for non-process tasks
   if(!isProcess){
@@ -2364,11 +2367,67 @@ function StatusOwnerCell({task, onChangeResponsible, threshold=null, onAddEvent}
 
   if(isProcess){
     return (
-      <td className="owner-status-cell" style={{padding:'0 6px',verticalAlign:'middle',display:'flex',alignItems:'center',gap:6,overflow:'hidden'}}>
-        {inner}
-        {labelText}
-        {onAddEvent&&<button className="add-ev-inline owner-status-add" title="הוסף עדכון"
-            onClick={e=>{e.stopPropagation();onAddEvent();}}>+</button>}
+      <td ref={ref} className="owner-status-cell" style={{position:'relative',padding:'0 6px',verticalAlign:'middle',display:'flex',alignItems:'center',gap:6}}>
+        <div style={{display:'flex',alignItems:'center',gap:6,overflow:'hidden',minWidth:0,flex:'1 1 auto'}}>
+          {inner}
+          {labelText}
+        </div>
+        <button className="add-ev-inline owner-status-add" title="הוסף עדכון"
+            onClick={e=>{
+              e.stopPropagation();
+              setAddDisc(discId||'');
+              setAddStatus(latest?.status||'progress');
+              setPanel(p=>p==='add'?null:'add');
+            }}>+</button>
+        {panel==='add'&&(
+          <div className="dp" onClick={e=>e.stopPropagation()} style={{minWidth:220,padding:'10px 10px 8px'}}>
+            <div className="dp-title" style={{marginBottom:8}}>עדכון חדש</div>
+
+            <div style={{fontSize:10,fontWeight:700,color:'var(--text-3)',marginBottom:4,letterSpacing:'0.04em'}}>אחראי</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:10}}>
+              {disciplines.map(d=>(
+                <span key={d.id} onClick={()=>setAddDisc(d.id)}
+                  style={{padding:'2px 8px',borderRadius:10,fontSize:10,fontWeight:700,cursor:'pointer',
+                    background:d.id===addDisc?d.color:d.bg,
+                    color:d.id===addDisc?'#fff':d.color,
+                    border:`1px solid ${d.color}`,transition:'all .1s'}}>
+                  {d.label}
+                </span>
+              ))}
+            </div>
+
+            <div style={{fontSize:10,fontWeight:700,color:'var(--text-3)',marginBottom:4,letterSpacing:'0.04em'}}>סטטוס</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:12}}>
+              {Object.values(EV_STATUSES).filter(s=>s.id!=='missing').map(s=>(
+                <span key={s.id} onClick={()=>setAddStatus(s.id)}
+                  style={{display:'inline-flex',alignItems:'center',gap:3,padding:'2px 7px',borderRadius:10,
+                    fontSize:10,fontWeight:700,cursor:'pointer',
+                    background:s.id===addStatus?s.border:s.bg,
+                    color:s.id===addStatus?'#fff':s.color,
+                    border:`1px solid ${s.border}`,transition:'all .1s'}}>
+                  {s.symbol} {s.label}
+                </span>
+              ))}
+            </div>
+
+            <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
+              <button onClick={()=>setPanel(null)}
+                style={{padding:'4px 10px',fontSize:11,border:'1px solid var(--border-strong)',
+                  borderRadius:5,cursor:'pointer',background:'var(--surface)',fontFamily:'inherit',color:'var(--text-2)'}}>
+                ביטול
+              </button>
+              <button onClick={()=>{
+                  const newEv={id:uid(),title:'',status:addStatus,assignee:addDisc,date:todayISO(),note:''};
+                  onUpdate({...task,events:[newEv,...(task.events||[])]});
+                  setPanel(null);
+                }}
+                style={{padding:'4px 12px',fontSize:11,border:'none',
+                  borderRadius:5,cursor:'pointer',background:'var(--accent)',color:'#fff',fontFamily:'inherit',fontWeight:600}}>
+                ✓ הוסף
+              </button>
+            </div>
+          </div>
+        )}
       </td>
     );
   }
@@ -3828,7 +3887,7 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
           case '__discipline':
             return <DisciplineCell key="__discipline" discipline={task.discipline} onChange={v=>onUpdate({...task,discipline:v})}/>;
           case '__owner_status':
-            return <StatusOwnerCell key="__owner_status" task={task} onChangeResponsible={v=>onUpdate({...task,responsible:v})} threshold={daysThreshold} onAddEvent={()=>setPanelSubId('__task__')}/>;
+            return <StatusOwnerCell key="__owner_status" task={task} onUpdate={onUpdate} onChangeResponsible={v=>onUpdate({...task,responsible:v})} threshold={daysThreshold}/>;
           case '__assignee':
             return <AssigneeCell key="__assignee" task={task} onUpdate={onUpdate}/>;
           case '__dates':
