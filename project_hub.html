@@ -6009,6 +6009,12 @@ function addStandalonePrinciple(data, save, description, discipline) {
   ]});
 }
 
+function principlesDeleteHandler(data, save) {
+  return p => p.sourceTaskId
+    ? unflagPrincipleTask(data, save, p.sourceSheetId, p.sourceTaskId)
+    : deleteStandalonePrinciple(data, save, p.id);
+}
+
 function PrinciplesTable({principles, onDeleteRow, onOpenSource}) {
   return (
     <table style={{width:'100%', borderCollapse:'collapse', fontSize:12}}>
@@ -6191,9 +6197,7 @@ function OverviewPage({data, save, onNavigateToTasks}) {
           <h3 style={{fontSize:13, fontWeight:700, margin:0}}>עקרון תכנון</h3>
         </div>
         <PrinciplesTable principles={computePrinciples(data)}
-          onDeleteRow={p => p.sourceTaskId
-            ? unflagPrincipleTask(data, save, p.sourceSheetId, p.sourceTaskId)
-            : deleteStandalonePrinciple(data, save, p.id)}
+          onDeleteRow={principlesDeleteHandler(data, save)}
           onOpenSource={onNavigateToTasks}/>
       </div>
 
@@ -10685,10 +10689,7 @@ function PrinciplesView({data, save, onNavigateToTasks}) {
     addStandalonePrinciple(data, save, descDraft.trim(), discDraft);
     setAdding(false); setDescDraft(''); setDiscDraft('');
   };
-  const onDeleteRow = p => {
-    if (p.sourceTaskId) unflagPrincipleTask(data, save, p.sourceSheetId, p.sourceTaskId);
-    else deleteStandalonePrinciple(data, save, p.id);
-  };
+  const onDeleteRow = principlesDeleteHandler(data, save);
 
   return (
     <div style={{flex:1, display:'flex', flexDirection:'column', overflow:'auto', padding:24, gap:16}}>
