@@ -6054,7 +6054,7 @@ function PrinciplesTable({principles, onDeleteRow, onOpenSource}) {
 /* ══════════════════════════════════════
    Overview Page
 ══════════════════════════════════════ */
-function OverviewPage({data, save}) {
+function OverviewPage({data, save, onNavigateToTasks}) {
   const tasks        = data.tasks           || [];
   const pi           = data.projectInfo     || {};
   const team         = data.team            || [];
@@ -6183,6 +6183,18 @@ function OverviewPage({data, save}) {
             <div className="ov-stat-label">{c.label}</div>
           </div>
         ))}
+      </div>
+
+      {/* ── 2b. Planning principles ── */}
+      <div style={{border:'1px solid var(--border)', borderRadius:8, padding:14, marginTop:16}}>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8}}>
+          <h3 style={{fontSize:13, fontWeight:700, margin:0}}>עקרון תכנון</h3>
+        </div>
+        <PrinciplesTable principles={computePrinciples(data)}
+          onDeleteRow={p => p.sourceTaskId
+            ? unflagPrincipleTask(data, save, p.sourceSheetId, p.sourceTaskId)
+            : deleteStandalonePrinciple(data, save, p.id)}
+          onOpenSource={onNavigateToTasks}/>
       </div>
 
       {/* ── 3. Three-column: Team | Goals | Milestones ── */}
