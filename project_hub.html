@@ -5972,6 +5972,85 @@ function HomeView({data}) {
 }
 
 /* ══════════════════════════════════════
+   Planning Principles — computed table + shared helpers
+   (see docs/superpowers/specs/2026-06-22-planning-principles-design.md)
+══════════════════════════════════════ */
+function computePrinciples(data) {
+  const sheets = data.sheets || [];
+  const fromTasks = sheets.flatMap(s => (s.tasks||[]).filter(t=>t.isPrinciple).map(t => ({
+    id: t.id,
+    description: t.title || '',
+    discipline: t.discipline || '',
+    createdAt: t.principleCreatedAt || '',
+    sourceSheetId: s.id,
+    sourceTaskId: t.id,
+  })));
+  const standalone = (data.standalonePrinciples||[]).map(p => ({
+    ...p, sourceSheetId: null, sourceTaskId: null,
+  }));
+  return [...fromTasks, ...standalone];
+}
+
+function unflagPrincipleTask(data, save, sheetId, taskId) {
+  save({...data, sheets: data.sheets.map(s => s.id===sheetId
+    ? {...s, tasks: s.tasks.map(t => t.id===taskId ? {...t, isPrinciple:false} : t)}
+    : s)});
+}
+
+function deleteStandalonePrinciple(data, save, id) {
+  save({...data, standalonePrinciples: (data.standalonePrinciples||[]).filter(p => p.id!==id)});
+}
+
+function addStandalonePrinciple(data, save, description, discipline) {
+  save({...data, standalonePrinciples: [
+    ...(data.standalonePrinciples||[]),
+    {id:uid(), description, discipline, createdAt:todayISO()},
+  ]});
+}
+
+function PrinciplesTable({principles, onDeleteRow, onOpenSource}) {
+  return (
+    <table style={{width:'100%', borderCollapse:'collapse', fontSize:12}}>
+      <thead>
+        <tr style={{borderBottom:'1px solid var(--border)', textAlign:'right'}}>
+          <th style={{padding:'6px 8px'}}>תיאור</th>
+          <th style={{padding:'6px 8px'}}>תחום</th>
+          <th style={{padding:'6px 8px'}}>תאריך יצירה</th>
+          <th style={{padding:'6px 8px'}}>מקור</th>
+          <th style={{padding:'6px 8px', width:24}}></th>
+        </tr>
+      </thead>
+      <tbody>
+        {principles.length===0 && (
+          <tr><td colSpan={5} style={{padding:'14px 8px', color:'var(--text-3)', textAlign:'center'}}>אין עקרונות תכנון עדיין</td></tr>
+        )}
+        {principles.map(p => (
+          <tr key={p.id} style={{borderBottom:'1px solid var(--border)'}}>
+            <td style={{padding:'6px 8px'}}>{p.description}</td>
+            <td style={{padding:'6px 8px'}}>{p.discipline || '—'}</td>
+            <td style={{padding:'6px 8px'}}>{p.createdAt || '—'}</td>
+            <td style={{padding:'6px 8px'}}>
+              {p.sourceTaskId
+                ? <button onClick={()=>onOpenSource&&onOpenSource()}
+                    style={{background:'none', border:'none', color:'var(--accent)', cursor:'pointer', fontSize:12, padding:0, textDecoration:'underline'}}>
+                    משימה ↗
+                  </button>
+                : <span style={{color:'var(--text-3)'}}>נוסף ישירות</span>}
+            </td>
+            <td style={{padding:'6px 8px'}}>
+              <button onClick={()=>onDeleteRow(p)}
+                style={{background:'none', border:'none', color:'#cbd5e1', cursor:'pointer', fontSize:12}}>
+                ✕
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/* ══════════════════════════════════════
    Overview Page
 ══════════════════════════════════════ */
 function OverviewPage({data, save}) {
