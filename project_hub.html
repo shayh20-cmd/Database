@@ -7356,7 +7356,7 @@ function NihulTikhnunView({data, save}) {
   const disciplines = data.disciplines || DISCIPLINES;
   const statuses    = data.statuses    || STATUSES;
   const [editList, setEditList] = useState(null);
-  const [activeTrackTab, setActiveTrackTab] = useState(NT_TRACK_TABS[0].id);
+  const [activeTrackTab, setActiveTrackTab] = useState('combined');
 
   const allSheets = data.sheets || [];
   const isCombinedTab = activeTrackTab==='combined';
@@ -7425,7 +7425,7 @@ function NihulTikhnunView({data, save}) {
     }}>
       <div style={{flex:1, display:'flex', flexDirection:'column', overflow:'hidden'}}>
         <div style={{display:'flex', borderBottom:'1px solid var(--border)', background:'var(--surface)', flexShrink:0}}>
-          {[...NT_TRACK_TABS, {id:'combined', label:'מבט מאוחד'}].map(t => (
+          {[{id:'combined', label:'מבט מאוחד'}].map(t => (
             <button key={t.id} onClick={() => setActiveTrackTab(t.id)}
               style={{padding:'9px 16px', fontSize:12, fontFamily:'inherit', border:'none', cursor:'pointer',
                 background:'none', borderBottom:'2px solid',
