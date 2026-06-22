@@ -7361,13 +7361,10 @@ function Confetti({onDone}) {
 /* ══════════════════════════════════════
    Nihul Tikhnun View
 ══════════════════════════════════════ */
-/* Which sheets show under each ניהול-תכנון sub-tab. Extending to a future
-   track (e.g. tender/execution) is adding one entry here. */
-const NT_TRACK_TABS = [
-  {id:'ongoing',   label:'ניהול שוטף',  match: s => s.track==null},
-  {id:'licensing', label:'מסלול רישוי', match: s => s.track==='licensing'},
-];
-const trackLabelOf = s => (NT_TRACK_TABS.find(t => t.match(s)) || {}).label || (s.track || 'ניהול שוטף');
+/* Track/stage hierarchy is data-driven via data.tracks (edited in the
+   טמפלייט → סכימת עבודה page) — see seedTracksIfMissing for the legacy
+   defaults old saved data is migrated from. */
+const trackLabelOf = (tracks, s) => (tracks.find(t => t.trackValue===s.track) || {}).label || (s.track || 'ניהול שוטף');
 
 function NihulTikhnunView({data, save}) {
   const priorities  = data.priorities  || PRIORITIES;
@@ -7375,11 +7372,12 @@ function NihulTikhnunView({data, save}) {
   const statuses    = data.statuses    || STATUSES;
   const [editList, setEditList] = useState(null);
   const [activeTrackTab, setActiveTrackTab] = useState('combined');
+  const ntTracks = data.tracks || [];
 
   const allSheets = data.sheets || [];
   const isCombinedTab = activeTrackTab==='combined';
-  const activeTab = NT_TRACK_TABS.find(t => t.id===activeTrackTab) || NT_TRACK_TABS[0];
-  const visibleSheets = isCombinedTab ? [] : allSheets.filter(s => s.type==='list' && activeTab.match(s));
+  const activeTrack = ntTracks.find(t => t.id===activeTrackTab) || ntTracks[0];
+  const visibleSheets = isCombinedTab || !activeTrack ? [] : allSheets.filter(s => s.type==='list' && s.track===activeTrack.trackValue);
 
   const [collStage, setCollStage] = useState({});
   const toggleStage = id => setCollStage(c => ({...c, [id]: !c[id]}));
@@ -7402,7 +7400,7 @@ function NihulTikhnunView({data, save}) {
     type:'list',
     __combined:true,
     groups: [...combinedSourceSheets.flatMap(s => s.groups||[]), ...(combinedMeta.groups||[])],
-    tasks: combinedSourceSheets.flatMap(s => (s.tasks||[]).map(t => ({...t, __srcSheetId:s.id, __track:trackLabelOf(s), __stage:s.name}))),
+    tasks: combinedSourceSheets.flatMap(s => (s.tasks||[]).map(t => ({...t, __srcSheetId:s.id, __track:trackLabelOf(ntTracks, s), __stage:s.name}))),
   } : null;
   const saveCombined = patch => {
     let metaPatch = {...patch};
