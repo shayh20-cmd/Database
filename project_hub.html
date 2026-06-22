@@ -4403,6 +4403,14 @@ function TaskDetailSidebar({task, onUpdate, onClose, data}) {
               {propRow('תאריכים',
                 <DateRangeCell startDate={task.startDate} dueDate={task.dueDate} isParent={true}
                   onChange={(f,v)=>onUpdate({...task,[f]:v})}/>)}
+              {propRow('עקרון תכנון',
+                <input type="checkbox" checked={!!task.isPrinciple}
+                  onChange={e=>{
+                    const next=e.target.checked;
+                    if(!next && task.isPrinciple && !window.confirm('המשימה מקושרת לעקרון תכנון — הפעולה תסיר אותה מרשימת העקרונות. להמשיך?')) return;
+                    onUpdate({...task, isPrinciple:next, principleCreatedAt: next ? (task.principleCreatedAt || new Date().toISOString().slice(0,10)) : task.principleCreatedAt});
+                  }}
+                  style={{cursor:'pointer'}}/>)}
             </div>
 
             {/* Description */}
@@ -6391,7 +6399,11 @@ function ListView({data, save}) {
 
   const savePartial=patch=>save({...data,...patch});
   const updateTask=t=>savePartial({tasks:tasks.map(x=>x.id===t.id?t:x)});
-  const deleteTask=id=>savePartial({tasks:tasks.filter(t=>t.id!==id)});
+  const deleteTask=id=>{
+    const t=tasks.find(x=>x.id===id);
+    if(t?.isPrinciple && !window.confirm('המשימה מקושרת לעקרון תכנון — הפעולה תסיר אותה מרשימת העקרונות. להמשיך?')) return;
+    savePartial({tasks:tasks.filter(x=>x.id!==id)});
+  };
   const duplicateTask=t=>{
     const idx=tasks.findIndex(x=>x.id===t.id);
     const copy={...t,id:uid(),title:t.title+' (עותק)',done:false,statusId:t.statusId||'N'};
