@@ -1676,6 +1676,24 @@ function stampSheetTracks(sheets) {
   });
 }
 
+/* data.tracks (ניהול-תכנון track/stage hierarchy editor) — unrelated to the
+   per-task `tracks` field used by migrateTask. Seeded once from the legacy
+   hardcoded track defs below if not already present, so old saved data
+   keeps working without user action. */
+const LEGACY_NT_TRACK_DEFS = [
+  {id:'ongoing',   label:'ניהול שוטף',  trackValue:null},
+  {id:'licensing', label:'מסלול רישוי', trackValue:'licensing'},
+];
+function seedTracksIfMissing(d) {
+  if (d.tracks) return d;
+  const sheets = d.sheets||[];
+  const tracks = LEGACY_NT_TRACK_DEFS.map(def => ({
+    ...def,
+    stageOrder: sheets.filter(s => s.type==='list' && s.track===def.trackValue).map(s => s.id),
+  }));
+  return {...d, tracks};
+}
+
 function migrateData(d) {
   if (!d) return d;
   // Migrate old flat structure (groups/tasks) into sheets
@@ -1694,7 +1712,7 @@ function migrateData(d) {
       ],
     };
     delete d.groups; delete d.tasks; delete d.fields; delete d.hiddenCols; delete d.colOrder;
-    return {...d, sheets: stampSheetTracks(d.sheets)};
+    return seedTracksIfMissing({...d, sheets: stampSheetTracks(d.sheets)});
   }
   // Already has sheets — migrate tasks within each sheet
   if (!d.licensingMilestones) {
@@ -1718,9 +1736,9 @@ function migrateData(d) {
       staffId: OFFICE_STAFF.find(s=>s.name===m.name)?.id || m.id,
     })};
   }
-  return {...d, sheets: stampSheetTracks(d.sheets.map(s =>
+  return seedTracksIfMissing({...d, sheets: stampSheetTracks(d.sheets.map(s =>
     s.type==='list' ? {...s, tasks:(s.tasks||[]).map(migrateTask)} : s
-  ))};
+  ))});
 }
 
 function repairPrecondsSheet(data) {
