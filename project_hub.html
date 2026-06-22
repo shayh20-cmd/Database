@@ -5181,7 +5181,7 @@ function SettingsPanel({data, save, onClose}) {
 /* ══════════════════════════════════════
    Toolbar with Filter / Sort
 ══════════════════════════════════════ */
-function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState, setSortState, groupByState, setGroupByState, onSettings, settingsOpen, views, activeViewId, activeViewName, isViewDirty, onSaveView, onLoadView, onDeleteView, onRenameView, onUpdateView, trackOptions, stageOptions}) {
+function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState, setSortState, groupByState, setGroupByState, onSettings, settingsOpen, views, activeViewId, activeViewName, isViewDirty, onSaveView, onLoadView, onDeleteView, onRenameView, onUpdateView, trackOptions, stageOptions, isCombinedView}) {
   const groupFields = [...GROUP_FIELDS, ...((trackOptions?.length||stageOptions?.length)?[{field:'__track',label:'מסלול'},{field:'__stage',label:'שלב'}]:[])];
   const {priorities, disciplines} = useContext(ListsCtx);
   const [showFilter,setShowFilter]=useState(false);
@@ -5252,7 +5252,7 @@ function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState,
   const filterCount = Object.values(filterMap).reduce((n,arr)=>n+(arr?.length||0),0);
   const sortCount   = sortList.length;
   const groupList   = groupByState||[{field:'section'}];
-  const isDefaultGroup = groupList.length===1 && groupList[0].field==='section';
+  const isDefaultGroup = isCombinedView ? groupList.length===0 : (groupList.length===1 && groupList[0].field==='section');
   const groupCount  = isDefaultGroup ? 0 : groupList.length;
 
   const addSortField  = col => { setSortState([...sortList,{column:col,dir:'desc'}]); setSortCol(null); };
@@ -5509,7 +5509,7 @@ function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState,
                         <span className="sort-crit-label">{lbl}</span>
                         <button className="sort-crit-move" disabled={i===0} onClick={()=>{const a=[...groupList];[a[i-1],a[i]]=[a[i],a[i-1]];setGroupByState(a);}}>↑</button>
                         <button className="sort-crit-move" disabled={i===groupList.length-1} onClick={()=>{const a=[...groupList];[a[i],a[i+1]]=[a[i+1],a[i]];setGroupByState(a);}}>↓</button>
-                        <button className="sort-crit-del" onClick={()=>{const a=groupList.filter((_,j)=>j!==i);setGroupByState(a.length?a:[{field:'section'}]);}}>✕</button>
+                        <button className="sort-crit-del" onClick={()=>{const a=groupList.filter((_,j)=>j!==i);setGroupByState(a.length?a:(isCombinedView?[]:[{field:'section'}]));}}>✕</button>
                       </div>
                     );
                   })}
@@ -5520,7 +5520,7 @@ function Toolbar({onAddTask, onAddGroup, filterState, setFilterState, sortState,
                       </div>
                     )}
                     {!isDefaultGroup&&(
-                      <div className="dp-opt" style={{color:'#EF4444'}} onClick={()=>{setGroupByState([{field:'section'}]);setShowGroup(false);}}>
+                      <div className="dp-opt" style={{color:'#EF4444'}} onClick={()=>{setGroupByState(isCombinedView?[]:[{field:'section'}]);setShowGroup(false);}}>
                         ✕ אפס קבוצה
                       </div>
                     )}
@@ -6322,16 +6322,9 @@ function ListView({data, save}) {
   const {groups,tasks}=data;
   const [filterState,setFilterState]=useState(null);
   const [sortState,setSortState]=useState(null);
-  const [groupByState,setGroupByState]=useState([{field:'section'}]);
-  /* Combined view: filtering by track/stage should auto-switch grouping to match —
-     selecting a track alone shows one flat header per track (no stage breakdown);
-     selecting a stage shows one flat header per stage with its tasks underneath. */
-  useEffect(()=>{
-    if(!data.__combined) return;
-    if(filterState?.stage?.length)       setGroupByState([{field:'__stage'}]);
-    else if(filterState?.track?.length)  setGroupByState([{field:'__track'}]);
-    else                                   setGroupByState([{field:'section'}]);
-  },[JSON.stringify(filterState?.track||[]),JSON.stringify(filterState?.stage||[]),data.__combined]);
+  /* Combined view (מבט מאוחד) defaults to a flat, ungrouped list — filtering
+     never implies grouping. Regular sheets keep grouping by section. */
+  const [groupByState,setGroupByState]=useState(()=>data.__combined?[]:[{field:'section'}]);
   const [newTaskId,setNewTaskId]=useState(null);
   const [showSettings,setShowSettings]=useState(false);
   const [dragOver,setDragOver]=useState(null);
@@ -6539,7 +6532,7 @@ function ListView({data, save}) {
   /* completed tasks always sink to the bottom within each group */
   display.sort((a,b)=>(a.statusId==='C'?1:0)-(b.statusId==='C'?1:0));
 
-  const clearAll=()=>{setFilterState(null);setSortState(null);setGroupByState([{field:'section'}]);};
+  const clearAll=()=>{setFilterState(null);setSortState(null);setGroupByState(data.__combined?[]:[{field:'section'}]);};
 
   /* ── Views ── */
   const views = data.views || [];
@@ -6622,7 +6615,8 @@ function ListView({data, save}) {
   })());
 
   /* ── Virtual group computation ── */
-  const isDefaultGrouping = groupByState.length===1 && groupByState[0].field==='section';
+  const isFlatMode = groupByState.length===0;
+  const isDefaultGrouping = !isFlatMode && groupByState.length===1 && groupByState[0].field==='section';
   const buildVirtualGroups=()=>{
     const primaryField=groupByState[0].field;
     /* Tasks don't carry a `section` property directly — a section is t.groupId. */
@@ -6674,7 +6668,7 @@ function ListView({data, save}) {
         field:primaryField,value:val,tasks:gTasks,subGroups};
     });
   };
-  const virtualGroups=isDefaultGrouping?null:buildVirtualGroups();
+  const virtualGroups=(!isFlatMode&&!isDefaultGrouping)?buildVirtualGroups():null;
 
   /* Ordered visible columns — built-ins first (in colOrder), then custom fields */
   const builtinVis=colOrder.filter(id=>!hiddenCols[id]);
@@ -6696,7 +6690,8 @@ function ListView({data, save}) {
         onSaveView={saveView} onLoadView={loadView} onDeleteView={deleteView} onRenameView={renameView}
         onSettings={()=>setShowSettings(o=>!o)} settingsOpen={showSettings}
         trackOptions={data.__combined ? [...new Set(tasks.map(t=>t.__track).filter(Boolean))] : null}
-        stageOptions={data.__combined ? [...new Set(tasks.map(t=>t.__stage).filter(Boolean))] : null}/>
+        stageOptions={data.__combined ? [...new Set(tasks.map(t=>t.__stage).filter(Boolean))] : null}
+        isCombinedView={!!data.__combined}/>
 
 
       {/* Table */}
@@ -6784,6 +6779,40 @@ function ListView({data, save}) {
             </tr>
           </thead>
           <tbody>
+            {isFlatMode&&(()=>{
+              const colSpanFlat=visibleColIds.length+1;
+              const taskRowPropsFlat={fields,visibleColIds,daysThreshold:data.builtinConfig?.__owner_status?.delayThreshold??null,sortState,
+                taskDragSrc,taskDragTarget,onTaskDragStart:handleTaskDragStart,onTaskDragEnd:handleTaskDragEnd,onTaskDragOver:handleTaskDragOver,onTaskDrop:handleTaskDropOnTask,
+                selectedIds,onSelect:handleSelect,onDuplicate:duplicateTask,onShowDetail:setDetailTaskId,expandSignal};
+              const activeFlat=display.filter(t=>t.statusId!=='C');
+              const doneFlat=display.filter(t=>t.statusId==='C');
+              const doneOpenFlat=openDone.has('__flat__');
+              const toggleDoneFlat=()=>setOpenDone(prev=>{const n=new Set(prev);n.has('__flat__')?n.delete('__flat__'):n.add('__flat__');return n;});
+              const addTaskFlat=()=>{
+                const gId=groups[0]?.id; if(!gId)return;
+                const id=uid();
+                savePartial({tasks:[...tasks,{id,groupId:gId,title:'',statusId:'N',priority:'',discipline:'',startDate:'',dueDate:'',comment:'',done:false,subtasks:[],fieldValues:{},events:[]}]});
+                setNewTaskId(id);
+              };
+              return(<React.Fragment key="flat">
+                {activeFlat.map(task=>(<TaskRow key={task.id} task={task} {...taskRowPropsFlat} autoFocus={task.id===newTaskId} onUpdate={t=>{setNewTaskId(null);updateTask(t);}} onDelete={()=>{setNewTaskId(null);deleteTask(task.id);}}/>))}
+                {doneFlat.length>0&&(<>
+                  <tr className="done-sec-row" onClick={toggleDoneFlat}>
+                    <td colSpan={colSpanFlat}><div style={{display:'flex',alignItems:'center',gap:7}}>
+                      <span className={`done-chevron${doneOpenFlat?' open':''}`}>▶</span>
+                      <span style={{fontSize:12,fontWeight:600,color:'#888'}}>הושלמו</span>
+                      <span style={{fontSize:11,fontWeight:400,color:'#888'}}>{doneFlat.length} משימות</span>
+                    </div></td>
+                  </tr>
+                  {doneOpenFlat&&doneFlat.map(task=>(<TaskRow key={task.id} task={task} {...taskRowPropsFlat} autoFocus={task.id===newTaskId} onUpdate={t=>{setNewTaskId(null);updateTask(t);}} onDelete={()=>{setNewTaskId(null);deleteTask(task.id);}}/>))}
+                </>)}
+                <tr className="add-task-row"><td colSpan={colSpanFlat}>
+                  <button className="add-task-btn" onClick={addTaskFlat}>
+                    <span style={{fontSize:16,lineHeight:1,color:'var(--accent)'}}>+</span> הוסף משימה
+                  </button>
+                </td></tr>
+              </React.Fragment>);
+            })()}
             {virtualGroups&&virtualGroups.map(vg=>{
               const colSpan2=visibleColIds.length+1;
               const taskRowPropsV={fields,visibleColIds,daysThreshold:data.builtinConfig?.__owner_status?.delayThreshold??null,sortState,
@@ -6911,7 +6940,7 @@ function ListView({data, save}) {
                 </td></tr>}
               </React.Fragment>);
             })}
-            {!virtualGroups&&groups.map(g=>{
+            {!virtualGroups&&!isFlatMode&&groups.map(g=>{
               const gTasks=display.filter(t=>t.groupId===g.id);
               const activeTasks=gTasks.filter(t=>t.statusId!=='C');
               const doneTasks=gTasks.filter(t=>t.statusId==='C');
