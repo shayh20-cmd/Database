@@ -5648,6 +5648,7 @@ const ICONS = {
   projects:    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><path d="M9 12h6M12 9v6"/></svg>,
   chevron:     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 2l4 4-4 4"/></svg>,
   menu:        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M2 4h12M2 8h12M2 12h12"/></svg>,
+  template:    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="2.5" r="1.5"/><path d="M8 4v3M4 11v-2a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><circle cx="4" cy="13" r="1.5"/><circle cx="8" cy="13" r="1.5"/><circle cx="12" cy="13" r="1.5"/></svg>,
 };
 function Ic({n, size=14}) {
   const el = ICONS[n];
@@ -10171,6 +10172,7 @@ const PROJ_TRACKS = [
   {id:'execution',   label:'מסלול ביצוע',          icon:'execution',   enabled:false},
   {id:'meetings',    label:'ישיבות',               icon:'meetings',    enabled:true},
   {id:'supervision', label:'פיקוח',                icon:'supervision', enabled:true},
+  {id:'template',    label:'טמפלייט',              icon:'template',    enabled:true},
 ];
 
 function Sidebar({track, setTrack}) {
@@ -10404,6 +10406,167 @@ const UndoRedoBtn = ({icon, tooltip, items, onApply, onGoTo, disabled}) => {
 };
 
 /* ══════════════════════════════════════
+   Template View — track/stage hierarchy editor
+══════════════════════════════════════ */
+function TemplateView({data, save}) {
+  const [activeTab, setActiveTab] = useState('work'); // 'general' | 'work'
+  const tracks = data.tracks || [];
+  const sheets = data.sheets || [];
+
+  const [editingTrackId, setEditingTrackId] = useState(null);
+  const [trackNameDraft, setTrackNameDraft] = useState('');
+  const [editingStageId, setEditingStageId] = useState(null);
+  const [stageNameDraft, setStageNameDraft] = useState('');
+  const [addingTrack, setAddingTrack] = useState(false);
+  const [newTrackDraft, setNewTrackDraft] = useState('');
+  const [dragStage, setDragStage] = useState(null); // {trackId, sheetId}
+
+  const renameTrack = (trackId, label) => {
+    if (!label.trim()) { setEditingTrackId(null); return; }
+    save({...data, tracks: tracks.map(t => t.id===trackId ? {...t, label:label.trim()} : t)});
+    setEditingTrackId(null);
+  };
+  const deleteTrack = (track) => {
+    if (track.stageOrder.length) return;
+    save({...data, tracks: tracks.filter(t => t.id!==track.id)});
+  };
+  const addTrack = (label) => {
+    if (!label.trim()) { setAddingTrack(false); return; }
+    const id = uid();
+    save({...data, tracks: [...tracks, {id, label:label.trim(), trackValue:id, stageOrder:[]}]});
+    setAddingTrack(false); setNewTrackDraft('');
+  };
+  const addStage = (track) => {
+    const ns = {...makeEmptySheet('שלב חדש'), track: track.trackValue};
+    save({
+      ...data,
+      sheets: [...sheets, ns],
+      tracks: tracks.map(t => t.id===track.id ? {...t, stageOrder:[...t.stageOrder, ns.id]} : t),
+    });
+  };
+  const deleteStage = (track, sheetId) => {
+    const sheet = sheets.find(s => s.id===sheetId);
+    if (!window.confirm(`למחוק את השלב "${sheet?.name||''}"? כל המשימות בו יימחקו לצמיתות.`)) return;
+    save({
+      ...data,
+      sheets: sheets.filter(s => s.id!==sheetId),
+      tracks: tracks.map(t => t.id===track.id ? {...t, stageOrder:t.stageOrder.filter(id=>id!==sheetId)} : t),
+    });
+  };
+  const renameStage = (sheetId, name) => {
+    if (!name.trim()) { setEditingStageId(null); return; }
+    save({...data, sheets: sheets.map(s => s.id===sheetId ? {...s, name:name.trim()} : s)});
+    setEditingStageId(null);
+  };
+  const reorderStage = (track, srcId, tgtId) => {
+    if (srcId===tgtId) return;
+    const order = [...track.stageOrder];
+    const si = order.indexOf(srcId), ti = order.indexOf(tgtId);
+    if (si===-1 || ti===-1) return;
+    order.splice(si,1); order.splice(ti,0,srcId);
+    save({...data, tracks: tracks.map(t => t.id===track.id ? {...t, stageOrder:order} : t)});
+  };
+
+  return (
+    <div style={{flex:1, display:'flex', flexDirection:'column', overflow:'hidden'}}>
+      <div style={{display:'flex', borderBottom:'1px solid var(--border)', background:'var(--surface)', flexShrink:0}}>
+        {[{id:'general', label:'כללי'}, {id:'work', label:'סכימת עבודה'}].map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)}
+            style={{padding:'9px 16px', fontSize:12, fontFamily:'inherit', border:'none', cursor:'pointer',
+              background:'none', borderBottom:'2px solid',
+              borderBottomColor: activeTab===t.id ? 'var(--accent)' : 'transparent',
+              fontWeight: activeTab===t.id ? 700 : 400,
+              color: activeTab===t.id ? 'var(--text)' : 'var(--text-2)'}}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div style={{flex:1, overflow:'auto', background:'var(--bg)'}}>
+        {activeTab==='general' && <div style={{padding:24, color:'var(--text-3)', fontSize:13}}>—</div>}
+        {activeTab==='work' && (
+          <div style={{padding:'32px 24px', display:'flex', flexDirection:'column', alignItems:'center', gap:0}}>
+            <div style={{background:'var(--accent)', color:'#fff', padding:'7px 16px', borderRadius:8, fontSize:12.5, fontWeight:700}}>
+              ניהול תכנון
+            </div>
+            <div style={{width:1, height:14, background:'var(--border-strong)'}}/>
+            <div style={{display:'flex', gap:16, flexWrap:'wrap', justifyContent:'center'}}>
+              {tracks.map(track => (
+                <div key={track.id} style={{background:'#eef2ff', border:'1.5px solid #c7d2fe', borderRadius:10, padding:10,
+                  display:'flex', flexDirection:'column', gap:6, minWidth:160}}>
+                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', gap:6}}>
+                    {editingTrackId===track.id
+                      ? <input autoFocus value={trackNameDraft}
+                          onChange={e=>setTrackNameDraft(e.target.value)}
+                          onBlur={()=>renameTrack(track.id, trackNameDraft)}
+                          onKeyDown={e=>{if(e.key==='Enter')e.target.blur();if(e.key==='Escape')setEditingTrackId(null);}}
+                          style={{fontWeight:700, fontSize:12.5, border:'none', borderBottom:'1.5px solid var(--accent)',
+                            outline:'none', background:'transparent', fontFamily:'inherit', color:'#1e3a8a', flex:1, minWidth:60}}/>
+                      : <span onClick={()=>{setTrackNameDraft(track.label);setEditingTrackId(track.id);}}
+                          style={{fontWeight:700, fontSize:12.5, color:'#1e3a8a', cursor:'text'}}>
+                          {track.label}
+                        </span>}
+                    <button onClick={()=>deleteTrack(track)} disabled={track.stageOrder.length>0}
+                      title={track.stageOrder.length>0 ? 'יש להעביר או למחוק את השלבים לפני מחיקת המסלול' : 'מחק מסלול'}
+                      style={{background:'none', border:'none', cursor:track.stageOrder.length>0?'default':'pointer',
+                        color: track.stageOrder.length>0 ? 'var(--border-strong)' : '#94a3b8', fontSize:13, padding:0}}>
+                      ✕
+                    </button>
+                  </div>
+                  {track.stageOrder.map(sheetId => {
+                    const sheet = sheets.find(s => s.id===sheetId);
+                    if (!sheet) return null;
+                    return (
+                      <div key={sheetId} draggable
+                        onDragStart={()=>setDragStage({trackId:track.id, sheetId})}
+                        onDragOver={e=>{if(dragStage && dragStage.trackId===track.id) e.preventDefault();}}
+                        onDrop={e=>{e.preventDefault(); if(dragStage && dragStage.trackId===track.id) reorderStage(track, dragStage.sheetId, sheetId); setDragStage(null);}}
+                        onDragEnd={()=>setDragStage(null)}
+                        style={{background:'#fff', border:'1px solid #dbe3f5', borderRadius:6, padding:'5px 8px',
+                          fontSize:10.5, display:'flex', justifyContent:'space-between', alignItems:'center', gap:6, cursor:'grab'}}>
+                        {editingStageId===sheetId
+                          ? <input autoFocus value={stageNameDraft}
+                              onChange={e=>setStageNameDraft(e.target.value)}
+                              onBlur={()=>renameStage(sheetId, stageNameDraft)}
+                              onKeyDown={e=>{if(e.key==='Enter')e.target.blur();if(e.key==='Escape')setEditingStageId(null);}}
+                              style={{fontSize:10.5, border:'none', borderBottom:'1.5px solid var(--accent)',
+                                outline:'none', background:'transparent', fontFamily:'inherit', flex:1, minWidth:50}}/>
+                          : <span onClick={()=>{setStageNameDraft(sheet.name);setEditingStageId(sheetId);}} style={{cursor:'text'}}>
+                              {sheet.name}
+                            </span>}
+                        <button onClick={()=>deleteStage(track, sheetId)}
+                          style={{background:'none', border:'none', cursor:'pointer', color:'#cbd5e1', fontSize:11, padding:0}}>
+                          ✕
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <div onClick={()=>addStage(track)} style={{color:'#6b85c4', fontSize:10, padding:3, cursor:'pointer'}}>
+                    + הוסף שלב
+                  </div>
+                </div>
+              ))}
+              {addingTrack
+                ? <input autoFocus value={newTrackDraft}
+                    onChange={e=>setNewTrackDraft(e.target.value)}
+                    onBlur={()=>addTrack(newTrackDraft)}
+                    onKeyDown={e=>{if(e.key==='Enter')e.target.blur();if(e.key==='Escape'){setAddingTrack(false);setNewTrackDraft('');}}}
+                    placeholder="שם המסלול"
+                    style={{minWidth:90, border:'1.5px dashed #c7d2fe', borderRadius:10, padding:'10px 12px',
+                      fontSize:12, fontFamily:'inherit', outline:'none', background:'#fff'}}/>
+                : <div onClick={()=>setAddingTrack(true)}
+                    style={{minWidth:90, border:'1.5px dashed #c7d2fe', borderRadius:10, display:'flex',
+                      alignItems:'center', justifyContent:'center', color:'#94a3b8', fontSize:11, cursor:'pointer'}}>
+                    + מסלול
+                  </div>}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════
    App Root
 ══════════════════════════════════════ */
 function App() {
@@ -10599,6 +10762,7 @@ function App() {
         {track==='supervision' && <ComingSoonPage iconName="supervision" title="פיקוח"  desc="ריכוז וניהול דוחות פיקוח מהביצוע — בפיתוח"/>}
         {track==='mytasks'     && <MyTasksView data={data} save={save}/>}
         {track==='portfolio'   && <PortfolioView/>}
+        {track==='template'    && <TemplateView data={data} save={save}/>}
       </div>
     </div>
     </div>
