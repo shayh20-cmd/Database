@@ -4408,7 +4408,7 @@ function TaskDetailSidebar({task, onUpdate, onClose, data}) {
                   onChange={e=>{
                     const next=e.target.checked;
                     if(!next && task.isPrinciple && !window.confirm('המשימה מקושרת לעקרון תכנון — הפעולה תסיר אותה מרשימת העקרונות. להמשיך?')) return;
-                    onUpdate({...task, isPrinciple:next, principleCreatedAt: next ? (task.principleCreatedAt || new Date().toISOString().slice(0,10)) : task.principleCreatedAt});
+                    onUpdate({...task, isPrinciple:next, principleCreatedAt: next ? (task.principleCreatedAt || todayISO()) : task.principleCreatedAt});
                   }}
                   style={{cursor:'pointer'}}/>)}
             </div>
