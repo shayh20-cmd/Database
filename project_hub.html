@@ -6831,24 +6831,32 @@ function ListView({data, save}) {
                           transform:vgCollapsed?'rotate(-90deg)':'rotate(0deg)',transition:'transform .18s',flexShrink:0}}>
                         ▾
                       </button>
-                      <div style={{width:10,height:10,borderRadius:'50%',background:'var(--blue)',flexShrink:0}}/>
-                      {vgRealGroup&&editingGroupId===vgRealGroup.id
-                        ?<input autoFocus value={groupNameDraft}
-                            onChange={e=>setGroupNameDraft(e.target.value)}
-                            onBlur={()=>{
-                              if(groupNameDraft.trim()) save({...data,groups:groups.map(x=>x.id===vgRealGroup.id?{...x,name:groupNameDraft.trim()}:x)});
-                              setEditingGroupId(null);
-                            }}
-                            onKeyDown={e=>{if(e.key==='Enter'){e.target.blur();}if(e.key==='Escape'){setEditingGroupId(null);}}}
-                            onClick={e=>e.stopPropagation()}
-                            style={{fontWeight:700,fontSize:13,border:'none',borderBottom:'1.5px solid var(--accent)',
-                              outline:'none',background:'transparent',fontFamily:'inherit',padding:'0 2px',minWidth:80}}/>
-                        :<span style={{fontWeight:700,fontSize:13,cursor:vgRealGroup?'text':'default'}}
-                            onClick={vgRealGroup?e=>{e.stopPropagation();setGroupNameDraft(vgRealGroup.name);setEditingGroupId(vgRealGroup.id);}:undefined}>
-                            {vg.pill
-                              ?<span className="pill" style={{color:vg.pill.color,background:vg.pill.bg}}>{vg.label}</span>
-                              :vg.label}
+                      {vg.field==='__track'
+                        ?<span style={{background:'var(--blue)',color:'#fff',fontWeight:700,fontSize:13,
+                              padding:'5px 14px',borderRadius:6,flexShrink:0}}>
+                            מסלול: {vg.label}
                           </span>
+                        :<>
+                          <div style={{width:10,height:10,borderRadius:'50%',background:'var(--blue)',flexShrink:0}}/>
+                          {vgRealGroup&&editingGroupId===vgRealGroup.id
+                            ?<input autoFocus value={groupNameDraft}
+                                onChange={e=>setGroupNameDraft(e.target.value)}
+                                onBlur={()=>{
+                                  if(groupNameDraft.trim()) save({...data,groups:groups.map(x=>x.id===vgRealGroup.id?{...x,name:groupNameDraft.trim()}:x)});
+                                  setEditingGroupId(null);
+                                }}
+                                onKeyDown={e=>{if(e.key==='Enter'){e.target.blur();}if(e.key==='Escape'){setEditingGroupId(null);}}}
+                                onClick={e=>e.stopPropagation()}
+                                style={{fontWeight:700,fontSize:13,border:'none',borderBottom:'1.5px solid var(--accent)',
+                                  outline:'none',background:'transparent',fontFamily:'inherit',padding:'0 2px',minWidth:80}}/>
+                            :<span style={{fontWeight:700,fontSize:13,cursor:vgRealGroup?'text':'default'}}
+                                onClick={vgRealGroup?e=>{e.stopPropagation();setGroupNameDraft(vgRealGroup.name);setEditingGroupId(vgRealGroup.id);}:undefined}>
+                                {vg.pill
+                                  ?<span className="pill" style={{color:vg.pill.color,background:vg.pill.bg}}>{vg.label}</span>
+                                  :vg.label}
+                              </span>
+                          }
+                        </>
                       }
                       <span style={{fontSize:11,color:'var(--text-3)',fontWeight:400}}>{vg.tasks.length} משימות</span>
                       {vgRealGroup&&(
