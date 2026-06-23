@@ -5998,6 +5998,7 @@ function HomeView({data}) {
 ══════════════════════════════════════ */
 function computePrinciples(data) {
   const sheets = data.sheets || [];
+  const tracks = data.tracks || [];
   const fromTasks = sheets.flatMap(s => (s.tasks||[]).filter(t=>t.isPrinciple).map(t => ({
     id: t.id,
     description: t.title || '',
@@ -6005,6 +6006,8 @@ function computePrinciples(data) {
     createdAt: t.principleCreatedAt || '',
     sourceSheetId: s.id,
     sourceTaskId: t.id,
+    trackLabel: trackLabelOf(tracks, s),
+    stageLabel: s.name,
   })));
   const fromSubtasks = sheets.flatMap(s => (s.tasks||[]).flatMap(t => (t.subtasks||[]).filter(st=>st.isPrinciple).map(st => ({
     id: st.id,
@@ -6014,9 +6017,11 @@ function computePrinciples(data) {
     sourceSheetId: s.id,
     sourceTaskId: t.id,
     sourceSubtaskId: st.id,
+    trackLabel: trackLabelOf(tracks, s),
+    stageLabel: s.name,
   }))));
   const standalone = (data.standalonePrinciples||[]).map(p => ({
-    ...p, sourceSheetId: null, sourceTaskId: null,
+    ...p, sourceSheetId: null, sourceTaskId: null, trackLabel: null, stageLabel: null,
   }));
   return [...fromTasks, ...fromSubtasks, ...standalone];
 }
