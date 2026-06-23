@@ -10421,6 +10421,7 @@ const CROSS_CUTTING_ITEMS = [
 function Sidebar({track, setTrack, tracks, activeTrackTab, activeTopTab, onSelectTrackTab, onSelectTopTab}) {
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
   const [expandedProj, setExpandedProj] = React.useState('lod'); // lod open by default
+  const [nihulExpanded, setNihulExpanded] = React.useState(true);
 
   const NAV = [
     {id:'home',      label:'בית',           icon:'home'},
@@ -10483,6 +10484,53 @@ function Sidebar({track, setTrack, tracks, activeTrackTab, activeTopTab, onSelec
                 </button>
               );
             })}
+          </div>
+
+          {/* ── ניהול תכנון (expandable: combined view + one entry per data.tracks track) ── */}
+          <div className="sb-section">
+            <div className="sb-proj-row">
+              <button className={`sb-proj-btn${track==='tasks'?' active':''}`}
+                onClick={()=>setTrack('tasks')}>
+                <span className="sb-item-icon"><Ic n="tasks" size={15}/></span>
+                ניהול תכנון
+              </button>
+              <button className="sb-proj-chevron" onClick={()=>setNihulExpanded(o=>!o)}>
+                <DownIcon open={nihulExpanded}/>
+              </button>
+            </div>
+            {nihulExpanded && (
+              <div style={{marginBottom:2}}>
+                <button
+                  className={`sb-sub-item${track==='tasks' && !activeTopTab && activeTrackTab==='combined' ? ' active':''}`}
+                  onClick={()=>onSelectTrackTab('combined')}>
+                  <span className="sb-sub-dot" style={{
+                    background: (track==='tasks' && !activeTopTab && activeTrackTab==='combined') ? 'var(--accent)' : 'var(--border-strong)'}}/>
+                  מבט מאוחד
+                </button>
+                {tracks.map(t=>(
+                  <button key={t.id}
+                    className={`sb-sub-item${track==='tasks' && !activeTopTab && activeTrackTab===t.id ? ' active':''}`}
+                    onClick={()=>onSelectTrackTab(t.id)}>
+                    <span className="sb-sub-dot" style={{
+                      background: (track==='tasks' && !activeTopTab && activeTrackTab===t.id) ? 'var(--accent)' : 'var(--border-strong)'}}/>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── רוחבי (cross-cutting shortcuts into NihulTikhnunView's second tab row) ── */}
+          <div className="sb-section">
+            <div className="sb-section-label">רוחבי</div>
+            {CROSS_CUTTING_ITEMS.map(item=>(
+              <button key={item.id}
+                className={`sb-item${track==='tasks' && activeTopTab===item.id ? ' active':''}`}
+                onClick={()=>onSelectTopTab(item.id)}>
+                <span className="sb-item-icon"><Ic n={item.icon} size={15}/></span>
+                {item.label}
+              </button>
+            ))}
           </div>
 
           {/* projects */}
