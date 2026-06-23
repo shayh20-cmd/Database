@@ -6081,24 +6081,17 @@ function PrinciplesTable({principles, onDeleteRow, onOpenSource, onEditStandalon
     setEditingField(null);
   };
 
-  const renderDiscipline = p => {
+  const renderDisciplineCell = p => {
+    if (isEditable(p)) {
+      return <DisciplineCell discipline={p.discipline} onChange={v=>onEditStandalone(p.id, {discipline:v})}/>;
+    }
     const disc = disciplines.find(d => d.id===p.discipline);
-    const pill = disc
-      ? <span className="pill" style={{color:'#fff', background:disc.color}}>{disc.label}</span>
-      : <span style={{color:'var(--text-3)'}}>—</span>;
-    if (!isEditable(p)) return pill;
     return (
-      <div style={{position:'relative', display:'inline-block'}}>
-        <div onClick={()=>setEditingField(editingField?.id===p.id && editingField.field==='discipline' ? null : {id:p.id, field:'discipline'})}
-          style={{cursor:'pointer'}}>
-          {pill}
-        </div>
-        {editingField?.id===p.id && editingField.field==='discipline' && (
-          <div style={{position:'absolute', zIndex:10, top:'100%', right:0}}>
-            <DisciplineCell discipline={p.discipline} onChange={v=>{onEditStandalone(p.id, {discipline:v}); setEditingField(null);}}/>
-          </div>
-        )}
-      </div>
+      <td style={{padding:'6px 8px'}}>
+        {disc
+          ? <span className="pill" style={{color:'#fff', background:disc.color}}>{disc.label}</span>
+          : <span style={{color:'var(--text-3)'}}>—</span>}
+      </td>
     );
   };
 
@@ -6131,7 +6124,7 @@ function PrinciplesTable({principles, onDeleteRow, onOpenSource, onEditStandalon
                     {p.description}
                   </span>}
             </td>
-            <td style={{padding:'6px 8px'}}>{renderDiscipline(p)}</td>
+            {renderDisciplineCell(p)}
             <td style={{padding:'6px 8px'}}>
               {isEditable(p) && editingField?.id===p.id && editingField.field==='createdAt'
                 ? <input autoFocus type="date" value={draft} onChange={e=>setDraft(e.target.value)}
