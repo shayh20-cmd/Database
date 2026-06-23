@@ -6006,15 +6006,32 @@ function computePrinciples(data) {
     sourceSheetId: s.id,
     sourceTaskId: t.id,
   })));
+  const fromSubtasks = sheets.flatMap(s => (s.tasks||[]).flatMap(t => (t.subtasks||[]).filter(st=>st.isPrinciple).map(st => ({
+    id: st.id,
+    description: st.title || '',
+    discipline: st.discipline || '',
+    createdAt: st.principleCreatedAt || '',
+    sourceSheetId: s.id,
+    sourceTaskId: t.id,
+    sourceSubtaskId: st.id,
+  }))));
   const standalone = (data.standalonePrinciples||[]).map(p => ({
     ...p, sourceSheetId: null, sourceTaskId: null,
   }));
-  return [...fromTasks, ...standalone];
+  return [...fromTasks, ...fromSubtasks, ...standalone];
 }
 
 function unflagPrincipleTask(data, save, sheetId, taskId) {
   save({...data, sheets: data.sheets.map(s => s.id===sheetId
     ? {...s, tasks: s.tasks.map(t => t.id===taskId ? {...t, isPrinciple:false} : t)}
+    : s)});
+}
+
+function unflagPrincipleSubtask(data, save, sheetId, taskId, subtaskId) {
+  save({...data, sheets: data.sheets.map(s => s.id===sheetId
+    ? {...s, tasks: s.tasks.map(t => t.id===taskId
+        ? {...t, subtasks: (t.subtasks||[]).map(st => st.id===subtaskId ? {...st, isPrinciple:false} : st)}
+        : t)}
     : s)});
 }
 
@@ -6030,9 +6047,11 @@ function addStandalonePrinciple(data, save, description, discipline) {
 }
 
 function principlesDeleteHandler(data, save) {
-  return p => p.sourceTaskId
-    ? unflagPrincipleTask(data, save, p.sourceSheetId, p.sourceTaskId)
-    : deleteStandalonePrinciple(data, save, p.id);
+  return p => {
+    if (p.sourceSubtaskId) unflagPrincipleSubtask(data, save, p.sourceSheetId, p.sourceTaskId, p.sourceSubtaskId);
+    else if (p.sourceTaskId) unflagPrincipleTask(data, save, p.sourceSheetId, p.sourceTaskId);
+    else deleteStandalonePrinciple(data, save, p.id);
+  };
 }
 
 function PrinciplesTable({principles, onDeleteRow, onOpenSource}) {
