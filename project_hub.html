@@ -1698,6 +1698,20 @@ function seedTracksIfMissing(d) {
 
 function migrateData(d) {
   if (!d) return d;
+  if (d.tracks) {
+    let tracks = d.tracks;
+    const renamedOngoing = tracks.some(t => t.id==='ongoing' && t.label==='ניהול שוטף');
+    if (renamedOngoing) {
+      tracks = tracks.map(t => t.id==='ongoing' ? {...t, label:'מסלול תכנון'} : t);
+    }
+    if (!tracks.some(t => t.id==='tender')) {
+      tracks = [...tracks, {id:'tender', label:'מסלול מכרז', trackValue:'tender', stageOrder:[]}];
+    }
+    if (!tracks.some(t => t.id==='execution')) {
+      tracks = [...tracks, {id:'execution', label:'מסלול ביצוע', trackValue:'execution', stageOrder:[]}];
+    }
+    if (tracks !== d.tracks) d = {...d, tracks};
+  }
   // Migrate old flat structure (groups/tasks) into sheets
   if (!d.sheets) {
     const sheetId = uid();
