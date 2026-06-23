@@ -2848,6 +2848,12 @@ function SubtaskRow({subtask, onUpdate, onDelete, onOpenProcess, autoFocus=false
         {icon:'⧉', label:'שכפול תת-משימה', action:()=>{onDuplicateSub?.(subtask);setSubMenuPos(null);}},
         {icon:'⊡', label:'הוספת עדכון',     action:()=>{onOpenProcess?.();setSubMenuPos(null);}},
         {icon:'☰', label:'פרטי תת-משימה',  action:()=>{onOpenProcess?.();setSubMenuPos(null);}},
+        {icon:'◆', label:subtask.isPrinciple?'הסר מעקרון תכנון':'סמן כעקרון תכנון', action:()=>{
+          if(subtask.isPrinciple && !window.confirm('תת-המשימה מקושרת לעקרון תכנון — הפעולה תסיר אותה מרשימת העקרונות. להמשיך?')){setSubMenuPos(null);return;}
+          const next=!subtask.isPrinciple;
+          onUpdate({...subtask, isPrinciple:next, principleCreatedAt: next ? (subtask.principleCreatedAt || todayISO()) : subtask.principleCreatedAt});
+          setSubMenuPos(null);
+        }},
         null,
         {icon:'×', label:'מחק תת-משימה',   danger:true, action:()=>{onDelete();setSubMenuPos(null);}},
       ];
@@ -3838,7 +3844,11 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
     const updated={...procSub,subtasks:[...nested,sub]};
     updateSubtask(updated);
   };
-  const deleteSubtask=id=>onUpdate({...task,subtasks:subtasks.filter(s=>s.id!==id)});
+  const deleteSubtask=id=>{
+    const s=subtasks.find(x=>x.id===id);
+    if(s?.isPrinciple && !window.confirm('תת-המשימה מקושרת לעקרון תכנון — הפעולה תסיר אותה מרשימת העקרונות. להמשיך?')) return;
+    onUpdate({...task,subtasks:subtasks.filter(x=>x.id!==id)});
+  };
 
   return(
     <>
@@ -4008,6 +4018,12 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
         {icon:'+', label:'הוספת תת-משימה', action:()=>{addSubtask();setTaskMenuPos(null);}},
         {icon:'⊡', label:'הוספת עדכון',    action:()=>{setPanelSubId('__task__');setTaskMenuPos(null);}},
         {icon:'☰', label:'פרטי משימה',     action:()=>{onShowDetail?.(task.id);setTaskMenuPos(null);}},
+        {icon:'◆', label:task.isPrinciple?'הסר מעקרון תכנון':'סמן כעקרון תכנון', action:()=>{
+          if(task.isPrinciple && !window.confirm('המשימה מקושרת לעקרון תכנון — הפעולה תסיר אותה מרשימת העקרונות. להמשיך?')){setTaskMenuPos(null);return;}
+          const next=!task.isPrinciple;
+          onUpdate({...task, isPrinciple:next, principleCreatedAt: next ? (task.principleCreatedAt || todayISO()) : task.principleCreatedAt});
+          setTaskMenuPos(null);
+        }},
         null,
         {icon:'×', label:'מחק משימה',      danger:true, action:()=>{onDelete();setTaskMenuPos(null);}},
       ];
