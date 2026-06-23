@@ -7604,10 +7604,12 @@ function NihulTikhnunView({data, save}) {
   const allSheets = data.sheets || [];
   const isCombinedTab = activeTrackTab==='combined';
   const activeTrack = ntTracks.find(t => t.id===activeTrackTab) || ntTracks[0];
-  const visibleSheets = isCombinedTab || !activeTrack ? [] : allSheets.filter(s => s.type==='list' && s.track===activeTrack.trackValue);
-
-  const [collStage, setCollStage] = useState({});
-  const toggleStage = id => setCollStage(c => ({...c, [id]: !c[id]}));
+  const [activeStageId, setActiveStageId] = useState(null);
+  const visibleStages = isCombinedTab || !activeTrack
+    ? []
+    : allSheets.filter(s => (s.type==='list' || s.type==='dashboard') && s.track===activeTrack.trackValue);
+  const activeStage = visibleStages.find(s => s.id===activeStageId) || visibleStages[0] || null;
+  useEffect(() => { setActiveStageId(null); }, [activeTrackTab]);
 
   /* Persist a single stage sheet's patched data back into data.sheets.
      ListView calls save() with the fully-merged sheet object. */
@@ -7668,7 +7670,7 @@ function NihulTikhnunView({data, save}) {
     }}>
       <div style={{flex:1, display:'flex', flexDirection:'column', overflow:'hidden'}}>
         <div style={{display:'flex', borderBottom:'1px solid var(--border)', background:'var(--surface)', flexShrink:0}}>
-          {[{id:'combined', label:'מבט מאוחד'}].map(t => (
+          {[{id:'combined', label:'מבט מאוחד'}, ...ntTracks.map(t=>({id:t.id, label:t.label}))].map(t => (
             <button key={t.id} onClick={() => setActiveTrackTab(t.id)}
               style={{padding:'9px 16px', fontSize:12, fontFamily:'inherit', border:'none', cursor:'pointer',
                 background:'none', borderBottom:'2px solid',
@@ -7679,35 +7681,26 @@ function NihulTikhnunView({data, save}) {
             </button>
           ))}
         </div>
+        {!isCombinedTab && visibleStages.length>1 && (
+          <div style={{display:'flex', gap:2, padding:'8px 16px 0', background:'var(--surface)', borderBottom:'1px solid var(--border)', flexShrink:0}}>
+            {visibleStages.map(s => (
+              <button key={s.id} onClick={()=>setActiveStageId(s.id)}
+                style={{padding:'6px 12px', fontSize:12, fontFamily:'inherit', border:'none', cursor:'pointer',
+                  borderRadius:'6px 6px 0 0', background: (activeStage&&activeStage.id===s.id) ? 'var(--bg)' : 'transparent',
+                  fontWeight: (activeStage&&activeStage.id===s.id) ? 700 : 400,
+                  color: (activeStage&&activeStage.id===s.id) ? 'var(--text)' : 'var(--text-2)'}}>
+                {s.type==='dashboard' ? <><Ic n="overview"/> </> : ''}{s.name}
+              </button>
+            ))}
+          </div>
+        )}
         <div style={{flex:1, overflowY:'auto', background:'var(--bg)'}}>
           {isCombinedTab && <ListView data={combinedData} save={saveCombined}/>}
-          {!isCombinedTab && visibleSheets.map(sheet => {
-            const collapsed = collStage[sheet.id];
-            return (
-              <React.Fragment key={sheet.id}>
-                {/* ── Stage divider — only needed when there's more than one sheet to tell apart ── */}
-                {visibleSheets.length>1 && (
-                  <div style={{
-                    display:'flex', alignItems:'center', gap:10,
-                    padding:'10px 20px', background:'var(--surface)',
-                    borderBottom:'1px solid var(--border)', borderTop:'4px solid var(--bg)',
-                    cursor:'pointer', userSelect:'none',
-                  }} onClick={() => toggleStage(sheet.id)}>
-                    <span style={{fontSize:10, color:'var(--text-3)', display:'inline-block',
-                      transform: collapsed ? 'rotate(-90deg)' : '', transition:'transform .15s'}}>▾</span>
-                    <span style={{width:11, height:11, borderRadius:3, background:'#2563EB', flexShrink:0, display:'inline-block'}}/>
-                    <span style={{fontSize:10, fontWeight:600, color:'var(--text-3)', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:4, padding:'1px 6px'}}>{activeTrack.label}</span>
-                    <span style={{fontWeight:700, fontSize:13, color:'var(--text)'}}>שלב: {sheet.name}</span>
-                    <span style={{fontSize:11, color:'var(--text-3)', marginRight:'auto'}}>{(sheet.tasks||[]).length} משימות</span>
-                  </div>
-                )}
-
-                {/* ── The exact same list view used in מסלול רישוי ── */}
-                {(visibleSheets.length===1 || !collapsed) && <ListView data={sheet} save={patch => saveSheet(sheet.id, patch)}/>}
-              </React.Fragment>
-            );
-          })}
-          {!isCombinedTab && visibleSheets.length===0 && (
+          {!isCombinedTab && activeStage && activeStage.type==='dashboard' &&
+            <DashboardView data={data} save={save} onSwitchSheet={setActiveStageId}/>}
+          {!isCombinedTab && activeStage && activeStage.type==='list' &&
+            <ListView data={activeStage} save={patch => saveSheet(activeStage.id, patch)}/>}
+          {!isCombinedTab && !activeStage && (
             <div style={{padding:'24px 20px', fontSize:12, color:'var(--text-3)'}}>אין שלבים במסלול זה</div>
           )}
         </div>
