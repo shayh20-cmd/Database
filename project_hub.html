@@ -6068,7 +6068,40 @@ function principlesUpdateHandler(data, save) {
   return (id, patch) => updateStandalonePrinciple(data, save, id, patch);
 }
 
-function PrinciplesTable({principles, onDeleteRow, onOpenSource}) {
+function PrinciplesTable({principles, onDeleteRow, onOpenSource, onEditStandalone}) {
+  const {disciplines} = useContext(ListsCtx);
+  const [editingField, setEditingField] = useState(null); // {id, field} | null
+  const [draft, setDraft] = useState('');
+
+  const isEditable = p => !p.sourceTaskId && !p.sourceSubtaskId;
+  const startEdit = (p, field, initial) => { setEditingField({id:p.id, field}); setDraft(initial); };
+  const commitEdit = p => {
+    if (editingField?.field==='description') onEditStandalone(p.id, {description: draft});
+    if (editingField?.field==='createdAt') onEditStandalone(p.id, {createdAt: draft});
+    setEditingField(null);
+  };
+
+  const renderDiscipline = p => {
+    const disc = disciplines.find(d => d.id===p.discipline);
+    const pill = disc
+      ? <span className="pill" style={{color:'#fff', background:disc.color}}>{disc.label}</span>
+      : <span style={{color:'var(--text-3)'}}>—</span>;
+    if (!isEditable(p)) return pill;
+    return (
+      <div style={{position:'relative', display:'inline-block'}}>
+        <div onClick={()=>setEditingField(editingField?.id===p.id && editingField.field==='discipline' ? null : {id:p.id, field:'discipline'})}
+          style={{cursor:'pointer'}}>
+          {pill}
+        </div>
+        {editingField?.id===p.id && editingField.field==='discipline' && (
+          <div style={{position:'absolute', zIndex:10, top:'100%', right:0}}>
+            <DisciplineCell discipline={p.discipline} onChange={v=>{onEditStandalone(p.id, {discipline:v}); setEditingField(null);}}/>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <table style={{width:'100%', borderCollapse:'collapse', fontSize:12}}>
       <thead>
@@ -6076,19 +6109,43 @@ function PrinciplesTable({principles, onDeleteRow, onOpenSource}) {
           <th style={{padding:'6px 8px'}}>תיאור</th>
           <th style={{padding:'6px 8px'}}>תחום</th>
           <th style={{padding:'6px 8px'}}>תאריך יצירה</th>
+          <th style={{padding:'6px 8px'}}>מסלול/שלב</th>
           <th style={{padding:'6px 8px'}}>מקור</th>
           <th style={{padding:'6px 8px', width:24}}></th>
         </tr>
       </thead>
       <tbody>
         {principles.length===0 && (
-          <tr><td colSpan={5} style={{padding:'14px 8px', color:'var(--text-3)', textAlign:'center'}}>אין עקרונות תכנון עדיין</td></tr>
+          <tr><td colSpan={6} style={{padding:'14px 8px', color:'var(--text-3)', textAlign:'center'}}>אין עקרונות תכנון עדיין</td></tr>
         )}
         {principles.map(p => (
           <tr key={p.id} style={{borderBottom:'1px solid var(--border)'}}>
-            <td style={{padding:'6px 8px'}}>{p.description}</td>
-            <td style={{padding:'6px 8px'}}>{p.discipline || '—'}</td>
-            <td style={{padding:'6px 8px'}}>{p.createdAt || '—'}</td>
+            <td style={{padding:'6px 8px'}}>
+              {isEditable(p) && editingField?.id===p.id && editingField.field==='description'
+                ? <input autoFocus value={draft} onChange={e=>setDraft(e.target.value)}
+                    onBlur={()=>commitEdit(p)}
+                    onKeyDown={e=>{if(e.key==='Enter')commitEdit(p);if(e.key==='Escape')setEditingField(null);}}
+                    style={{fontSize:12, fontFamily:'inherit', border:'1px solid var(--accent)', borderRadius:4, padding:'2px 6px', width:'100%'}}/>
+                : <span style={{cursor:isEditable(p)?'text':'default'}}
+                    onClick={()=>isEditable(p)&&startEdit(p,'description',p.description)}>
+                    {p.description}
+                  </span>}
+            </td>
+            <td style={{padding:'6px 8px'}}>{renderDiscipline(p)}</td>
+            <td style={{padding:'6px 8px'}}>
+              {isEditable(p) && editingField?.id===p.id && editingField.field==='createdAt'
+                ? <input autoFocus type="date" value={draft} onChange={e=>setDraft(e.target.value)}
+                    onBlur={()=>commitEdit(p)}
+                    onKeyDown={e=>{if(e.key==='Enter')commitEdit(p);if(e.key==='Escape')setEditingField(null);}}
+                    style={{fontSize:12, fontFamily:'inherit', border:'1px solid var(--accent)', borderRadius:4, padding:'2px 6px'}}/>
+                : <span style={{cursor:isEditable(p)?'text':'default'}}
+                    onClick={()=>isEditable(p)&&startEdit(p,'createdAt',p.createdAt||todayISO())}>
+                    {p.createdAt || '—'}
+                  </span>}
+            </td>
+            <td style={{padding:'6px 8px'}}>
+              {p.trackLabel ? `מסלול: ${p.trackLabel} / שלב: ${p.stageLabel}` : '—'}
+            </td>
             <td style={{padding:'6px 8px'}}>
               {p.sourceTaskId
                 ? <button onClick={()=>onOpenSource&&onOpenSource()}
@@ -6251,7 +6308,8 @@ function OverviewPage({data, save, onNavigateToTasks}) {
         </div>
         <PrinciplesTable principles={computePrinciples(data)}
           onDeleteRow={principlesDeleteHandler(data, save)}
-          onOpenSource={onNavigateToTasks}/>
+          onOpenSource={onNavigateToTasks}
+          onEditStandalone={principlesUpdateHandler(data, save)}/>
       </div>
 
       {/* ── 3. Three-column: Team | Goals | Milestones ── */}
@@ -10769,7 +10827,8 @@ function PrinciplesView({data, save, onNavigateToTasks}) {
           </button>
         </div>
       )}
-      <PrinciplesTable principles={principles} onDeleteRow={onDeleteRow} onOpenSource={onNavigateToTasks}/>
+      <PrinciplesTable principles={principles} onDeleteRow={onDeleteRow} onOpenSource={onNavigateToTasks}
+        onEditStandalone={principlesUpdateHandler(data, save)}/>
     </div>
   );
 }
