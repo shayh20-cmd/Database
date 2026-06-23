@@ -10418,7 +10418,7 @@ const CROSS_CUTTING_ITEMS = [
   {id:'goals',       label:'יעדים',          icon:'goals'},
 ];
 
-function Sidebar({track, setTrack}) {
+function Sidebar({track, setTrack, tracks, activeTrackTab, activeTopTab, onSelectTrackTab, onSelectTopTab}) {
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
   const [expandedProj, setExpandedProj] = React.useState('lod'); // lod open by default
 
@@ -10971,16 +10971,6 @@ function App() {
     setNihulTopTab(topTabId);
   }, []);
 
-  /* kept as-is for now — still wired to Sidebar's setTrack prop until Task 8
-     replaces that call site; Task 8 deletes this once it's no longer called. */
-  const setTrackWithSheet = React.useCallback((newTrack) => {
-    setTrack(newTrack);
-    if(newTrack==='licensing') {
-      const dashboard = sheets.find(s=>s.type==='dashboard');
-      if(dashboard) setActiveSheetId(dashboard.id);
-    }
-  }, [sheets]);
-
   /* Merge active sheet's list data into a "data-like" object for ListViewWithCtx */
   const sheetData = activeSheet?.type==='list' ? {
     ...data,
@@ -11008,7 +10998,10 @@ function App() {
 
   return(
     <div className="shell">
-    <Sidebar track={track} setTrack={setTrackWithSheet}/>
+    <Sidebar track={track} setTrack={setTrack}
+      tracks={data.tracks || []}
+      activeTrackTab={nihulTrackTab} activeTopTab={nihulTopTab}
+      onSelectTrackTab={openTrackTab} onSelectTopTab={openTopTab}/>
     <div className="app">
       {/* ── Project Header ── */}
       <div className="proj-header">
