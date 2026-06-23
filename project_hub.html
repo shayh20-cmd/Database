@@ -6044,6 +6044,10 @@ function deleteStandalonePrinciple(data, save, id) {
   save({...data, standalonePrinciples: (data.standalonePrinciples||[]).filter(p => p.id!==id)});
 }
 
+function updateStandalonePrinciple(data, save, id, patch) {
+  save({...data, standalonePrinciples: (data.standalonePrinciples||[]).map(p => p.id===id ? {...p, ...patch} : p)});
+}
+
 function addStandalonePrinciple(data, save, description, discipline) {
   save({...data, standalonePrinciples: [
     ...(data.standalonePrinciples||[]),
@@ -6057,6 +6061,10 @@ function principlesDeleteHandler(data, save) {
     else if (p.sourceTaskId) unflagPrincipleTask(data, save, p.sourceSheetId, p.sourceTaskId);
     else deleteStandalonePrinciple(data, save, p.id);
   };
+}
+
+function principlesUpdateHandler(data, save) {
+  return (id, patch) => updateStandalonePrinciple(data, save, id, patch);
 }
 
 function PrinciplesTable({principles, onDeleteRow, onOpenSource}) {
