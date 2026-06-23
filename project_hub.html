@@ -10389,15 +10389,17 @@ const MY_PROJECTS = [
 ];
 
 const PROJ_TRACKS = [
-  {id:'overview',    label:'מבט על',              icon:'overview',    enabled:true},
-  {id:'tasks',       label:'ניהול תכנון',          icon:'tasks',       enabled:true},
-  {id:'licensing',   label:'מסלול רישוי',          icon:'licensing',   enabled:true},
-  {id:'planning',    label:'מסלול תכנון מפורט',    icon:'planning',    enabled:false},
-  {id:'execution',   label:'מסלול ביצוע',          icon:'execution',   enabled:false},
-  {id:'meetings',    label:'ישיבות',               icon:'meetings',    enabled:true},
-  {id:'supervision', label:'פיקוח',                icon:'supervision', enabled:true},
-  {id:'template',    label:'טמפלייט',              icon:'template',    enabled:true},
-  {id:'principles',  label:'עקרון תכנון',          icon:'principles',  enabled:true},
+  {id:'overview', label:'מבט על',      icon:'overview', enabled:true},
+  {id:'tasks',    label:'ניהול תכנון', icon:'tasks',    enabled:true},
+  {id:'template', label:'טמפלייט',     icon:'template', enabled:true},
+];
+
+const CROSS_CUTTING_ITEMS = [
+  {id:'meetings',    label:'ישיבות',         icon:'meetings'},
+  {id:'principles',  label:'עקרון תכנון',    icon:'principles'},
+  {id:'supervision', label:'פיקוח',          icon:'supervision'},
+  {id:'milestones',  label:'אבני דרך',       icon:'milestones'},
+  {id:'goals',       label:'יעדים',          icon:'goals'},
 ];
 
 function Sidebar({track, setTrack}) {
