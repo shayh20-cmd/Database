@@ -7593,12 +7593,11 @@ function Confetti({onDone}) {
    defaults old saved data is migrated from. */
 const trackLabelOf = (tracks, s) => (tracks.find(t => t.trackValue===s.track) || {}).label || (s.track || 'ניהול שוטף');
 
-function NihulTikhnunView({data, save}) {
+function NihulTikhnunView({data, save, activeTrackTab, setActiveTrackTab, activeTopTab, setActiveTopTab}) {
   const priorities  = data.priorities  || PRIORITIES;
   const disciplines = data.disciplines || DISCIPLINES;
   const statuses    = data.statuses    || STATUSES;
   const [editList, setEditList] = useState(null);
-  const [activeTrackTab, setActiveTrackTab] = useState('combined');
   const ntTracks = data.tracks || [];
 
   const allSheets = data.sheets || [];
@@ -10939,9 +10938,23 @@ function App() {
     setActiveSheetId(ns.id);
   };
 
-  /* top-level track: 'overview' | 'licensing' | future tracks */
-  const [track, setTrack] = useState('licensing');
+  /* top-level track: 'overview' | 'tasks' | 'template' */
+  const [track, setTrack] = useState('tasks');
+  const [nihulTrackTab, setNihulTrackTab] = useState('combined');
+  const [nihulTopTab, setNihulTopTab] = useState(null);
 
+  const openTrackTab = React.useCallback((trackId) => {
+    setTrack('tasks');
+    setNihulTrackTab(trackId);
+    setNihulTopTab(null);
+  }, []);
+  const openTopTab = React.useCallback((topTabId) => {
+    setTrack('tasks');
+    setNihulTopTab(topTabId);
+  }, []);
+
+  /* kept as-is for now — still wired to Sidebar's setTrack prop until Task 8
+     replaces that call site; Task 8 deletes this once it's no longer called. */
   const setTrackWithSheet = React.useCallback((newTrack) => {
     setTrack(newTrack);
     if(newTrack==='licensing') {
@@ -11028,7 +11041,9 @@ function App() {
       {/* ── Content ── */}
       <div style={{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}}>
         {track==='overview' && <OverviewPage data={data} save={save} onNavigateToTasks={()=>setTrack('tasks')}/>}
-        {track==='tasks'    && <NihulTikhnunView data={data} save={save}/>}
+        {track==='tasks'    && <NihulTikhnunView data={data} save={save}
+          activeTrackTab={nihulTrackTab} setActiveTrackTab={setNihulTrackTab}
+          activeTopTab={nihulTopTab} setActiveTopTab={setNihulTopTab}/>}
         {track==='licensing' && activeSheet?.type==='dashboard' && <DashboardView data={data} save={save} onSwitchSheet={setActiveSheetId}/>}
         {track==='licensing' && activeSheet?.type==='list' && <ListViewWithCtx data={sheetData} save={saveActiveSheet}/>}
         {track==='meetings'    && <ComingSoonPage iconName="meetings"    title="ישיבות" desc="ריכוז וניהול סיכומי ישיבות — בפיתוח"/>}
