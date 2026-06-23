@@ -6045,7 +6045,8 @@ function deleteStandalonePrinciple(data, save, id) {
 }
 
 function updateStandalonePrinciple(data, save, id, patch) {
-  save({...data, standalonePrinciples: (data.standalonePrinciples||[]).map(p => p.id===id ? {...p, ...patch} : p)});
+  const {id: _ignored, ...safePatch} = patch;
+  save({...data, standalonePrinciples: (data.standalonePrinciples||[]).map(p => p.id===id ? {...p, ...safePatch} : p)});
 }
 
 function addStandalonePrinciple(data, save, description, discipline) {
