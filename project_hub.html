@@ -10911,13 +10911,6 @@ function App() {
   const [data,setData]=useState(loadData);
   const [editName,setEditName]=useState(false);
   const [nameDraft,setNameDraft]=useState(data.projectName);
-  const [editingSheetId,setEditingSheetId]=useState(null);
-  const [sheetNameDraft,setSheetNameDraft]=useState('');
-
-  const sheets = data.sheets||[];
-  const [activeSheetId,setActiveSheetId]=useState(()=>sheets[0]?.id||'');
-  const activeSheet = sheets.find(s=>s.id===activeSheetId)||sheets[0]||null;
-
   const MAX_HIST = 30;
   const [pastStack, setPastStack] = useState([]);   // [{snapshot, label}]
   const [futureStack, setFutureStack] = useState([]); // [{snapshot, label}]
@@ -10929,19 +10922,6 @@ function App() {
     setFutureStack([]);
     setData(d);localStorage.setItem(STORAGE_KEY,JSON.stringify(d));
   },[data]);
-
-  /* Save updates that originate from a list-sheet's toolbar/actions */
-  const saveActiveSheet=useCallback(nd=>{
-    const updatedSheets=(data.sheets||[]).map(s=>s.id===activeSheetId?{
-      ...s,
-      groups:nd.groups!==undefined?nd.groups:s.groups,
-      tasks:nd.tasks!==undefined?nd.tasks:s.tasks,
-      fields:nd.fields!==undefined?nd.fields:s.fields,
-      hiddenCols:nd.hiddenCols!==undefined?nd.hiddenCols:s.hiddenCols,
-      colOrder:nd.colOrder!==undefined?nd.colOrder:s.colOrder,
-    }:s);
-    save({...nd, sheets:updatedSheets});
-  },[data,activeSheetId,save]);
 
   const undoTo = useCallback((steps) => {
     const n = Math.min(steps, pastStack.length);
@@ -10989,21 +10969,6 @@ function App() {
 
   const commitName=()=>{if(nameDraft.trim())save({...data,projectName:nameDraft.trim()});setEditName(false);};
 
-  const commitSheetName=()=>{
-    if(sheetNameDraft.trim()){
-      const updatedSheets=sheets.map(s=>s.id===editingSheetId?{...s,name:sheetNameDraft.trim()}:s);
-      save({...data,sheets:updatedSheets});
-    }
-    setEditingSheetId(null);
-  };
-
-  const addSheet=()=>{
-    const ns={...makeEmptySheet('שלב חדש'), track:'licensing'};
-    const updatedSheets=[...sheets,ns];
-    save({...data,sheets:updatedSheets});
-    setActiveSheetId(ns.id);
-  };
-
   /* top-level track: 'overview' | 'tasks' | 'template' */
   const [track, setTrack] = useState('tasks');
   const [nihulTrackTab, setNihulTrackTab] = useState('combined');
@@ -11018,31 +10983,6 @@ function App() {
     setTrack('tasks');
     setNihulTopTab(topTabId);
   }, []);
-
-  /* Merge active sheet's list data into a "data-like" object for ListViewWithCtx */
-  const sheetData = activeSheet?.type==='list' ? {
-    ...data,
-    groups:activeSheet.groups||[],
-    tasks:activeSheet.tasks||[],
-    fields:activeSheet.fields||[],
-    hiddenCols:activeSheet.hiddenCols||{},
-    colOrder:activeSheet.colOrder||[],
-    sheetName:activeSheet.name||'',
-  } : data;
-
-  const SheetTab = ({s}) => editingSheetId===s.id
-    ? <input autoFocus value={sheetNameDraft}
-        onChange={e=>setSheetNameDraft(e.target.value)}
-        onBlur={commitSheetName}
-        onKeyDown={e=>{if(e.key==='Enter')commitSheetName();if(e.key==='Escape')setEditingSheetId(null);}}
-        style={{border:'1.5px solid var(--accent)',borderRadius:5,padding:'2px 8px',alignSelf:'center',
-          fontSize:12,fontFamily:'inherit',outline:'none',background:'var(--surface)',
-          color:'var(--text)',minWidth:60,maxWidth:130}}/>
-    : <button className={`stab${s.id===activeSheetId?' active':''}`}
-        onClick={()=>setActiveSheetId(s.id)}
-        onDoubleClick={()=>{setSheetNameDraft(s.name);setEditingSheetId(s.id);}}>
-        {s.type==='dashboard'?<><Ic n="overview"/> </>:''}{s.name}
-      </button>;
 
   return(
     <div className="shell">
@@ -11075,19 +11015,13 @@ function App() {
           </div>
         </div>
 
-        {/* ── track breadcrumb + sheet sub-tabs ── */}
+        {/* ── track breadcrumb ── */}
         <div className="sheet-tabs" style={{borderTop:'1px solid var(--border)'}}>
-          {/* current track label */}
           <span style={{fontSize:11,fontWeight:600,color:'var(--text-3)',paddingLeft:4,paddingRight:8,
             display:'flex',alignItems:'center',gap:5,flexShrink:0}}>
             <Ic n={PROJ_TRACKS.find(t=>t.id===track)?.icon||'overview'} size={12}/>
             {PROJ_TRACKS.find(t=>t.id===track)?.label||''}
           </span>
-          {/* divider + sub-tabs for licensing — dashboard sheet always shown, list sheets filtered by track */}
-          {track==='licensing' && <span style={{color:'var(--border-strong)',marginLeft:4,marginRight:4}}>›</span>}
-          {track==='licensing' && sheets.filter(s=>s.type==='dashboard' || s.track==='licensing').map(s=><SheetTab key={s.id} s={s}/>)}
-          {track==='licensing' && <button className="stab-add" title="הוסף שלב" onClick={addSheet}>+</button>}
-          {/* ── Undo / Redo ── */}
           <div style={{marginRight:'auto',display:'flex',alignItems:'center',gap:4,paddingLeft:10,flexShrink:0}}>
             <UndoRedoBtn icon="↩" tooltip="ביטול" items={pastStack} disabled={!pastStack.length}
               onApply={()=>undoTo(1)} onGoTo={undoTo}/>
@@ -11103,14 +11037,9 @@ function App() {
         {track==='tasks'    && <NihulTikhnunView data={data} save={save}
           activeTrackTab={nihulTrackTab} setActiveTrackTab={setNihulTrackTab}
           activeTopTab={nihulTopTab} setActiveTopTab={setNihulTopTab}/>}
-        {track==='licensing' && activeSheet?.type==='dashboard' && <DashboardView data={data} save={save} onSwitchSheet={setActiveSheetId}/>}
-        {track==='licensing' && activeSheet?.type==='list' && <ListViewWithCtx data={sheetData} save={saveActiveSheet}/>}
-        {track==='meetings'    && <ComingSoonPage iconName="meetings"    title="ישיבות" desc="ריכוז וניהול סיכומי ישיבות — בפיתוח"/>}
-        {track==='supervision' && <ComingSoonPage iconName="supervision" title="פיקוח"  desc="ריכוז וניהול דוחות פיקוח מהביצוע — בפיתוח"/>}
         {track==='mytasks'     && <MyTasksView data={data} save={save}/>}
         {track==='portfolio'   && <PortfolioView/>}
         {track==='template'    && <TemplateView data={data} save={save}/>}
-        {track==='principles'  && <PrinciplesView data={data} save={save} onNavigateToTasks={()=>setTrack('tasks')}/>}
       </div>
     </div>
     </div>
