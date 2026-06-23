@@ -7670,12 +7670,23 @@ function NihulTikhnunView({data, save, activeTrackTab, setActiveTrackTab, active
       <div style={{flex:1, display:'flex', flexDirection:'column', overflow:'hidden'}}>
         <div style={{display:'flex', borderBottom:'1px solid var(--border)', background:'var(--surface)', flexShrink:0}}>
           {[{id:'combined', label:'מבט מאוחד'}, ...ntTracks.map(t=>({id:t.id, label:t.label}))].map(t => (
-            <button key={t.id} onClick={() => setActiveTrackTab(t.id)}
+            <button key={t.id} onClick={() => { setActiveTrackTab(t.id); setActiveTopTab(null); }}
               style={{padding:'9px 16px', fontSize:12, fontFamily:'inherit', border:'none', cursor:'pointer',
                 background:'none', borderBottom:'2px solid',
-                borderBottomColor: activeTrackTab===t.id ? 'var(--accent)' : 'transparent',
-                fontWeight: activeTrackTab===t.id ? 700 : 400,
-                color: activeTrackTab===t.id ? 'var(--text)' : 'var(--text-2)'}}>
+                borderBottomColor: (!activeTopTab && activeTrackTab===t.id) ? 'var(--accent)' : 'transparent',
+                fontWeight: (!activeTopTab && activeTrackTab===t.id) ? 700 : 400,
+                color: (!activeTopTab && activeTrackTab===t.id) ? 'var(--text)' : 'var(--text-2)'}}>
+              {t.label}
+            </button>
+          ))}
+          <div style={{flex:1}}/>
+          {CROSS_CUTTING_ITEMS.map(t => (
+            <button key={t.id} onClick={() => setActiveTopTab(t.id)}
+              style={{padding:'9px 16px', fontSize:12, fontFamily:'inherit', border:'none', cursor:'pointer',
+                background:'none', borderBottom:'2px solid',
+                borderBottomColor: activeTopTab===t.id ? 'var(--accent)' : 'transparent',
+                fontWeight: activeTopTab===t.id ? 700 : 400,
+                color: activeTopTab===t.id ? 'var(--text)' : 'var(--text-2)'}}>
               {t.label}
             </button>
           ))}
@@ -7694,14 +7705,19 @@ function NihulTikhnunView({data, save, activeTrackTab, setActiveTrackTab, active
           </div>
         )}
         <div style={{flex:1, overflowY:'auto', background:'var(--bg)'}}>
-          {isCombinedTab && <ListView data={combinedData} save={saveCombined}/>}
-          {!isCombinedTab && activeStage && activeStage.type==='dashboard' &&
+          {!activeTopTab && isCombinedTab && <ListView data={combinedData} save={saveCombined}/>}
+          {!activeTopTab && !isCombinedTab && activeStage && activeStage.type==='dashboard' &&
             <DashboardView data={data} save={save} onSwitchSheet={setActiveStageId}/>}
-          {!isCombinedTab && activeStage && activeStage.type==='list' &&
+          {!activeTopTab && !isCombinedTab && activeStage && activeStage.type==='list' &&
             <ListView data={activeStage} save={patch => saveSheet(activeStage.id, patch)}/>}
-          {!isCombinedTab && !activeStage && (
+          {!activeTopTab && !isCombinedTab && !activeStage && (
             <div style={{padding:'24px 20px', fontSize:12, color:'var(--text-3)'}}>אין שלבים במסלול זה</div>
           )}
+          {activeTopTab==='meetings'    && <ComingSoonPage iconName="meetings"    title="ישיבות" desc="ריכוז וניהול סיכומי ישיבות — בפיתוח"/>}
+          {activeTopTab==='supervision' && <ComingSoonPage iconName="supervision" title="פיקוח"  desc="ריכוז וניהול דוחות פיקוח מהביצוע — בפיתוח"/>}
+          {activeTopTab==='principles'  && <PrinciplesView data={data} save={save} onNavigateToTasks={()=>setActiveTopTab(null)}/>}
+          {activeTopTab==='milestones'  && <div style={{padding:'18px 20px'}}><GoalsMilestonesPanel data={data} save={save}/></div>}
+          {activeTopTab==='goals'       && <div style={{padding:'18px 20px'}}><GoalsMilestonesPanel data={data} save={save}/></div>}
         </div>
       </div>
       {editList&&(
