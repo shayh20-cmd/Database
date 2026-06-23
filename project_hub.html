@@ -2793,8 +2793,8 @@ function SubtaskRow({subtask, onUpdate, onDelete, onOpenProcess, autoFocus=false
                 onKeyDown={e=>{if(e.key==='Enter')commit();if(e.key==='Escape'){setTitle(subtask.title);setEditing(false);}}}/>
             :<span className="name-text" style={{fontSize:12,textDecoration:subtask.done?'line-through':'none',color:subtask.done?'var(--text-3)':'var(--text)',cursor:'text'}}
                   onClick={e=>{e.stopPropagation();setTitle(subtask.title||'');setEditing(true);}}>
-                  {subtask.isPrinciple&&<span title="עקרון תכנון" style={{display:'inline-flex',marginRight:4,color:'var(--text-3)',verticalAlign:'middle'}}><Ic n="principles" size={10}/></span>}
                   {subtask.title||(isProc?<span style={{color:'var(--text-3)'}}>תהליך ללא שם</span>:<span style={{color:'var(--text-3)'}}>ללא שם</span>)}
+                  {subtask.isPrinciple&&<span title="עקרון תכנון" style={{display:'inline-flex',marginRight:4,color:'#059669',verticalAlign:'middle'}}><Ic n="principles" size={10}/></span>}
                 </span>
           }
           <span className="badge-slot">
@@ -3881,8 +3881,8 @@ function TaskRow({task, onUpdate, onDelete, autoFocus=false, fields=[], visibleC
             :<span className="name-text"
                 style={{textDecoration:task.done?'line-through':'none',color:task.done?'var(--text-3)':'var(--text)',cursor:'text'}}
                 onClick={e=>{e.stopPropagation();setTitle(task.title);setEditTitle(true);}}>
-                {task.isPrinciple&&<span title="עקרון תכנון" style={{display:'inline-flex',marginRight:4,color:'var(--text-3)',verticalAlign:'middle'}}><Ic n="principles" size={11}/></span>}
                 {task.title||<span style={{color:'var(--text-3)'}}>ללא שם</span>}
+                {task.isPrinciple&&<span title="עקרון תכנון" style={{display:'inline-flex',marginRight:4,color:'#059669',verticalAlign:'middle'}}><Ic n="principles" size={11}/></span>}
               </span>
           }
           {/* Fixed-width slots so badges line up into columns across rows,
