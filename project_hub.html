@@ -10423,10 +10423,9 @@ const CROSS_CUTTING_ITEMS = [
   {id:'goals',       label:'יעדים',          icon:'goals'},
 ];
 
-function Sidebar({track, setTrack, tracks, activeTrackTab, activeTopTab, onSelectTrackTab, onSelectTopTab}) {
+function Sidebar({track, setTrack, tracks}) {
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
   const [expandedProj, setExpandedProj] = React.useState('lod'); // lod open by default
-  const [nihulExpanded, setNihulExpanded] = React.useState(true);
 
   const NAV = [
     {id:'home',      label:'בית',           icon:'home'},
@@ -10491,53 +10490,6 @@ function Sidebar({track, setTrack, tracks, activeTrackTab, activeTopTab, onSelec
             })}
           </div>
 
-          {/* ── ניהול תכנון (expandable: combined view + one entry per data.tracks track) ── */}
-          <div className="sb-section">
-            <div className="sb-proj-row">
-              <button className={`sb-proj-btn${track==='tasks'?' active':''}`}
-                onClick={()=>setTrack('tasks')}>
-                <span className="sb-item-icon"><Ic n="tasks" size={15}/></span>
-                ניהול תכנון
-              </button>
-              <button className="sb-proj-chevron" onClick={()=>setNihulExpanded(o=>!o)}>
-                <DownIcon open={nihulExpanded}/>
-              </button>
-            </div>
-            {nihulExpanded && (
-              <div style={{marginBottom:2}}>
-                <button
-                  className={`sb-sub-item${track==='tasks' && !activeTopTab && activeTrackTab==='combined' ? ' active':''}`}
-                  onClick={()=>onSelectTrackTab('combined')}>
-                  <span className="sb-sub-dot" style={{
-                    background: (track==='tasks' && !activeTopTab && activeTrackTab==='combined') ? 'var(--accent)' : 'var(--border-strong)'}}/>
-                  מבט מאוחד
-                </button>
-                {tracks.map(t=>(
-                  <button key={t.id}
-                    className={`sb-sub-item${track==='tasks' && !activeTopTab && activeTrackTab===t.id ? ' active':''}`}
-                    onClick={()=>onSelectTrackTab(t.id)}>
-                    <span className="sb-sub-dot" style={{
-                      background: (track==='tasks' && !activeTopTab && activeTrackTab===t.id) ? 'var(--accent)' : 'var(--border-strong)'}}/>
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ── רוחבי (cross-cutting shortcuts into NihulTikhnunView's second tab row) ── */}
-          <div className="sb-section">
-            <div className="sb-section-label">רוחבי</div>
-            {CROSS_CUTTING_ITEMS.map(item=>(
-              <button key={item.id}
-                className={`sb-item${track==='tasks' && activeTopTab===item.id ? ' active':''}`}
-                onClick={()=>onSelectTopTab(item.id)}>
-                <span className="sb-item-icon"><Ic n={item.icon} size={15}/></span>
-                {item.label}
-              </button>
-            ))}
-          </div>
-
           {/* projects */}
           <div className="sb-section">
             <div className="sb-section-label">הפרויקטים שלי</div>
@@ -10564,17 +10516,29 @@ function Sidebar({track, setTrack, tracks, activeTrackTab, activeTopTab, onSelec
                   {/* sub-items */}
                   {isExpanded && (
                     <div style={{marginBottom:2}}>
-                      {PROJ_TRACKS.map(t=>(
+                      <button
+                        className={`sb-sub-item${track==='tasks'?' active':''}`}
+                        onClick={()=>setTrack('tasks')}>
+                        <span className="sb-sub-dot" style={{background: track==='tasks' ? 'var(--accent)' : 'var(--border-strong)'}}/>
+                        <span className="sb-item-icon" style={{width:13,height:13}}><Ic n="tasks" size={13}/></span>
+                        ניהול תכנון
+                      </button>
+                      {tracks.map(t=>(
                         <button key={t.id}
-                          className={`sb-sub-item${!t.enabled?' disabled':track===t.id?' active':''}`}
-                          onClick={t.enabled?()=>setTrack(t.id):undefined}>
-                          <span className="sb-sub-dot" style={{
-                            background: track===t.id ? 'var(--accent)' : t.enabled?'var(--border-strong)':'var(--border)'
-                          }}/>
-                          <span className="sb-item-icon" style={{width:13,height:13}}><Ic n={t.icon} size={13}/></span>
+                          className={`sb-sub-item${track===t.id?' active':''}`}
+                          onClick={()=>setTrack(t.id)}>
+                          <span className="sb-sub-dot" style={{background: track===t.id ? 'var(--accent)' : 'var(--border-strong)'}}/>
+                          <span className="sb-item-icon" style={{width:13,height:13}}><Ic n="tasks" size={13}/></span>
                           {t.label}
                         </button>
                       ))}
+                      <button
+                        className={`sb-sub-item${track==='template'?' active':''}`}
+                        onClick={()=>setTrack('template')}>
+                        <span className="sb-sub-dot" style={{background: track==='template' ? 'var(--accent)' : 'var(--border-strong)'}}/>
+                        <span className="sb-item-icon" style={{width:13,height:13}}><Ic n="template" size={13}/></span>
+                        טמפלייט
+                      </button>
                     </div>
                   )}
                 </div>
