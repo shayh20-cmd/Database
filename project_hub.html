@@ -10938,27 +10938,12 @@ function App() {
 
   const commitName=()=>{if(nameDraft.trim())save({...data,projectName:nameDraft.trim()});setEditName(false);};
 
-  /* top-level track: 'overview' | 'tasks' | 'template' */
+  /* top-level track: 'overview' | 'tasks' | 'template' | one of data.tracks' ids */
   const [track, setTrack] = useState('tasks');
-  const [nihulTrackTab, setNihulTrackTab] = useState('combined');
-  const [nihulTopTab, setNihulTopTab] = useState(null);
-
-  const openTrackTab = React.useCallback((trackId) => {
-    setTrack('tasks');
-    setNihulTrackTab(trackId);
-    setNihulTopTab(null);
-  }, []);
-  const openTopTab = React.useCallback((topTabId) => {
-    setTrack('tasks');
-    setNihulTopTab(topTabId);
-  }, []);
 
   return(
     <div className="shell">
-    <Sidebar track={track} setTrack={setTrack}
-      tracks={data.tracks || []}
-      activeTrackTab={nihulTrackTab} activeTopTab={nihulTopTab}
-      onSelectTrackTab={openTrackTab} onSelectTopTab={openTopTab}/>
+    <Sidebar track={track} setTrack={setTrack} tracks={data.tracks || []}/>
     <div className="app">
       {/* ── Project Header ── */}
       <div className="proj-header">
@@ -10986,11 +10971,16 @@ function App() {
 
         {/* ── track breadcrumb ── */}
         <div className="sheet-tabs" style={{borderTop:'1px solid var(--border)'}}>
-          <span style={{fontSize:11,fontWeight:600,color:'var(--text-3)',paddingLeft:4,paddingRight:8,
-            display:'flex',alignItems:'center',gap:5,flexShrink:0}}>
-            <Ic n={PROJ_TRACKS.find(t=>t.id===track)?.icon||'overview'} size={12}/>
-            {PROJ_TRACKS.find(t=>t.id===track)?.label||''}
-          </span>
+          {(() => {
+            const breadcrumbItem = PROJ_TRACKS.find(t=>t.id===track) || (data.tracks||[]).find(t=>t.id===track);
+            return (
+              <span style={{fontSize:11,fontWeight:600,color:'var(--text-3)',paddingLeft:4,paddingRight:8,
+                display:'flex',alignItems:'center',gap:5,flexShrink:0}}>
+                <Ic n={breadcrumbItem?.icon||'tasks'} size={12}/>
+                {breadcrumbItem?.label||''}
+              </span>
+            );
+          })()}
           <div style={{marginRight:'auto',display:'flex',alignItems:'center',gap:4,paddingLeft:10,flexShrink:0}}>
             <UndoRedoBtn icon="↩" tooltip="ביטול" items={pastStack} disabled={!pastStack.length}
               onApply={()=>undoTo(1)} onGoTo={undoTo}/>
@@ -11002,10 +10992,11 @@ function App() {
 
       {/* ── Content ── */}
       <div style={{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}}>
-        {track==='overview' && <OverviewPage data={data} save={save} onNavigateToTasks={()=>setTrack('tasks')}/>}
-        {track==='tasks'    && <NihulTikhnunView data={data} save={save}
-          activeTrackTab={nihulTrackTab} setActiveTrackTab={setNihulTrackTab}
-          activeTopTab={nihulTopTab} setActiveTopTab={setNihulTopTab}/>}
+        {track==='overview' && <OverviewPage data={data} save={save} onNavigateToTasks={()=>setTrack('ongoing')}/>}
+        {/* onNavigateToOngoing: jumps to the "מסלול תכנון" track (id 'ongoing'), the closest
+            equivalent of "see all tasks" now that this hub page is purely cross-cutting tabs. */}
+        {track==='tasks'    && <NihulHubView data={data} save={save} onNavigateToOngoing={()=>setTrack('ongoing')}/>}
+        {(data.tracks||[]).some(t=>t.id===track) && <TrackView data={data} save={save} trackId={track}/>}
         {track==='mytasks'     && <MyTasksView data={data} save={save}/>}
         {track==='portfolio'   && <PortfolioView/>}
         {track==='template'    && <TemplateView data={data} save={save}/>}
