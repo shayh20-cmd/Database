@@ -7622,37 +7622,40 @@ function NihulHubView({data, save, onNavigateToOngoing}) {
   );
 }
 
-function NihulTikhnunView({data, save, activeTrackTab, setActiveTrackTab, activeTopTab, setActiveTopTab}) {
+function TrackView({data, save, trackId}) {
   const priorities  = data.priorities  || PRIORITIES;
   const disciplines = data.disciplines || DISCIPLINES;
   const statuses    = data.statuses    || STATUSES;
   const [editList, setEditList] = useState(null);
   const ntTracks = data.tracks || [];
+  const activeTrack = ntTracks.find(t => t.id===trackId);
+  const isOngoing = trackId==='ongoing';
 
   const allSheets = data.sheets || [];
-  const isCombinedTab = activeTrackTab==='combined';
-  const activeTrack = ntTracks.find(t => t.id===activeTrackTab) || ntTracks[0];
   const [activeStageId, setActiveStageId] = useState(null);
-  const visibleStages = isCombinedTab || !activeTrack
+  const visibleStages = (isOngoing || !activeTrack)
     ? []
     : allSheets.filter(s => (s.type==='list' || s.type==='dashboard') && s.track===activeTrack.trackValue);
   const activeStage = visibleStages.find(s => s.id===activeStageId) || visibleStages[0] || null;
-  useEffect(() => { setActiveStageId(null); }, [activeTrackTab]);
+  useEffect(() => { setActiveStageId(null); }, [trackId]);
 
   /* Persist a single stage sheet's patched data back into data.sheets.
      ListView calls save() with the fully-merged sheet object. */
   const saveSheet = (sheetId, fullSheet) =>
     save({...data, sheets: data.sheets.map(s => s.id===sheetId ? fullSheet : s)});
 
-  /* ── Combined view — merges tasks from every stage/track into one ListView,
-     tagged with __srcSheetId/__track/__stage so מסלול/שלב become real
-     group-by + filter fields. Edits route back to their origin sheet;
-     view/column settings live in their own data.combinedView slot. */
+  /* ── Combined view (only relevant for the "מסלול תכנון" / 'ongoing' track) —
+     merges tasks from every stage/track into one ListView, tagged with
+     __srcSheetId/__track/__stage so מסלול/שלב become real group-by + filter
+     fields. Edits route back to their origin sheet; view/column settings
+     live in their own data.combinedView slot. This stays global (every
+     track's tasks), per the explicit design decision that "מבט מאוחד"
+     does not narrow to only this track's tasks. */
   const combinedSourceSheets = allSheets.filter(s => s.type==='list');
   const combinedMeta = data.combinedView || {id:'__combined__', name:'מבט מאוחד', groups:[], fields:[], hiddenCols:{}, colOrder:[], colWidths:{}, views:[]};
   const ongoingSheetId = (allSheets.find(s => s.type==='list' && s.track==null) || {}).id;
   const realGroupOwner = gId => combinedSourceSheets.find(s => (s.groups||[]).some(g => g.id===gId));
-  const combinedData = isCombinedTab ? {
+  const combinedData = isOngoing ? {
     ...combinedMeta,
     type:'list',
     __combined:true,
@@ -7697,30 +7700,7 @@ function NihulTikhnunView({data, save, activeTrackTab, setActiveTrackTab, active
       onEditList: type => setEditList(type),
     }}>
       <div style={{flex:1, display:'flex', flexDirection:'column', overflow:'hidden'}}>
-        <div style={{display:'flex', borderBottom:'1px solid var(--border)', background:'var(--surface)', flexShrink:0}}>
-          {[{id:'combined', label:'מבט מאוחד'}, ...ntTracks.map(t=>({id:t.id, label:t.label}))].map(t => (
-            <button key={t.id} onClick={() => { setActiveTrackTab(t.id); setActiveTopTab(null); }}
-              style={{padding:'9px 16px', fontSize:12, fontFamily:'inherit', border:'none', cursor:'pointer',
-                background:'none', borderBottom:'2px solid',
-                borderBottomColor: (!activeTopTab && activeTrackTab===t.id) ? 'var(--accent)' : 'transparent',
-                fontWeight: (!activeTopTab && activeTrackTab===t.id) ? 700 : 400,
-                color: (!activeTopTab && activeTrackTab===t.id) ? 'var(--text)' : 'var(--text-2)'}}>
-              {t.label}
-            </button>
-          ))}
-          <div style={{flex:1}}/>
-          {CROSS_CUTTING_ITEMS.map(t => (
-            <button key={t.id} onClick={() => setActiveTopTab(t.id)}
-              style={{padding:'9px 16px', fontSize:12, fontFamily:'inherit', border:'none', cursor:'pointer',
-                background:'none', borderBottom:'2px solid',
-                borderBottomColor: activeTopTab===t.id ? 'var(--accent)' : 'transparent',
-                fontWeight: activeTopTab===t.id ? 700 : 400,
-                color: activeTopTab===t.id ? 'var(--text)' : 'var(--text-2)'}}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-        {!isCombinedTab && visibleStages.length>1 && (
+        {!isOngoing && visibleStages.length>1 && (
           <div style={{display:'flex', gap:2, padding:'8px 16px 0', background:'var(--surface)', borderBottom:'1px solid var(--border)', flexShrink:0}}>
             {visibleStages.map(s => (
               <button key={s.id} onClick={()=>setActiveStageId(s.id)}
@@ -7734,19 +7714,14 @@ function NihulTikhnunView({data, save, activeTrackTab, setActiveTrackTab, active
           </div>
         )}
         <div style={{flex:1, overflowY:'auto', background:'var(--bg)'}}>
-          {!activeTopTab && isCombinedTab && <ListView data={combinedData} save={saveCombined}/>}
-          {!activeTopTab && !isCombinedTab && activeStage && activeStage.type==='dashboard' &&
+          {isOngoing && <ListView data={combinedData} save={saveCombined}/>}
+          {!isOngoing && activeStage && activeStage.type==='dashboard' &&
             <DashboardView data={data} save={save} onSwitchSheet={setActiveStageId}/>}
-          {!activeTopTab && !isCombinedTab && activeStage && activeStage.type==='list' &&
+          {!isOngoing && activeStage && activeStage.type==='list' &&
             <ListView data={activeStage} save={patch => saveSheet(activeStage.id, patch)}/>}
-          {!activeTopTab && !isCombinedTab && !activeStage && (
+          {!isOngoing && !activeStage && (
             <div style={{padding:'24px 20px', fontSize:12, color:'var(--text-3)'}}>אין שלבים במסלול זה</div>
           )}
-          {activeTopTab==='meetings'    && <ComingSoonPage iconName="meetings"    title="ישיבות" desc="ריכוז וניהול סיכומי ישיבות — בפיתוח"/>}
-          {activeTopTab==='supervision' && <ComingSoonPage iconName="supervision" title="פיקוח"  desc="ריכוז וניהול דוחות פיקוח מהביצוע — בפיתוח"/>}
-          {activeTopTab==='principles'  && <PrinciplesView data={data} save={save} onNavigateToTasks={()=>setActiveTopTab(null)}/>}
-          {activeTopTab==='milestones'  && <div style={{padding:'18px 20px'}}><GoalsMilestonesPanel data={data} save={save}/></div>}
-          {activeTopTab==='goals'       && <div style={{padding:'18px 20px'}}><GoalsMilestonesPanel data={data} save={save}/></div>}
         </div>
       </div>
       {editList&&(
