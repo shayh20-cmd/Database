@@ -7593,6 +7593,35 @@ function Confetti({onDone}) {
    defaults old saved data is migrated from. */
 const trackLabelOf = (tracks, s) => (tracks.find(t => t.trackValue===s.track) || {}).label || (s.track || 'ניהול שוטף');
 
+function NihulHubView({data, save, onNavigateToOngoing}) {
+  const [activeTab, setActiveTab] = useState('overview');
+
+  return (
+    <div style={{flex:1, display:'flex', flexDirection:'column', overflow:'hidden'}}>
+      <div style={{display:'flex', borderBottom:'1px solid var(--border)', background:'var(--surface)', flexShrink:0}}>
+        {CROSS_CUTTING_ITEMS.map(t => (
+          <button key={t.id} onClick={() => setActiveTab(t.id)}
+            style={{padding:'9px 16px', fontSize:12, fontFamily:'inherit', border:'none', cursor:'pointer',
+              background:'none', borderBottom:'2px solid',
+              borderBottomColor: activeTab===t.id ? 'var(--accent)' : 'transparent',
+              fontWeight: activeTab===t.id ? 700 : 400,
+              color: activeTab===t.id ? 'var(--text)' : 'var(--text-2)'}}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div style={{flex:1, overflowY:'auto', background:'var(--bg)'}}>
+        {activeTab==='overview'    && <OverviewPage data={data} save={save} onNavigateToTasks={onNavigateToOngoing}/>}
+        {activeTab==='meetings'    && <ComingSoonPage iconName="meetings"    title="ישיבות" desc="ריכוז וניהול סיכומי ישיבות — בפיתוח"/>}
+        {activeTab==='supervision' && <ComingSoonPage iconName="supervision" title="פיקוח"  desc="ריכוז וניהול דוחות פיקוח מהביצוע — בפיתוח"/>}
+        {activeTab==='principles'  && <PrinciplesView data={data} save={save} onNavigateToTasks={()=>setActiveTab('overview')}/>}
+        {activeTab==='milestones'  && <div style={{padding:'18px 20px'}}><GoalsMilestonesPanel data={data} save={save}/></div>}
+        {activeTab==='goals'       && <div style={{padding:'18px 20px'}}><GoalsMilestonesPanel data={data} save={save}/></div>}
+      </div>
+    </div>
+  );
+}
+
 function NihulTikhnunView({data, save, activeTrackTab, setActiveTrackTab, activeTopTab, setActiveTopTab}) {
   const priorities  = data.priorities  || PRIORITIES;
   const disciplines = data.disciplines || DISCIPLINES;
