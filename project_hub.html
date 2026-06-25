@@ -1296,7 +1296,7 @@ function makeDefaultData() {
       {id:uid(), title:'קבלת היתר בנייה', targetDate:'2026-12-01', done:false},
     ],
     sheets:[
-      { id:uid(), name:'דאשבורד', type:'dashboard' },
+      { id:uid(), name:'דאשבורד', type:'dashboard', track:'licensing' },
       (()=>{
         const gA=uid(),gB=uid();
         const T=(gId,title,statusId,priority,discipline,startDate,dueDate,comment,done,taskType,subs,evts)=>
@@ -1672,7 +1672,7 @@ function migrateTask(task) {
 
 function stampSheetTracks(sheets) {
   return sheets.map(s => {
-    if (s.type !== 'list') return s;
+    if (s.type !== 'list' && s.type !== 'dashboard') return s;
     if (s.name === 'ניהול תכנון') return {...s, name:'משימות שוטפות', track:null};
     return {...s, track: 'track' in s ? s.track : 'licensing'};
   });
@@ -1683,8 +1683,10 @@ function stampSheetTracks(sheets) {
    hardcoded track defs below if not already present, so old saved data
    keeps working without user action. */
 const LEGACY_NT_TRACK_DEFS = [
-  {id:'ongoing',   label:'ניהול שוטף',  trackValue:null},
-  {id:'licensing', label:'מסלול רישוי', trackValue:'licensing'},
+  {id:'ongoing',   label:'מסלול תכנון',  trackValue:null},
+  {id:'licensing', label:'מסלול רישוי',  trackValue:'licensing'},
+  {id:'tender',    label:'מסלול מכרז',   trackValue:'tender'},
+  {id:'execution', label:'מסלול ביצוע',  trackValue:'execution'},
 ];
 function seedTracksIfMissing(d) {
   if (d.tracks) return d;
@@ -1719,7 +1721,7 @@ function migrateData(d) {
     d = {
       ...d,
       sheets:[
-        { id:uid(), name:'דאשבורד', type:'dashboard' },
+        { id:uid(), name:'דאשבורד', type:'dashboard', track:'licensing' },
         makeEmptySheet('ניהול תכנון'),
         makeEmptySheet('תיק מידע'),
         { id:sheetId, name:'תנאים מקדימים', type:'list',
@@ -6034,9 +6036,14 @@ function computePrinciples(data) {
     trackLabel: trackLabelOf(tracks, s),
     stageLabel: s.name,
   }))));
-  const standalone = (data.standalonePrinciples||[]).map(p => ({
-    ...p, sourceSheetId: null, sourceTaskId: null, trackLabel: null, stageLabel: null,
-  }));
+  const standalone = (data.standalonePrinciples||[]).map(p => {
+    const stageSheet = p.stageSheetId ? sheets.find(s => s.id===p.stageSheetId) : null;
+    return {
+      ...p, sourceSheetId: null, sourceTaskId: null,
+      trackLabel: stageSheet ? trackLabelOf(tracks, stageSheet) : null,
+      stageLabel: stageSheet ? stageSheet.name : null,
+    };
+  });
   return [...fromTasks, ...fromSubtasks, ...standalone];
 }
 
@@ -6082,8 +6089,12 @@ function principlesUpdateHandler(data, save) {
   return (id, patch) => updateStandalonePrinciple(data, save, id, patch);
 }
 
-function PrinciplesTable({principles, onDeleteRow, onOpenSource, onEditStandalone}) {
+function PrinciplesTable({principles, onDeleteRow, onOpenSource, onEditStandalone, sheets, tracks}) {
   const {disciplines} = useContext(ListsCtx);
+  const stageOptions = (tracks||[]).flatMap(t => t.stageOrder
+    .map(sheetId => (sheets||[]).find(s => s.id===sheetId))
+    .filter(Boolean)
+    .map(s => ({sheetId: s.id, label: `${t.label} / ${s.name}`})));
   const [editingField, setEditingField] = useState(null); // {id, field} | null
   const [draft, setDraft] = useState('');
 
@@ -6101,10 +6112,12 @@ function PrinciplesTable({principles, onDeleteRow, onOpenSource, onEditStandalon
     }
     const disc = disciplines.find(d => d.id===p.discipline);
     return (
-      <td style={{padding:'6px 8px'}}>
-        {disc
-          ? <span className="pill" style={{color:'#fff', background:disc.color}}>{disc.label}</span>
-          : <span style={{color:'var(--text-3)'}}>—</span>}
+      <td style={{padding:'0 8px'}}>
+        <div style={{display:'flex', width:'100%', justifyContent:'center'}}>
+          {disc
+            ? <span className="pill" style={{color:'#fff', background:disc.color, minWidth:53, justifyContent:'center'}}>{disc.label}</span>
+            : <span style={{color:'var(--text-3)', fontSize:12, flex:1, textAlign:'center'}}>—</span>}
+        </div>
       </td>
     );
   };
@@ -6151,7 +6164,13 @@ function PrinciplesTable({principles, onDeleteRow, onOpenSource, onEditStandalon
                   </span>}
             </td>
             <td style={{padding:'6px 8px'}}>
-              {p.trackLabel ? `מסלול: ${p.trackLabel} / שלב: ${p.stageLabel}` : '—'}
+              {isEditable(p)
+                ? <select value={p.stageSheetId||''} onChange={e=>onEditStandalone(p.id, {stageSheetId: e.target.value||null})}
+                    style={{fontSize:12, fontFamily:'inherit', border:'1px solid var(--border)', borderRadius:4, padding:'2px 6px'}}>
+                    <option value="">—</option>
+                    {stageOptions.map(o => <option key={o.sheetId} value={o.sheetId}>{o.label}</option>)}
+                  </select>
+                : (p.trackLabel ? `מסלול: ${p.trackLabel} / שלב: ${p.stageLabel}` : '—')}
             </td>
             <td style={{padding:'6px 8px'}}>
               {p.sourceTaskId
@@ -6316,7 +6335,8 @@ function OverviewPage({data, save, onNavigateToTasks}) {
         <PrinciplesTable principles={computePrinciples(data)}
           onDeleteRow={principlesDeleteHandler(data, save)}
           onOpenSource={onNavigateToTasks}
-          onEditStandalone={principlesUpdateHandler(data, save)}/>
+          onEditStandalone={principlesUpdateHandler(data, save)}
+          sheets={data.sheets} tracks={data.tracks}/>
       </div>
 
       {/* ── 3. Three-column: Team | Goals | Milestones ── */}
@@ -10868,7 +10888,8 @@ function PrinciplesView({data, save, onNavigateToTasks}) {
         </div>
       )}
       <PrinciplesTable principles={principles} onDeleteRow={onDeleteRow} onOpenSource={onNavigateToTasks}
-        onEditStandalone={principlesUpdateHandler(data, save)}/>
+        onEditStandalone={principlesUpdateHandler(data, save)}
+        sheets={data.sheets} tracks={data.tracks}/>
     </div>
   );
 }
