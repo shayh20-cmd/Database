@@ -12,6 +12,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["serve", "C:\\Users\\Omega\\Database", "--listen", "3401", "--no-clipboard"],
       "port": 3401
+    },
+    {
+      "name": "project-hub-worktree",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "C:\\Users\\Omega\\Database\\.claude\\worktrees\\sidebar-flat-restructure", "--listen", "3402", "--no-clipboard"],
+      "port": 3402
     }
   ]
 }
