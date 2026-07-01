@@ -681,14 +681,27 @@ button:focus:not(:focus-visible),input:focus:not(:focus-visible){outline:none;}
 .opt-add-btn{display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;font-size:12px;color:var(--text-3);font-family:inherit;padding:6px 8px;border-radius:5px;width:100%;}
 .opt-add-btn:hover{background:var(--bg);color:var(--text-2);}
 
+.meeting-print-only { display: none; }
+.meeting-print-table { display: none; }
+
 @media print {
+  body * { visibility: hidden; }
+  .meeting-doc, .meeting-doc * { visibility: visible; }
+  .meeting-doc {
+    position: absolute; top: 0; left: 0;
+    width: 100% !important; max-width: 100% !important;
+    margin: 0 !important; padding: 24px !important;
+    overflow: visible !important;
+  }
   .meeting-print-hide { display: none !important; }
-  .meeting-doc { padding: 24px !important; max-width: 100% !important; overflow: visible !important; }
+  .meeting-print-only { display: block; }
+  .meeting-print-table { display: table; }
   .meeting-doc table { border-collapse: collapse; width: 100%; }
   .meeting-doc th, .meeting-doc td { border: 1px solid #ccc; padding: 6px 10px; font-size: 11pt; }
   .meeting-doc input, .meeting-doc textarea, .meeting-doc select { border: none !important; outline: none !important; background: transparent !important; padding: 0 !important; font-family: inherit; }
   .meeting-doc input[type='date'] { -webkit-appearance: none; }
-  @page { margin: 20mm; size: A4; }
+  .meeting-print-group-header { font-weight: 700; text-decoration: underline; }
+  @page { margin: 15mm 12mm; size: A4; }
 }
 </style>
 </head>
