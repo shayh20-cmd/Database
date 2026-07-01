@@ -966,7 +966,7 @@ return/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirectio
 /*#__PURE__*/React.createElement("input",{value:m.title,onChange:e=>update({title:e.target.value}),placeholder:'נושא הפגישה...',style:{fontSize:15,fontWeight:600,color:'var(--text)',border:'none',borderBottom:'2px solid var(--border)',outline:'none',background:'transparent',width:'100%',fontFamily:'inherit',marginBottom:24,paddingBottom:4,direction:'rtl',boxSizing:'border-box'}}),
 /*#__PURE__*/React.createElement("div",{style:{marginBottom:24}},
 /*#__PURE__*/React.createElement("div",{style:{fontSize:12,fontWeight:700,color:'var(--text-2)',marginBottom:8,textAlign:'right'}},'משתתפים'),
-/*#__PURE__*/React.createElement("div",{className:"meeting-print-only",style:{fontSize:12,color:'var(--text)',marginBottom:10,textAlign:'right',direction:'rtl'}},'נכחו: ',attendeesLine),
+m.participants.length>0&&/*#__PURE__*/React.createElement("div",{className:"meeting-print-only",style:{fontSize:12,color:'var(--text)',marginBottom:10,textAlign:'right',direction:'rtl'}},'נכחו: ',attendeesLine),
 m.participants.length>0&&/*#__PURE__*/React.createElement("table",{className:"meeting-print-hide",style:{width:'100%',borderCollapse:'collapse',marginBottom:10,direction:'rtl',fontSize:12}},
 /*#__PURE__*/React.createElement("thead",null,/*#__PURE__*/React.createElement("tr",null,
 /*#__PURE__*/React.createElement("th",{style:{textAlign:'right',borderBottom:'1px solid var(--border)',padding:'4px 8px',color:'var(--text-2)',fontWeight:600}},'שם'),
