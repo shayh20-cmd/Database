@@ -861,9 +861,12 @@ const a=sortList2.filter(s=>s.column!==sortField);setSortState(a.length?a:null);
 ══════════════════════════════════════ *//* Track/stage hierarchy is data-driven via data.tracks (edited in the
    טמפלייט → סכימת עבודה page) — see seedTracksIfMissing for the legacy
    defaults old saved data is migrated from. */const trackLabelOf=(tracks,s)=>(tracks.find(t=>t.trackValue===s.track)||{}).label||s.track||'ניהול שוטף';function CreateItemDialog({data,save,item,onClose,onCreate}){const[title,setTitle]=useState(item?item.topic||'':'');const[trackId,setTrackId]=useState('');const[sheetId,setSheetId]=useState('');const tracks=data.tracks||[];const sheets=data.sheets||[];const trackSheets=sheets.filter(s=>s.trackId===trackId);useEffect(()=>{setSheetId('');},[ trackId]);const handleCreate=()=>{if(!title.trim()||!sheetId)return;const sheet=sheets.find(s=>s.id===sheetId);if(!sheet)return;const groups=sheet.groups||[];const groupId=groups.length>0?groups[0].id:null;const newTask={id:uid(),groupId:groupId,title:title.trim(),statusId:'N',priority:'medium',discipline:item&&item.assignee&&item.assignee!=='לידיעה'?item.assignee:null,startDate:item&&item.startDate||'',dueDate:item&&item.dueDate||'',done:false,taskType:'simple',fieldValues:{},subtasks:[]};const updatedSheet={...sheet,tasks:[...(sheet.tasks||[]),newTask]};const updatedSheets=sheets.map(s=>s.id===sheetId?updatedSheet:s);save({...data,sheets:updatedSheets});onCreate(sheetId,groupId,title.trim());};return/*#__PURE__*/React.createElement("div",{style:{position:'fixed',inset:0,background:'rgba(0,0,0,.4)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center'},onClick:e=>{if(e.target===e.currentTarget)onClose();}},/*#__PURE__*/React.createElement("div",{style:{background:'var(--surface)',borderRadius:12,padding:'28px 32px',minWidth:380,maxWidth:480,boxShadow:'0 8px 32px rgba(0,0,0,.18)',direction:'rtl'}},/*#__PURE__*/React.createElement("div",{style:{fontSize:15,fontWeight:700,color:'var(--text)',marginBottom:20}},'צור פריט'),/*#__PURE__*/React.createElement("div",{style:{marginBottom:14}},/*#__PURE__*/React.createElement("label",{style:{fontSize:12,color:'var(--text-2)',display:'block',marginBottom:4}},'שם'),/*#__PURE__*/React.createElement("input",{value:title,onChange:e=>setTitle(e.target.value),style:{width:'100%',padding:'8px 10px',border:'1px solid var(--border)',borderRadius:6,fontSize:13,fontFamily:'inherit',color:'var(--text)',background:'var(--bg)',boxSizing:'border-box',direction:'rtl'}})),/*#__PURE__*/React.createElement("div",{style:{marginBottom:14}},/*#__PURE__*/React.createElement("label",{style:{fontSize:12,color:'var(--text-2)',display:'block',marginBottom:4}},'מסלול'),/*#__PURE__*/React.createElement("select",{value:trackId,onChange:e=>setTrackId(e.target.value),style:{width:'100%',padding:'8px 10px',border:'1px solid var(--border)',borderRadius:6,fontSize:13,fontFamily:'inherit',color:'var(--text)',background:'var(--bg)',boxSizing:'border-box'}},/*#__PURE__*/React.createElement("option",{value:''},'— בחר מסלול —'),tracks.map(t=>/*#__PURE__*/React.createElement("option",{key:t.id,value:t.id},t.label||t.id)))),trackId&&/*#__PURE__*/React.createElement("div",{style:{marginBottom:20}},/*#__PURE__*/React.createElement("label",{style:{fontSize:12,color:'var(--text-2)',display:'block',marginBottom:4}},'קבוצה / גיליון'),/*#__PURE__*/React.createElement("select",{value:sheetId,onChange:e=>setSheetId(e.target.value),style:{width:'100%',padding:'8px 10px',border:'1px solid var(--border)',borderRadius:6,fontSize:13,fontFamily:'inherit',color:'var(--text)',background:'var(--bg)',boxSizing:'border-box'}},/*#__PURE__*/React.createElement("option",{value:''},'— בחר גיליון —'),trackSheets.map(s=>/*#__PURE__*/React.createElement("option",{key:s.id,value:s.id},s.title||s.id)))),/*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:10,justifyContent:'flex-end'}},/*#__PURE__*/React.createElement("button",{onClick:onClose,style:{padding:'8px 18px',fontSize:13,borderRadius:7,border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text-2)',cursor:'pointer',fontFamily:'inherit'}},'ביטול'),/*#__PURE__*/React.createElement("button",{onClick:handleCreate,disabled:!title.trim()||!sheetId,style:{padding:'8px 18px',fontSize:13,borderRadius:7,border:'none',background:!title.trim()||!sheetId?'var(--border)':'var(--accent)',color:!title.trim()||!sheetId?'var(--text-3)':'#fff',cursor:!title.trim()||!sheetId?'not-allowed':'pointer',fontFamily:'inherit',fontWeight:600}},'צור'))));}
-/* Assumes items are already ordered parent-then-children (as addRow/addSubRow produce)
-   and that top-level `number` values are unique — an out-of-order or duplicate number
-   silently lands its item in the wrong/an orphan group rather than throwing. */
+/* Assumes items are already ordered parent-then-children (as addRow/addSubRow/addSubSubRow
+   produce) and that `number` values are unique at each level — this applies recursively:
+   a top-level number must be unique among top-level items, and a 2-segment child's number
+   must be unique among its siblings, before its own 3-segment grandchildren appear. An
+   out-of-order or duplicate number at either level silently lands its item in the wrong/an
+   orphan group rather than throwing. */
 const DISCIPLINE_FULL_NAMES={ARCH:'אדריכל',STRC:'קונסטרוקטור',ELEC:'חשמל',ENVI:'סביבה',LAND:'נוף',TRAF:'תנועה',PM:'ניהול פרויקט',SAFE:'בטיחות',HVAC:'מיזוג אוויר',PLUM:'אינסטלציה',HYDR:'ניקוז',ACSS:'נגישות',GR:'קרקע',LIFT:'מעליות',TNDR:'מכרזים',AGRO:'אגרונומיה'};
 const fmtDateNumeric=iso=>iso?iso.split('-').reverse().join('.'):'-';
 function buildPrintGroups(items){
@@ -918,6 +921,8 @@ const discOptions=[{id:'',label:'—'},...disciplines.map(d=>({id:d.id,label:d.l
 const thStyle={textAlign:'right',padding:'6px 8px',color:'var(--text-2)',fontWeight:600,borderBottom:'2px solid var(--border)'};
 const printGroups=buildPrintGroups(items);
 const assigneeLabel=id=>id?(DISCIPLINE_FULL_NAMES[id]||(discOptions.find(o=>o.id===id)||{}).label||id):'';
+const grandchildList=c=>c.grandchildren.length>0&&/*#__PURE__*/React.createElement("ul",{style:{margin:'4px 0 0',paddingRight:18,fontSize:9,listStyle:'none'}},c.grandchildren.map(gc=>/*#__PURE__*/React.createElement("li",{key:gc.id},gc.number,'  ',gc.topic)));
+const childInfoCells=c=>[/*#__PURE__*/React.createElement("td",{key:'a'},assigneeLabel(c.item.assignee)),/*#__PURE__*/React.createElement("td",{key:'s'},fmtDateNumeric(c.item.startDate)),/*#__PURE__*/React.createElement("td",{key:'d'},fmtDateNumeric(c.item.dueDate))];
 return/*#__PURE__*/React.createElement("div",{style:{marginTop:24}},
 /*#__PURE__*/React.createElement("table",{className:"meeting-print-hide",style:{width:'100%',borderCollapse:'collapse',fontSize:12,direction:'rtl'}},
 /*#__PURE__*/React.createElement("thead",null,/*#__PURE__*/React.createElement("tr",null,
@@ -955,10 +960,8 @@ return/*#__PURE__*/React.createElement(React.Fragment,{key:g.key},
 /*#__PURE__*/React.createElement("td",null),
 /*#__PURE__*/React.createElement("td",null)),
 g.children.map(c=>/*#__PURE__*/React.createElement("tr",{key:c.item.id},
-/*#__PURE__*/React.createElement("td",{style:{paddingRight:16}},c.item.number,'  ',c.item.topic,c.grandchildren.length>0&&/*#__PURE__*/React.createElement("ul",{style:{margin:'4px 0 0',paddingRight:18,fontSize:9,listStyle:'none'}},c.grandchildren.map(gc=>/*#__PURE__*/React.createElement("li",{key:gc.id},gc.number,'  ',gc.topic)))),
-/*#__PURE__*/React.createElement("td",null,assigneeLabel(c.item.assignee)),
-/*#__PURE__*/React.createElement("td",null,fmtDateNumeric(c.item.startDate)),
-/*#__PURE__*/React.createElement("td",null,fmtDateNumeric(c.item.dueDate)))));
+/*#__PURE__*/React.createElement("td",{style:{paddingRight:16}},c.item.number,'  ',c.item.topic,grandchildList(c)),
+...childInfoCells(c))));
 }
 if(g.header&&g.children.length===0){
 return/*#__PURE__*/React.createElement("tr",{key:g.key},
@@ -970,10 +973,8 @@ return/*#__PURE__*/React.createElement("tr",{key:g.key},
 }
 return g.children.map(c=>/*#__PURE__*/React.createElement("tr",{key:c.item.id},
 /*#__PURE__*/React.createElement("td",{style:{textAlign:'center'}},c.item.number),
-/*#__PURE__*/React.createElement("td",null,c.item.topic,c.grandchildren.length>0&&/*#__PURE__*/React.createElement("ul",{style:{margin:'4px 0 0',paddingRight:18,fontSize:9,listStyle:'none'}},c.grandchildren.map(gc=>/*#__PURE__*/React.createElement("li",{key:gc.id},gc.number,'  ',gc.topic)))),
-/*#__PURE__*/React.createElement("td",null,assigneeLabel(c.item.assignee)),
-/*#__PURE__*/React.createElement("td",null,fmtDateNumeric(c.item.startDate)),
-/*#__PURE__*/React.createElement("td",null,fmtDateNumeric(c.item.dueDate))));
+/*#__PURE__*/React.createElement("td",null,c.item.topic,grandchildList(c)),
+...childInfoCells(c)));
 }))),
 createItemFor&&/*#__PURE__*/React.createElement(CreateItemDialog,{data:data,save:save,item:items.find(it=>it.id===createItemFor),onClose:()=>setCreateItemFor(null),onCreate:(sheetId,groupId,title)=>{updateItem(createItemFor,{createdTaskTrackId:sheetId});setCreateItemFor(null);}}),
 /*#__PURE__*/React.createElement("div",{className:"meeting-print-hide",style:{display:'flex',gap:8,marginTop:12}},
