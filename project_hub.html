@@ -864,7 +864,41 @@ const a=sortList2.filter(s=>s.column!==sortField);setSortState(a.length?a:null);
 /* Assumes items are already ordered parent-then-children (as addRow/addSubRow produce)
    and that top-level `number` values are unique — an out-of-order or duplicate number
    silently lands its item in the wrong/an orphan group rather than throwing. */
-function buildPrintGroups(items){const groups=[];let current=null;items.forEach(it=>{const isChild=it.number.includes('.');if(isChild){const prefix=it.number.split('.')[0];if(current&&current.number===prefix){current.children.push(it);}else{groups.push({key:it.id,number:null,header:null,children:[it]});}}else{current={key:it.id,number:it.number,header:it,children:[]};groups.push(current);}});return groups;}
+const DISCIPLINE_FULL_NAMES={ARCH:'אדריכל',STRC:'קונסטרוקטור',ELEC:'חשמל',ENVI:'סביבה',LAND:'נוף',TRAF:'תנועה',PM:'ניהול פרויקט',SAFE:'בטיחות',HVAC:'מיזוג אוויר',PLUM:'אינסטלציה',HYDR:'ניקוז',ACSS:'נגישות',GR:'קרקע',LIFT:'מעליות',TNDR:'מכרזים',AGRO:'אגרונומיה'};
+const fmtDateNumeric=iso=>iso?iso.split('-').reverse().join('.'):'-';
+function buildPrintGroups(items){
+const groups=[];
+let currentParent=null;
+let currentChild=null;
+items.forEach(it=>{
+const segs=it.number.split('.');
+if(segs.length===1){
+currentParent={key:it.id,number:it.number,header:it,children:[]};
+groups.push(currentParent);
+currentChild=null;
+}else if(segs.length===2){
+const prefix=segs[0];
+const child={item:it,grandchildren:[]};
+if(currentParent&&currentParent.number===prefix){
+currentParent.children.push(child);
+}else{
+currentParent={key:it.id,number:null,header:null,children:[child]};
+groups.push(currentParent);
+}
+currentChild=child;
+}else{
+const prefix=segs.slice(0,2).join('.');
+if(currentChild&&currentChild.item.number===prefix){
+currentChild.grandchildren.push(it);
+}else{
+const standalone={item:it,grandchildren:[]};
+groups.push({key:it.id,number:null,header:null,children:[standalone]});
+currentChild=standalone;
+}
+}
+});
+return groups;
+}
 function MeetingItemsTable({data,save,meeting,onChange}){
 const items=meeting.items||[];
 const disciplines=data.disciplines||DISCIPLINES;
@@ -872,27 +906,31 @@ const[createItemFor,setCreateItemFor]=useState(null);
 const[openMenuId,setOpenMenuId]=useState(null);
 useEffect(()=>{if(!openMenuId)return;const h=e=>{setOpenMenuId(null);};document.addEventListener('click',h);return()=>document.removeEventListener('click',h);},[openMenuId]);
 const ITEM_TYPES=[{id:'task',label:'משימה'},{id:'subtask',label:'תת-משימה'},{id:'update',label:'עדכון'},{id:'principle',label:'עקרון תכנון'},{id:'milestone',label:'אבן דרך'},{id:'goal',label:'יעד'}];
-const addRow=()=>{const last=items[items.length-1];const n=last?String(parseInt(last.number||'0')+1):'1';onChange([...items,{id:uid(),number:n,topic:'',assignee:null,dueDate:'',itemType:null,createdTaskTrackId:null}]);};
-const addSubRow=()=>{const last=items[items.length-1];const base=last?(last.number||'1').split('.')[0]:'1';const existing=items.filter(it=>it.number.startsWith(base+'.')&&it.number.split('.').length===2);const sub=existing.length+1;onChange([...items,{id:uid(),number:base+'.'+sub,topic:'',assignee:null,dueDate:'',itemType:null,createdTaskTrackId:null}]);};
+const addRow=()=>{const last=items[items.length-1];const n=last?String(parseInt(last.number||'0')+1):'1';onChange([...items,{id:uid(),number:n,topic:'',assignee:null,startDate:'',dueDate:'',itemType:null,createdTaskTrackId:null}]);};
+const addSubRow=()=>{const last=items[items.length-1];const base=last?(last.number||'1').split('.')[0]:'1';const existing=items.filter(it=>it.number.startsWith(base+'.')&&it.number.split('.').length===2);const sub=existing.length+1;onChange([...items,{id:uid(),number:base+'.'+sub,topic:'',assignee:null,startDate:'',dueDate:'',itemType:null,createdTaskTrackId:null}]);};
+const lastNum=items.length?items[items.length-1].number:'';
+const lastSegs=lastNum.split('.');
+const subSubBase=lastSegs.length>=2?lastSegs.slice(0,2).join('.'):null;
+const addSubSubRow=()=>{if(!subSubBase)return;const existing=items.filter(it=>it.number.startsWith(subSubBase+'.')&&it.number.split('.').length===3);const sub=existing.length+1;onChange([...items,{id:uid(),number:subSubBase+'.'+sub,topic:'',assignee:null,startDate:'',dueDate:'',itemType:null,createdTaskTrackId:null}]);};
 const updateItem=(id,patch)=>onChange(items.map(it=>it.id===id?{...it,...patch}:it));
 const deleteItem=id=>{if(id===createItemFor)setCreateItemFor(null);onChange(items.filter(it=>it.id!==id));};
 const discOptions=[{id:'',label:'—'},...disciplines.map(d=>({id:d.id,label:d.label})),{id:'לידיעה',label:'לידיעה'}];
 const thStyle={textAlign:'right',padding:'6px 8px',color:'var(--text-2)',fontWeight:600,borderBottom:'2px solid var(--border)'};
 const printGroups=buildPrintGroups(items);
-const assigneeLabel=id=>id?(discOptions.find(o=>o.id===id)||{}).label||id:'';
+const assigneeLabel=id=>id?(DISCIPLINE_FULL_NAMES[id]||(discOptions.find(o=>o.id===id)||{}).label||id):'';
 return/*#__PURE__*/React.createElement("div",{style:{marginTop:24}},
 /*#__PURE__*/React.createElement("table",{className:"meeting-print-hide",style:{width:'100%',borderCollapse:'collapse',fontSize:12,direction:'rtl'}},
 /*#__PURE__*/React.createElement("thead",null,/*#__PURE__*/React.createElement("tr",null,
 /*#__PURE__*/React.createElement("th",{style:{...thStyle,width:50}},"מס'"),
 /*#__PURE__*/React.createElement("th",{style:thStyle},"נושא"),
 /*#__PURE__*/React.createElement("th",{style:{...thStyle,width:100}},"לטיפול"),
-/*#__PURE__*/React.createElement("th",{style:{...thStyle,width:105}},"תאריך יעד"),
+/*#__PURE__*/React.createElement("th",{style:{...thStyle,width:160}},"תאריכים"),
 /*#__PURE__*/React.createElement("th",{style:{width:60,borderBottom:'2px solid var(--border)'}}))),
 /*#__PURE__*/React.createElement("tbody",null,items.map((item,idx)=>/*#__PURE__*/React.createElement("tr",{key:item.id,style:{borderBottom:'1px solid var(--border)',background:idx%2===0?'transparent':'rgba(0,0,0,.015)'}},
 /*#__PURE__*/React.createElement("td",{style:{padding:'5px 8px',verticalAlign:'top'}},/*#__PURE__*/React.createElement("input",{value:item.number,onChange:e=>updateItem(item.id,{number:e.target.value}),style:{width:'100%',border:'none',outline:'none',background:'transparent',fontFamily:'inherit',fontSize:12,fontWeight:item.number.includes('.')?400:600,color:'var(--text)',direction:'rtl'}})),
 /*#__PURE__*/React.createElement("td",{style:{padding:'5px 8px',verticalAlign:'top'}},/*#__PURE__*/React.createElement("textarea",{value:item.topic,onChange:e=>updateItem(item.id,{topic:e.target.value}),rows:1,style:{width:'100%',border:'none',outline:'none',background:'transparent',fontFamily:'inherit',fontSize:12,color:'var(--text)',resize:'none',direction:'rtl',lineHeight:1.5,minHeight:22,overflow:'hidden',boxSizing:'border-box'},onInput:e=>{e.target.style.height='auto';e.target.style.height=e.target.scrollHeight+'px';}})),
 /*#__PURE__*/React.createElement("td",{style:{padding:'5px 8px',verticalAlign:'top'}},/*#__PURE__*/React.createElement("select",{value:item.assignee||'',onChange:e=>updateItem(item.id,{assignee:e.target.value||null}),style:{fontSize:11,border:'1px solid var(--border)',borderRadius:4,padding:'2px 4px',background:'var(--surface)',color:'var(--text)',fontFamily:'inherit',width:'100%'}},discOptions.map(o=>/*#__PURE__*/React.createElement("option",{key:o.id,value:o.id},o.label)))),
-/*#__PURE__*/React.createElement("td",{style:{padding:'5px 8px',verticalAlign:'top'}},/*#__PURE__*/React.createElement("input",{type:"date",value:item.dueDate||'',onChange:e=>updateItem(item.id,{dueDate:e.target.value}),style:{fontSize:11,border:'1px solid var(--border)',borderRadius:4,padding:'2px 4px',background:'var(--surface)',fontFamily:'inherit',color:'var(--text)',width:'100%'}})),
+/*#__PURE__*/React.createElement(DateRangeCell,{startDate:item.startDate||'',dueDate:item.dueDate||'',onChange:(f,v)=>updateItem(item.id,{[f]:v})}),
 /*#__PURE__*/React.createElement("td",{style:{padding:'5px 4px',verticalAlign:'top'}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:2,alignItems:'center'}},
 /*#__PURE__*/React.createElement("button",{onClick:()=>deleteItem(item.id),style:{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',fontSize:13,padding:'2px 4px',borderRadius:3},onMouseEnter:e=>e.currentTarget.style.color='#EF4444',onMouseLeave:e=>e.currentTarget.style.color='var(--text-3)'},'✕'),
 /*#__PURE__*/React.createElement("div",{style:{position:'relative'}},
@@ -900,12 +938,13 @@ return/*#__PURE__*/React.createElement("div",{style:{marginTop:24}},
 /*#__PURE__*/React.createElement("div",{style:{display:openMenuId===item.id?'block':'none',position:'absolute',top:'calc(100% + 2px)',left:0,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:6,boxShadow:'0 4px 12px rgba(0,0,0,.12)',zIndex:300,minWidth:120}},
 ITEM_TYPES.map(type=>/*#__PURE__*/React.createElement("div",{key:type.id,onClick:e=>{e.stopPropagation();updateItem(item.id,{itemType:type.id});setOpenMenuId(null);setCreateItemFor(item.id);},style:{padding:'7px 12px',cursor:'pointer',fontSize:12,color:'var(--text)'},onMouseEnter:e=>e.currentTarget.style.background='var(--bg)',onMouseLeave:e=>e.currentTarget.style.background=''},type.label)),
 /*#__PURE__*/React.createElement("div",{onClick:e=>{e.stopPropagation();updateItem(item.id,{itemType:null,createdTaskTrackId:null});setOpenMenuId(null);},style:{padding:'7px 12px',cursor:'pointer',fontSize:12,color:'var(--text-3)',borderTop:'1px solid var(--border)'},onMouseEnter:e=>e.currentTarget.style.background='var(--bg)',onMouseLeave:e=>e.currentTarget.style.background=''},'נקה'))))))))),
-/*#__PURE__*/React.createElement("table",{className:"meeting-print-table",style:{fontSize:11}},
+/*#__PURE__*/React.createElement("table",{className:"meeting-print-table",style:{fontSize:10}},
 /*#__PURE__*/React.createElement("thead",null,/*#__PURE__*/React.createElement("tr",null,
-/*#__PURE__*/React.createElement("th",{style:{width:36}},"מס'"),
+/*#__PURE__*/React.createElement("th",{style:{width:32}},"מס'"),
 /*#__PURE__*/React.createElement("th",null,"הנושא"),
-/*#__PURE__*/React.createElement("th",{style:{width:90}},"לטיפול"),
-/*#__PURE__*/React.createElement("th",{style:{width:90}},"תאריך יעד"))),
+/*#__PURE__*/React.createElement("th",{style:{width:80}},"לטיפול"),
+/*#__PURE__*/React.createElement("th",{style:{width:75}},"תאריך התחלה"),
+/*#__PURE__*/React.createElement("th",{style:{width:75}},"תאריך יעד"))),
 /*#__PURE__*/React.createElement("tbody",null,printGroups.map(g=>{
 if(g.header&&g.children.length>0){
 return/*#__PURE__*/React.createElement(React.Fragment,{key:g.key},
@@ -913,29 +952,34 @@ return/*#__PURE__*/React.createElement(React.Fragment,{key:g.key},
 /*#__PURE__*/React.createElement("td",{rowSpan:1+g.children.length,style:{textAlign:'center',verticalAlign:'top'}},g.number),
 /*#__PURE__*/React.createElement("td",{className:"meeting-print-group-header"},g.header.topic),
 /*#__PURE__*/React.createElement("td",null),
+/*#__PURE__*/React.createElement("td",null),
 /*#__PURE__*/React.createElement("td",null)),
-g.children.map(child=>/*#__PURE__*/React.createElement("tr",{key:child.id},
-/*#__PURE__*/React.createElement("td",null,child.topic),
-/*#__PURE__*/React.createElement("td",null,assigneeLabel(child.assignee)),
-/*#__PURE__*/React.createElement("td",null,child.dueDate?fmtDate(child.dueDate):''))));
+g.children.map(c=>/*#__PURE__*/React.createElement("tr",{key:c.item.id},
+/*#__PURE__*/React.createElement("td",{style:{paddingRight:16}},c.item.number,'  ',c.item.topic,c.grandchildren.length>0&&/*#__PURE__*/React.createElement("ul",{style:{margin:'4px 0 0',paddingRight:18,fontSize:9,listStyle:'none'}},c.grandchildren.map(gc=>/*#__PURE__*/React.createElement("li",{key:gc.id},gc.number,'  ',gc.topic)))),
+/*#__PURE__*/React.createElement("td",null,assigneeLabel(c.item.assignee)),
+/*#__PURE__*/React.createElement("td",null,fmtDateNumeric(c.item.startDate)),
+/*#__PURE__*/React.createElement("td",null,fmtDateNumeric(c.item.dueDate)))));
 }
 if(g.header&&g.children.length===0){
 return/*#__PURE__*/React.createElement("tr",{key:g.key},
 /*#__PURE__*/React.createElement("td",{style:{textAlign:'center'}},g.number),
 /*#__PURE__*/React.createElement("td",null,g.header.topic),
 /*#__PURE__*/React.createElement("td",null,assigneeLabel(g.header.assignee)),
-/*#__PURE__*/React.createElement("td",null,g.header.dueDate?fmtDate(g.header.dueDate):''));
+/*#__PURE__*/React.createElement("td",null,fmtDateNumeric(g.header.startDate)),
+/*#__PURE__*/React.createElement("td",null,fmtDateNumeric(g.header.dueDate)));
 }
-return g.children.map(child=>/*#__PURE__*/React.createElement("tr",{key:child.id},
-/*#__PURE__*/React.createElement("td",{style:{textAlign:'center'}},child.number),
-/*#__PURE__*/React.createElement("td",null,child.topic),
-/*#__PURE__*/React.createElement("td",null,assigneeLabel(child.assignee)),
-/*#__PURE__*/React.createElement("td",null,child.dueDate?fmtDate(child.dueDate):'')));
+return g.children.map(c=>/*#__PURE__*/React.createElement("tr",{key:c.item.id},
+/*#__PURE__*/React.createElement("td",{style:{textAlign:'center'}},c.item.number),
+/*#__PURE__*/React.createElement("td",null,c.item.topic,c.grandchildren.length>0&&/*#__PURE__*/React.createElement("ul",{style:{margin:'4px 0 0',paddingRight:18,fontSize:9,listStyle:'none'}},c.grandchildren.map(gc=>/*#__PURE__*/React.createElement("li",{key:gc.id},gc.number,'  ',gc.topic)))),
+/*#__PURE__*/React.createElement("td",null,assigneeLabel(c.item.assignee)),
+/*#__PURE__*/React.createElement("td",null,fmtDateNumeric(c.item.startDate)),
+/*#__PURE__*/React.createElement("td",null,fmtDateNumeric(c.item.dueDate))));
 }))),
 createItemFor&&/*#__PURE__*/React.createElement(CreateItemDialog,{data:data,save:save,item:items.find(it=>it.id===createItemFor),onClose:()=>setCreateItemFor(null),onCreate:(sheetId,groupId,title)=>{updateItem(createItemFor,{createdTaskTrackId:sheetId});setCreateItemFor(null);}}),
 /*#__PURE__*/React.createElement("div",{className:"meeting-print-hide",style:{display:'flex',gap:8,marginTop:12}},
 /*#__PURE__*/React.createElement("button",{onClick:addRow,style:{fontSize:12,padding:'5px 12px',borderRadius:6,border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text-2)',cursor:'pointer',fontFamily:'inherit'}},'+ שורה'),
-/*#__PURE__*/React.createElement("button",{onClick:addSubRow,disabled:items.length===0,style:{fontSize:12,padding:'5px 12px',borderRadius:6,border:'1px solid var(--border)',background:'var(--surface)',color:items.length===0?'var(--text-3)':'var(--text-2)',cursor:items.length===0?'not-allowed':'pointer',fontFamily:'inherit'}},'+ תת-שורה')));}
+/*#__PURE__*/React.createElement("button",{onClick:addSubRow,disabled:items.length===0,style:{fontSize:12,padding:'5px 12px',borderRadius:6,border:'1px solid var(--border)',background:'var(--surface)',color:items.length===0?'var(--text-3)':'var(--text-2)',cursor:items.length===0?'not-allowed':'pointer',fontFamily:'inherit'}},'+ תת-שורה'),
+/*#__PURE__*/React.createElement("button",{onClick:addSubSubRow,disabled:!subSubBase,style:{fontSize:12,padding:'5px 12px',borderRadius:6,border:'1px solid var(--border)',background:'var(--surface)',color:!subSubBase?'var(--text-3)':'var(--text-2)',cursor:!subSubBase?'not-allowed':'pointer',fontFamily:'inherit'}},'+ תת תת שורה')));}
 function MeetingEditor({data,save,meeting,onBack,onSave}){
 const[m,setM]=useState(meeting);
 const update=patch=>{const next={...m,...patch};setM(next);};
