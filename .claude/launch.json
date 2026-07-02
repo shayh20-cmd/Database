@@ -3,21 +3,21 @@
   "configurations": [
     {
       "name": "planning-dashboard",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["serve", "C:\\Users\\Omega\\Database", "--listen", "3400", "--no-clipboard"],
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:\\Users\\Omega\\Database\\tools\\local-server\\server.js", "C:\\Users\\Omega\\Database", "--port", "3400"],
       "port": 3400
     },
     {
       "name": "project-hub",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["serve", "C:\\Users\\Omega\\Database", "--no-clipboard"],
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:\\Users\\Omega\\Database\\tools\\local-server\\server.js", "C:\\Users\\Omega\\Database"],
       "port": 3403,
       "autoPort": true
     },
     {
       "name": "project-hub-worktree",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["serve", "C:\\Users\\Omega\\Database\\.claude\\worktrees\\sidebar-flat-restructure", "--listen", "3402", "--no-clipboard"],
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:\\Users\\Omega\\Database\\tools\\local-server\\server.js", "C:\\Users\\Omega\\Database\\.claude\\worktrees\\sidebar-flat-restructure", "--port", "3402"],
       "port": 3402
     }
   ]
