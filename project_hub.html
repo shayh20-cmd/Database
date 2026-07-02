@@ -921,7 +921,8 @@ const discOptions=[{id:'',label:'—'},...disciplines.map(d=>({id:d.id,label:d.l
 const thStyle={textAlign:'right',padding:'6px 8px',color:'var(--text-2)',fontWeight:600,borderBottom:'2px solid var(--border)'};
 const printGroups=buildPrintGroups(items);
 const assigneeLabel=id=>id?(DISCIPLINE_FULL_NAMES[id]||(discOptions.find(o=>o.id===id)||{}).label||id):'';
-const grandchildList=c=>c.grandchildren.length>0&&/*#__PURE__*/React.createElement("ul",{style:{margin:'4px 0 0',paddingRight:18,listStyle:'none'}},c.grandchildren.map(gc=>/*#__PURE__*/React.createElement("li",{key:gc.id},gc.number,'  ',gc.topic)));
+const grandchildDates=gc=>{const s=gc.startDate?fmtDateNumeric(gc.startDate):'';const d=gc.dueDate?fmtDateNumeric(gc.dueDate):'';if(!s&&!d)return '';if(s&&d)return ` (${s}–${d})`;return ` (${s||d})`;};
+const grandchildList=c=>c.grandchildren.length>0&&/*#__PURE__*/React.createElement("ul",{style:{margin:'4px 0 0',paddingRight:18,listStyle:'none'}},c.grandchildren.map(gc=>/*#__PURE__*/React.createElement("li",{key:gc.id},gc.number,'  ',gc.topic,grandchildDates(gc))));
 const childInfoCells=c=>[/*#__PURE__*/React.createElement("td",{key:'a'},assigneeLabel(c.item.assignee)),/*#__PURE__*/React.createElement("td",{key:'s'},fmtDateNumeric(c.item.startDate)),/*#__PURE__*/React.createElement("td",{key:'d'},fmtDateNumeric(c.item.dueDate))];
 return/*#__PURE__*/React.createElement("div",{style:{marginTop:24}},
 /*#__PURE__*/React.createElement("table",{className:"meeting-print-hide",style:{width:'100%',borderCollapse:'collapse',fontSize:12,direction:'rtl'}},
