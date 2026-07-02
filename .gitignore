@@ -1,2 +1,4 @@
 .superpowers/
 .worktrees/
+data/
+tools/local-server/node_modules/
