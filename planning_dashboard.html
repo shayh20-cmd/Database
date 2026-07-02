@@ -1,0 +1,5753 @@
+﻿<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ניהול סטטוס תכנון</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+<style>
+  :root {
+    --bg: #FFFFFF;
+    --surface: #FFFFFF;
+    --surface-2: #F1F2F8;
+    --border: #E6E9EF;
+    --border-strong: #C3C6D4;
+    --text: #323338;
+    --text-secondary: #676879;
+    --text-tertiary: #9699A6;
+    --accent: #0086c0;
+    --accent-hover: #006699;
+
+    /* missing — Red #e2445c */
+    --st-missing-bg:     #F295A1;
+    --st-missing-text:   #7A0E22;
+    --st-missing-border: #C0203A;
+    /* progress — Dark Blue #0086c0 */
+    --st-progress-bg:     #A8D8EE;
+    --st-progress-text:   #004E78;
+    --st-progress-border: #0086c0;
+    /* sent — Purple #a25ddc */
+    --st-sent-bg:     #D8BFEE;
+    --st-sent-text:   #5C1A9A;
+    --st-sent-border: #a25ddc;
+    /* comments — Orange #fdab3d */
+    --st-comments-bg:     #FDD08A;
+    --st-comments-text:   #7A4000;
+    --st-comments-border: #fdab3d;
+    /* response — Egg Yolk #FFCB00 */
+    --st-response-bg:     #FFE566;
+    --st-response-text:   #6B4E00;
+    --st-response-border: #FFCB00;
+    /* approved — Done Green #00CA72 */
+    --st-approved-bg:     #66D9A8;
+    --st-approved-text:   #004D30;
+    --st-approved-border: #00CA72;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: 'Heebo', system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; -webkit-font-smoothing: antialiased; min-height: 100vh; }
+  .mono { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+
+  /* ── Buttons ── */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; font-size: 13px; font-weight: 500; background: var(--surface); color: var(--text); border: 1.5px solid var(--border-strong); border-radius: 8px; cursor: pointer; transition: all 0.15s ease; font-family: inherit; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .btn:hover { background: var(--surface-2); box-shadow: 0 3px 10px rgba(0,0,0,0.1); transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .btn-primary { background: var(--accent); color: white; border-color: var(--accent); box-shadow: 0 2px 10px rgba(0,115,234,0.35); }
+  .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); box-shadow: 0 4px 18px rgba(0,115,234,0.45); }
+  .btn-danger { color: #C2274B; border-color: #F9B3C0; }
+  .btn-danger:hover { background: #FFE9EC; box-shadow: none; transform: none; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn-icon { padding: 6px; box-shadow: none; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* ── Inputs ── */
+  .input, .select, .textarea { width: 100%; padding: 8px 12px; font-size: 13px; background: var(--surface); border: 1.5px solid var(--border); border-radius: 8px; font-family: inherit; color: var(--text); transition: border-color 0.15s, box-shadow 0.15s; }
+  .input:hover, .select:hover, .textarea:hover { border-color: var(--border-strong); }
+  .input:focus, .select:focus, .textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,115,234,0.15); }
+  .textarea { resize: vertical; min-height: 60px; }
+  .select { padding-left: 32px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239699A6' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: left 10px center; appearance: none; }
+
+  .label { display: block; font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  /* ── Status Cells ── */
+  .cell-status { text-align: center; cursor: pointer; padding: 5px 3px; border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); transition: all 0.15s ease; position: relative; min-width: 62px; }
+  .cell-status:hover { filter: brightness(0.9); transform: scale(1.05); z-index: 2; box-shadow: 0 3px 12px rgba(0,0,0,0.15); border-radius: 4px; }
+  .cell-status .symbol { font-weight: 700; font-size: 13px; line-height: 1; }
+  .cell-status .date { font-size: 9px; opacity: 0.75; margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+  .cell-status .round-badge { position: absolute; top: 2px; right: 3px; font-size: 8px; font-family: 'JetBrains Mono', monospace; font-weight: 700; background: rgba(0,0,0,0.1); border-radius: 3px; padding: 0 3px; line-height: 14px; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+
+  /* ── Modal ── */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(50,51,56,0.55); backdrop-filter: blur(5px); display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px 16px; z-index: 50; animation: fadeIn 0.18s ease-out; }
+  .modal-panel { background: var(--surface); border-radius: 16px; width: 100%; max-width: 720px; max-height: calc(100vh - 80px); overflow-y: auto; box-shadow: 0 24px 64px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08); animation: slideUp 0.24s cubic-bezier(0.34,1.16,0.64,1); }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(24px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+  /* ── Tabs ── */
+  .tab { padding: 10px 18px; font-size: 13px; font-weight: 500; background: transparent; border: none; border-bottom: 2px solid transparent; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; font-family: inherit; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+  /* ── KPI Cards ── */
+  .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; position: relative; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+  .kpi-card:hover { box-shadow: 0 6px 24px rgba(0,0,0,0.1); transform: translateY(-3px); }
+  .kpi-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.7; }
+  .kpi-value { font-size: 28px; font-weight: 800; margin-top: 4px; font-family: 'JetBrains Mono', monospace; line-height: 1.1; letter-spacing: -0.5px; }
+  .kpi-pct { font-size: 12px; margin-right: 5px; font-family: 'JetBrains Mono', monospace; font-weight: 400; }
+  .kpi-delete { position: absolute; top: 8px; left: 8px; padding: 4px 5px; opacity: 0; transition: opacity 0.15s; background: rgba(0,0,0,0.07); border: none; cursor: pointer; color: var(--text-tertiary); border-radius: 6px; }
+  .kpi-delete:hover { background: rgba(194,39,75,0.12); color: #C2274B; }
+  .kpi-card:hover .kpi-delete { opacity: 1; }
+
+  /* ── Toast ── */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #323338; color: white; padding: 12px 22px; border-radius: 12px; font-size: 13px; font-weight: 500; z-index: 100; box-shadow: 0 8px 28px rgba(0,0,0,0.22); animation: toastIn 0.24s cubic-bezier(0.34,1.16,0.64,1); }
+  @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 18px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+  /* ── Timeline ── */
+  .timeline { position: relative; padding-right: 28px; }
+  .timeline-line { position: absolute; right: 9px; top: 6px; bottom: 6px; width: 2px; background: var(--border); border-radius: 2px; }
+  .timeline-event { position: relative; padding-bottom: 8px; }
+  .timeline-event:last-child { padding-bottom: 0; }
+  .timeline-dot { position: absolute; right: -23px; top: 4px; width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--surface); box-shadow: 0 0 0 2px var(--border-strong); }
+
+  /* ── Main Table ── */
+  .main-table { border-collapse: separate; border-spacing: 0; }
+  .main-table th, .main-table td { border-bottom: 1px solid var(--border); border-left: 1px solid var(--border); }
+  .main-table th:last-child, .main-table td:last-child { border-left: none; }
+  .main-table thead th { background: var(--surface-2); font-weight: 700; color: var(--text-secondary); font-size: 11px; padding: 8px 4px; position: sticky; top: 0; z-index: 2; letter-spacing: 0.03em; }
+  .main-table tbody tr { transition: background 0.1s; }
+  .main-table tbody tr:hover td { background-color: #EEF3FF; }
+  .main-table tbody td.row-label { background: var(--surface-2); font-weight: 600; padding: 10px 12px; font-size: 12px; position: sticky; right: 0; z-index: 1; border-right: 3px solid var(--accent); }
+  .main-table tbody tr:hover td.row-label { background: #E8EFFF; }
+  .main-table .group-header { font-size: 11px; font-weight: 700; padding: 8px 8px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); background: var(--bg); border-bottom: 2px solid var(--border); }
+
+  /* ── Drag ── */
+  .drag-handle { cursor: grab; color: var(--text-tertiary); user-select: none; padding: 4px; }
+  .drag-handle:active { cursor: grabbing; }
+  .drag-row { transition: background 0.12s; }
+  .drag-row.dragging { opacity: 0.4; }
+  .drag-row.drag-over { background: #EEF3FF; outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+
+  /* ── Layout ── */
+  .empty-state { text-align: center; padding: 48px 20px; color: var(--text-secondary); }
+  .app-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 13px 24px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); position: sticky; top: 0; z-index: 10; }
+  .brand-mark { width: 36px; height: 36px; background: var(--accent); color: white; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; font-family: 'JetBrains Mono', monospace; box-shadow: 0 3px 10px rgba(0,115,234,0.35); }
+  .section-title { font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.07em; }
+  .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; user-select: none; }
+  .checkbox-row input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); }
+
+  /* ── Sidebar Panel ── */
+  .sidebar-overlay { position: fixed; inset: 0; z-index: 50; animation: fadeIn 0.18s ease-out; pointer-events: none; }
+  .sidebar-panel { position: fixed; top: 0; left: 0; bottom: 0; width: 480px; max-width: 92vw; background: var(--surface); box-shadow: 8px 0 48px rgba(0,0,0,0.18); display: flex; flex-direction: column; overflow: hidden; animation: slideInSidebar 0.28s cubic-bezier(0.34,1.08,0.64,1); pointer-events: all; border-left: none; border-right: 1px solid var(--border); transition: width 0.1s ease-out; }
+  .sidebar-resize-handle { position: absolute; top: 0; right: 0; bottom: 0; width: 6px; cursor: ew-resize; background: transparent; z-index: 100; transition: background 0.15s; }
+  .sidebar-resize-handle:hover { background: var(--accent); }
+  @keyframes slideInSidebar { from { transform: translateX(-100%); opacity: 0.6; } to { transform: translateX(0); opacity: 1; } }
+  .sidebar-header { padding: 18px 20px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--surface); }
+  .sidebar-body { flex: 1; overflow-y: auto; padding: 18px 20px; }
+  .sidebar-context-tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 20px; font-size: 11px; color: var(--text-secondary); font-weight: 500; }
+  .timeline-gap { display: flex; align-items: center; gap: 8px; margin: 4px 0; color: var(--text-tertiary); font-size: 11px; font-family: 'JetBrains Mono', monospace; padding-right: 0; }
+  .timeline-gap::before, .timeline-gap::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .timeline-event-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
+  .timeline-event-card:hover { border-color: var(--accent); box-shadow: 0 2px 10px rgba(0,115,234,0.12); }
+
+  /* ── Timeline Arrow ── */
+  .timeline-arrow { display: flex; align-items: center; justify-content: center; height: 16px; margin: -8px 0 0 0; position: relative; right: 11px; }
+  .timeline-arrow svg { width: 14px; height: 14px; color: var(--border-strong); }
+
+  /* ── GANTT View ── */
+  .gantt-container { display: flex; flex-direction: column; gap: 12px; }
+  .gantt-header-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .gantt-tab { padding: 6px 14px; font-size: 12px; font-weight: 500; background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+  .gantt-tab:hover { background: var(--surface-2); border-color: var(--accent); }
+  .gantt-tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+  .gantt-wrapper { position: relative; display: flex; flex-direction: column; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; overflow-x: auto; }
+  .gantt-grid { display: grid; gap: 0; position: relative; min-width: max-content; }
+  .gantt-header-row { display: contents; }
+  .gantt-column { background: var(--surface-2); border-right: 1px solid var(--border); padding: 8px 4px; text-align: center; font-size: 10px; font-weight: 600; color: var(--text-secondary); min-width: 20px; }
+  .gantt-column:last-child { border-right: none; }
+
+  .gantt-event-row { display: contents; }
+  .gantt-cell { position: relative; min-height: 32px; border-right: 1px solid var(--border); padding: 4px; }
+  .gantt-cell:last-child { border-right: none; }
+
+  .gantt-event-bar { position: absolute; height: 26px; border-radius: 6px; cursor: pointer; transition: box-shadow 0.15s; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 500; color: white; text-overflow: ellipsis; white-space: nowrap; overflow: visible; top: 3px; }
+  .gantt-event-bar:hover { filter: brightness(1.1); box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+  .gantt-event-bar.dragging { filter: brightness(1.12); box-shadow: 0 4px 16px rgba(0,0,0,0.25); transition: none; }
+
+  .gantt-bar-edge { position: absolute; width: 12px; height: 100%; top: 0; cursor: ew-resize; background: transparent; z-index: 20; }
+  .gantt-bar-edge:hover { background: rgba(255,255,255,0.4); }
+
+  .gantt-no-events { padding: 32px 12px; text-align: center; color: var(--text-secondary); font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+const {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback
+} = React;
+
+/* ============ קבועים ============ */
+const STATUSES = {
+  missing: {
+    id: 'missing',
+    label: 'חסר',
+    symbol: '—',
+    bg: 'var(--st-missing-bg)',
+    text: 'var(--st-missing-text)',
+    border: 'var(--st-missing-border)'
+  },
+  progress: {
+    id: 'progress',
+    label: 'בעבודה',
+    symbol: '●',
+    bg: 'var(--st-progress-bg)',
+    text: 'var(--st-progress-text)',
+    border: 'var(--st-progress-border)'
+  },
+  sent: {
+    id: 'sent',
+    label: 'נשלח',
+    symbol: '→',
+    bg: 'var(--st-sent-bg)',
+    text: 'var(--st-sent-text)',
+    border: 'var(--st-sent-border)'
+  },
+  comments: {
+    id: 'comments',
+    label: 'יש הערות',
+    symbol: '!',
+    bg: 'var(--st-comments-bg)',
+    text: 'var(--st-comments-text)',
+    border: 'var(--st-comments-border)'
+  },
+  response: {
+    id: 'response',
+    label: 'בהתייחסות',
+    symbol: '⤴',
+    bg: 'var(--st-response-bg)',
+    text: 'var(--st-response-text)',
+    border: 'var(--st-response-border)'
+  },
+  approved: {
+    id: 'approved',
+    label: 'מאושר',
+    symbol: '✓',
+    bg: 'var(--st-approved-bg)',
+    text: 'var(--st-approved-text)',
+    border: 'var(--st-approved-border)'
+  }
+};
+const STATUS_ORDER = ['missing', 'progress', 'sent', 'comments', 'response', 'approved'];
+
+// ============ מודל מכונת מצבים ============
+// פרקי זמן — נמדדים בימים
+const PERIOD_STATUSES = new Set(['progress', 'response']);
+// נקודות מעבר — מיידיות, מייצרות סטטוס עוקב אוטומטית
+const MILESTONE_STATUSES = new Set(['sent', 'comments', 'approved']);
+
+// כל מיילסטון יוצר אוטומטית את הסטטוס הבא באותו תאריך
+const AUTO_FOLLOW = {
+  sent: {
+    status: 'response',
+    roundDelta: 0
+  },
+  // נשלח → בהתייחסות (אותו סבב)
+  comments: {
+    status: 'progress',
+    roundDelta: 1
+  } // יש הערות → בעבודה (סבב +1)
+  // approved: אין המשך
+};
+
+// הסטטוס המומלץ הבא לפי הסטטוס הנוכחי האחרון
+const getNextSuggestedStatus = lastStatus => ({
+  progress: 'sent',
+  sent: 'response',
+  // לא אמור להופיע (נוצר אוטומטית)
+  response: 'comments',
+  comments: 'progress',
+  // לא אמור להופיע (נוצר אוטומטית)
+  approved: 'progress' // מחזור חדש אחרי אישור (נדיר)
+})[lastStatus] ?? 'progress';
+const uid = () => Math.random().toString(36).slice(2, 11);
+const todayISO = () => new Date().toISOString().slice(0, 10);
+function makeInitialData() {
+  const consultants = [{
+    id: uid(),
+    discipline: 'אדריכלות',
+    company: 'קנפו כלמור אדריכלים'
+  }, {
+    id: uid(),
+    discipline: 'קונסטרוקציה',
+    company: 'י.שני מהנדסים'
+  }, {
+    id: uid(),
+    discipline: 'חשמל',
+    company: 'א.נ.ה הנדסת חשמל'
+  }, {
+    id: uid(),
+    discipline: 'אינסטלציה',
+    company: 'ש. גלבוע מהנדסים'
+  }, {
+    id: uid(),
+    discipline: 'מיזוג אוויר',
+    company: 'ש. גלבוע מהנדסים'
+  }, {
+    id: uid(),
+    discipline: 'תקשורת',
+    company: 'DCX'
+  }];
+  const docTypes = [{
+    id: uid(),
+    name: 'תכניות'
+  }, {
+    id: uid(),
+    name: 'כתב כמויות'
+  }, {
+    id: uid(),
+    name: 'מפרט'
+  }, {
+    id: uid(),
+    name: 'בקרה'
+  }];
+  const buildings = [{
+    id: uid(),
+    name: 'העמדה'
+  }, {
+    id: uid(),
+    name: 'בניין 1'
+  }, {
+    id: uid(),
+    name: 'בניין 2'
+  }, {
+    id: uid(),
+    name: 'בניין 3'
+  }];
+  return {
+    projectName: 'פרויקט חדש',
+    consultants,
+    docTypes,
+    buildings,
+    cells: {},
+    kpis: [{
+      id: 'k1',
+      name: 'מאושר',
+      filterStatus: ['approved'],
+      filterDocTypes: []
+    }, {
+      id: 'k2',
+      name: 'יש הערות',
+      filterStatus: ['comments'],
+      filterDocTypes: []
+    }, {
+      id: 'k3',
+      name: 'בהתייחסות',
+      filterStatus: ['response'],
+      filterDocTypes: []
+    }, {
+      id: 'k4',
+      name: 'חסר',
+      filterStatus: ['missing'],
+      filterDocTypes: []
+    }],
+    view: {
+      rows: 'buildings',
+      cols: 'consultants_x_docs'
+    },
+    lastModified: new Date().toISOString()
+  };
+}
+const STORAGE_KEY = 'planning_dashboard_data_v4'; // שינוי גרסה → איפוס אוטומטי של נתוני דוגמה ישנים
+const cellKey = (bId, cId, dId) => `${bId}|${cId}|${dId}`;
+const getCell = (data, bId, cId, dId) => {
+  const cell = data.cells[cellKey(bId, cId, dId)] || {
+    status: 'missing',
+    events: []
+  };
+  if (cell.events.length === 0) return cell;
+  // תמיד גזור סטטוס מהאירוע הכי עדכני (לפי תאריך ואז createdAt)
+  const latestEvent = [...cell.events].sort((a, b) => {
+    if (a.date !== b.date) return b.date.localeCompare(a.date);
+    return (b.createdAt || '').localeCompare(a.createdAt || '');
+  })[0];
+  return {
+    ...cell,
+    status: latestEvent.status
+  };
+};
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      const initialData = makeInitialData();
+      return populateWithSampleData(initialData);
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed.consultants || !parsed.docTypes || !parsed.buildings) {
+      const initialData = makeInitialData();
+      return populateWithSampleData(initialData);
+    }
+    if (!parsed.kpis) parsed.kpis = makeInitialData().kpis;
+    if (!parsed.view) parsed.view = {
+      rows: 'buildings',
+      cols: 'consultants_x_docs'
+    };
+    if (!parsed.cells) parsed.cells = {};
+    return parsed;
+  } catch (e) {
+    const initialData = makeInitialData();
+    return populateWithSampleData(initialData);
+  }
+}
+function saveData(data) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      ...data,
+      lastModified: new Date().toISOString()
+    }));
+  } catch (e) {
+    console.error('Save failed', e);
+  }
+}
+
+// Calculate dependent events: cascade date changes through dependency chains
+const recalculateDependents = (events, changedEventId) => {
+  const eventMap = Object.fromEntries(events.map(e => [e.id, {
+    ...e
+  }]));
+  const updateDependents = eventId => {
+    const event = eventMap[eventId];
+    if (!event) return;
+
+    // Find all events that depend on this one
+    events.forEach(e => {
+      if (e.dependsOn === eventId) {
+        const newStartDate = new Date(event.endDate);
+        newStartDate.setDate(newStartDate.getDate() + 1);
+        const newStartDateStr = newStartDate.toISOString().slice(0, 10);
+        eventMap[e.id].date = newStartDateStr;
+        // Recursively update dependents of this event
+        updateDependents(e.id);
+      }
+    });
+  };
+  updateDependents(changedEventId);
+  return Object.values(eventMap);
+};
+
+// Check for circular dependencies
+const validateDependencyChain = events => {
+  const visited = new Set();
+  const visiting = new Set();
+  const hasCycle = eventId => {
+    if (visiting.has(eventId)) return true;
+    if (visited.has(eventId)) return false;
+    visiting.add(eventId);
+    const event = events.find(e => e.id === eventId);
+    if (event && event.dependsOn) {
+      if (hasCycle(event.dependsOn)) return true;
+    }
+    visiting.delete(eventId);
+    visited.add(eventId);
+    return false;
+  };
+  for (const event of events) {
+    if (!visited.has(event.id) && hasCycle(event.id)) {
+      return false;
+    }
+  }
+  return true;
+};
+
+// ============ נתוני דוגמה לפי מכונת המצבים ============
+function populateWithSampleData(data) {
+  const {
+    buildings: B,
+    consultants: C,
+    docTypes: D
+  } = data;
+
+  // מחשב תאריך לפי ימים אחורה מהיום
+  const ago = days => {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return d.toISOString().slice(0, 10);
+  };
+
+  // בונה רצף אירועים לפי הגיון מכונת המצבים
+  // steps = [{ status, round, day }]  day = ימים מהיום אחורה
+  // createdAt: כל שלב מאוחר יותר ב-1 שנייה — מבטיח מיון נכון לאירועים באותו תאריך
+  const makeEvents = steps => steps.map((s, idx) => ({
+    id: uid(),
+    status: s.status,
+    round: s.round,
+    date: ago(s.day),
+    endDate: ago(s.day),
+    dependsOn: null,
+    createdAt: new Date(Date.now() - (steps.length - idx) * 1000).toISOString()
+  }));
+
+  // 12 תרחישים מגוונים — מספרי סבבים ושלבים שונים
+  const scenarios = [
+  // ── 1. בתחילת התהליך: רק בעבודה סבב 1 ──
+  makeEvents([{
+    status: 'progress',
+    round: 1,
+    day: 45
+  }]),
+  // ── 2. נשלח לרפרנט, ממתין לתשובה (סבב 1) ──
+  makeEvents([{
+    status: 'progress',
+    round: 1,
+    day: 60
+  }, {
+    status: 'sent',
+    round: 1,
+    day: 38
+  }, {
+    status: 'response',
+    round: 1,
+    day: 38
+  }]),
+  // ── 3. רפרנט החזיר הערות, חזרנו לעבודה (סבב 2) ──
+  makeEvents([{
+    status: 'progress',
+    round: 1,
+    day: 90
+  }, {
+    status: 'sent',
+    round: 1,
+    day: 68
+  }, {
+    status: 'response',
+    round: 1,
+    day: 68
+  }, {
+    status: 'comments',
+    round: 1,
+    day: 52
+  }, {
+    status: 'progress',
+    round: 2,
+    day: 52
+  }]),
+  // ── 4. סבב 2: נשלח שוב, ממתין לאישור ──
+  makeEvents([{
+    status: 'progress',
+    round: 1,
+    day: 110
+  }, {
+    status: 'sent',
+    round: 1,
+    day: 88
+  }, {
+    status: 'response',
+    round: 1,
+    day: 88
+  }, {
+    status: 'comments',
+    round: 1,
+    day: 70
+  }, {
+    status: 'progress',
+    round: 2,
+    day: 70
+  }, {
+    status: 'sent',
+    round: 2,
+    day: 42
+  }, {
+    status: 'response',
+    round: 2,
+    day: 42
+  }]),
+  // ── 5. מאושר אחרי סבב 1 ──
+  makeEvents([{
+    status: 'progress',
+    round: 1,
+    day: 75
+  }, {
+    status: 'sent',
+    round: 1,
+    day: 53
+  }, {
+    status: 'response',
+    round: 1,
+    day: 53
+  }, {
+    status: 'approved',
+    round: 1,
+    day: 30
+  }]),
+  // ── 6. מאושר אחרי 2 סבבים ──
+  makeEvents([{
+    status: 'progress',
+    round: 1,
+    day: 140
+  }, {
+    status: 'sent',
+    round: 1,
+    day: 112
+  }, {
+    status: 'response',
+    round: 1,
+    day: 112
+  }, {
+    status: 'comments',
+    round: 1,
+    day: 95
+  }, {
+    status: 'progress',
+    round: 2,
+    day: 95
+  }, {
+    status: 'sent',
+    round: 2,
+    day: 65
+  }, {
+    status: 'response',
+    round: 2,
+    day: 65
+  }, {
+    status: 'approved',
+    round: 2,
+    day: 40
+  }]),
+  // ── 7. מאושר אחרי 3 סבבים ──
+  makeEvents([{
+    status: 'progress',
+    round: 1,
+    day: 210
+  }, {
+    status: 'sent',
+    round: 1,
+    day: 182
+  }, {
+    status: 'response',
+    round: 1,
+    day: 182
+  }, {
+    status: 'comments',
+    round: 1,
+    day: 162
+  }, {
+    status: 'progress',
+    round: 2,
+    day: 162
+  }, {
+    status: 'sent',
+    round: 2,
+    day: 130
+  }, {
+    status: 'response',
+    round: 2,
+    day: 130
+  }, {
+    status: 'comments',
+    round: 2,
+    day: 112
+  }, {
+    status: 'progress',
+    round: 3,
+    day: 112
+  }, {
+    status: 'sent',
+    round: 3,
+    day: 78
+  }, {
+    status: 'response',
+    round: 3,
+    day: 78
+  }, {
+    status: 'approved',
+    round: 3,
+    day: 55
+  }]),
+  // ── 8. הערות שניות, חזרה לעבודה סבב 3 ──
+  makeEvents([{
+    status: 'progress',
+    round: 1,
+    day: 180
+  }, {
+    status: 'sent',
+    round: 1,
+    day: 155
+  }, {
+    status: 'response',
+    round: 1,
+    day: 155
+  }, {
+    status: 'comments',
+    round: 1,
+    day: 138
+  }, {
+    status: 'progress',
+    round: 2,
+    day: 138
+  }, {
+    status: 'sent',
+    round: 2,
+    day: 105
+  }, {
+    status: 'response',
+    round: 2,
+    day: 105
+  }, {
+    status: 'comments',
+    round: 2,
+    day: 88
+  }, {
+    status: 'progress',
+    round: 3,
+    day: 88
+  }]),
+  // ── 9. בתחילת סבב 2 — רק התחלנו שוב לעבוד ──
+  makeEvents([{
+    status: 'progress',
+    round: 1,
+    day: 95
+  }, {
+    status: 'sent',
+    round: 1,
+    day: 72
+  }, {
+    status: 'response',
+    round: 1,
+    day: 72
+  }, {
+    status: 'comments',
+    round: 1,
+    day: 58
+  }, {
+    status: 'progress',
+    round: 2,
+    day: 58
+  }]),
+  // ── 10. ממתין לתשובת רפרנט סבב 3 ──
+  makeEvents([{
+    status: 'progress',
+    round: 1,
+    day: 200
+  }, {
+    status: 'sent',
+    round: 1,
+    day: 175
+  }, {
+    status: 'response',
+    round: 1,
+    day: 175
+  }, {
+    status: 'comments',
+    round: 1,
+    day: 158
+  }, {
+    status: 'progress',
+    round: 2,
+    day: 158
+  }, {
+    status: 'sent',
+    round: 2,
+    day: 120
+  }, {
+    status: 'response',
+    round: 2,
+    day: 120
+  }, {
+    status: 'comments',
+    round: 2,
+    day: 100
+  }, {
+    status: 'progress',
+    round: 3,
+    day: 100
+  }, {
+    status: 'sent',
+    round: 3,
+    day: 65
+  }, {
+    status: 'response',
+    round: 3,
+    day: 65
+  }]),
+  // ── 11. שלח עכשיו — יום ראשון ──
+  makeEvents([{
+    status: 'progress',
+    round: 1,
+    day: 28
+  }, {
+    status: 'sent',
+    round: 1,
+    day: 3
+  }, {
+    status: 'response',
+    round: 1,
+    day: 3
+  }]),
+  // ── 12. מאושר מהר — סבב 1, תהליך קצר ──
+  makeEvents([{
+    status: 'progress',
+    round: 1,
+    day: 50
+  }, {
+    status: 'sent',
+    round: 1,
+    day: 35
+  }, {
+    status: 'response',
+    round: 1,
+    day: 35
+  }, {
+    status: 'approved',
+    round: 1,
+    day: 18
+  }])];
+
+  // מפה קבועה של תרחישים לתאים ספציפיים
+  const assignments = [
+  // [בניין idx, יועץ idx, מסמך idx, תרחיש idx]
+  [0, 0, 0, 0], [0, 0, 3, 1], [0, 1, 0, 4], [0, 1, 1, 2], [0, 2, 0, 6], [0, 2, 2, 3], [0, 3, 1, 5], [0, 4, 0, 9], [1, 0, 0, 7], [1, 0, 1, 1], [1, 1, 0, 3], [1, 1, 2, 8], [1, 2, 0, 5], [1, 2, 3, 11], [1, 3, 0, 2], [1, 4, 1, 0], [2, 0, 0, 6], [2, 0, 2, 4], [2, 1, 1, 9], [2, 1, 3, 10], [2, 2, 0, 7], [2, 3, 0, 1], [2, 4, 2, 3], [2, 5, 0, 5], [3, 0, 0, 11], [3, 1, 0, 8], [3, 2, 1, 2], [3, 3, 0, 6], [3, 4, 0, 0], [3, 5, 3, 4], [3, 0, 2, 10], [3, 1, 3, 7]];
+  assignments.forEach(([bi, ci, di, si]) => {
+    if (!B[bi] || !C[ci] || !D[di]) return;
+    const key = cellKey(B[bi].id, C[ci].id, D[di].id);
+    const events = scenarios[si % scenarios.length];
+    data.cells[key] = {
+      events
+    };
+  });
+  return data;
+}
+function formatDateShort(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+function formatDateLong(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+}
+function formatDateTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+const Icon = ({
+  name,
+  size = 16,
+  className = ''
+}) => {
+  const icons = {
+    plus: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("path", {
+      d: "M12 5v14"
+    }), /*#__PURE__*/React.createElement("path", {
+      d: "M5 12h14"
+    })),
+    x: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("path", {
+      d: "M18 6L6 18"
+    }), /*#__PURE__*/React.createElement("path", {
+      d: "M6 6l12 12"
+    })),
+    edit: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("path", {
+      d: "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+    }), /*#__PURE__*/React.createElement("path", {
+      d: "M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+    })),
+    trash: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("path", {
+      d: "M3 6h18"
+    }), /*#__PURE__*/React.createElement("path", {
+      d: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"
+    }), /*#__PURE__*/React.createElement("path", {
+      d: "M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+    })),
+    download: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("path", {
+      d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
+    }), /*#__PURE__*/React.createElement("path", {
+      d: "M7 10l5 5 5-5"
+    }), /*#__PURE__*/React.createElement("path", {
+      d: "M12 15V3"
+    })),
+    upload: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("path", {
+      d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
+    }), /*#__PURE__*/React.createElement("path", {
+      d: "M17 8l-5-5-5 5"
+    }), /*#__PURE__*/React.createElement("path", {
+      d: "M12 3v12"
+    })),
+    settings: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("circle", {
+      cx: "12",
+      cy: "12",
+      r: "3"
+    }), /*#__PURE__*/React.createElement("path", {
+      d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+    })),
+    grip: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("circle", {
+      cx: "9",
+      cy: "5",
+      r: "1.2"
+    }), /*#__PURE__*/React.createElement("circle", {
+      cx: "9",
+      cy: "12",
+      r: "1.2"
+    }), /*#__PURE__*/React.createElement("circle", {
+      cx: "9",
+      cy: "19",
+      r: "1.2"
+    }), /*#__PURE__*/React.createElement("circle", {
+      cx: "15",
+      cy: "5",
+      r: "1.2"
+    }), /*#__PURE__*/React.createElement("circle", {
+      cx: "15",
+      cy: "12",
+      r: "1.2"
+    }), /*#__PURE__*/React.createElement("circle", {
+      cx: "15",
+      cy: "19",
+      r: "1.2"
+    })),
+    info: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("circle", {
+      cx: "12",
+      cy: "12",
+      r: "10"
+    }), /*#__PURE__*/React.createElement("path", {
+      d: "M12 16v-4"
+    }), /*#__PURE__*/React.createElement("path", {
+      d: "M12 8h.01"
+    })),
+    check: /*#__PURE__*/React.createElement("path", {
+      d: "M20 6L9 17l-5-5"
+    }),
+    edit3: /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("path", {
+      d: "M12 20h9"
+    }), /*#__PURE__*/React.createElement("path", {
+      d: "M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
+    }))
+  };
+  const content = icons[name];
+  if (!content) return null;
+  return /*#__PURE__*/React.createElement("svg", {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    className: className,
+    style: {
+      flexShrink: 0
+    }
+  }, content);
+};
+function useToast() {
+  const [msg, setMsg] = useState(null);
+  const show = useCallback(text => {
+    setMsg(text);
+    setTimeout(() => setMsg(null), 2500);
+  }, []);
+  const elem = msg ? /*#__PURE__*/React.createElement("div", {
+    className: "toast"
+  }, msg) : null;
+  return [elem, show];
+}
+
+/* ============ Main GANTT View ============ */
+function MainGanttView({
+  data,
+  onCellClick
+}) {
+  const today = todayISO();
+  const dBetween = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000);
+
+  // ── איסוף כל התאים עם אירועים, לפי יועץ ──
+  const groups = [];
+  let globalMin = null,
+    globalMax = null;
+  for (const c of data.consultants) {
+    const rows = [];
+    for (const b of data.buildings) {
+      for (const d of data.docTypes) {
+        const key = cellKey(b.id, c.id, d.id);
+        const cell = data.cells[key];
+        if (!cell || cell.events.length === 0) continue;
+        const dates = cell.events.flatMap(e => [e.date, e.endDate || e.date]).sort();
+        const first = dates[0],
+          last = dates[dates.length - 1];
+        if (!globalMin || first < globalMin) globalMin = first;
+        if (!globalMax || last > globalMax) globalMax = last;
+        // fallback: status from last event if cell.status missing (old data format)
+        const sortedEvts = [...cell.events].sort((a, b) => a.date.localeCompare(b.date));
+        const cellStatus = cell.status || sortedEvts[sortedEvts.length - 1]?.status || 'missing';
+        rows.push({
+          key,
+          bId: b.id,
+          cId: c.id,
+          dId: d.id,
+          buildingName: b.name,
+          docName: d.name,
+          firstDate: first,
+          lastDate: last,
+          status: cellStatus,
+          sortedEvts,
+          eventCount: cell.events.length
+        });
+      }
+    }
+    if (rows.length > 0) groups.push({
+      id: c.id,
+      label: c.discipline,
+      sublabel: c.company,
+      rows
+    });
+  }
+  if (!globalMin) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "empty-state",
+      style: {
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 8
+      }
+    }, /*#__PURE__*/React.createElement(Icon, {
+      name: "info",
+      size: 24
+    }), /*#__PURE__*/React.createElement("p", {
+      style: {
+        marginTop: 8
+      }
+    }, "אין אירועים. הוסף אירועים לתאים כדי לראות את הגנט."));
+  }
+
+  // ── עזרי תאריך UTC (מונע בעיות timezone) ──
+  const parseD = iso => {
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 1, d));
+  };
+  const fmtD = d => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+
+  // ── טווח ציר X: עם שוליים, מיושר לתחילת חודש ──
+  const d0 = parseD(globalMin);
+  d0.setUTCDate(d0.getUTCDate() - 21);
+  d0.setUTCDate(1);
+  const d1 = parseD(globalMax);
+  d1.setUTCDate(d1.getUTCDate() + 21);
+  const rangeStart = fmtD(d0);
+  const rangeEnd = fmtD(d1);
+  const totalDays = Math.max(dBetween(rangeStart, rangeEnd), 1);
+  const pct = iso => Math.max(0, Math.min(100, dBetween(rangeStart, iso) / totalDays * 100));
+  const todayPct = pct(today);
+
+  // ── עמודות חודשים לכותרת (UTC) ──
+  const months = [];
+  const cur = new Date(d0);
+  while (fmtD(cur) <= rangeEnd) {
+    months.push(fmtD(cur));
+    cur.setUTCMonth(cur.getUTCMonth() + 1);
+  }
+  const LABEL_W = 230;
+  const ROW_H = 36;
+  const HDR_H = 52;
+  const [showSegments, setShowSegments] = React.useState(false);
+  const [segPopup, setSegPopup] = React.useState(null);
+  const [hoveredMil, setHoveredMil] = React.useState(null);
+  const [ganttDelay, setGanttDelay] = React.useState({
+    enabled: false,
+    threshold: 14
+  });
+  const [ganttDelayTooltip, setGanttDelayTooltip] = React.useState(null);
+  const [ganttFilters, setGanttFilters] = React.useState({
+    consultantIds: [],
+    buildingIds: [],
+    docTypeIds: [],
+    statuses: []
+  });
+
+  // ── פילטור קבוצות / שורות ──
+  const filteredGroups = groups.filter(g => ganttFilters.consultantIds.length === 0 || ganttFilters.consultantIds.includes(g.id)).map(g => ({
+    ...g,
+    rows: g.rows.filter(row => {
+      if (ganttFilters.buildingIds.length > 0 && !ganttFilters.buildingIds.includes(row.bId)) return false;
+      if (ganttFilters.docTypeIds.length > 0 && !ganttFilters.docTypeIds.includes(row.dId)) return false;
+      if (ganttFilters.statuses.length > 0 && !ganttFilters.statuses.includes(row.status)) return false;
+      return true;
+    })
+  })).filter(g => g.rows.length > 0);
+  const hasGanttFilters = ganttFilters.consultantIds.length > 0 || ganttFilters.buildingIds.length > 0 || ganttFilters.docTypeIds.length > 0 || ganttFilters.statuses.length > 0;
+
+  // ── אפשרויות פילטרים ──
+  const gfConsultantOpts = data.consultants.map(c => ({
+    value: c.id,
+    label: c.discipline
+  }));
+  const gfBuildingOpts = data.buildings.map(b => ({
+    value: b.id,
+    label: b.name
+  }));
+  const gfDocTypeOpts = data.docTypes.map(d => ({
+    value: d.id,
+    label: d.name
+  }));
+  const gfStatusOpts = STATUS_ORDER.filter(s => s !== 'sent' && s !== 'comments').map(s => ({
+    value: s,
+    label: STATUSES[s].label,
+    bg: STATUSES[s].bg,
+    border: STATUSES[s].border,
+    text: STATUSES[s].text,
+    symbol: STATUSES[s].symbol
+  }));
+
+  // ימי עבודה ישראלי: ראשון–חמישי (מוציא שישי=5 ושבת=6)
+  const workDays = (start, end) => {
+    let count = 0;
+    const d = parseD(start);
+    const dEnd = parseD(end);
+    while (fmtD(d) < fmtD(dEnd)) {
+      const dow = d.getUTCDay();
+      if (dow !== 5 && dow !== 6) count++;
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    return count;
+  };
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 8,
+      padding: '10px 12px',
+      marginBottom: 8,
+      display: 'flex',
+      gap: 12,
+      alignItems: 'center',
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement(MultiCheckFilter, {
+    label: "יועץ",
+    options: gfConsultantOpts,
+    selected: ganttFilters.consultantIds,
+    onChange: v => setGanttFilters(f => ({
+      ...f,
+      consultantIds: v
+    }))
+  }), /*#__PURE__*/React.createElement(MultiCheckFilter, {
+    label: "מבנה",
+    options: gfBuildingOpts,
+    selected: ganttFilters.buildingIds,
+    onChange: v => setGanttFilters(f => ({
+      ...f,
+      buildingIds: v
+    }))
+  }), /*#__PURE__*/React.createElement(MultiCheckFilter, {
+    label: "מסמך",
+    options: gfDocTypeOpts,
+    selected: ganttFilters.docTypeIds,
+    onChange: v => setGanttFilters(f => ({
+      ...f,
+      docTypeIds: v
+    }))
+  }), /*#__PURE__*/React.createElement(MultiCheckFilter, {
+    label: "סטטוס",
+    options: gfStatusOpts,
+    selected: ganttFilters.statuses,
+    onChange: v => setGanttFilters(f => ({
+      ...f,
+      statuses: v
+    }))
+  }), hasGanttFilters && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setGanttFilters({
+      consultantIds: [],
+      buildingIds: [],
+      docTypeIds: [],
+      statuses: []
+    }),
+    style: {
+      padding: '5px 10px',
+      fontSize: 11,
+      fontWeight: 600,
+      fontFamily: 'inherit',
+      cursor: 'pointer',
+      background: 'transparent',
+      border: '1.5px solid var(--border-strong)',
+      borderRadius: 8,
+      color: 'var(--text-secondary)',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 4,
+      transition: 'all 0.15s'
+    },
+    onMouseEnter: e => {
+      e.currentTarget.style.background = '#FFE9EC';
+      e.currentTarget.style.color = '#C2274B';
+      e.currentTarget.style.borderColor = '#F9B3C0';
+    },
+    onMouseLeave: e => {
+      e.currentTarget.style.background = 'transparent';
+      e.currentTarget.style.color = 'var(--text-secondary)';
+      e.currentTarget.style.borderColor = 'var(--border-strong)';
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: "10",
+    height: "10",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2.5",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M18 6L6 18"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M6 6l12 12"
+  })), "נקה פילטרים")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 8,
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column'
+    },
+    onClick: () => setSegPopup(null)
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      borderBottom: '2px solid var(--border)',
+      background: 'var(--surface)',
+      position: 'sticky',
+      top: 0,
+      zIndex: 3
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: LABEL_W,
+      flexShrink: 0,
+      borderLeft: '1px solid var(--border)',
+      padding: '4px 14px',
+      height: HDR_H,
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      gap: 5
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      fontWeight: 700,
+      color: 'var(--text-secondary)',
+      textTransform: 'uppercase'
+    }
+  }, "יועץ / מסמך"), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 5,
+      cursor: 'pointer',
+      fontSize: 11,
+      fontWeight: 500,
+      color: 'var(--text-secondary)',
+      whiteSpace: 'nowrap'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: showSegments,
+    onChange: e => setShowSegments(e.target.checked),
+    style: {
+      cursor: 'pointer',
+      accentColor: 'var(--accent)',
+      width: 12,
+      height: 12
+    }
+  }), "רצף סטטוסים")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 5
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: ganttDelay.enabled,
+    onChange: e => setGanttDelay(s => ({
+      ...s,
+      enabled: e.target.checked
+    })),
+    style: {
+      cursor: 'pointer',
+      accentColor: '#e2445c',
+      width: 12,
+      height: 12
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      fontWeight: 600,
+      whiteSpace: 'nowrap',
+      cursor: 'pointer',
+      color: ganttDelay.enabled ? '#e2445c' : 'var(--text-secondary)',
+      transition: 'color 0.15s'
+    },
+    onClick: () => setGanttDelay(s => ({
+      ...s,
+      enabled: !s.enabled
+    }))
+  }, "חריגה מעל"), /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    value: ganttDelay.threshold,
+    min: 1,
+    max: 365,
+    onChange: e => setGanttDelay(s => ({
+      ...s,
+      threshold: Math.max(1, parseInt(e.target.value) || 1)
+    })),
+    style: {
+      width: 40,
+      padding: '2px 4px',
+      fontSize: 11,
+      textAlign: 'center',
+      border: `1.5px solid ${ganttDelay.enabled ? '#e2445c' : 'var(--border)'}`,
+      borderRadius: 5,
+      fontFamily: 'inherit',
+      background: 'var(--surface)',
+      color: 'var(--text)',
+      outline: 'none',
+      transition: 'border-color 0.15s'
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: 'var(--text-secondary)'
+    }
+  }, "י׳"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      position: 'relative',
+      height: HDR_H,
+      overflow: 'hidden',
+      direction: 'ltr'
+    }
+  }, months.map((m, i) => {
+    const left = pct(m);
+    const next = months[i + 1] ? pct(months[i + 1]) : 100;
+    const width = next - left;
+    const [y, mo] = m.split('-').map(Number);
+    const label = new Date(Date.UTC(y, mo - 1, 1)).toLocaleDateString('he-IL', {
+      month: 'short',
+      year: '2-digit',
+      timeZone: 'UTC'
+    });
+    return /*#__PURE__*/React.createElement("div", {
+      key: m,
+      style: {
+        position: 'absolute',
+        left: `${left}%`,
+        width: `${width}%`,
+        borderLeft: i > 0 ? '1px solid var(--border)' : 'none',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: 11,
+        fontWeight: 600,
+        color: 'var(--text-secondary)'
+      }
+    }, label);
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      left: `${todayPct}%`,
+      top: 0,
+      bottom: 0,
+      width: 2,
+      background: '#E03131',
+      opacity: 0.8,
+      zIndex: 2
+    }
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowY: 'auto',
+      maxHeight: 'calc(100vh - 330px)'
+    }
+  }, filteredGroups.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '36px 20px',
+      textAlign: 'center',
+      color: 'var(--text-secondary)',
+      fontSize: 13
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 22,
+      marginBottom: 8
+    }
+  }, "🔍"), "אין תוצאות לפילטרים שנבחרו", /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: 'block',
+      fontSize: 11,
+      marginTop: 6,
+      color: 'var(--text-tertiary)'
+    }
+  }, "נקה פילטרים כדי לראות את כל הנתונים")), filteredGroups.map(group => /*#__PURE__*/React.createElement(React.Fragment, {
+    key: group.id
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      background: 'var(--surface-2)',
+      borderBottom: '1px solid var(--border)',
+      height: 28
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: LABEL_W,
+      flexShrink: 0,
+      padding: '0 14px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+      fontSize: 12,
+      fontWeight: 700
+    }
+  }, group.label, group.sublabel && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      fontWeight: 400,
+      color: 'var(--text-secondary)'
+    }
+  }, group.sublabel)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1,
+      position: 'relative',
+      direction: 'ltr'
+    }
+  }, months.map((m, i) => i > 0 && /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      position: 'absolute',
+      left: `${pct(m)}%`,
+      top: 0,
+      bottom: 0,
+      width: 1,
+      background: 'var(--border)'
+    }
+  })))), group.rows.map(row => {
+    const s = STATUSES[row.status] || STATUSES['missing'];
+    const barL = pct(row.firstDate);
+    const lastEvt = row.sortedEvts[row.sortedEvts.length - 1];
+    // מיילסטון → הבר נגמר בתאריך המיילסטון
+    // סטטוס פתוח (בעבודה/בהתייחסות) → הבר מתארך עד היום
+    const barEndDate = MILESTONE_STATUSES.has(lastEvt?.status) ? row.lastDate : row.lastDate < today ? today : row.lastDate;
+    const barR = pct(barEndDate);
+    const barW = Math.max(0.6, barR - barL);
+    const narrow = barW < 4;
+    const maxRound = Math.max(...row.sortedEvts.map(e => e.round || 1));
+    // ── חריגת זמן ──
+    const daysSinceStatus = lastEvt ? Math.round((new Date() - new Date(lastEvt.date)) / 86400000) : 0;
+    const isDelayed = ganttDelay.enabled && PERIOD_STATUSES.has(row.status) && daysSinceStatus > (ganttDelay.threshold || 14);
+    return /*#__PURE__*/React.createElement("div", {
+      key: row.key,
+      style: {
+        display: 'flex',
+        borderBottom: '1px solid var(--border)',
+        height: ROW_H,
+        alignItems: 'center'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        width: LABEL_W,
+        flexShrink: 0,
+        padding: '0 14px 0 30px',
+        fontSize: 12,
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        direction: 'rtl'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: 'var(--text-secondary)',
+        fontSize: 11
+      }
+    }, row.buildingName), /*#__PURE__*/React.createElement("span", {
+      style: {
+        margin: '0 4px',
+        color: 'var(--text-tertiary)'
+      }
+    }, "·"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 500
+      }
+    }, row.docName)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        flex: 1,
+        position: 'relative',
+        height: '100%',
+        direction: 'ltr',
+        cursor: 'pointer'
+      },
+      onClick: () => onCellClick(row.bId, row.cId, row.dId)
+    }, months.map((m, i) => i > 0 && /*#__PURE__*/React.createElement("div", {
+      key: i,
+      style: {
+        position: 'absolute',
+        left: `${pct(m)}%`,
+        top: 0,
+        bottom: 0,
+        width: 1,
+        background: 'var(--border)',
+        opacity: 0.4
+      }
+    })), /*#__PURE__*/React.createElement("div", {
+      style: {
+        position: 'absolute',
+        left: `${todayPct}%`,
+        top: 0,
+        bottom: 0,
+        width: 2,
+        background: '#E03131',
+        opacity: 0.45,
+        zIndex: 2
+      }
+    }), (() => {
+      // ── מצב רגיל: בר אחיד ──
+      if (!showSegments) return /*#__PURE__*/React.createElement("div", {
+        title: `${row.buildingName} · ${row.docName}\n${s.label} · ${formatDateLong(row.firstDate)} – ${formatDateLong(row.lastDate)}`,
+        style: {
+          position: 'absolute',
+          left: `${barL}%`,
+          width: `${barW}%`,
+          top: 6,
+          bottom: 6,
+          background: s.bg,
+          border: `2.5px solid ${isDelayed ? '#e2445c' : s.border}`,
+          borderRadius: 4,
+          display: 'flex',
+          alignItems: 'center',
+          padding: narrow ? '0 4px' : '0 8px',
+          fontSize: 11,
+          color: s.text,
+          fontWeight: 500,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          zIndex: 1
+        },
+        onMouseEnter: e => {
+          e.currentTarget.style.filter = 'brightness(0.93)';
+          e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.18)';
+          if (isDelayed) setGanttDelayTooltip({
+            days: daysSinceStatus,
+            x: e.clientX,
+            y: e.clientY
+          });
+        },
+        onMouseMove: e => {
+          if (isDelayed) setGanttDelayTooltip(t => t ? {
+            ...t,
+            x: e.clientX,
+            y: e.clientY
+          } : null);
+        },
+        onMouseLeave: e => {
+          e.currentTarget.style.filter = '';
+          e.currentTarget.style.boxShadow = '';
+          setGanttDelayTooltip(null);
+        }
+      }, !narrow && /*#__PURE__*/React.createElement("span", {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 5,
+          overflow: 'hidden'
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }
+      }, s.symbol, " ", row.docName), maxRound > 1 && /*#__PURE__*/React.createElement("span", {
+        style: {
+          flexShrink: 0,
+          fontSize: 9,
+          fontWeight: 700,
+          lineHeight: 1,
+          background: 'rgba(0,0,0,0.15)',
+          borderRadius: 3,
+          padding: '2px 4px',
+          whiteSpace: 'nowrap'
+        }
+      }, maxRound, "×")));
+
+      // ── מצב רצף: קטעים צבעוניים לפי משך כל סטטוס ──
+      const totalBarDays = Math.max(dBetween(row.firstDate, barEndDate), 1);
+      const segs = row.sortedEvts.map((evt, i) => {
+        const segStart = evt.date;
+        // הקטע נמשך עד האירוע הבא, או עד היום אם הוא האחרון
+        const segEnd = row.sortedEvts[i + 1]?.date || barEndDate;
+        const dur = dBetween(segStart, segEnd);
+        if (dur <= 0) return null; // מיילסטון / אפס משך — מדלגים
+        const segL = dBetween(row.firstDate, segStart) / totalBarDays * 100;
+        const segW = Math.max(0.5, dur / totalBarDays * 100);
+        const ss = STATUSES[evt.status] || STATUSES['missing'];
+        return {
+          segL,
+          segW,
+          ss,
+          evt,
+          i,
+          segEnd
+        };
+      }).filter(Boolean);
+      return /*#__PURE__*/React.createElement("div", {
+        title: `${row.buildingName} · ${row.docName}\n${formatDateLong(row.firstDate)} – ${formatDateLong(row.lastDate)}`,
+        style: {
+          position: 'absolute',
+          left: `${barL}%`,
+          width: `${barW}%`,
+          top: 6,
+          bottom: 6,
+          borderRadius: 4,
+          border: `2.5px solid ${isDelayed ? '#e2445c' : s.border}`,
+          overflow: 'hidden',
+          zIndex: 1,
+          cursor: 'pointer'
+        },
+        onMouseEnter: e => {
+          e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.18)';
+          if (isDelayed) setGanttDelayTooltip({
+            days: daysSinceStatus,
+            x: e.clientX,
+            y: e.clientY
+          });
+        },
+        onMouseMove: e => {
+          if (isDelayed) setGanttDelayTooltip(t => t ? {
+            ...t,
+            x: e.clientX,
+            y: e.clientY
+          } : null);
+        },
+        onMouseLeave: e => {
+          e.currentTarget.style.boxShadow = '';
+          setGanttDelayTooltip(null);
+        }
+      }, segs.map(({
+        segL,
+        segW,
+        ss,
+        evt,
+        segEnd
+      }) => /*#__PURE__*/React.createElement("div", {
+        key: evt.id,
+        style: {
+          position: 'absolute',
+          left: `${segL}%`,
+          width: `${segW}%`,
+          top: 0,
+          bottom: 0,
+          background: ss.bg,
+          borderRight: `1px solid ${ss.border}`,
+          cursor: 'pointer'
+        },
+        onClick: e => {
+          e.stopPropagation();
+          const wdays = workDays(evt.date, segEnd);
+          setSegPopup({
+            label: ss.label,
+            symbol: ss.symbol,
+            start: formatDateLong(evt.date),
+            end: formatDateLong(segEnd),
+            wdays,
+            x: e.clientX,
+            y: e.clientY
+          });
+        }
+      })), !narrow && /*#__PURE__*/React.createElement("span", {
+        style: {
+          position: 'relative',
+          zIndex: 1,
+          padding: '0 8px',
+          fontSize: 11,
+          fontWeight: 600,
+          color: s.text,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 5,
+          height: '100%',
+          mixBlendMode: 'multiply'
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap'
+        }
+      }, row.docName), maxRound > 1 && /*#__PURE__*/React.createElement("span", {
+        style: {
+          flexShrink: 0,
+          fontSize: 9,
+          fontWeight: 700,
+          lineHeight: 1,
+          background: 'rgba(0,0,0,0.15)',
+          borderRadius: 3,
+          padding: '2px 4px',
+          whiteSpace: 'nowrap'
+        }
+      }, maxRound, "×")));
+    })(), row.sortedEvts.filter(evt => MILESTONE_STATUSES.has(evt.status)).map(evt => {
+      const ms = STATUSES[evt.status];
+      const milLeft = pct(evt.date);
+      return /*#__PURE__*/React.createElement("div", {
+        key: `mil-${evt.id}`,
+        style: {
+          position: 'absolute',
+          left: `${milLeft}%`,
+          top: '50%',
+          zIndex: 5,
+          pointerEvents: 'all',
+          transform: 'translateX(-50%) translateY(-50%)',
+          width: 11,
+          height: 11,
+          cursor: 'default'
+        },
+        onMouseEnter: e => setHoveredMil({
+          label: ms.label,
+          symbol: ms.symbol,
+          date: formatDateLong(evt.date),
+          x: e.clientX,
+          y: e.clientY
+        }),
+        onMouseMove: e => setHoveredMil(prev => prev ? {
+          ...prev,
+          x: e.clientX,
+          y: e.clientY
+        } : null),
+        onMouseLeave: () => setHoveredMil(null)
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          width: 11,
+          height: 11,
+          background: ms.bg,
+          border: `2px solid ${ms.border}`,
+          borderRadius: 2,
+          transform: 'rotate(45deg)',
+          boxSizing: 'border-box'
+        }
+      }));
+    })));
+  })))), ganttDelayTooltip && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'fixed',
+      left: ganttDelayTooltip.x,
+      top: ganttDelayTooltip.y,
+      transform: 'translate(-50%, calc(-100% - 10px))',
+      background: '#fff5f6',
+      border: '1.5px solid #e2445c',
+      borderRadius: 8,
+      padding: '7px 12px',
+      fontSize: 13,
+      fontWeight: 700,
+      color: '#e2445c',
+      boxShadow: '0 4px 16px rgba(226,68,92,0.18)',
+      zIndex: 9999,
+      pointerEvents: 'none',
+      whiteSpace: 'nowrap',
+      direction: 'rtl'
+    }
+  }, "⏱ ", ganttDelayTooltip.days, " ימים באותו סטטוס"), segPopup && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'fixed',
+      left: segPopup.x,
+      top: segPopup.y,
+      transform: 'translate(-50%, calc(-100% - 10px))',
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 8,
+      padding: '8px 12px',
+      fontSize: 12,
+      boxShadow: '0 4px 18px rgba(0,0,0,0.18)',
+      zIndex: 9999,
+      pointerEvents: 'none',
+      whiteSpace: 'nowrap',
+      direction: 'rtl',
+      lineHeight: 1.7
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontWeight: 700,
+      marginBottom: 2
+    }
+  }, segPopup.symbol, " ", segPopup.label), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: 'var(--text-secondary)'
+    }
+  }, segPopup.start, " – ", segPopup.end), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: 'var(--accent)',
+      fontWeight: 600
+    }
+  }, segPopup.wdays, " ימי עבודה")), hoveredMil && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'fixed',
+      left: hoveredMil.x,
+      top: hoveredMil.y,
+      transform: 'translate(-50%, calc(-100% - 10px))',
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 7,
+      padding: '5px 10px',
+      fontSize: 12,
+      boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+      zIndex: 9999,
+      pointerEvents: 'none',
+      whiteSpace: 'nowrap',
+      direction: 'rtl'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 600
+    }
+  }, hoveredMil.symbol, " ", hoveredMil.label), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--text-secondary)',
+      marginRight: 8
+    }
+  }, hoveredMil.date))));
+}
+
+/* ============ App Component ============ */
+function App() {
+  const [data, setData] = useState(loadData);
+  const [openCell, setOpenCell] = useState(null);
+  const [openSettings, setOpenSettings] = useState(false);
+  const [openKpiAdd, setOpenKpiAdd] = useState(false);
+  const [editingProjName, setEditingProjName] = useState(false);
+  const [filters, setFilters] = useState({
+    consultantIds: [],
+    statuses: [],
+    buildingIds: [],
+    docTypeIds: []
+  });
+  const [mainView, setMainView] = useState('dashboard'); // 'dashboard' | 'gantt'
+  const [delaySettings, setDelaySettings] = useState({
+    enabled: false,
+    threshold: 14
+  });
+  const [sidebarWidth, setSidebarWidth] = useState(480); // Default sidebar width in pixels
+  const [toast, showToast] = useToast();
+  const update = useCallback(updater => {
+    setData(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      saveData(next);
+      return next;
+    });
+  }, []);
+  const addEvent = useCallback((bId, cId, dId, newStatus, note, date, round, endDate, dependsOn) => {
+    update(prev => {
+      const key = cellKey(bId, cId, dId);
+      const cell = prev.cells[key] || {
+        status: 'missing',
+        events: []
+      };
+      const newEvent = {
+        id: uid(),
+        date: date || todayISO(),
+        endDate: endDate || date || todayISO(),
+        status: newStatus,
+        note: note || '',
+        round: round || 1,
+        dependsOn: dependsOn || null,
+        createdAt: new Date().toISOString()
+      };
+      return {
+        ...prev,
+        cells: {
+          ...prev.cells,
+          [key]: {
+            status: newStatus,
+            events: [...cell.events, newEvent]
+          }
+        }
+      };
+    });
+  }, [update]);
+  const deleteEvent = useCallback((bId, cId, dId, eventId) => {
+    update(prev => {
+      const key = cellKey(bId, cId, dId);
+      const cell = prev.cells[key];
+      if (!cell) return prev;
+      const newEvents = cell.events.filter(e => e.id !== eventId);
+      const sorted = [...newEvents].sort((a, b) => a.date.localeCompare(b.date) || (a.createdAt || '').localeCompare(b.createdAt || ''));
+      const newStatus = sorted.length > 0 ? sorted[sorted.length - 1].status : 'missing';
+      return {
+        ...prev,
+        cells: {
+          ...prev.cells,
+          [key]: {
+            status: newStatus,
+            events: newEvents
+          }
+        }
+      };
+    });
+  }, [update]);
+  const editEvent = useCallback((bId, cId, dId, eventId, newStatus, newNote, newDate, newRound, newEndDate, newDependsOn) => {
+    update(prev => {
+      const key = cellKey(bId, cId, dId);
+      const cell = prev.cells[key];
+      if (!cell) return prev;
+      const updatedEvents = cell.events.map(e => e.id === eventId ? {
+        ...e,
+        status: newStatus,
+        note: newNote || '',
+        date: newDate,
+        endDate: newEndDate || newDate,
+        round: parseInt(newRound) || 1,
+        dependsOn: newDependsOn || null
+      } : e);
+      const sorted = [...updatedEvents].sort((a, b) => a.date.localeCompare(b.date) || (a.createdAt || '').localeCompare(b.createdAt || ''));
+      const cellStatus = sorted.length > 0 ? sorted[sorted.length - 1].status : 'missing';
+      return {
+        ...prev,
+        cells: {
+          ...prev.cells,
+          [key]: {
+            status: cellStatus,
+            events: updatedEvents
+          }
+        }
+      };
+    });
+  }, [update]);
+  const exportData = () => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: 'application/json'
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${data.projectName.replace(/[\\/:*?"<>|]/g, '_')}_${todayISO()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('הקובץ הורד בהצלחה');
+  };
+  const importData = file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        if (!parsed.consultants || !parsed.docTypes || !parsed.buildings) {
+          showToast('קובץ לא תקין');
+          return;
+        }
+        update(parsed);
+        showToast('הנתונים יובאו בהצלחה');
+      } catch (err) {
+        showToast('שגיאה בייבוא הקובץ');
+      }
+    };
+    reader.readAsText(file);
+  };
+  const resetAll = () => {
+    if (window.confirm('האם למחוק את כל הנתונים ולהתחיל מחדש?')) {
+      update(makeInitialData());
+      showToast('הנתונים אופסו');
+    }
+  };
+  const openCellData = openCell ? getCell(data, openCell.buildingId, openCell.consultantId, openCell.docTypeId) : null;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      minHeight: '100vh'
+    }
+  }, /*#__PURE__*/React.createElement("header", {
+    className: "app-header"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      maxWidth: 1400,
+      margin: '0 auto',
+      gap: 16,
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "brand-mark"
+  }, "PM"), /*#__PURE__*/React.createElement("div", null, editingProjName ? /*#__PURE__*/React.createElement("input", {
+    className: "input",
+    autoFocus: true,
+    value: data.projectName,
+    onChange: e => update(prev => ({
+      ...prev,
+      projectName: e.target.value
+    })),
+    onBlur: () => setEditingProjName(false),
+    onKeyDown: e => e.key === 'Enter' && setEditingProjName(false),
+    style: {
+      fontSize: 18,
+      fontWeight: 600,
+      padding: '4px 8px',
+      width: 280
+    }
+  }) : /*#__PURE__*/React.createElement("h1", {
+    style: {
+      margin: 0,
+      fontSize: 18,
+      fontWeight: 600,
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6
+    },
+    onClick: () => setEditingProjName(true)
+  }, data.projectName, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--text-tertiary)'
+    }
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "edit3",
+    size: 12
+  }))), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: '2px 0 0',
+      fontSize: 11,
+      color: 'var(--text-tertiary)'
+    },
+    className: "mono"
+  }, "עודכן ", formatDateTime(data.lastModified)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 8,
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      background: 'var(--surface-2)',
+      border: '1.5px solid var(--border)',
+      borderRadius: 8,
+      overflow: 'hidden',
+      padding: 2,
+      gap: 2
+    }
+  }, [{
+    key: 'dashboard',
+    label: 'דאשבורד',
+    icon: '▦'
+  }, {
+    key: 'gantt',
+    label: 'גנט',
+    icon: '▬'
+  }].map(v => /*#__PURE__*/React.createElement("button", {
+    key: v.key,
+    onClick: () => setMainView(v.key),
+    style: {
+      padding: '5px 12px',
+      fontSize: 12,
+      fontWeight: 600,
+      cursor: 'pointer',
+      fontFamily: 'inherit',
+      border: 'none',
+      borderRadius: 6,
+      transition: 'all 0.15s',
+      background: mainView === v.key ? 'var(--accent)' : 'transparent',
+      color: mainView === v.key ? '#fff' : 'var(--text-secondary)'
+    }
+  }, v.icon, " ", v.label))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 1,
+      height: 28,
+      background: 'var(--border)'
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    onClick: exportData
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "download",
+    size: 14
+  }), "ייצוא"), /*#__PURE__*/React.createElement("label", {
+    className: "btn",
+    style: {
+      cursor: 'pointer'
+    }
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "upload",
+    size: 14
+  }), "ייבוא", /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: ".json",
+    style: {
+      display: 'none'
+    },
+    onChange: e => e.target.files[0] && importData(e.target.files[0])
+  })), /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    onClick: () => setOpenSettings(true)
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "settings",
+    size: 14
+  }), "הגדרות")))), /*#__PURE__*/React.createElement("main", {
+    style: {
+      maxWidth: 1400,
+      margin: '0 auto',
+      padding: '20px 24px'
+    }
+  }, /*#__PURE__*/React.createElement(KpiSection, {
+    data: data,
+    update: update,
+    onAddKpi: () => setOpenKpiAdd(true)
+  }), mainView === 'dashboard' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(ViewControls, {
+    data: data,
+    update: update,
+    filters: filters,
+    setFilters: setFilters,
+    delaySettings: delaySettings,
+    setDelaySettings: setDelaySettings
+  }), /*#__PURE__*/React.createElement(StatusTable, {
+    data: data,
+    filters: filters,
+    delaySettings: delaySettings,
+    onCellClick: (bId, cId, dId) => setOpenCell({
+      buildingId: bId,
+      consultantId: cId,
+      docTypeId: dId
+    })
+  }), /*#__PURE__*/React.createElement(Legend, null)) : /*#__PURE__*/React.createElement(MainGanttView, {
+    data: data,
+    onCellClick: (bId, cId, dId) => setOpenCell({
+      buildingId: bId,
+      consultantId: cId,
+      docTypeId: dId
+    })
+  })), openCell && openCellData && /*#__PURE__*/React.createElement(CellDetailModal, {
+    data: data,
+    cell: openCell,
+    cellData: openCellData,
+    sidebarWidth: sidebarWidth,
+    setSidebarWidth: setSidebarWidth,
+    onClose: () => setOpenCell(null),
+    onAddEvent: (status, note, date, round, endDate, dependsOn) => {
+      // Handle dependency constraint for new events
+      let finalDate = date;
+      let finalEndDate = endDate || date;
+      if (dependsOn) {
+        const predecessorEvent = openCellData.events.find(e => e.id === dependsOn);
+        if (predecessorEvent) {
+          const predEndDate = new Date(predecessorEvent.endDate || predecessorEvent.date);
+          predEndDate.setDate(predEndDate.getDate() + 1);
+          finalDate = predEndDate.toISOString().slice(0, 10);
+          finalEndDate = endDate ? new Date(endDate) >= new Date(finalDate) ? endDate : finalDate : finalDate;
+        }
+      }
+      addEvent(openCell.buildingId, openCell.consultantId, openCell.docTypeId, status, note, finalDate, round, finalEndDate, dependsOn);
+    },
+    onDeleteEvent: eventId => deleteEvent(openCell.buildingId, openCell.consultantId, openCell.docTypeId, eventId),
+    onEditEvent: (eventId, status, note, date, round, endDate, dependsOn) => {
+      // Handle dependency constraint: if event depends on another, its start date = predecessor's end date + 1
+      let finalDate = date;
+      let finalEndDate = endDate || date;
+      if (dependsOn) {
+        const cellKey = (bId, cId, dId) => `${bId}|${cId}|${dId}`;
+        const key = cellKey(openCell.buildingId, openCell.consultantId, openCell.docTypeId);
+        const predecessorEvent = openCellData.events.find(e => e.id === dependsOn);
+        if (predecessorEvent) {
+          // Set this event's start date to the day after predecessor's end date
+          const predEndDate = new Date(predecessorEvent.endDate || predecessorEvent.date);
+          predEndDate.setDate(predEndDate.getDate() + 1);
+          finalDate = predEndDate.toISOString().slice(0, 10);
+          // If no explicit end date, keep duration from start to end
+          if (!endDate) {
+            finalEndDate = finalDate;
+          } else {
+            // Ensure end date is after start date
+            finalEndDate = new Date(endDate) >= new Date(finalDate) ? endDate : finalDate;
+          }
+        }
+      }
+      editEvent(openCell.buildingId, openCell.consultantId, openCell.docTypeId, eventId, status, note, finalDate, round, finalEndDate, dependsOn);
+    }
+  }), openSettings && /*#__PURE__*/React.createElement(SettingsModal, {
+    data: data,
+    update: update,
+    onClose: () => setOpenSettings(false),
+    onReset: resetAll
+  }), openKpiAdd && /*#__PURE__*/React.createElement(KpiAddModal, {
+    data: data,
+    update: update,
+    onClose: () => setOpenKpiAdd(false)
+  }), toast);
+}
+
+/* ============ KPI Section ============ */
+function computeKpi(data, kpi) {
+  let total = 0,
+    matching = 0;
+  const docFilter = kpi.filterDocTypes.length > 0 ? new Set(kpi.filterDocTypes) : null;
+  const statusFilter = kpi.filterStatus.length > 0 ? new Set(kpi.filterStatus) : null;
+  for (const b of data.buildings) {
+    for (const c of data.consultants) {
+      for (const d of data.docTypes) {
+        if (docFilter && !docFilter.has(d.id)) continue;
+        const cell = getCell(data, b.id, c.id, d.id);
+        total++;
+        if (!statusFilter || statusFilter.has(cell.status)) matching++;
+      }
+    }
+  }
+  const pct = total === 0 ? 0 : Math.round(matching / total * 100);
+  return {
+    matching,
+    total,
+    pct
+  };
+}
+function KpiSection({
+  data,
+  update,
+  onAddKpi
+}) {
+  const deleteKpi = id => update(prev => ({
+    ...prev,
+    kpis: prev.kpis.filter(k => k.id !== id)
+  }));
+  const total = data.buildings.length * data.consultants.length * data.docTypes.length;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "section-title"
+  }, "תמונת מצב"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-sm",
+    onClick: onAddKpi
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "plus",
+    size: 12
+  }), "הוסף תצוגה")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "kpi-card",
+    style: {
+      background: 'var(--accent)',
+      borderColor: 'var(--accent)',
+      color: 'white'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "kpi-label",
+    style: {
+      color: 'rgba(255,255,255,0.85)'
+    }
+  }, "סה״כ מסמכים"), /*#__PURE__*/React.createElement("div", {
+    className: "kpi-value",
+    style: {
+      color: 'white'
+    }
+  }, total)), data.kpis.map(kpi => {
+    const stats = computeKpi(data, kpi);
+    const firstStatus = kpi.filterStatus[0];
+    const st = firstStatus && kpi.filterStatus.length === 1 ? STATUSES[firstStatus] : null;
+    const cardStyle = st ? {
+      background: st.bg,
+      borderColor: st.border
+    } : {};
+    const textStyle = st ? {
+      color: st.text
+    } : {
+      color: 'var(--text-secondary)'
+    };
+    const valueStyle = st ? {
+      color: st.text
+    } : {
+      color: 'var(--text)'
+    };
+    return /*#__PURE__*/React.createElement("div", {
+      key: kpi.id,
+      className: "kpi-card",
+      style: cardStyle
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "kpi-delete",
+      onClick: () => deleteKpi(kpi.id),
+      title: "מחק תצוגה"
+    }, /*#__PURE__*/React.createElement(Icon, {
+      name: "x",
+      size: 11
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "kpi-label",
+      style: textStyle
+    }, kpi.name), /*#__PURE__*/React.createElement("div", {
+      className: "kpi-value",
+      style: valueStyle
+    }, stats.matching, /*#__PURE__*/React.createElement("span", {
+      className: "kpi-pct",
+      style: {
+        ...valueStyle,
+        opacity: 0.7
+      }
+    }, "· ", stats.pct, "%")), kpi.filterDocTypes.length > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        ...textStyle,
+        fontSize: 10,
+        marginTop: 2,
+        opacity: 0.75
+      }
+    }, "מתוך ", stats.total, " מסמכים"));
+  })));
+}
+
+/* ============ MultiCheckFilter — dropdown with checkboxes ============ */
+function MultiCheckFilter({
+  label,
+  options,
+  selected,
+  onChange
+}) {
+  // options: [{ value, label, bg?, border?, symbol? }]
+  // selected: [] = all selected (show "הכל")
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    if (!open) return;
+    const handler = e => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+  const toggle = val => {
+    if (selected.includes(val)) onChange(selected.filter(v => v !== val));else onChange([...selected, val]);
+  };
+  const allSelected = selected.length === 0 || selected.length === options.length;
+  const summaryText = allSelected ? 'הכל' : selected.length === 1 ? options.find(o => o.value === selected[0])?.label : `${selected.length} נבחרו`;
+  return /*#__PURE__*/React.createElement("div", {
+    ref: ref,
+    style: {
+      position: 'relative'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setOpen(o => !o),
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+      padding: '5px 10px',
+      fontSize: 12,
+      fontFamily: 'inherit',
+      cursor: 'pointer',
+      background: open ? 'var(--surface-2)' : 'var(--surface)',
+      border: `1.5px solid ${!allSelected ? 'var(--accent)' : 'var(--border-strong)'}`,
+      borderRadius: 8,
+      color: 'var(--text)',
+      transition: 'all 0.15s',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+      whiteSpace: 'nowrap'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--text-secondary)',
+      fontWeight: 500
+    }
+  }, label, ":"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 600,
+      color: !allSelected ? 'var(--accent)' : 'var(--text)'
+    }
+  }, summaryText), !allSelected && /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: 16,
+      height: 16,
+      background: 'var(--accent)',
+      color: '#fff',
+      borderRadius: '50%',
+      fontSize: 10,
+      fontWeight: 700,
+      flexShrink: 0
+    }
+  }, selected.length), /*#__PURE__*/React.createElement("svg", {
+    width: "10",
+    height: "10",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2.5",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    style: {
+      color: 'var(--text-tertiary)',
+      transform: open ? 'rotate(180deg)' : 'none',
+      transition: 'transform 0.15s',
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement("polyline", {
+    points: "6 9 12 15 18 9"
+  }))), open && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      top: 'calc(100% + 4px)',
+      right: 0,
+      zIndex: 200,
+      background: 'var(--surface)',
+      border: '1.5px solid var(--border-strong)',
+      borderRadius: 10,
+      boxShadow: '0 8px 28px rgba(0,0,0,0.14)',
+      padding: '6px 0',
+      minWidth: 160,
+      direction: 'rtl'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    onClick: () => onChange([]),
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      padding: '7px 12px',
+      cursor: 'pointer',
+      fontSize: 12,
+      fontWeight: 600,
+      color: allSelected ? 'var(--accent)' : 'var(--text)',
+      background: allSelected ? 'rgba(0,134,192,0.06)' : 'transparent',
+      transition: 'background 0.1s'
+    },
+    onMouseEnter: e => e.currentTarget.style.background = 'var(--surface-2)',
+    onMouseLeave: e => e.currentTarget.style.background = allSelected ? 'rgba(0,134,192,0.06)' : 'transparent'
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    readOnly: true,
+    checked: allSelected,
+    style: {
+      accentColor: 'var(--accent)',
+      width: 13,
+      height: 13,
+      pointerEvents: 'none'
+    }
+  }), "הכל"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: 1,
+      background: 'var(--border)',
+      margin: '4px 0'
+    }
+  }), options.map(opt => {
+    const isChecked = selected.includes(opt.value);
+    return /*#__PURE__*/React.createElement("div", {
+      key: opt.value,
+      onClick: () => toggle(opt.value),
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '7px 12px',
+        cursor: 'pointer',
+        fontSize: 12,
+        transition: 'background 0.1s'
+      },
+      onMouseEnter: e => e.currentTarget.style.background = 'var(--surface-2)',
+      onMouseLeave: e => e.currentTarget.style.background = 'transparent'
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      readOnly: true,
+      checked: isChecked,
+      style: {
+        accentColor: 'var(--accent)',
+        width: 13,
+        height: 13,
+        pointerEvents: 'none',
+        flexShrink: 0
+      }
+    }), opt.bg && /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 16,
+        height: 16,
+        background: opt.bg,
+        border: `1.5px solid ${opt.border}`,
+        borderRadius: 4,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: 10,
+        fontWeight: 700,
+        color: opt.text,
+        flexShrink: 0
+      }
+    }, opt.symbol), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: isChecked ? 600 : 400,
+        color: 'var(--text)'
+      }
+    }, opt.label));
+  })));
+}
+
+/* ============ View Controls ============ */
+function ViewControls({
+  data,
+  update,
+  filters,
+  setFilters,
+  delaySettings,
+  setDelaySettings
+}) {
+  const setView = (key, val) => {
+    update(prev => {
+      const newView = {
+        ...prev.view,
+        [key]: val
+      };
+      if (key === 'rows') {
+        if (val === 'buildings' && !['consultants_x_docs', 'docs_only'].includes(newView.cols)) newView.cols = 'consultants_x_docs';
+        if (val === 'consultants' && !['buildings_x_docs', 'docs_only'].includes(newView.cols)) newView.cols = 'buildings_x_docs';
+      }
+      return {
+        ...prev,
+        view: newView
+      };
+    });
+  };
+  const consultantOptions = data.consultants.map(c => ({
+    value: c.id,
+    label: c.discipline
+  }));
+  const buildingOptions = data.buildings.map(b => ({
+    value: b.id,
+    label: b.name
+  }));
+  const docTypeOptions = data.docTypes.map(d => ({
+    value: d.id,
+    label: d.name
+  }));
+  const statusOptions = STATUS_ORDER.filter(s => s !== 'sent' && s !== 'comments').map(s => ({
+    value: s,
+    label: STATUSES[s].label,
+    bg: STATUSES[s].bg,
+    border: STATUSES[s].border,
+    text: STATUSES[s].text,
+    symbol: STATUSES[s].symbol
+  }));
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 8,
+      padding: '10px 12px',
+      marginBottom: 12,
+      display: 'flex',
+      gap: 12,
+      alignItems: 'center',
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: 'var(--text-secondary)'
+    }
+  }, "שורות:"), /*#__PURE__*/React.createElement("select", {
+    className: "select",
+    value: data.view.rows,
+    onChange: e => setView('rows', e.target.value),
+    style: {
+      width: 'auto',
+      padding: '5px 28px 5px 10px',
+      fontSize: 12
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "buildings"
+  }, "מבנים"), /*#__PURE__*/React.createElement("option", {
+    value: "consultants"
+  }, "יועצים"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: 'var(--text-secondary)'
+    }
+  }, "עמודות:"), /*#__PURE__*/React.createElement("select", {
+    className: "select",
+    value: data.view.cols,
+    onChange: e => setView('cols', e.target.value),
+    style: {
+      width: 'auto',
+      padding: '5px 28px 5px 10px',
+      fontSize: 12
+    }
+  }, data.view.rows === 'buildings' ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("option", {
+    value: "consultants_x_docs"
+  }, "יועצים × מסמכים"), /*#__PURE__*/React.createElement("option", {
+    value: "docs_only"
+  }, "רק מסמכים (איחוד יועצים)")) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("option", {
+    value: "buildings_x_docs"
+  }, "מבנים × מסמכים"), /*#__PURE__*/React.createElement("option", {
+    value: "docs_only"
+  }, "רק מסמכים (איחוד מבנים)")))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: 22,
+      width: 1,
+      background: 'var(--border)'
+    }
+  }), /*#__PURE__*/React.createElement(MultiCheckFilter, {
+    label: "יועץ",
+    options: consultantOptions,
+    selected: filters.consultantIds,
+    onChange: vals => setFilters(f => ({
+      ...f,
+      consultantIds: vals
+    }))
+  }), /*#__PURE__*/React.createElement(MultiCheckFilter, {
+    label: "מבנה",
+    options: buildingOptions,
+    selected: filters.buildingIds,
+    onChange: vals => setFilters(f => ({
+      ...f,
+      buildingIds: vals
+    }))
+  }), /*#__PURE__*/React.createElement(MultiCheckFilter, {
+    label: "מסמך",
+    options: docTypeOptions,
+    selected: filters.docTypeIds,
+    onChange: vals => setFilters(f => ({
+      ...f,
+      docTypeIds: vals
+    }))
+  }), /*#__PURE__*/React.createElement(MultiCheckFilter, {
+    label: "סטטוס",
+    options: statusOptions,
+    selected: filters.statuses,
+    onChange: vals => setFilters(f => ({
+      ...f,
+      statuses: vals
+    }))
+  }), (filters.consultantIds.length > 0 || filters.statuses.length > 0 || filters.buildingIds.length > 0 || filters.docTypeIds.length > 0) && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setFilters({
+      consultantIds: [],
+      statuses: [],
+      buildingIds: [],
+      docTypeIds: []
+    }),
+    style: {
+      padding: '5px 10px',
+      fontSize: 11,
+      fontWeight: 600,
+      fontFamily: 'inherit',
+      cursor: 'pointer',
+      background: 'transparent',
+      border: '1.5px solid var(--border-strong)',
+      borderRadius: 8,
+      color: 'var(--text-secondary)',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 4,
+      transition: 'all 0.15s'
+    },
+    onMouseEnter: e => {
+      e.currentTarget.style.background = '#FFE9EC';
+      e.currentTarget.style.color = '#C2274B';
+      e.currentTarget.style.borderColor = '#F9B3C0';
+    },
+    onMouseLeave: e => {
+      e.currentTarget.style.background = 'transparent';
+      e.currentTarget.style.color = 'var(--text-secondary)';
+      e.currentTarget.style.borderColor = 'var(--border-strong)';
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: "10",
+    height: "10",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2.5",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M18 6L6 18"
+  }), /*#__PURE__*/React.createElement("path", {
+    d: "M6 6l12 12"
+  })), "נקה פילטרים"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      height: 22,
+      width: 1,
+      background: 'var(--border)',
+      marginRight: 4
+    }
+  }), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+      cursor: 'pointer',
+      userSelect: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: delaySettings.enabled,
+    onChange: e => setDelaySettings(s => ({
+      ...s,
+      enabled: e.target.checked
+    })),
+    style: {
+      cursor: 'pointer',
+      accentColor: '#e2445c',
+      width: 13,
+      height: 13
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      fontWeight: 600,
+      color: delaySettings.enabled ? '#e2445c' : 'var(--text-secondary)',
+      whiteSpace: 'nowrap',
+      transition: 'color 0.15s'
+    }
+  }, "עיכובים מעל")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 5
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "number",
+    value: delaySettings.threshold,
+    min: 1,
+    max: 365,
+    onChange: e => setDelaySettings(s => ({
+      ...s,
+      threshold: Math.max(1, parseInt(e.target.value) || 1)
+    })),
+    style: {
+      width: 52,
+      padding: '4px 6px',
+      border: `1.5px solid ${delaySettings.enabled ? '#e2445c' : 'var(--border)'}`,
+      borderRadius: 6,
+      fontSize: 12,
+      fontFamily: 'inherit',
+      textAlign: 'center',
+      background: 'var(--surface)',
+      color: 'var(--text)',
+      outline: 'none',
+      transition: 'border-color 0.15s'
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: 'var(--text-secondary)'
+    }
+  }, "ימים")));
+}
+
+/* ============ Legend ============ */
+function Legend() {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 12,
+      padding: '10px 12px',
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 8,
+      display: 'flex',
+      gap: 14,
+      flexWrap: 'wrap',
+      fontSize: 11,
+      color: 'var(--text-secondary)',
+      alignItems: 'center'
+    }
+  }, STATUS_ORDER.filter(id => id !== 'sent' && id !== 'comments').map(id => {
+    const s = STATUSES[id];
+    return /*#__PURE__*/React.createElement("span", {
+      key: id,
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 18,
+        height: 18,
+        background: s.bg,
+        borderRadius: 4,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: s.text,
+        fontWeight: 700,
+        fontSize: 11,
+        border: `1px solid ${s.border}`
+      }
+    }, s.symbol), s.label);
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginRight: 'auto',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 4
+    }
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "info",
+    size: 13
+  }), " קליק על תא פותח טיימליין מלא"));
+}
+
+/* ============ Status Table ============ */
+function StatusTable({
+  data,
+  filters,
+  onCellClick,
+  delaySettings
+}) {
+  const {
+    view
+  } = data;
+  const [delayTooltip, setDelayTooltip] = React.useState(null); // { days, x, y }
+
+  const consultants = filters.consultantIds?.length > 0 ? data.consultants.filter(c => filters.consultantIds.includes(c.id)) : data.consultants;
+  const buildings = filters.buildingIds?.length > 0 ? data.buildings.filter(b => filters.buildingIds.includes(b.id)) : data.buildings;
+  const docTypes = filters.docTypeIds?.length > 0 ? data.docTypes.filter(d => filters.docTypeIds.includes(d.id)) : data.docTypes;
+  if (data.consultants.length === 0 || data.docTypes.length === 0 || data.buildings.length === 0) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "empty-state",
+      style: {
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        borderRadius: 8
+      }
+    }, /*#__PURE__*/React.createElement(Icon, {
+      name: "info",
+      size: 24
+    }), /*#__PURE__*/React.createElement("p", {
+      style: {
+        marginTop: 8
+      }
+    }, "אין נתונים להצגה. הוסף יועצים, מבנים וסוגי מסמכים בהגדרות."));
+  }
+
+  // בניית מבנה השורות והעמודות
+  let rowItems, colGroups, getCellKeys;
+  if (view.rows === 'buildings' && view.cols === 'consultants_x_docs') {
+    rowItems = buildings.map(b => ({
+      id: b.id,
+      label: b.name
+    }));
+    colGroups = consultants.map(c => ({
+      id: c.id,
+      label: c.discipline,
+      cols: docTypes.map(d => ({
+        key: `${c.id}_${d.id}`,
+        label: d.name,
+        consultantId: c.id,
+        docTypeId: d.id
+      }))
+    })).filter(g => g.cols.length > 0);
+    getCellKeys = (rowId, col) => ({
+      b: rowId,
+      c: col.consultantId,
+      d: col.docTypeId
+    });
+  } else if (view.rows === 'buildings' && view.cols === 'docs_only') {
+    rowItems = buildings.map(b => ({
+      id: b.id,
+      label: b.name
+    }));
+    colGroups = consultants.map(c => ({
+      id: c.id,
+      label: c.discipline,
+      cols: docTypes.map(d => ({
+        key: `${c.id}_${d.id}`,
+        label: d.name,
+        consultantId: c.id,
+        docTypeId: d.id
+      }))
+    })).filter(g => g.cols.length > 0);
+    getCellKeys = (rowId, col) => ({
+      b: rowId,
+      c: col.consultantId,
+      d: col.docTypeId
+    });
+  } else if (view.rows === 'consultants' && view.cols === 'buildings_x_docs') {
+    rowItems = consultants.map(c => ({
+      id: c.id,
+      label: c.discipline,
+      sublabel: c.company
+    }));
+    colGroups = buildings.map(b => ({
+      id: b.id,
+      label: b.name,
+      cols: docTypes.map(d => ({
+        key: `${b.id}_${d.id}`,
+        label: d.name,
+        buildingId: b.id,
+        docTypeId: d.id
+      }))
+    })).filter(g => g.cols.length > 0);
+    getCellKeys = (rowId, col) => ({
+      b: col.buildingId,
+      c: rowId,
+      d: col.docTypeId
+    });
+  } else {
+    // consultants + docs_only
+    rowItems = consultants.map(c => ({
+      id: c.id,
+      label: c.discipline,
+      sublabel: c.company
+    }));
+    colGroups = buildings.map(b => ({
+      id: b.id,
+      label: b.name,
+      cols: docTypes.map(d => ({
+        key: `${b.id}_${d.id}`,
+        label: d.name,
+        buildingId: b.id,
+        docTypeId: d.id
+      }))
+    })).filter(g => g.cols.length > 0);
+    getCellKeys = (rowId, col) => ({
+      b: col.buildingId,
+      c: rowId,
+      d: col.docTypeId
+    });
+  }
+  const allCols = colGroups.flatMap(g => g.cols);
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 8,
+      overflow: 'auto',
+      maxHeight: '70vh'
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    className: "main-table",
+    style: {
+      width: '100%',
+      minWidth: 'max-content'
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
+    rowSpan: 2,
+    style: {
+      minWidth: 110,
+      textAlign: 'right',
+      padding: '8px 10px'
+    }
+  }, view.rows === 'buildings' ? 'מבנה' : 'יועץ'), colGroups.map(g => /*#__PURE__*/React.createElement("th", {
+    key: g.id,
+    colSpan: g.cols.length,
+    className: "group-header",
+    style: {
+      textAlign: 'center'
+    }
+  }, g.label))), /*#__PURE__*/React.createElement("tr", null, allCols.map(col => /*#__PURE__*/React.createElement("th", {
+    key: col.key,
+    style: {
+      minWidth: 56,
+      textAlign: 'center',
+      padding: '5px 3px',
+      fontSize: 10,
+      fontWeight: 400
+    }
+  }, col.label)))), /*#__PURE__*/React.createElement("tbody", null, rowItems.map(row => /*#__PURE__*/React.createElement("tr", {
+    key: row.id
+  }, /*#__PURE__*/React.createElement("td", {
+    className: "row-label",
+    style: {
+      textAlign: 'right'
+    }
+  }, /*#__PURE__*/React.createElement("div", null, row.label), row.sublabel && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: 'var(--text-tertiary)',
+      fontWeight: 400,
+      marginTop: 1
+    }
+  }, row.sublabel)), allCols.map(col => {
+    const keys = getCellKeys(row.id, col);
+    const cell = getCell(data, keys.b, keys.c, keys.d);
+    const isFiltered = filters.statuses?.length > 0 && !filters.statuses.includes(cell.status);
+    const s = STATUSES[cell.status];
+    const sortedEvents = [...cell.events].sort((a, b) => a.date.localeCompare(b.date));
+    const lastEvent = sortedEvents.length > 0 ? sortedEvents[sortedEvents.length - 1] : null;
+    const maxRound = cell.events.reduce((m, e) => Math.max(m, e.round || 1), 0);
+    // ── חישוב עיכוב ──
+    const daysSinceLast = lastEvent ? Math.round((new Date() - new Date(lastEvent.date)) / 86400000) : 0;
+    const isDelayed = delaySettings?.enabled && PERIOD_STATUSES.has(cell.status) && daysSinceLast > (delaySettings.threshold || 14);
+    return /*#__PURE__*/React.createElement("td", {
+      key: col.key,
+      className: "cell-status",
+      style: {
+        background: s.bg,
+        color: s.text,
+        opacity: isFiltered ? 0.2 : 1,
+        ...(isDelayed ? {
+          boxShadow: 'inset 0 0 0 2.5px #e2445c',
+          borderRadius: 4
+        } : {})
+      },
+      onClick: () => onCellClick(keys.b, keys.c, keys.d),
+      onMouseEnter: isDelayed ? e => setDelayTooltip({
+        days: daysSinceLast,
+        x: e.clientX,
+        y: e.clientY
+      }) : undefined,
+      onMouseMove: isDelayed ? e => setDelayTooltip(t => t ? {
+        ...t,
+        x: e.clientX,
+        y: e.clientY
+      } : null) : undefined,
+      onMouseLeave: isDelayed ? () => setDelayTooltip(null) : undefined,
+      title: `${s.label}${lastEvent ? ' · ' + formatDateLong(lastEvent.date) : ''}`
+    }, maxRound > 1 && /*#__PURE__*/React.createElement("span", {
+      className: "round-badge"
+    }, "×", maxRound), /*#__PURE__*/React.createElement("div", {
+      className: "symbol"
+    }, s.symbol), lastEvent && /*#__PURE__*/React.createElement("div", {
+      className: "date"
+    }, formatDateShort(lastEvent.date)));
+  }))))), delayTooltip && /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'fixed',
+      left: delayTooltip.x,
+      top: delayTooltip.y,
+      transform: 'translate(-50%, calc(-100% - 10px))',
+      background: '#fff5f6',
+      border: '1.5px solid #e2445c',
+      borderRadius: 8,
+      padding: '7px 12px',
+      fontSize: 13,
+      fontWeight: 700,
+      color: '#e2445c',
+      boxShadow: '0 4px 16px rgba(226,68,92,0.18)',
+      zIndex: 9999,
+      pointerEvents: 'none',
+      whiteSpace: 'nowrap',
+      direction: 'rtl',
+      lineHeight: 1.5
+    }
+  }, "⏱ ", delayTooltip.days, " ימים באותו סטטוס"));
+}
+
+/* ============ GANTT View Component ============ */
+function GanttView({
+  sortedEvents,
+  firstEvent,
+  endDate,
+  chronoEvents,
+  onEditEvent,
+  daysBetween,
+  formatDateLong,
+  ganttViewMode = 'week',
+  showDependencies = true
+}) {
+  const [selectedEventId, setSelectedEventId] = useState(null);
+  const [activeDrag, setActiveDrag] = useState(null); // { edge:'left'|'right', evtIdx, previewDates:{[id]:date} }
+  const [tooltipPos, setTooltipPos] = useState(null);
+  const tooltipRef = useRef(null);
+  const wrapperRef = useRef(null);
+  const timelineRef = useRef(null);
+
+  // Refs so drag handlers always read fresh values without re-registering
+  const activeDragRef = useRef(null);
+  const chronoEventsRef = useRef(chronoEvents);
+  const totalViewDaysRef = useRef(1);
+  const viewStartDateRef = useRef('');
+  const endDateRef = useRef(endDate);
+  const onEditEventRef = useRef(onEditEvent);
+  chronoEventsRef.current = chronoEvents;
+  endDateRef.current = endDate;
+  onEditEventRef.current = onEditEvent;
+
+  // Calculate working days between two dates (excluding weekends)
+  const calculateWorkingDays = (startDate, endDate) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    let workingDays = 0;
+    const current = new Date(start);
+    while (current <= end) {
+      const dayOfWeek = current.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        // Not Sunday (0) or Saturday (6)
+        workingDays++;
+      }
+      current.setDate(current.getDate() + 1);
+    }
+    return workingDays;
+  };
+  if (!firstEvent) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "gantt-no-events"
+    }, "אין אירועים להצגה בתצוגת גנט");
+  }
+
+  // טווח תצוגה: 6 חודשים לפני האירוע הראשון ו-6 אחרי endDate
+  const viewStartDate = (() => {
+    const d = new Date(firstEvent.date);
+    d.setMonth(d.getMonth() - 6);
+    d.setDate(1);
+    return d.toISOString().slice(0, 10);
+  })();
+  const viewEndDate = (() => {
+    const d = new Date(endDate);
+    d.setMonth(d.getMonth() + 6);
+    d.setDate(1);
+    d.setMonth(d.getMonth() + 1);
+    d.setDate(0); // last day of the month
+    return d.toISOString().slice(0, 10);
+  })();
+  const totalViewDays = Math.max(daysBetween(viewStartDate, viewEndDate), 1);
+
+  // בניית עמודות חודשיות (ישן שמאל → חדש ימין, LTR)
+  const monthColumns = (() => {
+    const cols = [];
+    const cursor = new Date(viewStartDate);
+    cursor.setDate(1);
+    const end = new Date(viewEndDate);
+    while (cursor <= end) {
+      const label = `${String(cursor.getMonth() + 1).padStart(2, '0')}.${cursor.getFullYear()}`;
+      const colStart = cursor.toISOString().slice(0, 10);
+      const next = new Date(cursor);
+      next.setMonth(next.getMonth() + 1);
+      const colEnd = next.toISOString().slice(0, 10);
+      const daysInMonth = daysBetween(colStart, colEnd);
+      cols.push({
+        label,
+        colStart,
+        daysInMonth
+      });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+    return cols;
+  })();
+
+  // Sync computed values into refs each render so drag handlers read fresh values
+  totalViewDaysRef.current = totalViewDays;
+  viewStartDateRef.current = viewStartDate;
+
+  // חישוב מיקום בר לפי viewStartDate — reads preview dates during drag
+  const getBarPosition = (event, nextEvent) => {
+    const pd = activeDragRef.current?.previewDates;
+    const eventDate = pd && pd[event.id] || event.date;
+    const daysFromViewStart = daysBetween(viewStartDateRef.current, eventDate);
+    const left = daysFromViewStart / totalViewDaysRef.current * 100;
+    const nextEvtDate = nextEvent ? pd && pd[nextEvent.id] || nextEvent.date : null;
+    const eventEndDate = nextEvtDate || event.endDate || endDateRef.current;
+    const eventDuration = Math.max(daysBetween(eventDate, eventEndDate), 1);
+    const width = eventDuration / totalViewDaysRef.current * 100;
+    return {
+      left,
+      width,
+      eventEndDate
+    };
+  };
+  const handleBarClick = (e, eventId) => {
+    // Close tooltip if clicking the same event
+    if (selectedEventId === eventId) {
+      setSelectedEventId(null);
+      setTooltipPos(null);
+      return;
+    }
+    const evt = sortedEvents.find(ev => ev.id === eventId);
+    if (!evt) return;
+
+    // Get the clicked element's position
+    const barElement = e.currentTarget;
+    const rect = barElement.getBoundingClientRect();
+
+    // Calculate tooltip position: show above or below the bar depending on space
+    const tooltipHeight = 80;
+    let top = rect.top - tooltipHeight - 8;
+    if (top < 40) {
+      top = rect.bottom + 8;
+    }
+    setSelectedEventId(eventId);
+    setTooltipPos({
+      top,
+      left: rect.left + rect.width / 2
+    });
+  };
+
+  // Called when user presses down on a left or right edge handle
+  const handleEdgeMouseDown = (e, evtIdx, edge) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const initPreview = {};
+    chronoEventsRef.current.forEach(ev => {
+      initPreview[ev.id] = ev.date;
+    });
+    const dragObj = {
+      edge,
+      evtIdx,
+      previewDates: initPreview
+    };
+    activeDragRef.current = dragObj;
+    setActiveDrag({
+      ...dragObj
+    });
+    // also deselect tooltip
+    setSelectedEventId(null);
+    setTooltipPos(null);
+  };
+
+  // Global drag move/up — registered once, reads refs for fresh values
+  useEffect(() => {
+    const onMove = e => {
+      if (!activeDragRef.current || !timelineRef.current) return;
+      const {
+        edge,
+        evtIdx,
+        previewDates
+      } = activeDragRef.current;
+      const evts = chronoEventsRef.current;
+      const tvd = totalViewDaysRef.current;
+      const vsd = viewStartDateRef.current;
+      const rect = timelineRef.current.getBoundingClientRect();
+      const relX = e.clientX - rect.left;
+      const pct = Math.max(0, Math.min(1, relX / rect.width));
+      const daysFromStart = Math.round(pct * tvd);
+      const nd = new Date(vsd);
+      nd.setDate(nd.getDate() + daysFromStart);
+      const newDateISO = nd.toISOString().slice(0, 10);
+      const evt = evts[evtIdx];
+      const prevEvt = evts[evtIdx - 1] || null;
+      const nextEvt = evts[evtIdx + 1] || null;
+      const newPreview = {
+        ...previewDates
+      };
+      if (edge === 'left') {
+        let d = newDateISO;
+        // Can't go before previous event's start
+        if (prevEvt && d < prevEvt.date) d = prevEvt.date;
+        // Can't cross or equal the event's own end
+        const evtEnd = nextEvt ? newPreview[nextEvt.id] || nextEvt.date : evt.endDate || endDateRef.current;
+        if (d >= evtEnd) d = evtEnd;
+        newPreview[evt.id] = d;
+      } else {
+        // right edge: moves the next event's start date (= this event's visual end)
+        if (nextEvt) {
+          let d = newDateISO;
+          const evtStart = newPreview[evt.id] || evt.date;
+          if (d <= evtStart) d = evtStart;
+          const nextNextEvt = evts[evtIdx + 2] || null;
+          if (nextNextEvt && d > nextNextEvt.date) d = nextNextEvt.date;
+          newPreview[nextEvt.id] = d;
+        }
+        // If last event, right edge doesn't move (endDate is today/approval date, not draggable)
+      }
+      const updated = {
+        ...activeDragRef.current,
+        previewDates: newPreview,
+        cursorX: e.clientX,
+        cursorY: e.clientY
+      };
+      activeDragRef.current = updated;
+      setActiveDrag({
+        ...updated
+      });
+    };
+    const onUp = () => {
+      const drag = activeDragRef.current;
+      if (!drag) return;
+      const {
+        edge,
+        evtIdx,
+        previewDates
+      } = drag;
+      const evts = chronoEventsRef.current;
+      const edit = onEditEventRef.current;
+      const evt = evts[evtIdx];
+      const prevEvt = evts[evtIdx - 1] || null;
+      const nextEvt = evts[evtIdx + 1] || null;
+      if (edge === 'left') {
+        const newDate = previewDates[evt.id];
+        if (newDate && newDate !== evt.date) {
+          edit(evt.id, evt.status, evt.note, newDate, evt.round, evt.endDate, evt.dependsOn);
+          if (prevEvt) {
+            edit(prevEvt.id, prevEvt.status, prevEvt.note, prevEvt.date, prevEvt.round, newDate, prevEvt.dependsOn);
+          }
+        }
+      } else if (nextEvt) {
+        const newNextDate = previewDates[nextEvt.id];
+        if (newNextDate && newNextDate !== nextEvt.date) {
+          edit(nextEvt.id, nextEvt.status, nextEvt.note, newNextDate, nextEvt.round, nextEvt.endDate, nextEvt.dependsOn);
+          edit(evt.id, evt.status, evt.note, evt.date, evt.round, newNextDate, evt.dependsOn);
+        }
+      }
+      activeDragRef.current = null;
+      setActiveDrag(null);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+  }, []); // register once; handlers read fresh values via refs
+
+  // גלילה אוטומטית לאירוע הראשון (מרכז את האירועים בתצוגה)
+  useEffect(() => {
+    if (!wrapperRef.current || !firstEvent) return;
+    const wrapper = wrapperRef.current;
+    const totalWidth = wrapper.scrollWidth;
+    const daysToFirst = daysBetween(viewStartDate, firstEvent.date);
+    const firstEventPx = daysToFirst / totalViewDays * totalWidth;
+    // גלול כך שהאירוע הראשון יופיע עם 40px פדינג משמאל
+    wrapper.scrollLeft = Math.max(0, firstEventPx - 40);
+  }, []);
+
+  // Close tooltip when clicking outside
+  useEffect(() => {
+    const handleClickOutside = e => {
+      if (tooltipRef.current && !tooltipRef.current.contains(e.target) && !e.target.classList.contains('gantt-event-bar')) {
+        setSelectedEventId(null);
+        setTooltipPos(null);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "gantt-wrapper",
+    style: {
+      overflowX: 'auto',
+      direction: 'ltr'
+    },
+    ref: wrapperRef
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      minWidth: `${totalViewDays * 5}px`,
+      height: 36,
+      background: 'var(--surface-2)',
+      borderRadius: '6px 6px 0 0',
+      borderBottom: '2px solid var(--border-strong)',
+      marginBottom: 0
+    }
+  }, monthColumns.map((col, idx) => /*#__PURE__*/React.createElement("div", {
+    key: `month-${idx}`,
+    style: {
+      flex: col.daysInMonth,
+      textAlign: 'center',
+      fontSize: 12,
+      fontWeight: 700,
+      color: 'var(--text)',
+      borderLeft: idx > 0 ? '1px solid var(--border-strong)' : 'none',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden'
+    }
+  }, col.label))), /*#__PURE__*/React.createElement("div", {
+    ref: timelineRef,
+    style: {
+      position: 'relative',
+      width: '100%',
+      minWidth: `${totalViewDays * 5}px`,
+      borderBottom: '1px solid var(--border)',
+      cursor: activeDrag ? 'ew-resize' : 'default',
+      userSelect: activeDrag ? 'none' : 'auto'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'absolute',
+      inset: 0,
+      display: 'flex',
+      pointerEvents: 'none'
+    }
+  }, monthColumns.map((col, idx) => /*#__PURE__*/React.createElement("div", {
+    key: idx,
+    style: {
+      flex: col.daysInMonth,
+      borderLeft: idx > 0 ? '1px solid var(--border-strong)' : 'none'
+    }
+  }))), chronoEvents.map((evt, i) => {
+    const s = STATUSES[evt.status];
+    const nextEvt = chronoEvents[i + 1] || null;
+    const pos = getBarPosition(evt, nextEvt);
+    const pd = activeDrag?.previewDates;
+    const displayDate = pd && pd[evt.id] || evt.date;
+    const isSelected = selectedEventId === evt.id;
+    const isDragging = activeDrag?.evtIdx === i;
+    const showHandles = isSelected || isDragging;
+    const isMilestoneEvt = MILESTONE_STATUSES.has(evt.status);
+    return /*#__PURE__*/React.createElement("div", {
+      key: `row-${evt.id}`,
+      style: {
+        position: 'relative',
+        height: 50
+      }
+    }, isMilestoneEvt ?
+    /*#__PURE__*/
+    /* ── מיילסטון: ריבוע מסובב 45° (יהלום) ── */
+    React.createElement("div", {
+      style: {
+        position: 'absolute',
+        left: `${pos.left}%`,
+        top: 11,
+        transform: 'translateX(-50%) rotate(45deg)',
+        width: 16,
+        height: 16,
+        background: s.bg,
+        border: `2px solid ${s.border}`,
+        borderRadius: 3,
+        boxShadow: isSelected ? `0 0 0 2px ${s.border}` : `0 1px 4px rgba(0,0,0,0.12)`,
+        cursor: 'pointer',
+        zIndex: isSelected ? 5 : 2,
+        transition: 'box-shadow 0.15s'
+      },
+      onClick: e => {
+        e.stopPropagation();
+        if (!activeDrag) handleBarClick(e, evt.id);
+      },
+      title: `${s.label} - ${formatDateLong(displayDate)}`
+    }) :
+    /*#__PURE__*/
+    /* ── פרק זמן: בר רגיל ── */
+    React.createElement("div", {
+      className: `gantt-event-bar${isDragging ? ' dragging' : ''}`,
+      style: {
+        position: 'absolute',
+        background: s.bg,
+        color: s.text,
+        border: `1.5px solid ${s.border}`,
+        outline: isSelected ? `2px solid ${s.border}` : isDragging ? `2px solid ${s.border}` : 'none',
+        outlineOffset: 1,
+        left: `${pos.left}%`,
+        width: `${pos.width}%`,
+        top: 5,
+        height: 28,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: 10,
+        fontWeight: 500,
+        borderRadius: 6,
+        cursor: activeDrag ? 'ew-resize' : 'pointer',
+        padding: '0 16px',
+        overflow: 'visible',
+        boxSizing: 'border-box',
+        zIndex: isDragging ? 10 : isSelected ? 5 : 1,
+        transition: isDragging ? 'none' : 'left 0.05s, width 0.05s'
+      },
+      onClick: e => {
+        if (!activeDrag) handleBarClick(e, evt.id);
+      },
+      title: `${s.label} - ${formatDateLong(displayDate)}`
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 700,
+        flexShrink: 0,
+        pointerEvents: 'none'
+      }
+    }, s.symbol), evt.round >= 1 && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 9,
+        fontWeight: 700,
+        flexShrink: 0,
+        pointerEvents: 'none',
+        marginLeft: 4,
+        opacity: 0.75,
+        fontFamily: "'JetBrains Mono', monospace"
+      }
+    }, evt.round, "×"), /*#__PURE__*/React.createElement("div", {
+      className: "gantt-bar-edge left",
+      style: {
+        position: 'absolute',
+        left: -4,
+        top: 0,
+        width: 12,
+        height: '100%',
+        cursor: 'ew-resize',
+        opacity: showHandles ? 1 : 0,
+        background: showHandles ? 'rgba(255,255,255,0.6)' : 'transparent',
+        borderRadius: '4px 0 0 4px',
+        transition: 'opacity 0.15s',
+        zIndex: 20
+      },
+      onMouseDown: e => handleEdgeMouseDown(e, i, 'left')
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "gantt-bar-edge right",
+      style: {
+        position: 'absolute',
+        right: -4,
+        top: 0,
+        width: 12,
+        height: '100%',
+        cursor: 'ew-resize',
+        opacity: showHandles && nextEvt ? 1 : 0,
+        background: showHandles && nextEvt ? 'rgba(255,255,255,0.6)' : 'transparent',
+        borderRadius: '0 4px 4px 0',
+        transition: 'opacity 0.15s',
+        zIndex: 20
+      },
+      onMouseDown: nextEvt ? e => handleEdgeMouseDown(e, i, 'right') : undefined
+    })));
+  }), (() => {
+    const pd = activeDrag?.previewDates;
+    const ROW = 50;
+    const S = 16; // stub אופקי (px) — כמה פיקסלים יוצאים ימינה מסוף הבר
+    const cW = totalViewDays * 5;
+
+    // מיקומי Y בתוך כל שורה (absolute מתחילת ה-timeline)
+    const barCY = r => r * ROW + 19; // מרכז הבר (top=5, h=28 → ctr=19)
+    const milCY = r => r * ROW + 19; // מרכז היהלום (top=11, h=16 → ctr=19)
+    const milBot = r => r * ROW + 30; // קצה תחתון של היהלום (≈ ctr + 11)
+    const barBot = r => r * ROW + 33; // תחתית הבר (top=5 + h=28)
+    const barTop = r => r * ROW + 5; // עליית הבר
+
+    const px = evtIdx => {
+      const ev = chronoEvents[evtIdx];
+      const evD = pd && pd[ev.id] || ev.date;
+      return daysBetween(viewStartDate, evD) * 5;
+    };
+
+    // מרקר חץ — orient=auto: ימינה כשהנתיב הולך ימינה, שמאלה כשהולך שמאלה
+    const Marker = ({
+      id
+    }) => /*#__PURE__*/React.createElement("defs", null, /*#__PURE__*/React.createElement("marker", {
+      id: id,
+      markerWidth: "8",
+      markerHeight: "6",
+      refX: "8",
+      refY: "3",
+      orient: "auto",
+      markerUnits: "userSpaceOnUse"
+    }, /*#__PURE__*/React.createElement("polygon", {
+      points: "0,0 0,6 8,3",
+      fill: "var(--text-secondary)"
+    })));
+    const segs = [];
+    let i = 0;
+    while (i < chronoEvents.length - 1) {
+      const evt = chronoEvents[i];
+      const nextEvt = chronoEvents[i + 1];
+      const isMilNext = MILESTONE_STATUSES.has(nextEvt.status);
+      const isMilEvt = MILESTONE_STATUSES.has(evt.status);
+      if (!isMilEvt && isMilNext && i + 2 < chronoEvents.length) {
+        // ── LONG: period[i] → milestone[i+1] → period[i+2] ──
+        //
+        // רגל 1: סוף בר A  → stub ימינה → ירידה → כניסה שמאלה אל מרכז המיילסטון
+        //         (חץ מצביע שמאלה, orient=auto מסובב את המרקר)
+        //
+        // רגל 2: תחתית מיילסטון → ירידה → כניסה ימינה אל שמאל בר B
+        //         (חץ מצביע ימינה)
+
+        const xM = px(i + 1); // x מיילסטון = גם x קצה ימין בר A
+        const xB = px(i + 2); // x שמאל בר B
+        const id1 = `gc1-${evt.id}`;
+        const id2 = `gc2-${evt.id}`;
+
+        // ── רגל 1 ──
+        const y1T = barCY(i); // top של SVG (מרכז בר A)
+        const h1 = milCY(i + 1) - y1T; // ROW = 50px
+        const d1 = `M ${xM} 0 L ${xM + S} 0 L ${xM + S} ${h1} L ${xM} ${h1}`;
+        segs.push(/*#__PURE__*/React.createElement("svg", {
+          key: `cl1-${evt.id}`,
+          width: cW,
+          height: h1 + 1,
+          viewBox: `0 0 ${cW} ${h1 + 1}`,
+          style: {
+            position: 'absolute',
+            left: 0,
+            top: y1T,
+            pointerEvents: 'none',
+            overflow: 'visible'
+          }
+        }, /*#__PURE__*/React.createElement(Marker, {
+          id: id1
+        }), /*#__PURE__*/React.createElement("path", {
+          d: d1,
+          stroke: "var(--text-secondary)",
+          strokeWidth: "1.5",
+          fill: "none",
+          markerEnd: `url(#${id1})`
+        })));
+
+        // ── רגל 2 ──
+        const y2T = milBot(i + 1); // top של SVG (תחתית מיילסטון)
+        const drop = barCY(i + 2) - y2T; // ROW − 11 ≈ 39px
+        const d2 = `M ${xM} 0 L ${xM} ${drop} L ${xB} ${drop}`;
+        segs.push(/*#__PURE__*/React.createElement("svg", {
+          key: `cl2-${evt.id}`,
+          width: cW,
+          height: drop + 1,
+          viewBox: `0 0 ${cW} ${drop + 1}`,
+          style: {
+            position: 'absolute',
+            left: 0,
+            top: y2T,
+            pointerEvents: 'none',
+            overflow: 'visible'
+          }
+        }, /*#__PURE__*/React.createElement(Marker, {
+          id: id2
+        }), /*#__PURE__*/React.createElement("path", {
+          d: d2,
+          stroke: "var(--text-secondary)",
+          strokeWidth: "1.5",
+          fill: "none",
+          markerEnd: `url(#${id2})`
+        })));
+        i += 2;
+      } else if (!isMilEvt && isMilNext) {
+        // ── TERMINAL: period → milestone (ללא period אחריו) ──
+        // רק רגל 1: stub ימינה → ירידה → שמאלה אל המיילסטון
+        const xM = px(i + 1);
+        const yT = barCY(i);
+        const h = milCY(i + 1) - yT;
+        const d = `M ${xM} 0 L ${xM + S} 0 L ${xM + S} ${h} L ${xM} ${h}`;
+        const id1 = `gct-${evt.id}`;
+        segs.push(/*#__PURE__*/React.createElement("svg", {
+          key: `ct-${evt.id}`,
+          width: cW,
+          height: h + 1,
+          viewBox: `0 0 ${cW} ${h + 1}`,
+          style: {
+            position: 'absolute',
+            left: 0,
+            top: yT,
+            pointerEvents: 'none',
+            overflow: 'visible'
+          }
+        }, /*#__PURE__*/React.createElement(Marker, {
+          id: id1
+        }), /*#__PURE__*/React.createElement("path", {
+          d: d,
+          stroke: "var(--text-secondary)",
+          strokeWidth: "1.5",
+          fill: "none",
+          markerEnd: `url(#${id1})`
+        })));
+        i++;
+      } else if (isMilEvt && !isMilNext) {
+        // ── INITIAL: milestone → period (מיילסטון בתחילת הרצף) ──
+        // רק רגל 2: ירידה מתחתית המיילסטון → ימינה אל שמאל הבר
+        const xM = px(i);
+        const xB = px(i + 1);
+        const yT = milBot(i);
+        const drop = barCY(i + 1) - yT;
+        const d = `M ${xM} 0 L ${xM} ${drop} L ${xB} ${drop}`;
+        const id2 = `gci-${evt.id}`;
+        segs.push(/*#__PURE__*/React.createElement("svg", {
+          key: `ci-${evt.id}`,
+          width: cW,
+          height: drop + 1,
+          viewBox: `0 0 ${cW} ${drop + 1}`,
+          style: {
+            position: 'absolute',
+            left: 0,
+            top: yT,
+            pointerEvents: 'none',
+            overflow: 'visible'
+          }
+        }, /*#__PURE__*/React.createElement(Marker, {
+          id: id2
+        }), /*#__PURE__*/React.createElement("path", {
+          d: d,
+          stroke: "var(--text-secondary)",
+          strokeWidth: "1.5",
+          fill: "none",
+          markerEnd: `url(#${id2})`
+        })));
+        i++;
+      } else {
+        // ── FALLBACK: period → period (ישיר, ללא מיילסטון) ──
+        const x = px(i + 1);
+        const yT = barBot(i) + 1;
+        const h = Math.max(barTop(i + 1) - yT - 1, 8);
+        const id0 = `gcf-${evt.id}`;
+        segs.push(/*#__PURE__*/React.createElement("svg", {
+          key: `cf-${evt.id}`,
+          width: cW,
+          height: h,
+          viewBox: `0 0 ${cW} ${h}`,
+          style: {
+            position: 'absolute',
+            left: 0,
+            top: yT,
+            pointerEvents: 'none'
+          }
+        }, /*#__PURE__*/React.createElement("defs", null, /*#__PURE__*/React.createElement("marker", {
+          id: id0,
+          markerWidth: "8",
+          markerHeight: "6",
+          refX: "4",
+          refY: "0",
+          orient: "270",
+          markerUnits: "userSpaceOnUse"
+        }, /*#__PURE__*/React.createElement("polygon", {
+          points: "0,6 8,6 4,0",
+          fill: "var(--text-secondary)"
+        }))), /*#__PURE__*/React.createElement("line", {
+          x1: x,
+          y1: 0,
+          x2: x,
+          y2: h,
+          stroke: "var(--text-secondary)",
+          strokeWidth: "1.5",
+          markerEnd: `url(#${id0})`
+        })));
+        i++;
+      }
+    }
+    return segs;
+  })()), activeDrag && activeDrag.cursorX != null && (() => {
+    const {
+      edge,
+      evtIdx,
+      previewDates,
+      cursorX,
+      cursorY
+    } = activeDrag;
+    const evt = chronoEvents[evtIdx];
+    const nextEvt = chronoEvents[evtIdx + 1] || null;
+    if (!evt) return null;
+    const changedDate = edge === 'left' ? previewDates[evt.id] : nextEvt ? previewDates[nextEvt.id] : null;
+    if (!changedDate) return null;
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        position: 'fixed',
+        top: cursorY - 28,
+        left: cursorX + 10,
+        background: 'var(--surface)',
+        border: '1px solid var(--border-strong)',
+        color: 'var(--text)',
+        borderRadius: 5,
+        padding: '3px 8px',
+        fontSize: 11,
+        fontWeight: 600,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+        zIndex: 2000,
+        pointerEvents: 'none',
+        fontFamily: "'JetBrains Mono', monospace",
+        whiteSpace: 'nowrap'
+      }
+    }, formatDateLong(changedDate));
+  })(), selectedEventId && tooltipPos && /*#__PURE__*/React.createElement("div", {
+    ref: tooltipRef,
+    style: {
+      position: 'fixed',
+      top: `${tooltipPos.top}px`,
+      left: `${tooltipPos.left}px`,
+      transform: 'translateX(-50%)',
+      background: 'var(--surface)',
+      border: '1px solid var(--border)',
+      borderRadius: 8,
+      padding: '10px 12px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+      zIndex: 1000,
+      fontSize: 12,
+      color: 'var(--text)',
+      whiteSpace: 'nowrap',
+      minWidth: 'max-content'
+    }
+  }, (() => {
+    const evtIdx = chronoEvents.findIndex(e => e.id === selectedEventId);
+    if (evtIdx === -1) return null;
+    const evt = chronoEvents[evtIdx];
+    const s = STATUSES[evt.status];
+    const displayDate = evt.date;
+    const isMil = MILESTONE_STATUSES.has(evt.status);
+    if (isMil) {
+      /* ── מיילסטון: שם + תאריך ── */
+      return /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 5,
+          direction: 'rtl'
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 7
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          width: 20,
+          height: 20,
+          background: s.bg,
+          border: `2px solid ${s.border}`,
+          borderRadius: 3,
+          transform: 'rotate(45deg)',
+          display: 'inline-block',
+          flexShrink: 0
+        }
+      }), /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontWeight: 700,
+          fontSize: 13,
+          color: s.text
+        }
+      }, s.label), evt.round >= 1 && /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 10,
+          fontWeight: 600,
+          color: 'var(--text-secondary)',
+          fontFamily: "'JetBrains Mono', monospace"
+        }
+      }, "סבב ", evt.round)), /*#__PURE__*/React.createElement("div", {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6
+        }
+      }, /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontSize: 11,
+          color: 'var(--text-secondary)',
+          fontWeight: 500
+        }
+      }, "תאריך:"), /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontFamily: "'JetBrains Mono', monospace",
+          fontWeight: 600
+        }
+      }, formatDateLong(displayDate))));
+    }
+
+    /* ── פרק זמן: התחלה + סיום + ימי עבודה ── */
+    const nextEvt = chronoEvents[evtIdx + 1] || null;
+    const eventEndDate = nextEvt ? nextEvt.date : evt.endDate || endDate;
+    const workingDays = calculateWorkingDays(displayDate, eventEndDate);
+    return /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
+        direction: 'rtl'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 2
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 700,
+        fontSize: 12,
+        color: s.text
+      }
+    }, s.symbol, " ", s.label), evt.round >= 1 && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        fontWeight: 600,
+        color: 'var(--text-secondary)',
+        fontFamily: "'JetBrains Mono', monospace"
+      }
+    }, "סבב ", evt.round)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 8,
+        alignItems: 'center'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: 'var(--text-secondary)',
+        fontWeight: 500
+      }
+    }, "התחלה:"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: "'JetBrains Mono', monospace",
+        fontWeight: 600
+      }
+    }, formatDateLong(displayDate))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 8,
+        alignItems: 'center'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: 'var(--text-secondary)',
+        fontWeight: 500
+      }
+    }, "סיום:"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: "'JetBrains Mono', monospace",
+        fontWeight: 600
+      }
+    }, formatDateLong(eventEndDate))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 8,
+        alignItems: 'center'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: 'var(--text-secondary)',
+        fontWeight: 500
+      }
+    }, "ימי עבודה:"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: "'JetBrains Mono', monospace",
+        fontWeight: 600,
+        color: 'var(--accent)'
+      }
+    }, workingDays)));
+  })()));
+}
+
+/* ============ Cell Detail Modal ============ */
+const daysBetween = (d1, d2) => Math.round(Math.abs((new Date(d2) - new Date(d1)) / 86400000));
+function CellDetailModal({
+  data,
+  cell,
+  cellData,
+  sidebarWidth,
+  setSidebarWidth,
+  onClose,
+  onAddEvent,
+  onDeleteEvent,
+  onEditEvent
+}) {
+  const building = data.buildings.find(b => b.id === cell.buildingId);
+  const consultant = data.consultants.find(c => c.id === cell.consultantId);
+  const docType = data.docTypes.find(d => d.id === cell.docTypeId);
+  const maxRound = cellData.events.reduce((m, e) => Math.max(m, e.round || 1), 1);
+
+  // מצא את האירוע הכי עדכני (לפי תאריך ואז createdAt) לכותרת
+  const latestEvent = cellData.events.length > 0 ? [...cellData.events].sort((a, b) => {
+    if (a.date !== b.date) return b.date.localeCompare(a.date);
+    return (b.createdAt || '').localeCompare(a.createdAt || '');
+  })[0] : null;
+  const currentStatus = STATUSES[latestEvent?.status || cellData.status];
+  const [showForm, setShowForm] = useState(cellData.events.length === 0);
+  const [formStatus, setFormStatus] = useState(() => getNextSuggestedStatus(latestEvent?.status));
+  const [formDate, setFormDate] = useState(todayISO());
+  const [formNote, setFormNote] = useState('');
+  const [formRound, setFormRound] = useState(maxRound);
+
+  // כשפותחים מחדש את הטופס — מחשב ברירת מחדל חכמה
+  useEffect(() => {
+    if (!showForm) return;
+    const sorted = [...cellData.events].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const lastEvt = sorted[sorted.length - 1] || null;
+    const suggested = getNextSuggestedStatus(lastEvt?.status);
+    setFormStatus(suggested);
+    setFormDate(todayISO());
+    setFormNote('');
+    // סבב: אם אחרי "יש הערות" → סבב+1, אחרת שמור על הנוכחי
+    const nextRound = lastEvt?.status === 'comments' ? (lastEvt.round || 1) + 1 : lastEvt?.round || 1;
+    setFormRound(nextRound);
+  }, [showForm]);
+
+  // Get the previous event
+  const getPreviousEvent = () => {
+    if (cellData.events.length === 0) return null;
+    const sorted = [...cellData.events].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    return sorted[sorted.length - 1];
+  };
+  const [editingEventId, setEditingEventId] = useState(null);
+  const [editDraft, setEditDraft] = useState({
+    status: 'sent',
+    date: todayISO(),
+    note: '',
+    round: 1
+  });
+  const [viewMode, setViewMode] = useState('timeline');
+  const [ganttViewMode, setGanttViewMode] = useState('week');
+  const [showDependencies, setShowDependencies] = useState(true);
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeHandleRef = useRef(null);
+  const resizeStartXRef = useRef(0);
+  const resizeStartWidthRef = useRef(0);
+
+  // Handle sidebar resize
+  useEffect(() => {
+    const handleMouseDown = e => {
+      setIsResizing(true);
+      resizeStartXRef.current = e.clientX;
+      resizeStartWidthRef.current = sidebarWidth;
+      e.preventDefault();
+    };
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+    const handleMouseMove = e => {
+      if (!isResizing) return;
+
+      // Calculate delta from initial position (drag left = expand, drag right = contract)
+      const delta = resizeStartXRef.current - e.clientX;
+      const newWidth = resizeStartWidthRef.current - delta;
+
+      // Min width: 300px, Max width: 850px
+      setSidebarWidth(Math.max(300, Math.min(850, newWidth)));
+    };
+    const handle = resizeHandleRef.current;
+    if (handle) {
+      handle.addEventListener('mousedown', handleMouseDown);
+    }
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('mousemove', handleMouseMove);
+    return () => {
+      if (handle) {
+        handle.removeEventListener('mousedown', handleMouseDown);
+      }
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, [isResizing, sidebarWidth, setSidebarWidth]);
+  const submitEvent = () => {
+    if (!formStatus) return;
+    const prevEvent = getPreviousEvent();
+    const round = parseInt(formRound) || 1;
+
+    // סגירת הפרק הקודם: endDate = תאריך האירוע החדש
+    if (prevEvent) {
+      onEditEvent(prevEvent.id, prevEvent.status, prevEvent.note, prevEvent.date, prevEvent.round, formDate, prevEvent.dependsOn);
+    }
+
+    // הוספת האירוע הראשי (מיילסטון או פרק)
+    onAddEvent(formStatus, formNote, formDate, round, todayISO(), null);
+
+    // אם זה מיילסטון שיוצר סטטוס עוקב — מוסיף אוטומטית באותו תאריך
+    const follow = AUTO_FOLLOW[formStatus];
+    if (follow) {
+      const followRound = round + follow.roundDelta;
+      onAddEvent(follow.status, '', formDate, followRound, todayISO(), null);
+    }
+    setShowForm(false);
+    setFormNote('');
+    setFormDate(todayISO());
+  };
+  const startEdit = evt => {
+    setEditingEventId(evt.id);
+    setEditDraft({
+      status: evt.status,
+      date: evt.date,
+      endDate: evt.endDate || evt.date,
+      note: evt.note || '',
+      round: evt.round || 1
+    });
+  };
+  const cancelEdit = () => setEditingEventId(null);
+  const saveEdit = () => {
+    onEditEvent(editingEventId, editDraft.status, editDraft.note, editDraft.date, editDraft.round, editDraft.endDate, null);
+    setEditingEventId(null);
+  };
+
+  // מיון כרונולוגי לחישובים (ישן ← חדש)
+  // באותו תאריך: מיילסטון לפני פרק (מיילסטון מוביל את המעבר, הפרק מתחיל אחריו)
+  const chronoEvents = [...cellData.events].sort((a, b) => {
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    const aPeriod = PERIOD_STATUSES.has(a.status) ? 1 : 0;
+    const bPeriod = PERIOD_STATUSES.has(b.status) ? 1 : 0;
+    if (aPeriod !== bPeriod) return aPeriod - bPeriod; // milestone(0) before period(1)
+    return (a.createdAt || '').localeCompare(b.createdAt || '');
+  });
+  const firstEvent = chronoEvents[0];
+  const lastChronoEvent = chronoEvents[chronoEvents.length - 1];
+  const isApprovedFinal = lastChronoEvent?.status === 'approved';
+  const endDate = isApprovedFinal ? lastChronoEvent.date : todayISO();
+  const totalDays = firstEvent ? daysBetween(firstEvent.date, endDate) : null;
+
+  // הצגת האירועים מהחדש לישן (חדש בראש הטיימליין)
+  // באותו תאריך: פרק מעל מיילסטון — כך המיילסטון מוצג בין שני הפרקים
+  const sortedEvents = [...cellData.events].sort((a, b) => {
+    if (a.date !== b.date) return b.date.localeCompare(a.date);
+    const aPeriod = PERIOD_STATUSES.has(a.status) ? 0 : 1;
+    const bPeriod = PERIOD_STATUSES.has(b.status) ? 0 : 1;
+    if (aPeriod !== bPeriod) return aPeriod - bPeriod; // period(0) before milestone(1)
+    return (b.createdAt || '').localeCompare(a.createdAt || '');
+  });
+  return /*#__PURE__*/React.createElement("div", {
+    className: "sidebar-overlay"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sidebar-panel",
+    style: {
+      width: `${sidebarWidth}px`,
+      cursor: isResizing ? 'ew-resize' : 'auto'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    ref: resizeHandleRef,
+    className: "sidebar-resize-handle",
+    title: "גרור להרחבה/צמצום"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "sidebar-header"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: 12,
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6,
+      flexWrap: 'wrap'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "sidebar-context-tag"
+  }, consultant?.discipline || '—'), /*#__PURE__*/React.createElement("span", {
+    className: "sidebar-context-tag"
+  }, building?.name || '—'), /*#__PURE__*/React.createElement("span", {
+    className: "sidebar-context-tag"
+  }, docType?.name || '—')), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-icon",
+    onClick: onClose,
+    "aria-label": "סגור",
+    style: {
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "x",
+    size: 16
+  }))), /*#__PURE__*/React.createElement("h2", {
+    style: {
+      margin: '0 0 2px',
+      fontSize: 20,
+      fontWeight: 700,
+      lineHeight: 1.2
+    }
+  }, docType?.name, " · ", building?.name), consultant?.company && /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: '4px 0 0',
+      fontSize: 12,
+      color: 'var(--text-secondary)'
+    }
+  }, consultant.company), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 12,
+      padding: '10px 14px',
+      background: 'var(--surface-2)',
+      borderRadius: 10,
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      flexWrap: 'wrap',
+      border: '1px solid var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "status-pill",
+    style: {
+      background: currentStatus.bg,
+      color: currentStatus.text,
+      border: `1px solid ${currentStatus.border}`,
+      fontSize: 13
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 800
+    }
+  }, currentStatus.symbol), currentStatus.label), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: 'var(--text-tertiary)',
+      background: 'var(--border)',
+      borderRadius: 6,
+      padding: '2px 7px'
+    },
+    className: "mono"
+  }, "סבב ", maxRound), latestEvent && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: 'var(--text-tertiary)',
+      background: 'var(--border)',
+      borderRadius: 6,
+      padding: '2px 7px'
+    },
+    className: "mono"
+  }, formatDateLong(latestEvent.date)), (() => {
+    // ימי עבודה (progress) וימי המתנה (response) בנפרד
+    let workDays = 0,
+      waitDays = 0;
+    chronoEvents.forEach((evt, i) => {
+      const nextEvt = chronoEvents[i + 1];
+      if (!PERIOD_STATUSES.has(evt.status)) return;
+      const evtEnd = nextEvt ? nextEvt.date : endDate;
+      const d = daysBetween(evt.date, evtEnd);
+      if (evt.status === 'progress') workDays += d;
+      if (evt.status === 'response') waitDays += d;
+    });
+    return /*#__PURE__*/React.createElement(React.Fragment, null, workDays > 0 && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: 'var(--text-tertiary)',
+        background: 'var(--border)',
+        borderRadius: 6,
+        padding: '2px 7px'
+      },
+      className: "mono",
+      title: "ימי עבודה (מתכנן)"
+    }, "⚒ ", workDays, "י׳"), waitDays > 0 && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: 'var(--text-tertiary)',
+        background: 'var(--border)',
+        borderRadius: 6,
+        padding: '2px 7px'
+      },
+      className: "mono",
+      title: "ימי המתנה לתשובת רפרנט"
+    }, "⏳ ", waitDays, "י׳"), workDays === 0 && waitDays === 0 && totalDays !== null && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: 'var(--text-tertiary)',
+        background: 'var(--border)',
+        borderRadius: 6,
+        padding: '2px 7px'
+      },
+      className: "mono"
+    }, isApprovedFinal ? '✓' : '⏱', " ", totalDays, "י׳"));
+  })())), /*#__PURE__*/React.createElement("div", {
+    className: "sidebar-body"
+  }, showForm && /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'var(--surface-2)',
+      border: '1px solid var(--border)',
+      borderRadius: 12,
+      padding: '14px 16px',
+      marginBottom: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 12,
+      fontWeight: 700,
+      marginBottom: 12,
+      color: 'var(--text-secondary)',
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em'
+    }
+  }, "הוספת אירוע חדש"), AUTO_FOLLOW[formStatus] && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+      fontSize: 11,
+      color: 'var(--text-secondary)',
+      background: 'var(--border)',
+      borderRadius: 6,
+      padding: '5px 10px',
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("span", null, STATUSES[formStatus].symbol, " ", STATUSES[formStatus].label), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--text-tertiary)'
+    }
+  }, "→ יוצר אוטומטית:"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 700,
+      color: 'var(--text)'
+    }
+  }, STATUSES[AUTO_FOLLOW[formStatus].status].symbol, " ", STATUSES[AUTO_FOLLOW[formStatus].status].label, AUTO_FOLLOW[formStatus].roundDelta > 0 && ` (סבב ${parseInt(formRound) + 1})`), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--text-tertiary)'
+    }
+  }, "באותו תאריך")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: MILESTONE_STATUSES.has(formStatus) ? '1fr 1fr' : 'repeat(3, 1fr)',
+      gap: 8,
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "label"
+  }, "סטטוס"), /*#__PURE__*/React.createElement("select", {
+    className: "select",
+    value: formStatus,
+    onChange: e => setFormStatus(e.target.value)
+  }, STATUS_ORDER.filter(s => s !== 'missing' && s !== 'response').map(s => /*#__PURE__*/React.createElement("option", {
+    key: s,
+    value: s
+  }, STATUSES[s].label)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "label"
+  }, "תאריך"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: 'relative'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    className: "input",
+    type: "text",
+    readOnly: true,
+    value: formatDateLong(formDate),
+    style: {
+      cursor: 'pointer',
+      paddingLeft: 28
+    },
+    onClick: e => e.currentTarget.nextSibling.showPicker?.() || e.currentTarget.nextSibling.click()
+  }), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: formDate,
+    onChange: e => setFormDate(e.target.value),
+    style: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      width: '100%',
+      height: '100%',
+      opacity: 0,
+      pointerEvents: 'none'
+    }
+  }))), !MILESTONE_STATUSES.has(formStatus) && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "label"
+  }, "סבב"), /*#__PURE__*/React.createElement("input", {
+    className: "input",
+    type: "number",
+    min: "1",
+    value: formRound,
+    onChange: e => setFormRound(e.target.value)
+  }))), /*#__PURE__*/React.createElement("label", {
+    className: "label"
+  }, "הערה"), /*#__PURE__*/React.createElement("textarea", {
+    className: "textarea",
+    placeholder: "לדוגמא: ההתייחסות נשלחה לרפרנט יוסי...",
+    value: formNote,
+    onChange: e => setFormNote(e.target.value)
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6,
+      marginTop: 10,
+      justifyContent: 'flex-end'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-sm",
+    onClick: () => setShowForm(false)
+  }, "ביטול"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary btn-sm",
+    onClick: submitEvent
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "check",
+    size: 13
+  }), "שמור אירוע"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 10,
+      marginBottom: 14,
+      justifyContent: 'space-between'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "section-title",
+    style: {
+      margin: 0
+    }
+  }, "סבבי האישור"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6,
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 4
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: `gantt-tab ${viewMode === 'timeline' ? 'active' : ''}`,
+    onClick: () => setViewMode('timeline')
+  }, "טיימליין"), /*#__PURE__*/React.createElement("button", {
+    className: `gantt-tab ${viewMode === 'gantt' ? 'active' : ''}`,
+    onClick: () => setViewMode('gantt')
+  }, "גנט")), !showForm && /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary btn-sm",
+    onClick: () => {
+      setShowForm(true);
+      setEditingEventId(null);
+    }
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "plus",
+    size: 13
+  }), "הוסף אירוע"))), viewMode === 'gantt' && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 12,
+      marginBottom: 12,
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      paddingBottom: 12,
+      borderBottom: '1px solid var(--border)'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 4,
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      fontWeight: 500,
+      color: 'var(--text-secondary)'
+    }
+  }, "תצוגה:"), /*#__PURE__*/React.createElement("button", {
+    className: "gantt-tab active",
+    style: {
+      padding: '4px 10px',
+      fontSize: 11
+    }
+  }, "חודש")), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+      fontSize: 12,
+      cursor: 'pointer',
+      userSelect: 'none'
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: showDependencies,
+    onChange: e => setShowDependencies(e.target.checked),
+    style: {
+      cursor: 'pointer',
+      margin: 0
+    }
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: 'var(--text-secondary)'
+    }
+  }, "הצג קשרים"))), sortedEvents.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "empty-state",
+    style: {
+      padding: '32px 12px'
+    }
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: 0,
+      fontSize: 13
+    }
+  }, "אין עדיין אירועים. לחץ \"הוסף אירוע\" כדי להתחיל.")) : viewMode === 'timeline' ? /*#__PURE__*/React.createElement("div", {
+    className: "timeline"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "timeline-line"
+  }), sortedEvents.map((evt, i) => {
+    const s = STATUSES[evt.status];
+    const prevEvt = sortedEvents[i - 1]; // חדש יותר (מעל)
+    const nextEvt = sortedEvents[i + 1]; // ישן יותר (מתחת)
+    const isMilestone = MILESTONE_STATUSES.has(evt.status);
+    const isPeriod = PERIOD_STATUSES.has(evt.status);
+    const isEditing = editingEventId === evt.id;
+
+    // משך הפרק: מתאריך האירוע עד שהתחיל האירוע הבא (החדש יותר) — או היום
+    const periodEnd = prevEvt ? prevEvt.date : todayISO();
+    const periodDays = isPeriod ? daysBetween(evt.date, periodEnd) : 0;
+
+    // הפרש בין אירוע זה לישן ממנו — מוצג רק אם שניהם מיילסטון (זמן לא מוסבר)
+    const gapToOlder = nextEvt ? daysBetween(evt.date, nextEvt.date) : null;
+    // לא מציגים פרש כשהאירוע הישן הוא פרק זמן (שמציג את המשך בעצמו)
+    const showGap = gapToOlder !== null && gapToOlder > 0 && isMilestone && nextEvt && MILESTONE_STATUSES.has(nextEvt.status);
+
+    /* ── עריכה ── */
+    if (isEditing) return /*#__PURE__*/React.createElement("div", {
+      key: evt.id,
+      className: "timeline-event"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "timeline-dot",
+      style: {
+        background: s.border
+      }
+    }), /*#__PURE__*/React.createElement("div", {
+      style: {
+        background: 'var(--surface-2)',
+        border: `1.5px solid ${s.border}`,
+        borderRadius: 10,
+        padding: '12px 14px'
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        fontWeight: 700,
+        color: 'var(--text-secondary)',
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+        marginBottom: 10
+      }
+    }, "עריכת אירוע"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: 8,
+        marginBottom: 10
+      }
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      className: "label"
+    }, "סטטוס"), /*#__PURE__*/React.createElement("select", {
+      className: "select",
+      value: editDraft.status,
+      onChange: e => setEditDraft(d => ({
+        ...d,
+        status: e.target.value
+      }))
+    }, STATUS_ORDER.map(s2 => /*#__PURE__*/React.createElement("option", {
+      key: s2,
+      value: s2
+    }, STATUSES[s2].label)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      className: "label"
+    }, "תאריך"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        position: 'relative'
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      className: "input",
+      type: "text",
+      readOnly: true,
+      value: editDraft.date ? formatDateLong(editDraft.date) : '',
+      style: {
+        cursor: 'pointer'
+      },
+      onClick: e => e.currentTarget.nextSibling.showPicker?.() || e.currentTarget.nextSibling.click()
+    }), /*#__PURE__*/React.createElement("input", {
+      type: "date",
+      value: editDraft.date,
+      onChange: e => setEditDraft(d => ({
+        ...d,
+        date: e.target.value
+      })),
+      style: {
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        width: '100%',
+        height: '100%',
+        opacity: 0,
+        pointerEvents: 'none'
+      }
+    }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+      className: "label"
+    }, "סבב"), /*#__PURE__*/React.createElement("input", {
+      className: "input",
+      type: "number",
+      min: "1",
+      value: editDraft.round,
+      onChange: e => setEditDraft(d => ({
+        ...d,
+        round: e.target.value
+      }))
+    }))), /*#__PURE__*/React.createElement("label", {
+      className: "label"
+    }, "הערה"), /*#__PURE__*/React.createElement("textarea", {
+      className: "textarea",
+      value: editDraft.note,
+      onChange: e => setEditDraft(d => ({
+        ...d,
+        note: e.target.value
+      })),
+      style: {
+        marginBottom: 10
+      }
+    }), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 6,
+        justifyContent: 'space-between'
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-sm btn-danger",
+      onClick: () => {
+        if (window.confirm('למחוק את האירוע?')) {
+          onDeleteEvent(evt.id);
+          setEditingEventId(null);
+        }
+      }
+    }, /*#__PURE__*/React.createElement(Icon, {
+      name: "trash",
+      size: 12
+    }), "מחק"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        gap: 6
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-sm",
+      onClick: cancelEdit
+    }, "ביטול"), /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-primary btn-sm",
+      onClick: saveEdit
+    }, /*#__PURE__*/React.createElement(Icon, {
+      name: "check",
+      size: 12
+    }), "שמור")))));
+    return /*#__PURE__*/React.createElement(React.Fragment, {
+      key: evt.id
+    }, isMilestone ? /*#__PURE__*/React.createElement("div", {
+      className: "timeline-event",
+      style: {
+        paddingBottom: 14
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        position: 'absolute',
+        right: -25,
+        top: 9,
+        width: 10,
+        height: 10,
+        background: s.border,
+        borderRadius: 2,
+        border: '2px solid var(--surface)',
+        transform: 'rotate(45deg)',
+        boxShadow: `0 0 0 1.5px ${s.border}`
+      }
+    }), /*#__PURE__*/React.createElement("div", {
+      onClick: () => {
+        startEdit(evt);
+        setShowForm(false);
+      },
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '5px 12px',
+        borderRadius: 8,
+        cursor: 'pointer',
+        border: `1px solid ${s.border}`,
+        background: s.bg,
+        opacity: 0.85
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 800,
+        fontSize: 13,
+        color: s.text
+      }
+    }, s.symbol), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 12,
+        fontWeight: 600,
+        color: s.text
+      }
+    }, s.label), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: s.text,
+        opacity: 0.7
+      }
+    }, "סבב ", evt.round || 1)), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: s.text,
+        opacity: 0.75,
+        fontFamily: "'JetBrains Mono', monospace"
+      }
+    }, formatDateLong(evt.date))), evt.note && /*#__PURE__*/React.createElement("p", {
+      style: {
+        margin: '4px 12px 0',
+        fontSize: 12,
+        color: 'var(--text-secondary)'
+      }
+    }, evt.note)) :
+    /*#__PURE__*/
+    /* ── פרק: בעבודה / בהתייחסות ── */
+    React.createElement("div", {
+      className: "timeline-event",
+      style: {
+        paddingBottom: 14
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "timeline-dot",
+      style: {
+        background: s.border,
+        top: 15
+      }
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "timeline-event-card",
+      onClick: () => {
+        startEdit(evt);
+        setShowForm(false);
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 8
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "status-pill",
+      style: {
+        background: s.bg,
+        color: s.text,
+        border: `1px solid ${s.border}`,
+        fontSize: 11,
+        padding: '3px 10px'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 700
+      }
+    }, s.symbol), " ", s.label), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: 'var(--text-tertiary)',
+        background: 'var(--surface-2)',
+        borderRadius: 5,
+        padding: '1px 6px'
+      }
+    }, "סבב ", evt.round || 1)), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: 'var(--text-tertiary)'
+      },
+      className: "mono"
+    }, formatDateLong(evt.date))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 8,
+        paddingTop: 8,
+        borderTop: '1px solid var(--border)'
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: 'var(--text-tertiary)'
+      }
+    }, !prevEvt ? '⏱ בתהליך' : '⏱ משך:'), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 12,
+        fontWeight: 700,
+        color: 'var(--text-secondary)',
+        fontFamily: "'JetBrains Mono', monospace"
+      }
+    }, periodDays, " ימים"), evt.note && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 12,
+        color: 'var(--text-secondary)',
+        marginRight: 'auto'
+      }
+    }, evt.note)))), showGap && /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '4px 0'
+      }
+    }, /*#__PURE__*/React.createElement("svg", {
+      width: "10",
+      height: "7",
+      viewBox: "0 0 10 7",
+      style: {
+        flexShrink: 0
+      }
+    }, /*#__PURE__*/React.createElement("polygon", {
+      points: "5,0 10,7 0,7",
+      fill: "var(--border-strong)"
+    })), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: 'var(--text-tertiary)',
+        fontFamily: "'JetBrains Mono', monospace"
+      }
+    }, gapToOlder, " ימים")));
+  })) : /*#__PURE__*/React.createElement(GanttView, {
+    sortedEvents: sortedEvents,
+    firstEvent: firstEvent,
+    endDate: endDate,
+    chronoEvents: chronoEvents,
+    onEditEvent: onEditEvent,
+    daysBetween: daysBetween,
+    formatDateLong: formatDateLong,
+    ganttViewMode: ganttViewMode,
+    showDependencies: showDependencies
+  }))));
+}
+
+/* ============ Settings Modal ============ */
+function SettingsModal({
+  data,
+  update,
+  onClose,
+  onReset
+}) {
+  const [tab, setTab] = useState('consultants');
+  return /*#__PURE__*/React.createElement("div", {
+    className: "modal-overlay",
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "modal-panel",
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '14px 20px',
+      borderBottom: '1px solid var(--border)',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("h2", {
+    style: {
+      margin: 0,
+      fontSize: 16,
+      fontWeight: 600
+    }
+  }, "הגדרות הפרויקט"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-icon",
+    onClick: onClose,
+    "aria-label": "סגור"
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "x",
+    size: 16
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      borderBottom: '1px solid var(--border)',
+      padding: '0 12px'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: `tab ${tab === 'consultants' ? 'active' : ''}`,
+    onClick: () => setTab('consultants')
+  }, "יועצים"), /*#__PURE__*/React.createElement("button", {
+    className: `tab ${tab === 'buildings' ? 'active' : ''}`,
+    onClick: () => setTab('buildings')
+  }, "מבנים"), /*#__PURE__*/React.createElement("button", {
+    className: `tab ${tab === 'docs' ? 'active' : ''}`,
+    onClick: () => setTab('docs')
+  }, "סוגי מסמכים"), /*#__PURE__*/React.createElement("button", {
+    className: `tab ${tab === 'danger' ? 'active' : ''}`,
+    onClick: () => setTab('danger')
+  }, "איפוס")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '16px 20px'
+    }
+  }, tab === 'consultants' && /*#__PURE__*/React.createElement(ConsultantsTab, {
+    data: data,
+    update: update
+  }), tab === 'buildings' && /*#__PURE__*/React.createElement(BuildingsTab, {
+    data: data,
+    update: update
+  }), tab === 'docs' && /*#__PURE__*/React.createElement(DocTypesTab, {
+    data: data,
+    update: update
+  }), tab === 'danger' && /*#__PURE__*/React.createElement(DangerTab, {
+    onReset: onReset
+  }))));
+}
+
+/* ============ Draggable Item List (helper) ============ */
+function useDragSort(items, onReorder) {
+  const dragIdx = useRef(null);
+  const [overIdx, setOverIdx] = useState(null);
+  const handlers = idx => ({
+    draggable: true,
+    onDragStart: e => {
+      dragIdx.current = idx;
+      e.dataTransfer.effectAllowed = 'move';
+    },
+    onDragOver: e => {
+      e.preventDefault();
+      setOverIdx(idx);
+    },
+    onDragLeave: () => setOverIdx(null),
+    onDrop: e => {
+      e.preventDefault();
+      const from = dragIdx.current;
+      if (from === null || from === idx) {
+        setOverIdx(null);
+        return;
+      }
+      const newItems = [...items];
+      const [moved] = newItems.splice(from, 1);
+      newItems.splice(idx, 0, moved);
+      onReorder(newItems);
+      dragIdx.current = null;
+      setOverIdx(null);
+    },
+    onDragEnd: () => {
+      dragIdx.current = null;
+      setOverIdx(null);
+    }
+  });
+  return {
+    handlers,
+    overIdx
+  };
+}
+
+/* ============ Consultants Tab ============ */
+function ConsultantsTab({
+  data,
+  update
+}) {
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState({
+    discipline: '',
+    company: ''
+  });
+  const {
+    handlers,
+    overIdx
+  } = useDragSort(data.consultants, newItems => update(prev => ({
+    ...prev,
+    consultants: newItems
+  })));
+  const startEdit = item => {
+    setEditingId(item.id);
+    setDraft({
+      discipline: item.discipline,
+      company: item.company || ''
+    });
+  };
+  const startAdd = () => {
+    setEditingId('new');
+    setDraft({
+      discipline: '',
+      company: ''
+    });
+  };
+  const cancelEdit = () => {
+    setEditingId(null);
+    setDraft({
+      discipline: '',
+      company: ''
+    });
+  };
+  const saveEdit = () => {
+    if (!draft.discipline.trim()) return;
+    if (editingId === 'new') {
+      update(prev => ({
+        ...prev,
+        consultants: [...prev.consultants, {
+          id: uid(),
+          discipline: draft.discipline.trim(),
+          company: draft.company.trim()
+        }]
+      }));
+    } else {
+      update(prev => ({
+        ...prev,
+        consultants: prev.consultants.map(c => c.id === editingId ? {
+          ...c,
+          discipline: draft.discipline.trim(),
+          company: draft.company.trim()
+        } : c)
+      }));
+    }
+    cancelEdit();
+  };
+  const deleteItem = id => {
+    if (!window.confirm('למחוק את היועץ? פעולה זו תסיר גם את כל המסמכים והאירועים שלו.')) return;
+    update(prev => {
+      const newCells = {};
+      Object.entries(prev.cells).forEach(([k, v]) => {
+        if (!k.split('|').includes(id)) newCells[k] = v;
+      });
+      return {
+        ...prev,
+        consultants: prev.consultants.filter(c => c.id !== id),
+        cells: newCells
+      };
+    });
+  };
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: 'var(--text-secondary)'
+    }
+  }, data.consultants.length, " יועצים · גרור לסידור מחדש"), editingId !== 'new' && /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-sm btn-primary",
+    onClick: startAdd
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "plus",
+    size: 12
+  }), "הוסף יועץ")), editingId === 'new' && /*#__PURE__*/React.createElement(EditForm, {
+    draft: draft,
+    setDraft: setDraft,
+    onSave: saveEdit,
+    onCancel: cancelEdit,
+    fields: [{
+      key: 'discipline',
+      label: 'תחום',
+      placeholder: 'אדריכלות, חשמל, אינסטלציה...'
+    }, {
+      key: 'company',
+      label: 'חברה (אופציונלי)',
+      placeholder: 'שם החברה'
+    }]
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'var(--surface-2)',
+      border: '1px solid var(--border)',
+      borderRadius: 6,
+      overflow: 'hidden'
+    }
+  }, data.consultants.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: 24,
+      textAlign: 'center',
+      color: 'var(--text-tertiary)',
+      fontSize: 13
+    }
+  }, "אין יועצים. הוסף ראשון."), data.consultants.map((c, idx) => editingId === c.id ? /*#__PURE__*/React.createElement("div", {
+    key: c.id,
+    style: {
+      padding: 8
+    }
+  }, /*#__PURE__*/React.createElement(EditForm, {
+    draft: draft,
+    setDraft: setDraft,
+    onSave: saveEdit,
+    onCancel: cancelEdit,
+    fields: [{
+      key: 'discipline',
+      label: 'תחום'
+    }, {
+      key: 'company',
+      label: 'חברה'
+    }]
+  })) : /*#__PURE__*/React.createElement("div", {
+    key: c.id,
+    className: `drag-row ${overIdx === idx ? 'drag-over' : ''}`,
+    ...handlers(idx),
+    style: {
+      padding: '8px 10px',
+      borderBottom: idx < data.consultants.length - 1 ? '1px solid var(--border)' : 'none',
+      display: 'grid',
+      gridTemplateColumns: '24px 1fr 1.4fr auto',
+      gap: 10,
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "drag-handle"
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "grip",
+    size: 14
+  })), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 500,
+      fontSize: 13
+    }
+  }, c.discipline), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: 'var(--text-secondary)'
+    }
+  }, c.company || '—'), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 4
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-sm btn-icon",
+    onClick: () => startEdit(c)
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "edit",
+    size: 12
+  })), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-sm btn-icon btn-danger",
+    onClick: () => deleteItem(c.id)
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "trash",
+    size: 12
+  })))))));
+}
+
+/* ============ Buildings Tab ============ */
+function BuildingsTab({
+  data,
+  update
+}) {
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState({
+    name: ''
+  });
+  const {
+    handlers,
+    overIdx
+  } = useDragSort(data.buildings, newItems => update(prev => ({
+    ...prev,
+    buildings: newItems
+  })));
+  const startEdit = item => {
+    setEditingId(item.id);
+    setDraft({
+      name: item.name
+    });
+  };
+  const startAdd = () => {
+    setEditingId('new');
+    setDraft({
+      name: ''
+    });
+  };
+  const cancelEdit = () => {
+    setEditingId(null);
+    setDraft({
+      name: ''
+    });
+  };
+  const saveEdit = () => {
+    if (!draft.name.trim()) return;
+    if (editingId === 'new') {
+      update(prev => ({
+        ...prev,
+        buildings: [...prev.buildings, {
+          id: uid(),
+          name: draft.name.trim()
+        }]
+      }));
+    } else {
+      update(prev => ({
+        ...prev,
+        buildings: prev.buildings.map(b => b.id === editingId ? {
+          ...b,
+          name: draft.name.trim()
+        } : b)
+      }));
+    }
+    cancelEdit();
+  };
+  const deleteItem = id => {
+    if (!window.confirm('למחוק את המבנה? פעולה זו תסיר גם את כל המסמכים והאירועים שלו.')) return;
+    update(prev => {
+      const newCells = {};
+      Object.entries(prev.cells).forEach(([k, v]) => {
+        if (!k.split('|').includes(id)) newCells[k] = v;
+      });
+      return {
+        ...prev,
+        buildings: prev.buildings.filter(b => b.id !== id),
+        cells: newCells
+      };
+    });
+  };
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: 'var(--text-secondary)'
+    }
+  }, data.buildings.length, " מבנים · גרור לסידור מחדש"), editingId !== 'new' && /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-sm btn-primary",
+    onClick: startAdd
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "plus",
+    size: 12
+  }), "הוסף מבנה")), editingId === 'new' && /*#__PURE__*/React.createElement(EditForm, {
+    draft: draft,
+    setDraft: setDraft,
+    onSave: saveEdit,
+    onCancel: cancelEdit,
+    fields: [{
+      key: 'name',
+      label: 'שם המבנה',
+      placeholder: 'העמדה, בניין 1...'
+    }]
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'var(--surface-2)',
+      border: '1px solid var(--border)',
+      borderRadius: 6,
+      overflow: 'hidden'
+    }
+  }, data.buildings.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: 24,
+      textAlign: 'center',
+      color: 'var(--text-tertiary)',
+      fontSize: 13
+    }
+  }, "אין מבנים. הוסף ראשון."), data.buildings.map((b, idx) => editingId === b.id ? /*#__PURE__*/React.createElement("div", {
+    key: b.id,
+    style: {
+      padding: 8
+    }
+  }, /*#__PURE__*/React.createElement(EditForm, {
+    draft: draft,
+    setDraft: setDraft,
+    onSave: saveEdit,
+    onCancel: cancelEdit,
+    fields: [{
+      key: 'name',
+      label: 'שם המבנה'
+    }]
+  })) : /*#__PURE__*/React.createElement("div", {
+    key: b.id,
+    className: `drag-row ${overIdx === idx ? 'drag-over' : ''}`,
+    ...handlers(idx),
+    style: {
+      padding: '8px 10px',
+      borderBottom: idx < data.buildings.length - 1 ? '1px solid var(--border)' : 'none',
+      display: 'grid',
+      gridTemplateColumns: '24px 1fr auto',
+      gap: 10,
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "drag-handle"
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "grip",
+    size: 14
+  })), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 500,
+      fontSize: 13
+    }
+  }, b.name), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 4
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-sm btn-icon",
+    onClick: () => startEdit(b)
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "edit",
+    size: 12
+  })), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-sm btn-icon btn-danger",
+    onClick: () => deleteItem(b.id)
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "trash",
+    size: 12
+  })))))));
+}
+
+/* ============ Doc Types Tab ============ */
+function DocTypesTab({
+  data,
+  update
+}) {
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState({
+    name: ''
+  });
+  const {
+    handlers,
+    overIdx
+  } = useDragSort(data.docTypes, newItems => update(prev => ({
+    ...prev,
+    docTypes: newItems
+  })));
+  const startEdit = item => {
+    setEditingId(item.id);
+    setDraft({
+      name: item.name
+    });
+  };
+  const startAdd = () => {
+    setEditingId('new');
+    setDraft({
+      name: ''
+    });
+  };
+  const cancelEdit = () => {
+    setEditingId(null);
+    setDraft({
+      name: ''
+    });
+  };
+  const saveEdit = () => {
+    if (!draft.name.trim()) return;
+    if (editingId === 'new') {
+      update(prev => ({
+        ...prev,
+        docTypes: [...prev.docTypes, {
+          id: uid(),
+          name: draft.name.trim()
+        }]
+      }));
+    } else {
+      update(prev => ({
+        ...prev,
+        docTypes: prev.docTypes.map(d => d.id === editingId ? {
+          ...d,
+          name: draft.name.trim()
+        } : d)
+      }));
+    }
+    cancelEdit();
+  };
+  const deleteItem = id => {
+    if (!window.confirm('למחוק את סוג המסמך? פעולה זו תסיר גם את כל האירועים שלו.')) return;
+    update(prev => {
+      const newCells = {};
+      Object.entries(prev.cells).forEach(([k, v]) => {
+        if (!k.split('|').includes(id)) newCells[k] = v;
+      });
+      const newKpis = prev.kpis.map(k => ({
+        ...k,
+        filterDocTypes: k.filterDocTypes.filter(x => x !== id)
+      }));
+      return {
+        ...prev,
+        docTypes: prev.docTypes.filter(d => d.id !== id),
+        cells: newCells,
+        kpis: newKpis
+      };
+    });
+  };
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: 'var(--text-secondary)'
+    }
+  }, data.docTypes.length, " סוגי מסמכים · גרור לסידור"), editingId !== 'new' && /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-sm btn-primary",
+    onClick: startAdd
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "plus",
+    size: 12
+  }), "הוסף סוג מסמך")), editingId === 'new' && /*#__PURE__*/React.createElement(EditForm, {
+    draft: draft,
+    setDraft: setDraft,
+    onSave: saveEdit,
+    onCancel: cancelEdit,
+    fields: [{
+      key: 'name',
+      label: 'שם סוג המסמך',
+      placeholder: 'תכניות, מפרט, כתב כמויות...'
+    }]
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'var(--surface-2)',
+      border: '1px solid var(--border)',
+      borderRadius: 6,
+      overflow: 'hidden'
+    }
+  }, data.docTypes.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: 24,
+      textAlign: 'center',
+      color: 'var(--text-tertiary)',
+      fontSize: 13
+    }
+  }, "אין סוגי מסמכים. הוסף ראשון."), data.docTypes.map((d, idx) => editingId === d.id ? /*#__PURE__*/React.createElement("div", {
+    key: d.id,
+    style: {
+      padding: 8
+    }
+  }, /*#__PURE__*/React.createElement(EditForm, {
+    draft: draft,
+    setDraft: setDraft,
+    onSave: saveEdit,
+    onCancel: cancelEdit,
+    fields: [{
+      key: 'name',
+      label: 'שם סוג המסמך'
+    }]
+  })) : /*#__PURE__*/React.createElement("div", {
+    key: d.id,
+    className: `drag-row ${overIdx === idx ? 'drag-over' : ''}`,
+    ...handlers(idx),
+    style: {
+      padding: '8px 10px',
+      borderBottom: idx < data.docTypes.length - 1 ? '1px solid var(--border)' : 'none',
+      display: 'grid',
+      gridTemplateColumns: '24px 1fr auto',
+      gap: 10,
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "drag-handle"
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "grip",
+    size: 14
+  })), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 500,
+      fontSize: 13
+    }
+  }, d.name), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 4
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-sm btn-icon",
+    onClick: () => startEdit(d)
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "edit",
+    size: 12
+  })), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-sm btn-icon btn-danger",
+    onClick: () => deleteItem(d.id)
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "trash",
+    size: 12
+  })))))));
+}
+
+/* ============ Edit Form (helper) ============ */
+function EditForm({
+  draft,
+  setDraft,
+  onSave,
+  onCancel,
+  fields
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      background: 'var(--surface-2)',
+      border: '1px solid var(--border-strong)',
+      borderRadius: 6,
+      padding: 12,
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: fields.length > 1 ? '1fr 1.4fr' : '1fr',
+      gap: 8,
+      marginBottom: 8
+    }
+  }, fields.map(f => /*#__PURE__*/React.createElement("div", {
+    key: f.key
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "label"
+  }, f.label), /*#__PURE__*/React.createElement("input", {
+    className: "input",
+    autoFocus: fields.indexOf(f) === 0,
+    placeholder: f.placeholder || '',
+    value: draft[f.key] || '',
+    onChange: e => setDraft(d => ({
+      ...d,
+      [f.key]: e.target.value
+    })),
+    onKeyDown: e => {
+      if (e.key === 'Enter') onSave();
+      if (e.key === 'Escape') onCancel();
+    }
+  })))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'flex',
+      gap: 6,
+      justifyContent: 'flex-end'
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-sm",
+    onClick: onCancel
+  }, "ביטול"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-sm btn-primary",
+    onClick: onSave
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "check",
+    size: 12
+  }), "שמור")));
+}
+
+/* ============ Danger Tab ============ */
+function DangerTab({
+  onReset
+}) {
+  return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: 16,
+      border: '1px solid #FECACA',
+      background: '#FEF2F2',
+      borderRadius: 8
+    }
+  }, /*#__PURE__*/React.createElement("h3", {
+    style: {
+      margin: '0 0 6px',
+      fontSize: 14,
+      fontWeight: 600,
+      color: '#991B1B'
+    }
+  }, "איפוס הנתונים"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: '0 0 12px',
+      fontSize: 12,
+      color: '#7F1D1D',
+      lineHeight: 1.6
+    }
+  }, "פעולה זו תמחק את כל הנתונים מהדפדפן ותחזיר את המערכת למצב התחלתי. לפני ביצוע, מומלץ לייצא את הנתונים הנוכחיים כגיבוי."), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-danger",
+    onClick: onReset
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "trash",
+    size: 13
+  }), "מחק הכל ואתחל מחדש")));
+}
+
+/* ============ KPI Add Modal ============ */
+function KpiAddModal({
+  data,
+  update,
+  onClose
+}) {
+  const [name, setName] = useState('');
+  const [selectedStatuses, setSelectedStatuses] = useState([]);
+  const [selectedDocTypes, setSelectedDocTypes] = useState([]);
+
+  // חישוב תצוגה מקדימה
+  const preview = useMemo(() => {
+    return computeKpi(data, {
+      filterStatus: selectedStatuses,
+      filterDocTypes: selectedDocTypes
+    });
+  }, [data, selectedStatuses, selectedDocTypes]);
+  const toggleStatus = s => {
+    setSelectedStatuses(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+  };
+  const toggleDocType = id => {
+    setSelectedDocTypes(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+  const save = () => {
+    const finalName = name.trim() || (selectedStatuses.length === 1 ? STATUSES[selectedStatuses[0]].label : 'תצוגה מותאמת');
+    update(prev => ({
+      ...prev,
+      kpis: [...prev.kpis, {
+        id: uid(),
+        name: finalName,
+        filterStatus: selectedStatuses,
+        filterDocTypes: selectedDocTypes
+      }]
+    }));
+    onClose();
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "modal-overlay",
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "modal-panel",
+    onClick: e => e.stopPropagation(),
+    style: {
+      maxWidth: 560
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '14px 20px',
+      borderBottom: '1px solid var(--border)',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("h2", {
+    style: {
+      margin: 0,
+      fontSize: 16,
+      fontWeight: 600
+    }
+  }, "הוספת תצוגה חדשה"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-icon",
+    onClick: onClose,
+    "aria-label": "סגור"
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "x",
+    size: 16
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '16px 20px'
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "label"
+  }, "שם התצוגה"), /*#__PURE__*/React.createElement("input", {
+    className: "input",
+    autoFocus: true,
+    value: name,
+    onChange: e => setName(e.target.value),
+    placeholder: "לדוגמא: סיום תכניות, מסמכי בקרה..."
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "label"
+  }, "אילו סטטוסים לספור?"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 11,
+      color: 'var(--text-tertiary)',
+      margin: '0 0 6px'
+    }
+  }, "השאר ריק כדי לספור הכל"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, 1fr)',
+      gap: 4
+    }
+  }, STATUS_ORDER.map(s => {
+    const st = STATUSES[s];
+    const isSelected = selectedStatuses.includes(s);
+    return /*#__PURE__*/React.createElement("label", {
+      key: s,
+      className: "checkbox-row",
+      style: {
+        padding: '6px 10px',
+        background: isSelected ? st.bg : 'var(--surface-2)',
+        borderRadius: 6,
+        border: `1px solid ${isSelected ? st.border : 'var(--border)'}`,
+        color: isSelected ? st.text : 'var(--text)'
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: isSelected,
+      onChange: () => toggleStatus(s)
+    }), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontWeight: 600,
+        fontSize: 13
+      }
+    }, st.symbol), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 13
+      }
+    }, st.label));
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: 16
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "label"
+  }, "אילו סוגי מסמכים לכלול?"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      fontSize: 11,
+      color: 'var(--text-tertiary)',
+      margin: '0 0 6px'
+    }
+  }, "השאר ריק כדי לכלול את כל המסמכים"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, 1fr)',
+      gap: 4
+    }
+  }, data.docTypes.map(d => {
+    const isSelected = selectedDocTypes.includes(d.id);
+    return /*#__PURE__*/React.createElement("label", {
+      key: d.id,
+      className: "checkbox-row",
+      style: {
+        padding: '6px 10px',
+        background: isSelected ? 'var(--accent)' : 'var(--surface-2)',
+        borderRadius: 6,
+        border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
+        color: isSelected ? 'white' : 'var(--text)'
+      }
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: isSelected,
+      onChange: () => toggleDocType(d.id)
+    }), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 13
+      }
+    }, d.name));
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: 12,
+      background: 'var(--surface-2)',
+      borderRadius: 8,
+      marginBottom: 16,
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center'
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: 'var(--text-secondary)'
+    }
+  }, "תצוגה מקדימה:"), /*#__PURE__*/React.createElement("div", {
+    className: "mono",
+    style: {
+      fontSize: 16,
+      fontWeight: 700
+    }
+  }, preview.matching, " ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 400,
+      fontSize: 13,
+      color: 'var(--text-secondary)'
+    }
+  }, "· ", preview.pct, "% מתוך ", preview.total)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: '12px 20px',
+      borderTop: '1px solid var(--border)',
+      display: 'flex',
+      justifyContent: 'flex-end',
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    onClick: onClose
+  }, "ביטול"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary",
+    onClick: save
+  }, /*#__PURE__*/React.createElement(Icon, {
+    name: "check",
+    size: 13
+  }), "הוסף תצוגה"))));
+}
+
+/* ============ Mount ============ */
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(/*#__PURE__*/React.createElement(App, null));
+</script>
+</body>
+</html>
