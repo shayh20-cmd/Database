@@ -10,8 +10,9 @@
     {
       "name": "project-hub",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["serve", "C:\\Users\\Omega\\Database", "--listen", "3401", "--no-clipboard"],
-      "port": 3401
+      "runtimeArgs": ["serve", "C:\\Users\\Omega\\Database", "--no-clipboard"],
+      "port": 3403,
+      "autoPort": true
     },
     {
       "name": "project-hub-worktree",
