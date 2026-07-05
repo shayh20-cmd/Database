@@ -24,6 +24,7 @@ const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
 
 const APPS = {
   'project-hub': path.join(DATA_DIR, 'project_hub.json'),
+  'project-hub-01': path.join(DATA_DIR, 'project_hub_01.json'),
   'planning-dashboard': path.join(DATA_DIR, 'planning_dashboard.json')
 };
 
@@ -90,9 +91,11 @@ async function handleApi(req, res, appName) {
   sendJson(res, 405, { error: 'Method not allowed' });
 }
 
+const API_ROUTE = new RegExp('^/api/(' + Object.keys(APPS).join('|') + ')$');
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
-  const apiMatch = url.pathname.match(/^\/api\/(project-hub|planning-dashboard)$/);
+  const apiMatch = url.pathname.match(API_ROUTE);
   if (apiMatch) {
     handleApi(req, res, apiMatch[1]).catch(e => sendJson(res, 500, { error: e.message }));
     return;
