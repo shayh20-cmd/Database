@@ -71,6 +71,8 @@ Sheet `id`s are preserved exactly as in the live data so they keep matching the 
 ```
 No other server changes — routing, atomic writes, static serving all already generic.
 
+**Correction (post-implementation):** the `/api/*` route-matching regex was actually hardcoded to the original two app names, not generic as claimed above — adding the `APPS` entry alone didn't route requests to it. Fixed by deriving the regex from `Object.keys(APPS)` instead (see `tools/local-server/server.js`), caught during Task 2's manual verification.
+
 ## Testing / verification
 
 Manual, via the preview tools (no automated test harness in this repo, consistent with prior work):
