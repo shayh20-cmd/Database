@@ -891,7 +891,7 @@ const autoOptionLabel=(list,type)=>(list.find(o=>o.id===type)||{}).label||type||
 const autoStaffList=data=>(data.staff&&data.staff.length?data.staff:OFFICE_STAFF);
 const autoScopeSheets=(data,scope)=>(data.sheets||[]).filter(s=>s.type==='list'&&(scope==='all'||(Array.isArray(scope)&&scope.includes(s.id))));
 const autoGroupOptions=(data,scope)=>[...new Set(autoScopeSheets(data,scope).flatMap(s=>(s.groups||[]).map(g=>g.name)))];
-const autoScopeLabel=rule=>rule.scope==='all'?'כל הפרויקט':`${(rule.scope||[]).length} שלבים`;
+const autoScopeLabel=rule=>{if(rule.scope==='all')return'כל הפרויקט';const n=(rule.scope||[]).length;return n===1?'שלב אחד':`${n} שלבים`;};
 const autoGroupName=(sheet,task)=>{const g=(sheet.groups||[]).find(g=>g.id===task.groupId);return g?g.name:'';};
 const autoAllSubsDone=t=>{const s=t.subtasks||[];return s.length>0&&s.every(x=>x.done);};
 const autoRuleInScope=(rule,sheetId)=>rule.scope==='all'||(Array.isArray(rule.scope)&&rule.scope.includes(sheetId));
