@@ -1,4 +1,7 @@
 .superpowers/
 .worktrees/
-data/
+data/*
+!data/spec_chapter_reference.json
+!data/spec_library.json
 tools/local-server/node_modules/
+__pycache__/
