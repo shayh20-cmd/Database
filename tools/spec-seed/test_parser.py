@@ -1,6 +1,6 @@
 import os, sys, unittest
 sys.path.insert(0, os.path.dirname(__file__))
-from parser import chapter_start, is_chapter_end, classify, new_id, build_clause_tree
+from parser import chapter_start, is_chapter_end, classify, new_id, build_clause_tree, is_chapter_style
 
 class TestChapterBoundary(unittest.TestCase):
     def test_detects_chapter_start(self):
@@ -18,14 +18,25 @@ class TestClassify(unittest.TestCase):
     def test_subchapter_from_style(self):
         self.assertEqual(classify('סגנון טקסט', 'קיר מסך', False), 'subchapter')
 
-    def test_subchapter_from_short_bold(self):
-        self.assertEqual(classify('Normal', 'אדני חלון', True), 'subchapter')
+    def test_heading_from_short_bold(self):
+        # short bold line is an inline heading clause, not a new sub-chapter
+        self.assertEqual(classify('Normal', 'אדני חלון', True), 'heading')
 
     def test_standard_line(self):
         self.assertEqual(classify('Normal', 'ת"י 1068 - קירות מסך.', False), 'standard')
 
     def test_plain_paragraph(self):
         self.assertEqual(classify('Normal', 'מחיר הבסיס של אלמנטי קירות המסך יכלול חלונות ודלתות.', False), 'paragraph')
+
+
+class TestChapterStyleGate(unittest.TestCase):
+    def test_real_chapter_styles_qualify(self):
+        self.assertTrue(is_chapter_style('Normal'))
+        self.assertTrue(is_chapter_style('Heading 1'))
+
+    def test_appendix_reference_styles_rejected(self):
+        self.assertFalse(is_chapter_style('אורן סיני'))
+        self.assertFalse(is_chapter_style('List Paragraph'))
 
 class TestClauseTree(unittest.TestCase):
     def test_colon_paragraph_gets_following_list_as_children(self):

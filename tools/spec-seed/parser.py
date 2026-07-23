@@ -27,17 +27,26 @@ def is_chapter_end(text):
 
 
 def classify(style, text, bold):
-    """Classify one paragraph into: 'subchapter' | 'standard' | 'paragraph'.
+    """Classify one paragraph into: 'subchapter' | 'heading' | 'standard' | 'paragraph'.
+    Only an explicit sub-chapter *style* starts a new sub-chapter; a short bold line
+    becomes an inline heading clause (promotable to a sub-chapter later in the app).
     Heuristic — the seed run is reviewed manually afterwards."""
     t = text.strip()
     if style in SUBCHAPTER_STYLES:
         return 'subchapter'
     if _STANDARD_RE.search(t):
         return 'standard'
-    # short, bold, no sentence-ending punctuation => a heading line acting as sub-chapter
+    # short, bold, no sentence-ending punctuation => an inline heading within the sub-chapter
     if bold and len(t) <= 40 and not t.endswith(('.', ':', ',')):
-        return 'subchapter'
+        return 'heading'
     return 'paragraph'
+
+
+# Paragraph styles that legitimately carry a chapter heading ("פרק NN – שם").
+# Appendices reference other specs in other styles (e.g. 'אורן סיני', 'List Paragraph');
+# gating on these styles keeps those cross-references from becoming spurious chapters.
+def is_chapter_style(style):
+    return style == 'Normal' or style.startswith('Heading')
 
 
 def build_clause_tree(items):
@@ -48,9 +57,8 @@ def build_clause_tree(items):
     i = 0
     while i < len(items):
         kind, text = items[i]
-        clause = {'id': new_id(), 'text': text,
-                  'kind': 'standard' if kind == 'standard' else 'paragraph',
-                  'children': []}
+        ck = kind if kind in ('standard', 'heading') else 'paragraph'
+        clause = {'id': new_id(), 'text': text, 'kind': ck, 'children': []}
         if kind == 'paragraph' and text.rstrip().endswith(':'):
             j = i + 1
             while j < len(items) and items[j][0] == 'list':
