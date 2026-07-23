@@ -25,7 +25,9 @@ const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
 const APPS = {
   'project-hub': path.join(DATA_DIR, 'project_hub.json'),
   'project-hub-01': path.join(DATA_DIR, 'project_hub_01.json'),
-  'planning-dashboard': path.join(DATA_DIR, 'planning_dashboard.json')
+  'planning-dashboard': path.join(DATA_DIR, 'planning_dashboard.json'),
+  'spec-library': path.join(DATA_DIR, 'spec_library.json'),
+  'spec-projects': path.join(DATA_DIR, 'spec_projects.json')
 };
 
 function readJson(filePath) {
