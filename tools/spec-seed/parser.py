@@ -49,6 +49,26 @@ def is_chapter_style(style):
     return style == 'Normal' or style.startswith('Heading')
 
 
+def split_by_headings(clauses):
+    """Split a flat clause list into (title, clauses) groups at top-level heading
+    clauses. Leading clauses before the first heading get title None. Used to give
+    collapsed chapters (no styled sub-chapters) real sub-chapters from their headings."""
+    groups = []
+    cur_title = None
+    cur = []
+    for cl in clauses:
+        if cl['kind'] == 'heading':
+            if cur or cur_title is not None:
+                groups.append((cur_title, cur))
+            cur_title = cl['text']
+            cur = []
+        else:
+            cur.append(cl)
+    if cur or cur_title is not None:
+        groups.append((cur_title, cur))
+    return groups
+
+
 def build_clause_tree(items):
     """items: list of (kind, text) where kind in {'paragraph','list','standard'}.
     A paragraph whose text ends with ':' adopts the immediately-following run of

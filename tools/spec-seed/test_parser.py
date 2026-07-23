@@ -1,6 +1,7 @@
 import os, sys, unittest
 sys.path.insert(0, os.path.dirname(__file__))
-from parser import chapter_start, is_chapter_end, classify, new_id, build_clause_tree, is_chapter_style
+from parser import (chapter_start, is_chapter_end, classify, new_id,
+                    build_clause_tree, is_chapter_style, split_by_headings)
 
 class TestChapterBoundary(unittest.TestCase):
     def test_detects_chapter_start(self):
@@ -54,6 +55,30 @@ class TestClauseTree(unittest.TestCase):
 
     def test_ids_are_unique(self):
         self.assertNotEqual(new_id(), new_id())
+
+
+class TestSplitByHeadings(unittest.TestCase):
+    def _c(self, kind, text):
+        return {'id': new_id(), 'text': text, 'kind': kind, 'children': []}
+
+    def test_splits_at_headings(self):
+        clauses = [
+            self._c('paragraph', 'פסקת פתיחה'),
+            self._c('heading', 'תכולות'),
+            self._c('paragraph', 'העבודה כוללת אדני חלון.'),
+            self._c('heading', 'תקנים'),
+            self._c('standard', 'ת"י 1234.'),
+        ]
+        groups = split_by_headings(clauses)
+        self.assertEqual([t for t, _ in groups], [None, 'תכולות', 'תקנים'])
+        self.assertEqual(len(groups[0][1]), 1)   # leading paragraph
+        self.assertEqual(groups[2][1][0]['kind'], 'standard')
+
+    def test_no_headings_single_group(self):
+        clauses = [self._c('paragraph', 'א'), self._c('paragraph', 'ב')]
+        groups = split_by_headings(clauses)
+        self.assertEqual(len(groups), 1)
+        self.assertIsNone(groups[0][0])
 
 if __name__ == '__main__':
     unittest.main()

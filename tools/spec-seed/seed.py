@@ -5,7 +5,7 @@ import argparse, json, os, sys, time
 import docx
 sys.path.insert(0, os.path.dirname(__file__))
 from parser import (chapter_start, is_chapter_end, classify, new_id,
-                    build_clause_tree, LIST_STYLES, is_chapter_style)
+                    build_clause_tree, LIST_STYLES, is_chapter_style, split_by_headings)
 
 ROOT = os.path.join(os.path.dirname(__file__), '..', '..')
 REF_PATH = os.path.join(ROOT, 'data', 'spec_chapter_reference.json')
@@ -74,7 +74,7 @@ def parse_library(paragraphs, ref):
         if cur_sub is None:
             # clauses before the first sub-chapter go into an implicit "כללי" sub-chapter
             flush()
-            cur_sub = {'id': new_id(), 'title': 'כללי', 'clauses': []}
+            cur_sub = {'id': new_id(), 'title': 'כללי', 'clauses': [], '_implicit': True}
             cur_chapter['subChapters'].append(cur_sub)
         if role == 'standard':
             kind = 'standard'
@@ -86,6 +86,30 @@ def parse_library(paragraphs, ref):
             kind = 'paragraph'
         pending.append((kind, text))
     flush()
+    return chapters
+
+
+def resplit_implicit(chapters):
+    """For chapters that produced no styled sub-chapters (all content landed in the
+    implicit 'כללי'), split that sub-chapter into real sub-chapters at its heading
+    clauses. Styled chapters (e.g. 12) are left untouched."""
+    for c in chapters:
+        new_subs = []
+        for s in c['subChapters']:
+            if not s.pop('_implicit', False):
+                new_subs.append(s)
+                continue
+            groups = split_by_headings(s['clauses'])
+            if len(groups) <= 1:
+                new_subs.append({'id': s['id'], 'title': s['title'], 'clauses': s['clauses']})
+                continue
+            for title, cls in groups:
+                if title is None:
+                    if cls:
+                        new_subs.append({'id': new_id(), 'title': 'כללי', 'clauses': cls})
+                else:
+                    new_subs.append({'id': new_id(), 'title': title, 'clauses': cls})
+        c['subChapters'] = new_subs
     return chapters
 
 
@@ -104,6 +128,7 @@ def main():
     ref = load_reference()
     paragraphs = read_paragraphs(args.docx_path)
     chapters = parse_library(paragraphs, ref)
+    chapters = resplit_implicit(chapters)
     library = {'_ts': int(time.time() * 1000), 'chapters': chapters,
                'presets': [build_preset(chapters, args.preset_name)]}
     with open(OUT_PATH, 'w', encoding='utf-8') as f:
