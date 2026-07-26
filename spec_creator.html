@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>מחולל מפרטים ג2</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef1f5; --panel:#ffffff; --ink:#1f2733; --muted:#6b7683; --line:#e2e7ee;
+  --brand:#1f5f8b; --brand-soft:#e8f0f7; --arch:#0d7d6b; --arch-soft:#e2f4f0;
+  --off:#aeb7c2; --warn:#c2703d; --shadow:0 1px 2px rgba(20,35,60,.06),0 6px 20px rgba(20,35,60,.06);
+  --radius:12px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.55}
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+
+/* ---------- Top bar ---------- */
+.topbar{background:var(--panel);border-bottom:1px solid var(--line);padding:10px 18px;display:flex;align-items:center;gap:18px;box-shadow:var(--shadow);z-index:5}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:16px;color:var(--brand)}
+.brand .logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--brand),#2d84bd);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px}
+.proj-meta{display:flex;gap:14px;align-items:center;flex:1;flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:2px}
+.field label{font-size:10px;color:var(--muted);font-weight:600;letter-spacing:.02em}
+.field .val{font-weight:600}
+.field .val.edit{border:1px solid var(--line);border-radius:7px;padding:4px 9px;background:#fbfcfe;min-width:120px}
+.preset-badge{background:var(--arch-soft);color:var(--arch);border:1px solid #bfe6dd;padding:5px 11px;border-radius:20px;font-weight:700;font-size:12px;display:flex;align-items:center;gap:6px}
+.actions{display:flex;gap:8px}
+.btn{border:1px solid var(--line);background:#fff;color:var(--ink);padding:8px 14px;border-radius:9px;font-family:inherit;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px}
+.btn:hover{background:#f6f8fb}
+.btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+.btn.primary:hover{background:#1a5379}
+.btn.ghost{background:transparent}
+
+/* ---------- Body layout ---------- */
+.body{display:flex;flex:1;overflow:hidden}
+
+/* ---------- Sidebar ---------- */
+.sidebar{width:330px;background:var(--panel);border-inline-start:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+.side-head{padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+.side-head h2{margin:0;font-size:14px;font-weight:800}
+.side-head p{margin:3px 0 0;font-size:11.5px;color:var(--muted)}
+.legend{display:flex;gap:14px;padding:8px 16px;font-size:11px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:5px}
+.dot{width:9px;height:9px;border-radius:3px}
+.dot.arch{background:var(--arch)} .dot.other{background:var(--off)}
+.tree{overflow-y:auto;flex:1;padding:4px 8px 20px}
+.chap{margin:3px 0}
+.chap-row{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:9px;cursor:pointer}
+.chap-row:hover{background:#f5f8fb}
+.chap-row .caret{color:var(--muted);font-size:11px;width:12px;transition:transform .15s}
+.chap.open .caret{transform:rotate(90deg)}
+.chap-num{font-weight:700;font-size:11px;color:#fff;background:var(--arch);border-radius:6px;padding:2px 7px;min-width:26px;text-align:center}
+.chap.other .chap-num{background:var(--off)}
+.chap-name{font-weight:600;flex:1}
+.chap.other .chap-name{color:var(--muted)}
+.count{font-size:11px;color:var(--muted);background:#f0f3f7;border-radius:20px;padding:1px 8px}
+.subs{padding:2px 0 6px 0;margin-inline-start:14px;border-inline-start:2px dashed var(--line)}
+.sub-row{display:flex;align-items:center;gap:9px;padding:7px 10px 7px 12px;border-radius:8px;cursor:pointer;margin:1px 4px}
+.sub-row:hover{background:#f5f8fb}
+.sub-row.active{background:var(--brand-soft);outline:1px solid #cfe0ee}
+.sub-row.active .sub-name{color:var(--brand);font-weight:700}
+.sub-name{flex:1;font-size:13px}
+.sub-row.off .sub-name{color:var(--off);text-decoration:line-through}
+.tog{width:34px;height:19px;border-radius:20px;background:#d3dae2;position:relative;flex:none;transition:.15s}
+.tog.on{background:var(--arch)}
+.tog::after{content:"";position:absolute;width:15px;height:15px;border-radius:50%;background:#fff;top:2px;right:2px;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.tog.on::after{right:17px}
+.add-sub{display:flex;align-items:center;gap:7px;padding:7px 12px;margin:2px 4px;color:var(--brand);font-weight:600;font-size:12.5px;cursor:pointer;border-radius:8px;border:1px dashed #cfe0ee}
+.add-sub:hover{background:var(--brand-soft)}
+
+/* ---------- Editor ---------- */
+.editor{flex:1;overflow-y:auto;padding:22px 30px}
+.crumbs{font-size:12px;color:var(--muted);margin-bottom:6px}
+.crumbs b{color:var(--ink)}
+.ed-title{display:flex;align-items:center;gap:12px;margin:0 0 4px}
+.ed-title h1{margin:0;font-size:22px;font-weight:800}
+.ed-title .tag{font-size:11px;font-weight:700;color:var(--arch);background:var(--arch-soft);border:1px solid #bfe6dd;padding:3px 9px;border-radius:20px}
+.ed-sub{color:var(--muted);margin:0 0 16px;font-size:13px}
+.ed-toolbar{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 11px;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;display:flex;gap:6px;align-items:center}
+.chip:hover{background:#f6f8fb;color:var(--ink)}
+.hint{font-size:11.5px;color:var(--muted);background:#fbf6ee;border:1px solid #f0e2cc;border-radius:8px;padding:7px 11px;margin-bottom:14px;display:flex;gap:7px;align-items:center}
+
+.doc{max-width:840px;margin:0 auto}
+
+/* clause */
+.clause{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:8px;display:flex;align-items:stretch;gap:0;box-shadow:var(--shadow);transition:box-shadow .12s,transform .12s}
+.clause.dragging{opacity:.5;box-shadow:0 10px 24px rgba(20,35,60,.18)}
+.clause.drop-target{box-shadow:0 0 0 2px var(--brand)}
+.reorder{display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 5px;border-inline-end:1px solid #eef1f5}
+.reorder .grip{color:#c2ccd7;cursor:grab;text-align:center;font-size:13px;line-height:1;user-select:none}
+.mv{width:22px;height:20px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--muted);cursor:pointer;font-size:10px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0}
+.mv:hover{background:var(--brand-soft);color:var(--brand);border-color:#cfe0ee}
+.clause .num{font-weight:700;color:var(--brand);font-size:12px;padding:12px 10px 0 6px;white-space:nowrap;min-width:64px;text-align:center}
+.clause .body-col{flex:1;display:flex;flex-direction:column}
+.clause .txt{padding:11px 8px;outline:none;border-radius:8px}
+.clause .txt:focus{background:#fbfdff;box-shadow:inset 0 0 0 1px #d7e6f2}
+.clause .tools{display:flex;gap:4px;padding:0 8px 9px;opacity:0;transition:.12s}
+.clause:hover .tools{opacity:1}
+.tbtn{font-size:11px;color:var(--muted);background:#f4f7fa;border:1px solid var(--line);border-radius:6px;padding:3px 8px;cursor:pointer;font-weight:600}
+.tbtn:hover{background:var(--brand-soft);color:var(--brand)}
+.tbtn.danger:hover{background:#f8ece5;color:var(--warn);border-color:#eccdbb}
+.clause.kind-standard{background:#fbfcfe}
+.clause.kind-standard .txt{color:#274b63}
+.clause.kind-heading{background:#f7f9fc}
+.clause.kind-heading .txt{font-weight:800;font-size:15px}
+.clause.parent{background:#f9fbfd}
+.clause.parent>.body-col>.txt{font-weight:600}
+.parent-tag{font-size:10px;font-weight:700;color:var(--brand);background:var(--brand-soft);border:1px solid #cfe0ee;border-radius:20px;padding:1px 8px;align-self:flex-start;margin:0 8px 4px}
+
+/* nested sub-clauses */
+.subclauses{margin:2px 8px 10px 34px;border-inline-start:3px solid var(--brand-soft);padding-inline-start:8px}
+.subclauses .clause{background:#fff;margin-bottom:6px}
+.subclauses .clause .num{color:#2d84bd;min-width:78px;font-size:11.5px}
+.add-clause{display:flex;align-items:center;justify-content:center;gap:8px;padding:9px;border:1.5px dashed #cfd8e2;border-radius:9px;color:var(--brand);font-weight:600;cursor:pointer;font-size:12.5px}
+.add-clause:hover{background:var(--brand-soft)}
+.add-clause.nested{margin-inline-start:34px;margin-bottom:8px}
+.add-clause.top{margin-top:4px}
+.mini{font-size:11px;color:var(--muted)}
+
+/* ---------- Projects view ---------- */
+.pv{max-width:900px;margin:40px auto;padding:0 20px}
+.pv h1{font-size:24px;font-weight:800;margin:0 0 16px}
+.proj-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;box-shadow:var(--shadow)}
+.proj-card:hover{background:#f6f8fb}
+.proj-card .meta{color:var(--muted);font-size:12.5px}
+.wizard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;box-shadow:var(--shadow);margin-bottom:18px}
+.wizard label{display:block;font-size:12px;color:var(--muted);font-weight:600;margin:10px 0 3px}
+.wizard input,.wizard select{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-family:inherit;font-size:14px;background:#fbfcfe}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="tools/spec-creator/lib/numbering.js"></script>
+<script src="tools/spec-creator/lib/project.js"></script>
+<script src="tools/spec-creator/lib/tree-ops.js"></script>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script id="app-src" type="text/babel-app">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ---------- storage ----------
+async function apiGet(name) { const r = await fetch('/api/' + name); return r.json(); }
+async function apiPost(name, data) {
+  await fetch('/api/' + name, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+}
+
+function App() {
+  const [library, setLibrary] = useState(null);
+  const [projects, setProjects] = useState({ items: [] });
+  const [activeId, setActiveId] = useState(null);
+  const [wizard, setWizard] = useState(false);
+  const saveTimer = useRef(null);
+
+  useEffect(() => {
+    (async () => {
+      const lib = await apiGet('spec-library');
+      const pr = await apiGet('spec-projects');
+      setLibrary(lib && lib.chapters ? lib : { chapters: [], presets: [] });
+      setProjects(pr && pr.items ? pr : { items: [] });
+    })();
+  }, []);
+
+  const persist = useCallback((next) => {
+    setProjects(next);
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => apiPost('spec-projects', { ...next, _ts: Date.now() }), 400);
+  }, []);
+
+  const updateProject = useCallback((proj) => {
+    persist({ items: projects.items.map(p => p.id === proj.id ? proj : p) });
+  }, [projects, persist]);
+
+  if (!library) return <div style={{ padding: 40 }}>טוען…</div>;
+
+  const active = projects.items.find(p => p.id === activeId);
+  if (active) {
+    return <Editor project={active} library={library}
+                   onChange={updateProject} onBack={() => setActiveId(null)} />;
+  }
+  return <ProjectsView projects={projects} library={library} wizard={wizard}
+                       setWizard={setWizard}
+                       onOpen={setActiveId}
+                       onCreate={(proj) => { persist({ items: [...projects.items, proj] }); setWizard(false); setActiveId(proj.id); }} />;
+}
+
+function ProjectsView({ projects, library, wizard, setWizard, onOpen, onCreate }) {
+  return (
+    <div className="pv">
+      <h1>מחולל מפרטים ג2</h1>
+      {!wizard && <button className="btn primary" onClick={() => setWizard(true)}>＋ פרויקט חדש</button>}
+      {wizard && <Wizard library={library} onCancel={() => setWizard(false)} onCreate={onCreate} />}
+      <div style={{ marginTop: 18 }}>
+        {projects.items.map(p => (
+          <div key={p.id} className="proj-card" onClick={() => onOpen(p.id)}>
+            <div><b>{p.name || '(ללא שם)'}</b> <span className="meta"> · {p.buildingType}</span></div>
+            <div className="meta">{p.date} · מהדורה {p.revision}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Wizard({ library, onCancel, onCreate }) {
+  const [f, setF] = useState({ name: '', date: new Date().toISOString().slice(0, 10), revision: '01',
+    presetId: (library.presets[0] || {}).id || '' });
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const create = () => {
+    const preset = library.presets.find(p => p.id === f.presetId);
+    const proj = window.SpecProject.createProjectFromPreset(library, f.presetId,
+      { name: f.name, date: f.date, revision: f.revision, buildingType: preset ? preset.buildingType : '' });
+    onCreate(proj);
+  };
+  return (
+    <div className="wizard">
+      <label>שם הפרויקט</label><input value={f.name} onChange={set('name')} placeholder="לדוגמה: מרכז קהילתי נווה יהושע" />
+      <label>תאריך</label><input type="date" value={f.date} onChange={set('date')} />
+      <label>מהדורה</label><input value={f.revision} onChange={set('revision')} />
+      <label>סוג מבנה (PRESET)</label>
+      <select value={f.presetId} onChange={set('presetId')}>
+        {library.presets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+      </select>
+      <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+        <button className="btn primary" onClick={create} disabled={!f.presetId}>צור פרויקט</button>
+        <button className="btn" onClick={onCancel}>ביטול</button>
+      </div>
+    </div>
+  );
+}
+
+// Editor is fleshed out in Tasks 5-6; temporary shell so the app runs end-to-end now:
+function Editor({ project, onBack }) {
+  return (
+    <div style={{ padding: 24 }}>
+      <button className="btn" onClick={onBack}>← חזרה</button>
+      <h1 style={{ fontSize: 22 }}>{project.name}</h1>
+      <p className="mini">{project.chapters.filter(c => c.included).length} פרקים כלולים · העורך ייבנה במשימות 5-6.</p>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+<script>
+  // Compile the JSX app with the classic runtime (React.createElement) so it works
+  // with the UMD React globals — the automatic runtime would inject an ES import.
+  (function () {
+    var src = document.getElementById('app-src').textContent;
+    var out = Babel.transform(src, { presets: [['react', { runtime: 'classic' }]] }).code;
+    (0, eval)(out);
+  })();
+</script>
+</body>
+</html>

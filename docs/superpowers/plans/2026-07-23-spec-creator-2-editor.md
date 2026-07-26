@@ -450,7 +450,11 @@ Create `spec_creator.html`. Copy the entire `<style>…</style>` block from `spe
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<script type="text/babel" data-presets="react">
+<!-- NOTE: type MUST be a type Babel's auto-runner ignores (NOT text/babel or text/jsx —
+     Babel standalone auto-executes both, which would double-mount React). We compile it
+     ourselves in the bootstrap script below, forcing the classic runtime so JSX becomes
+     React.createElement (the automatic runtime injects an ES import that breaks UMD React). -->
+<script id="app-src" type="text/babel-app">
 const { useState, useEffect, useRef, useCallback } = React;
 
 // ---------- storage ----------
@@ -556,6 +560,14 @@ function Editor({ project, onBack }) {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+<script>
+  // Compile the JSX app ourselves with the classic runtime so it works with UMD React.
+  (function () {
+    var src = document.getElementById('app-src').textContent;
+    var out = Babel.transform(src, { presets: [['react', { runtime: 'classic' }]] }).code;
+    (0, eval)(out);
+  })();
 </script>
 </body>
 </html>
