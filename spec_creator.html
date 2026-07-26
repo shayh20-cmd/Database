@@ -320,10 +320,62 @@ function ChapterTree({ project, activeChap, activeSub, onToggleChapter, onToggle
   );
 }
 
-// ClauseEditor is fleshed out in Task 6; temporary stub so the file runs now:
-function ClauseEditor({ sub }) {
-  return <div style={{ padding: 24 }}><h1 style={{ fontSize: 20 }}>{sub.title}</h1>
-    <p className="mini">{sub.clauses.length} סעיפים · העורך ייבנה במשימה 6.</p></div>;
+function ClauseEditor({ chap, sub, onChangeClauses, onChangeTitle }) {
+  const numbers = window.SpecNumbering.assignNumbers(chap.num, chap.subChapters);
+  const base = numbers[sub.id] || '';
+
+  const op = (fn) => onChangeClauses(fn(sub.clauses));
+
+  const renderClause = (c, depth) => {
+    const isHeading = c.kind === 'heading';
+    const isStd = c.kind === 'standard';
+    const hasChildren = c.children && c.children.length;
+    return (
+      <React.Fragment key={c.id}>
+        <div className={'clause' + (isHeading ? ' kind-heading' : '') + (isStd ? ' kind-standard' : '') + (hasChildren ? ' parent' : '')}>
+          <div className="reorder">
+            <span className="grip">⋮⋮</span>
+            <button className="mv" onClick={() => op(t => window.SpecTree.move(t, c.id, -1))}>▲</button>
+            <button className="mv" onClick={() => op(t => window.SpecTree.move(t, c.id, 1))}>▼</button>
+          </div>
+          <div className="num">{numbers[c.id]}</div>
+          <div className="body-col">
+            {hasChildren ? <span className="parent-tag">מכיל תתי-סעיפים</span> : null}
+            <div className="txt" contentEditable suppressContentEditableWarning
+                 onBlur={(e) => op(t => window.SpecTree.setText(t, c.id, e.currentTarget.innerText))}>
+              {c.text}
+            </div>
+            <div className="tools">
+              <span className="tbtn" onClick={() => op(t => window.SpecTree.addChild(t, c.id, 'paragraph').tree)}>＋ תת-סעיף</span>
+              <span className="tbtn danger" onClick={() => op(t => window.SpecTree.remove(t, c.id))}>מחק</span>
+            </div>
+          </div>
+        </div>
+        {hasChildren ?
+          <div className="subclauses">{c.children.map(cc => renderClause(cc, depth + 1))}</div> : null}
+      </React.Fragment>
+    );
+  };
+
+  return (
+    <div>
+      <div className="crumbs">פרק {chap.num} — {chap.name} ⟵ <b>{sub.title}</b></div>
+      <div className="ed-title">
+        <h1 contentEditable suppressContentEditableWarning
+            onBlur={(e) => onChangeTitle(e.currentTarget.innerText)}>{sub.title}</h1>
+        {chap.discipline === 'ARCH' ? <span className="tag">אדריכלות</span> : null}
+      </div>
+      <p className="ed-sub">{base} · {sub.clauses.length} סעיפים</p>
+      <div className="ed-toolbar">
+        <span className="chip" onClick={() => op(t => window.SpecTree.addAfter(t, null, 'paragraph').tree)}>＋ סעיף</span>
+        <span className="chip" onClick={() => op(t => window.SpecTree.addAfter(t, null, 'standard').tree)}>＋ תקן (ת"י)</span>
+      </div>
+      <div className="doc">
+        {sub.clauses.map(c => renderClause(c, 0))}
+        <div className="add-clause top" onClick={() => op(t => window.SpecTree.addAfter(t, null, 'paragraph').tree)}>＋ הוסף סעיף</div>
+      </div>
+    </div>
+  );
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
