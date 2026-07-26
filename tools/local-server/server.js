@@ -102,7 +102,12 @@ const server = http.createServer((req, res) => {
     handleApi(req, res, apiMatch[1]).catch(e => sendJson(res, 500, { error: e.message }));
     return;
   }
-  serveHandler(req, res, { public: STATIC_ROOT });
+  // Local dev server: tell browsers to always revalidate so edited HTML/JS/CSS never
+  // get served stale from the heuristic cache (serve-handler sends no cache headers).
+  serveHandler(req, res, {
+    public: STATIC_ROOT,
+    headers: [{ source: '**', headers: [{ key: 'Cache-Control', value: 'no-cache' }] }]
+  });
 });
 
 server.listen(PORT, () => {

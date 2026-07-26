@@ -25,6 +25,9 @@ function req(method, p, body) {
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
 test('spec-projects route round-trips JSON', async (t) => {
+  // Back up any real project data so the test never destroys it, and restore after.
+  const backup = fs.existsSync(DATA) ? fs.readFileSync(DATA) : null;
+  t.after(() => { if (backup !== null) fs.writeFileSync(DATA, backup); else if (fs.existsSync(DATA)) fs.unlinkSync(DATA); });
   if (fs.existsSync(DATA)) fs.unlinkSync(DATA);
   const proc = spawn('node', [SERVER, ROOT, '--port', String(PORT)], { stdio: 'ignore' });
   t.after(() => proc.kill());
