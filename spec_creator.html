@@ -233,15 +233,97 @@ function Wizard({ library, onCancel, onCreate }) {
   );
 }
 
-// Editor is fleshed out in Tasks 5-6; temporary shell so the app runs end-to-end now:
-function Editor({ project, onBack }) {
+function Editor({ project, library, onChange, onBack }) {
+  const firstIncluded = project.chapters.find(c => c.included) || project.chapters[0];
+  const [activeChap, setActiveChap] = useState(firstIncluded ? firstIncluded.num : null);
+  const [activeSub, setActiveSub] = useState(null);
+
+  const setChapter = (num, patch) =>
+    onChange({ ...project, chapters: project.chapters.map(c => c.num === num ? { ...c, ...patch } : c) });
+  const setSub = (num, subId, patch) =>
+    setChapter(num, { subChapters: project.chapters.find(c => c.num === num).subChapters.map(
+      s => s.id === subId ? { ...s, ...patch } : s) });
+
+  const chap = project.chapters.find(c => c.num === activeChap);
+  const sub = chap && chap.subChapters.find(s => s.id === activeSub);
+
   return (
-    <div style={{ padding: 24 }}>
-      <button className="btn" onClick={onBack}>← חזרה</button>
-      <h1 style={{ fontSize: 22 }}>{project.name}</h1>
-      <p className="mini">{project.chapters.filter(c => c.included).length} פרקים כלולים · העורך ייבנה במשימות 5-6.</p>
+    <div className="app">
+      <div className="topbar">
+        <div className="brand"><span className="logo">מ</span> מחולל מפרטים ג2</div>
+        <div className="proj-meta">
+          <div className="field"><label>שם הפרויקט</label><div className="val">{project.name}</div></div>
+          <div className="field"><label>מהדורה</label><div className="val">{project.revision}</div></div>
+          <div className="preset-badge">◆ {project.buildingType}</div>
+        </div>
+        <div className="actions"><button className="btn" onClick={onBack}>← פרויקטים</button></div>
+      </div>
+      <div className="body">
+        <ChapterTree project={project} activeChap={activeChap} activeSub={activeSub}
+          onToggleChapter={(num, val) => setChapter(num, { included: val })}
+          onToggleSub={(num, subId, val) => setSub(num, subId, { included: val })}
+          onSelect={(num, subId) => { setActiveChap(num); setActiveSub(subId); }}
+          onAddSub={(num) => {
+            const nc = project.chapters.find(c => c.num === num);
+            const newSub = { id: window.SpecTree.genId(), title: 'תת-פרק חדש', included: true, clauses: [] };
+            setChapter(num, { subChapters: [...nc.subChapters, newSub] });
+            setActiveChap(num); setActiveSub(newSub.id);
+          }} />
+        <main className="editor">
+          {sub
+            ? <ClauseEditor chap={chap} sub={sub}
+                onChangeClauses={(clauses) => setSub(chap.num, sub.id, { clauses })}
+                onChangeTitle={(title) => setSub(chap.num, sub.id, { title })} />
+            : <div style={{ padding: 30, color: 'var(--muted)' }}>בחר תת-פרק מהעץ מימין.</div>}
+        </main>
+      </div>
     </div>
   );
+}
+
+function ChapterTree({ project, activeChap, activeSub, onToggleChapter, onToggleSub, onSelect, onAddSub }) {
+  const [open, setOpen] = useState({});
+  return (
+    <aside className="sidebar">
+      <div className="side-head"><h2>פרקים ותתי-פרקים</h2><p>סמן מה כלול. פרקי אדריכלות מודגשים.</p></div>
+      <div className="legend"><span><i className="dot arch"></i> אדריכלות</span><span><i className="dot other"></i> אחר</span></div>
+      <div className="tree">
+        {project.chapters.map(c => {
+          const isArch = c.discipline === 'ARCH';
+          const isOpen = open[c.num];
+          return (
+            <div key={c.num} className={'chap' + (isArch ? '' : ' other') + (isOpen ? ' open' : '')}>
+              <div className="chap-row" onClick={() => setOpen({ ...open, [c.num]: !isOpen })}>
+                <span className="caret">▸</span>
+                <span className="chap-num">{window.SpecNumbering.chapterCode(c.num)}</span>
+                <span className="chap-name">{c.name}</span>
+                <span className="count">{c.included ? c.subChapters.filter(s => s.included).length : '—'}</span>
+              </div>
+              {isOpen && (
+                <div className="subs">
+                  {c.subChapters.map(s => (
+                    <div key={s.id} className={'sub-row' + (s.id === activeSub ? ' active' : '') + (s.included ? '' : ' off')}
+                         onClick={() => onSelect(c.num, s.id)}>
+                      <span className={'tog' + (s.included ? ' on' : '')}
+                            onClick={(e) => { e.stopPropagation(); onToggleSub(c.num, s.id, !s.included); }}></span>
+                      <span className="sub-name">{s.title}</span>
+                    </div>
+                  ))}
+                  <div className="add-sub" onClick={() => onAddSub(c.num)}>＋ הוסף תת-פרק</div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </aside>
+  );
+}
+
+// ClauseEditor is fleshed out in Task 6; temporary stub so the file runs now:
+function ClauseEditor({ sub }) {
+  return <div style={{ padding: 24 }}><h1 style={{ fontSize: 20 }}>{sub.title}</h1>
+    <p className="mini">{sub.clauses.length} סעיפים · העורך ייבנה במשימה 6.</p></div>;
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
