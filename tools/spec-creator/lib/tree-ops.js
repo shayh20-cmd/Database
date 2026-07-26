@@ -55,8 +55,23 @@
     return c;
   }
 
+  // Reorder a flat list (e.g. sub-chapters) by id: pull fromId out and drop it next to
+  // toId (before it, or after it when `after` is true). Immutable. Used for drag-reorder.
+  function reorderById(list, fromId, toId, after) {
+    if (fromId === toId) return list.slice();
+    const arr = list.slice();
+    const fromIdx = arr.findIndex(function (x) { return x.id === fromId; });
+    if (fromIdx < 0) return list.slice();
+    const it = arr.splice(fromIdx, 1)[0];
+    let toIdx = arr.findIndex(function (x) { return x.id === toId; });
+    if (toIdx < 0) { arr.push(it); return arr; }
+    if (after) toIdx += 1;
+    arr.splice(toIdx, 0, it);
+    return arr;
+  }
+
   const api = { locate: locate, move: move, addAfter: addAfter, addChild: addChild,
-                remove: remove, setText: setText, genId: genId };
+                remove: remove, setText: setText, genId: genId, reorderById: reorderById };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof window !== 'undefined') window.SpecTree = api;
 })();

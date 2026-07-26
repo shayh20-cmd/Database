@@ -58,3 +58,19 @@ test('setText updates text immutably', () => {
   assert.strictEqual(out[0].text, 'NEW');
   assert.strictEqual(src[0].text, 'A');
 });
+
+test('reorderById drops before the target by default', () => {
+  const list = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  assert.deepStrictEqual(T.reorderById(list, 'c', 'a', false).map(x => x.id), ['c', 'a', 'b']);
+  assert.deepStrictEqual(list.map(x => x.id), ['a', 'b', 'c']); // immutable
+});
+
+test('reorderById drops after the target when after=true', () => {
+  const list = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  assert.deepStrictEqual(T.reorderById(list, 'a', 'b', true).map(x => x.id), ['b', 'a', 'c']);
+});
+
+test('reorderById moving onto itself is a no-op copy', () => {
+  const list = [{ id: 'a' }, { id: 'b' }];
+  assert.deepStrictEqual(T.reorderById(list, 'a', 'a', false).map(x => x.id), ['a', 'b']);
+});
