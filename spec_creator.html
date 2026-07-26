@@ -99,8 +99,10 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--ink);font-s
 .clause.drop-target{box-shadow:0 0 0 2px var(--brand)}
 .reorder{display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 5px;border-inline-end:1px solid #eef1f5}
 .reorder .grip{color:#c2ccd7;cursor:grab;text-align:center;font-size:13px;line-height:1;user-select:none}
+.mv-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px}
 .mv{width:22px;height:20px;border-radius:6px;border:1px solid var(--line);background:#fff;color:var(--muted);cursor:pointer;font-size:10px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0}
 .mv:hover{background:var(--brand-soft);color:var(--brand);border-color:#cfe0ee}
+.mv.nest{font-size:12px}
 .clause .num{font-weight:700;color:var(--brand);font-size:12px;padding:12px 10px 0 6px;white-space:nowrap;min-width:64px;text-align:center}
 .clause .body-col{flex:1;display:flex;flex-direction:column}
 .clause .txt{padding:11px 8px;outline:none;border-radius:8px}
@@ -430,8 +432,12 @@ function ClauseEditor({ chap, sub, onChangeClauses, onChangeTitle }) {
         <div className={'clause' + (isHeading ? ' kind-heading' : '') + (isStd ? ' kind-standard' : '') + (hasChildren ? ' parent' : '')}>
           <div className="reorder">
             <span className="grip">⋮⋮</span>
-            <button className="mv" onClick={() => op(t => window.SpecTree.move(t, c.id, -1))}>▲</button>
-            <button className="mv" onClick={() => op(t => window.SpecTree.move(t, c.id, 1))}>▼</button>
+            <div className="mv-grid">
+              <button className="mv" title="הזז מעלה" onClick={() => op(t => window.SpecTree.move(t, c.id, -1))}>▲</button>
+              <button className="mv" title="הזז מטה" onClick={() => op(t => window.SpecTree.move(t, c.id, 1))}>▼</button>
+              <button className="mv nest" title="הזח החוצה (רמה מעלה)" onClick={() => op(t => window.SpecTree.outdent(t, c.id))}>⇤</button>
+              <button className="mv nest" title="הזח פנימה (הפוך לתת-סעיף)" onClick={() => op(t => window.SpecTree.indent(t, c.id))}>⇥</button>
+            </div>
           </div>
           <div className="num">{numbers[c.id]}</div>
           <div className="body-col">

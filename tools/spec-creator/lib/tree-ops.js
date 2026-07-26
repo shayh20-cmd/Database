@@ -55,6 +55,38 @@
     return c;
   }
 
+  // Like locate, but also reports the parent node's list + index (null at top level).
+  function locateP(clauses, id, parentList, parentIdx) {
+    for (let i = 0; i < clauses.length; i++) {
+      if (clauses[i].id === id) return { list: clauses, index: i, parentList: parentList || null, parentIndex: parentIdx == null ? -1 : parentIdx };
+      if (clauses[i].children) {
+        const r = locateP(clauses[i].children, id, clauses, i);
+        if (r) return r;
+      }
+    }
+    return null;
+  }
+  // Make a clause a child of its immediately-preceding sibling. No-op if it is first.
+  function indent(clauses, id) {
+    const c = clone(clauses);
+    const loc = locate(c, id);
+    if (!loc || loc.index === 0) return c;
+    const prev = loc.list[loc.index - 1];
+    const it = loc.list.splice(loc.index, 1)[0];
+    prev.children = prev.children || [];
+    prev.children.push(it);
+    return c;
+  }
+  // Lift a child out to become a sibling of its parent, right after it. No-op at top level.
+  function outdent(clauses, id) {
+    const c = clone(clauses);
+    const loc = locateP(c, id);
+    if (!loc || !loc.parentList) return c;
+    const it = loc.list.splice(loc.index, 1)[0];
+    loc.parentList.splice(loc.parentIndex + 1, 0, it);
+    return c;
+  }
+
   // Reorder a flat list (e.g. sub-chapters) by id: pull fromId out and drop it next to
   // toId (before it, or after it when `after` is true). Immutable. Used for drag-reorder.
   function reorderById(list, fromId, toId, after) {
@@ -71,7 +103,8 @@
   }
 
   const api = { locate: locate, move: move, addAfter: addAfter, addChild: addChild,
-                remove: remove, setText: setText, genId: genId, reorderById: reorderById };
+                remove: remove, setText: setText, genId: genId, reorderById: reorderById,
+                indent: indent, outdent: outdent };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof window !== 'undefined') window.SpecTree = api;
 })();

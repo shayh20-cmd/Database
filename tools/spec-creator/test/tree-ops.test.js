@@ -74,3 +74,23 @@ test('reorderById moving onto itself is a no-op copy', () => {
   const list = [{ id: 'a' }, { id: 'b' }];
   assert.deepStrictEqual(T.reorderById(list, 'a', 'a', false).map(x => x.id), ['a', 'b']);
 });
+
+test('indent makes a clause a child of its preceding sibling', () => {
+  const out = T.indent(tree(), 'c');       // c is after b
+  assert.deepStrictEqual(out.map(n => n.id), ['a', 'b']);
+  assert.strictEqual(out[1].children[out[1].children.length - 1].id, 'c');
+});
+
+test('indent on the first sibling is a no-op', () => {
+  assert.deepStrictEqual(T.indent(tree(), 'a').map(n => n.id), ['a', 'b', 'c']);
+});
+
+test('outdent lifts a child to be a sibling right after its parent', () => {
+  const out = T.outdent(tree(), 'b1');     // b1 is a child of b
+  assert.deepStrictEqual(out.map(n => n.id), ['a', 'b', 'b1', 'c']);
+  assert.strictEqual(out.find(n => n.id === 'b').children.length, 1); // only b2 left
+});
+
+test('outdent on a top-level clause is a no-op', () => {
+  assert.deepStrictEqual(T.outdent(tree(), 'a').map(n => n.id), ['a', 'b', 'c']);
+});
