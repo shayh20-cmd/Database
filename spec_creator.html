@@ -130,6 +130,21 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--ink);font-s
 .wizard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;box-shadow:var(--shadow);margin-bottom:18px}
 .wizard label{display:block;font-size:12px;color:var(--muted);font-weight:600;margin:10px 0 3px}
 .wizard input,.wizard select{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-family:inherit;font-size:14px;background:#fbfcfe}
+
+/* ---------- Print ---------- */
+.printable{display:none}
+.printable h1{text-align:center;font-size:22px;margin:0 0 4px}
+.printable .print-sub{text-align:center;color:#555;margin:0 0 20px}
+.printable h2{font-size:18px;border-bottom:2px solid #333;padding-bottom:3px;margin:22px 0 10px}
+.printable h3{font-size:14px;margin:14px 0 6px}
+.printable .pc{margin-inline-start:14px}
+.printable p{margin:3px 0}
+@media print{
+  .topbar,.sidebar,.ed-toolbar,.reorder,.tools,.add-clause,.add-sub,.crumbs,.ed-title,.ed-sub,.doc{display:none !important}
+  .printable{display:block}
+  .app,.body,.editor,main.editor{display:block;height:auto;overflow:visible}
+  body{background:#fff}
+}
 </style>
 </head>
 <body>
@@ -256,7 +271,10 @@ function Editor({ project, library, onChange, onBack }) {
           <div className="field"><label>מהדורה</label><div className="val">{project.revision}</div></div>
           <div className="preset-badge">◆ {project.buildingType}</div>
         </div>
-        <div className="actions"><button className="btn" onClick={onBack}>← פרויקטים</button></div>
+        <div className="actions">
+          <button className="btn" onClick={() => window.print()}>⎙ הדפסה / PDF</button>
+          <button className="btn" onClick={onBack}>← פרויקטים</button>
+        </div>
       </div>
       <div className="body">
         <ChapterTree project={project} activeChap={activeChap} activeSub={activeSub}
@@ -277,6 +295,41 @@ function Editor({ project, library, onChange, onBack }) {
             : <div style={{ padding: 30, color: 'var(--muted)' }}>בחר תת-פרק מהעץ מימין.</div>}
         </main>
       </div>
+      <PrintDoc project={project} />
+    </div>
+  );
+}
+
+function renderPrintClauses(clauses, numbers) {
+  return clauses.map(c => (
+    <div key={c.id} className="pc">
+      <p><b>{numbers[c.id]}</b> {c.text}</p>
+      {c.children && c.children.length ? renderPrintClauses(c.children, numbers) : null}
+    </div>
+  ));
+}
+
+function PrintDoc({ project }) {
+  return (
+    <div className="printable">
+      <h1>{project.name}</h1>
+      <p className="print-sub">מפרט טכני (ג2) · מהדורה {project.revision} · {project.date}</p>
+      {project.chapters.filter(c => c.included).map(c => {
+        const numbers = window.SpecNumbering.assignNumbers(c.num, c.subChapters);
+        const subs = c.subChapters.filter(s => s.included);
+        if (!subs.length) return null;
+        return (
+          <section key={c.num}>
+            <h2>פרק {window.SpecNumbering.chapterCode(c.num)} – {c.name}</h2>
+            {subs.map(s => (
+              <div key={s.id}>
+                <h3>{numbers[s.id]} {s.title}</h3>
+                {renderPrintClauses(s.clauses, numbers)}
+              </div>
+            ))}
+          </section>
+        );
+      })}
     </div>
   );
 }
