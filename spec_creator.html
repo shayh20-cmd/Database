@@ -120,10 +120,15 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--ink);font-s
 .clause.parent>.body-col>.txt{font-weight:600}
 .parent-tag{font-size:10px;font-weight:700;color:var(--brand);background:var(--brand-soft);border:1px solid #cfe0ee;border-radius:20px;padding:1px 8px;align-self:flex-start;margin:0 8px 4px}
 
-/* nested sub-clauses */
-.subclauses{margin:2px 8px 10px 34px;border-inline-start:3px solid var(--brand-soft);padding-inline-start:8px}
-.subclauses .clause{background:#fff;margin-bottom:6px}
+/* grouped parent + children: one card, parent as header, sub-clauses split by rules */
+.clause-group{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);margin-bottom:8px;overflow:hidden}
+.clause-group>.clause{border:none;box-shadow:none;margin:0;border-radius:0;background:#f4f7fb}
+.clause-group.kind-heading-group>.clause{background:#eef3f8}
+.subclauses{margin:0;padding-inline-start:14px;border-top:1px solid var(--line)}
+.subclauses>.clause{background:#fff;margin:0;border:none;border-radius:0;box-shadow:none}
+.subclauses>.clause + .clause{border-top:1px solid var(--line)}
 .subclauses .clause .num{color:#2d84bd;min-width:78px;font-size:11.5px}
+.subclauses .clause-group{margin:8px 0;box-shadow:none}
 .add-clause{display:flex;align-items:center;justify-content:center;gap:8px;padding:9px;border:1.5px dashed #cfd8e2;border-radius:9px;color:var(--brand);font-weight:600;cursor:pointer;font-size:12.5px}
 .add-clause:hover{background:var(--brand-soft)}
 .add-clause.nested{margin-inline-start:34px;margin-bottom:8px}
@@ -427,38 +432,40 @@ function ClauseEditor({ chap, sub, onChangeClauses, onChangeTitle }) {
     const isHeading = c.kind === 'heading';
     const isStd = c.kind === 'standard';
     const hasChildren = c.children && c.children.length;
-    return (
-      <React.Fragment key={c.id}>
-        <div className={'clause' + (isHeading ? ' kind-heading' : '') + (isStd ? ' kind-standard' : '') + (hasChildren ? ' parent' : '')}>
-          <div className="reorder">
-            <span className="grip">⋮⋮</span>
-            <div className="mv-grid">
-              <button className="mv" title="הזז מעלה" onClick={() => op(t => window.SpecTree.move(t, c.id, -1))}>▲</button>
-              <button className="mv" title="הזז מטה" onClick={() => op(t => window.SpecTree.move(t, c.id, 1))}>▼</button>
-              <button className="mv nest" title="הזח החוצה (רמה מעלה)" onClick={() => op(t => window.SpecTree.outdent(t, c.id))}>
-                <svg viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="2" height="9"/><polygon points="13,3.5 13,12.5 5.5,8"/></svg>
-              </button>
-              <button className="mv nest" title="הזח פנימה (הפוך לתת-סעיף)" onClick={() => op(t => window.SpecTree.indent(t, c.id))}>
-                <svg viewBox="0 0 16 16"><polygon points="3,3.5 3,12.5 10.5,8"/><rect x="11.5" y="3.5" width="2" height="9"/></svg>
-              </button>
-            </div>
-          </div>
-          <div className="num">{numbers[c.id]}</div>
-          <div className="body-col">
-            {hasChildren ? <span className="parent-tag">מכיל תתי-סעיפים</span> : null}
-            <div className="txt" contentEditable suppressContentEditableWarning
-                 onBlur={(e) => op(t => window.SpecTree.setText(t, c.id, e.currentTarget.innerText))}>
-              {c.text}
-            </div>
-            <div className="tools">
-              <span className="tbtn" onClick={() => op(t => window.SpecTree.addChild(t, c.id, 'paragraph').tree)}>＋ תת-סעיף</span>
-              <span className="tbtn danger" onClick={() => op(t => window.SpecTree.remove(t, c.id))}>מחק</span>
-            </div>
+    const clauseEl = (
+      <div className={'clause' + (isHeading ? ' kind-heading' : '') + (isStd ? ' kind-standard' : '') + (hasChildren ? ' parent' : '')}>
+        <div className="reorder">
+          <span className="grip">⋮⋮</span>
+          <div className="mv-grid">
+            <button className="mv" title="הזז מעלה" onClick={() => op(t => window.SpecTree.move(t, c.id, -1))}>▲</button>
+            <button className="mv" title="הזז מטה" onClick={() => op(t => window.SpecTree.move(t, c.id, 1))}>▼</button>
+            <button className="mv nest" title="הזח החוצה (רמה מעלה)" onClick={() => op(t => window.SpecTree.outdent(t, c.id))}>
+              <svg viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="2" height="9"/><polygon points="13,3.5 13,12.5 5.5,8"/></svg>
+            </button>
+            <button className="mv nest" title="הזח פנימה (הפוך לתת-סעיף)" onClick={() => op(t => window.SpecTree.indent(t, c.id))}>
+              <svg viewBox="0 0 16 16"><polygon points="3,3.5 3,12.5 10.5,8"/><rect x="11.5" y="3.5" width="2" height="9"/></svg>
+            </button>
           </div>
         </div>
-        {hasChildren ?
-          <div className="subclauses">{c.children.map(cc => renderClause(cc, depth + 1))}</div> : null}
-      </React.Fragment>
+        <div className="num">{numbers[c.id]}</div>
+        <div className="body-col">
+          <div className="txt" contentEditable suppressContentEditableWarning
+               onBlur={(e) => op(t => window.SpecTree.setText(t, c.id, e.currentTarget.innerText))}>
+            {c.text}
+          </div>
+          <div className="tools">
+            <span className="tbtn" onClick={() => op(t => window.SpecTree.addChild(t, c.id, 'paragraph').tree)}>＋ תת-סעיף</span>
+            <span className="tbtn danger" onClick={() => op(t => window.SpecTree.remove(t, c.id))}>מחק</span>
+          </div>
+        </div>
+      </div>
+    );
+    if (!hasChildren) return <React.Fragment key={c.id}>{clauseEl}</React.Fragment>;
+    return (
+      <div key={c.id} className={'clause-group' + (isHeading ? ' kind-heading-group' : '')}>
+        {clauseEl}
+        <div className="subclauses">{c.children.map(cc => renderClause(cc, depth + 1))}</div>
+      </div>
     );
   };
 
