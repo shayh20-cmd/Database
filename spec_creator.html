@@ -175,6 +175,16 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--ink);font-s
 .pe-label { display: block; font-size: 12px; color: #667; margin: 8px 0 4px; }
 .pe-input { width: 320px; max-width: 100%; padding: 6px 8px; border: 1px solid #d9dee5; border-radius: 6px; }
 .pe-empty { color: #889; }
+.ptree { margin-top: 12px; border: 1px solid #e6e9ee; border-radius: 8px; padding: 6px 4px; max-height: 60vh; overflow: auto; }
+.pt-row { display: flex; align-items: center; gap: 6px; padding: 2px 4px; }
+.pt-row input[type=checkbox] { cursor: pointer; }
+.pt-caret { width: 14px; display: inline-block; text-align: center; color: #99a; cursor: pointer; user-select: none; }
+.pt-caret.sp { cursor: default; }
+.pt-num { font-variant-numeric: tabular-nums; color: #556; font-size: 13px; }
+.pt-name { font-size: 14px; }
+.pt-name.arch { font-weight: 600; color: #1b4fb0; }
+.pt-text { font-size: 13px; color: #333; }
+.pt-text.off { color: #aab; text-decoration: line-through; }
 </style>
 </head>
 <body>
@@ -328,7 +338,81 @@ function PresetManager({ library, onChange, onClose }) {
   );
 }
 
-function PresetTreeEditor() { return <div className="pt-todo">עץ הספרייה — Task 4</div>; }
+function TriCheck({ state, disabled, onChange }) {
+  const ref = useRef(null);
+  useEffect(() => { if (ref.current) ref.current.indeterminate = (state === 'partial'); }, [state]);
+  return <input type="checkbox" ref={ref} disabled={!!disabled}
+                checked={state === 'on'}
+                onChange={(e) => onChange(e.target.checked)} />;
+}
+
+function ClauseNode({ clause, preset, depth, ancestorOff, onChange }) {
+  const P = window.SpecPreset;
+  const [open, setOpen] = useState(true);
+  const state = ancestorOff ? 'off' : P.resolveClauseState(preset, clause);
+  const kids = clause.children || [];
+  const childOff = ancestorOff || state === 'off';
+  return (
+    <div className="pt-clause">
+      <div className="pt-row" style={{ paddingInlineStart: (depth * 18) + 'px' }}>
+        <TriCheck state={state} disabled={ancestorOff}
+                  onChange={(on) => onChange(P.toggleClause(preset, clause, on))} />
+        {kids.length
+          ? <span className="pt-caret" onClick={() => setOpen(!open)}>{open ? '▾' : '▸'}</span>
+          : <span className="pt-caret sp"></span>}
+        <span className={'pt-text' + (state === 'off' ? ' off' : '')}>{clause.text || '(סעיף ריק)'}</span>
+      </div>
+      {open && kids.map(k => (
+        <ClauseNode key={k.id} clause={k} preset={preset} depth={depth + 1}
+                    ancestorOff={childOff} onChange={onChange} />
+      ))}
+    </div>
+  );
+}
+
+function PresetTreeEditor({ library, preset, onChange }) {
+  const P = window.SpecPreset;
+  const [open, setOpen] = useState({});
+  const toggleOpen = (k) => setOpen(o => ({ ...o, [k]: !o[k] }));
+  return (
+    <div className="ptree">
+      {library.chapters.map(ch => {
+        const chState = P.resolveChapterState(preset, ch);
+        const chOpen = open['c' + ch.num];
+        return (
+          <div key={ch.num} className="pt-chap">
+            <div className="pt-row">
+              <TriCheck state={chState} onChange={(on) => onChange(P.toggleChapter(preset, ch, on))} />
+              <span className="pt-caret" onClick={() => toggleOpen('c' + ch.num)}>{chOpen ? '▾' : '▸'}</span>
+              <span className="pt-num">{window.SpecNumbering.chapterCode(ch.num)}</span>
+              <span className={'pt-name' + (ch.discipline === 'ARCH' ? ' arch' : '')}>{ch.name}</span>
+            </div>
+            {chOpen && ch.subChapters.map(s => {
+              const subState = P.resolveSubChapterState(preset, ch.num, s);
+              const subOpen = open['s' + s.id];
+              return (
+                <div key={s.id} className="pt-sub">
+                  <div className="pt-row" style={{ paddingInlineStart: '18px' }}>
+                    <TriCheck state={subState}
+                              onChange={(on) => onChange(P.toggleSubChapter(preset, ch.num, s.id, on))} />
+                    {s.clauses.length
+                      ? <span className="pt-caret" onClick={() => toggleOpen('s' + s.id)}>{subOpen ? '▾' : '▸'}</span>
+                      : <span className="pt-caret sp"></span>}
+                    <span className="pt-name">{s.title}</span>
+                  </div>
+                  {subOpen && s.clauses.map(cl => (
+                    <ClauseNode key={cl.id} clause={cl} preset={preset} depth={2}
+                                ancestorOff={subState === 'off'} onChange={onChange} />
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function Wizard({ library, onCancel, onCreate }) {
   const [f, setF] = useState({ name: '', date: new Date().toISOString().slice(0, 10), revision: '01',
