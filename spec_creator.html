@@ -164,6 +164,17 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--ink);font-s
   .app,.body,.editor,main.editor{display:block;height:auto;overflow:visible}
   body{background:#fff}
 }
+.pm-head { display: flex; justify-content: space-between; align-items: center; }
+.preset-mgr { display: flex; gap: 16px; margin-top: 16px; align-items: flex-start; }
+.preset-list { width: 240px; flex: 0 0 240px; }
+.preset-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid #d9dee5; border-radius: 8px; margin-bottom: 6px; cursor: pointer; }
+.preset-item.active { border-color: #2d6cdf; background: #eef3fe; }
+.preset-item .pi-del { border: 0; background: transparent; color: #b23; cursor: pointer; font-size: 12px; }
+.preset-actions { display: flex; gap: 8px; margin-top: 8px; }
+.preset-editor { flex: 1 1 auto; min-width: 0; }
+.pe-label { display: block; font-size: 12px; color: #667; margin: 8px 0 4px; }
+.pe-input { width: 320px; max-width: 100%; padding: 6px 8px; border: 1px solid #d9dee5; border-radius: 6px; }
+.pe-empty { color: #889; }
 </style>
 </head>
 <body>
@@ -171,6 +182,7 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--ink);font-s
 <script src="tools/spec-creator/lib/numbering.js?v=2"></script>
 <script src="tools/spec-creator/lib/project.js?v=3"></script>
 <script src="tools/spec-creator/lib/tree-ops.js?v=2"></script>
+<script src="tools/spec-creator/lib/preset-ops.js?v=1"></script>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -188,7 +200,9 @@ function App() {
   const [projects, setProjects] = useState({ items: [] });
   const [activeId, setActiveId] = useState(null);
   const [wizard, setWizard] = useState(false);
+  const [managing, setManaging] = useState(false);
   const saveTimer = useRef(null);
+  const libSaveTimer = useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -205,6 +219,12 @@ function App() {
     saveTimer.current = setTimeout(() => apiPost('spec-projects', { ...next, _ts: Date.now() }), 400);
   }, []);
 
+  const persistLibrary = useCallback((next) => {
+    setLibrary(next);
+    clearTimeout(libSaveTimer.current);
+    libSaveTimer.current = setTimeout(() => apiPost('spec-library', { ...next, _ts: Date.now() }), 400);
+  }, []);
+
   const updateProject = useCallback((proj) => {
     persist({ items: projects.items.map(p => p.id === proj.id ? proj : p) });
   }, [projects, persist]);
@@ -216,17 +236,25 @@ function App() {
     return <Editor project={active} library={library}
                    onChange={updateProject} onBack={() => setActiveId(null)} />;
   }
+  if (managing) {
+    return <PresetManager library={library} onChange={persistLibrary} onClose={() => setManaging(false)} />;
+  }
   return <ProjectsView projects={projects} library={library} wizard={wizard}
-                       setWizard={setWizard}
+                       setWizard={setWizard} onManage={() => setManaging(true)}
                        onOpen={setActiveId}
                        onCreate={(proj) => { persist({ items: [...projects.items, proj] }); setWizard(false); setActiveId(proj.id); }} />;
 }
 
-function ProjectsView({ projects, library, wizard, setWizard, onOpen, onCreate }) {
+function ProjectsView({ projects, library, wizard, setWizard, onManage, onOpen, onCreate }) {
   return (
     <div className="pv">
       <h1>מחולל מפרטים ג2</h1>
-      {!wizard && <button className="btn primary" onClick={() => setWizard(true)}>＋ פרויקט חדש</button>}
+      {!wizard && (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn primary" onClick={() => setWizard(true)}>＋ פרויקט חדש</button>
+          <button className="btn" onClick={onManage}>⚙ ניהול תבניות</button>
+        </div>
+      )}
       {wizard && <Wizard library={library} onCancel={() => setWizard(false)} onCreate={onCreate} />}
       <div style={{ marginTop: 18 }}>
         {projects.items.map(p => (
@@ -239,6 +267,68 @@ function ProjectsView({ projects, library, wizard, setWizard, onOpen, onCreate }
     </div>
   );
 }
+
+function PresetManager({ library, onChange, onClose }) {
+  const presets = library.presets || [];
+  const [selId, setSelId] = useState((presets[0] || {}).id || null);
+  const sel = presets.find(p => p.id === selId) || null;
+
+  const setPresets = (next) => onChange({ ...library, presets: next });
+  const updatePreset = (p) => setPresets(presets.map(x => x.id === p.id ? p : x));
+  const addPreset = () => {
+    const p = window.SpecPreset.createPreset('תבנית חדשה', '');
+    setPresets([...presets, p]); setSelId(p.id);
+  };
+  const dupPreset = () => {
+    if (!sel) return;
+    const p = window.SpecPreset.duplicatePreset(sel, sel.name + ' (עותק)');
+    setPresets([...presets, p]); setSelId(p.id);
+  };
+  const delPreset = (id) => {
+    const next = presets.filter(p => p.id !== id);
+    setPresets(next);
+    if (selId === id) setSelId((next[0] || {}).id || null);
+  };
+
+  return (
+    <div className="pv">
+      <div className="pm-head">
+        <h1>ניהול תבניות</h1>
+        <button className="btn" onClick={onClose}>← פרויקטים</button>
+      </div>
+      <div className="preset-mgr">
+        <div className="preset-list">
+          {presets.map(p => (
+            <div key={p.id} className={'preset-item' + (p.id === selId ? ' active' : '')}
+                 onClick={() => setSelId(p.id)}>
+              <span className="pi-name">{p.name || '(ללא שם)'}</span>
+              <button className="pi-del" onClick={(e) => { e.stopPropagation(); delPreset(p.id); }}>מחק</button>
+            </div>
+          ))}
+          <div className="preset-actions">
+            <button className="btn" onClick={addPreset}>＋ תבנית</button>
+            <button className="btn" onClick={dupPreset} disabled={!sel}>שכפל</button>
+          </div>
+        </div>
+        <div className="preset-editor">
+          {sel ? (
+            <div>
+              <label className="pe-label">שם התבנית</label>
+              <input className="pe-input" value={sel.name || ''}
+                     onChange={(e) => updatePreset({ ...sel, name: e.target.value })} />
+              <label className="pe-label">סוג מבנה</label>
+              <input className="pe-input" value={sel.buildingType || ''}
+                     onChange={(e) => updatePreset({ ...sel, buildingType: e.target.value })} />
+              <PresetTreeEditor library={library} preset={sel} onChange={updatePreset} />
+            </div>
+          ) : <p className="pe-empty">אין תבניות — צור תבנית חדשה.</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PresetTreeEditor() { return <div className="pt-todo">עץ הספרייה — Task 4</div>; }
 
 function Wizard({ library, onCancel, onCreate }) {
   const [f, setF] = useState({ name: '', date: new Date().toISOString().slice(0, 10), revision: '01',
