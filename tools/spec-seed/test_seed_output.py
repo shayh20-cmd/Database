@@ -22,8 +22,22 @@ class TestSeedOutput(unittest.TestCase):
         alum = next((c for c in self.lib['chapters'] if c['num'] == 12), None)
         self.assertIsNotNone(alum)
         self.assertEqual(alum['discipline'], 'ARCH')
-        titles = [s['title'] for s in alum['subChapters']]
-        self.assertTrue(any('קיר מסך' in t for t in titles), titles)
+        # Every chapter's spine opens with a "כללי" sub-chapter.
+        self.assertEqual(alum['subChapters'][0]['title'], 'כללי')
+        # "קיר מסך" is a clause (level 2) now, not a sub-chapter — it appears somewhere.
+        def texts(clauses):
+            for c in clauses:
+                yield c['text']
+                yield from texts(c.get('children', []))
+        alltext = [t for s in alum['subChapters'] for t in texts(s['clauses'])] \
+                  + [s['title'] for s in alum['subChapters']]
+        self.assertTrue(any('קיר מסך' in t for t in alltext))
+
+    def test_subchapters_start_with_general(self):
+        # The seed relies on every chapter's spine starting at a level-1 "כללי".
+        starts = [c['subChapters'][0]['title'] for c in self.lib['chapters']
+                  if c['subChapters']]
+        self.assertGreaterEqual(sum(1 for t in starts if t == 'כללי'), 20, starts)
 
     def test_has_a_nested_clause_somewhere(self):
         def has_children(clauses):

@@ -17,42 +17,45 @@ python -m unittest tools/spec-seed/test_reference.py tools/spec-seed/test_parser
 
 ## How it works
 
-1. `read_paragraphs` — extracts `(style, text, bold)` per paragraph, skipping the
-   table-of-contents region.
-2. `parse_library` — walks the paragraphs:
-   - A `פרק NN – שם` line **in a chapter style** (`Normal`/`Heading*`) starts a chapter.
-     Gating on style stops appendix cross-references (styles `אורן סיני`, `List Paragraph`)
-     from creating spurious chapters.
-   - A paragraph in a sub-chapter style (`סגנון טקסט`, `כותרת פרק`) starts a sub-chapter.
-   - `ת"י …` lines → `kind: "standard"`; short bold lines → `kind: "heading"`;
-     everything else → `paragraph`. A paragraph ending in `:` adopts the following
-     list items as `children`.
-3. `resplit_implicit` — chapters that produced **no** styled sub-chapters (everything
-   fell into the implicit `כללי`) are split into real sub-chapters at their `heading`
-   clauses. Styled chapters are left as-is.
-4. A `מבנה ציבור` PRESET is built selecting every chapter + sub-chapter found.
+The source's hierarchy is carried by a Word **multilevel list** — the *spine* —
+whose indent levels map straight onto our tree:
 
-## Known limitation — inconsistent source styling
+    spine level 1  ->  sub-chapter      (09.01)          "כללי"
+    spine level 2  ->  clause  depth 0  (09.01.01)        "תכולות"
+    spine level 3  ->  sub-clause depth 1 (09.01.01 (א))  "דוגמאות"
 
-Source specs are authored inconsistently, so the seed is a **draft**, not a finished
-library:
+1. `read_paragraphs` — extracts `{style, text, bold, numId, ilvl}` per paragraph
+   (including the Word list `numId`/`ilvl`), skipping the table-of-contents region.
+2. `group_chapters` — a `פרק NN – שם` line **in a chapter style** (`Normal`/`Heading*`/
+   `Body Text*`) starts a chapter; `סוף פרק` closes it; parsing stops at `נספחים`.
+   Style gating keeps appendix cross-references (styles `אורן סיני`, `List Paragraph`)
+   from creating spurious chapters.
+3. `detect_spine` — per chapter, the spine is the `סגנון טקסט`/`כותרת פרק` style if
+   present (chapter 12), otherwise the dominant numbered list (the `numId` with the
+   most `ilvl >= 1` paragraphs — e.g. `n323` in chapter 09).
+4. `build_chapter` — walks the paragraphs: spine headings become sub-chapters (L1) and
+   nested clauses (L>=2, tree-depth `L-2`); body paragraphs hang under the nearest
+   heading as its lettered children. A `:`-ending body paragraph adopts the immediately
+   following run of a **distinct** numbered list (`ת"י …` etc.) as its own children.
+   `ת"י …` lines → `kind: "standard"`.
+5. A `מבנה ציבור` PRESET is built selecting every chapter + sub-chapter found.
 
-- Chapters authored with `סגנון טקסט` on every heading level (e.g. **פרק 12 עבודות
-  אלומיניום**) come out **over-granular** (~100 sub-chapters) — every heading, at every
-  depth, becomes a sub-chapter. The content is correct; the grouping is too fine.
-- Chapters with flat styling are split at their bold headings by `resplit_implicit`,
-  which is usually close to right.
+## Notes on the source
 
-Final sub-chapter structuring (merging, nesting, promoting/demoting headings) is meant
-to happen **in the app** (Plan 2), where it is a few clicks — not by hand-editing JSON.
+The source is authored inconsistently (each chapter uses its own list `numId`; only
+chapter 12 uses a paragraph *style* for the spine), so `detect_spine` adapts per
+chapter. The numbering itself is **derived from position** by the app
+(`tools/spec-creator/lib/numbering.js`) — the seed only has to get the *tree shape*
+right. Any remaining structuring is a few clicks in the app.
 
 ## Review checklist (run after each seed)
 
-Open `data/spec_library.json` and spot-check:
+Render the numbered tree and spot-check (a small Node script using `assignNumbers`
+from `numbering.js` prints `NN.NN.NN (א)` for each clause):
 - [ ] Chapter numbers/names match `data/spec_chapter_reference.json`; no duplicates.
-- [ ] Architecture chapters (5, 9, 10, 12, 14) have plausible sub-chapters and real clauses.
-- [ ] Nested lists (e.g. "תכולות … הן:") captured their bullet items as `children`.
-- [ ] Standards (ת"י) tagged `kind: "standard"`.
+- [ ] Every chapter's first sub-chapter is `כללי`.
+- [ ] Architecture chapters (5, 9, 10, 12, 14): `NN.01.01 תכולות` with `(א)(ב)(ג)` under it.
+- [ ] `:`-lists (e.g. "רשימת תקנים ישראליים:") captured their items as `(1)(2)(3)` children.
+- [ ] Standards (`ת"י`) tagged `kind: "standard"`.
 
-Fix obvious mis-classifications directly in the JSON, or tune `parser.py` and re-run.
-```
+Fix obvious mis-classifications by tuning `parser.py` and re-running.

@@ -1,11 +1,13 @@
-"""One-time (and reusable) seeding: parse a ג2 DOCX into data/spec_library.json.
+"""Seed data/spec_library.json from a ג2 DOCX, using the source's multilevel
+list levels to reconstruct the sub-chapter / clause / sub-clause hierarchy.
+
 Usage: python tools/spec-seed/seed.py "<path-to.docx>" [--preset-name "מבנה ציבור"]
 Requires: python-docx."""
 import argparse, json, os, sys, time
 import docx
 sys.path.insert(0, os.path.dirname(__file__))
-from parser import (chapter_start, is_chapter_end, classify, new_id,
-                    build_clause_tree, LIST_STYLES, is_chapter_style, split_by_headings)
+from parser import (chapter_start, is_chapter_end, is_appendix, is_chapter_style,
+                    detect_spine, build_chapter, new_id)
 
 ROOT = os.path.join(os.path.dirname(__file__), '..', '..')
 REF_PATH = os.path.join(ROOT, 'data', 'spec_chapter_reference.json')
@@ -22,9 +24,19 @@ def para_is_bold(p):
     return bool(runs) and all(r.bold for r in runs)
 
 
+def para_numinfo(p):
+    pPr = p._p.pPr
+    if pPr is not None and pPr.numPr is not None:
+        npr = pPr.numPr
+        numId = npr.numId.val if npr.numId is not None else None
+        ilvl = npr.ilvl.val if npr.ilvl is not None else 0
+        return numId, ilvl
+    return None, None
+
+
 def read_paragraphs(path):
+    """Extract paragraph dicts, skipping the table-of-contents region."""
     d = docx.Document(path)
-    # Skip the table-of-contents region: everything up to and including the last 'toc' paragraph.
     last_toc = -1
     for idx, p in enumerate(d.paragraphs):
         if p.style.name.startswith('toc'):
@@ -34,82 +46,45 @@ def read_paragraphs(path):
         t = p.text.strip()
         if not t:
             continue
-        out.append((p.style.name, t, para_is_bold(p)))
+        numId, ilvl = para_numinfo(p)
+        out.append({'style': p.style.name, 'text': t, 'bold': para_is_bold(p),
+                    'numId': numId, 'ilvl': ilvl})
     return out
+
+
+def group_chapters(paragraphs):
+    """Split the flat paragraph stream into per-chapter item lists.
+    Stops at the appendix ('נספחים'); closes a chapter at 'סוף פרק'."""
+    chapters = []
+    cur = None
+    for it in paragraphs:
+        text = it['text']
+        if is_appendix(text) and it['style'].startswith('Heading'):
+            break
+        cs = chapter_start(text) if is_chapter_style(it['style']) else None
+        if cs:
+            num, name = cs
+            cur = {'num': num, 'name': name, 'items': []}
+            chapters.append(cur)
+            continue
+        if is_chapter_end(text):
+            cur = None
+            continue
+        if cur is not None:
+            cur['items'].append(it)
+    return chapters
 
 
 def parse_library(paragraphs, ref):
     chapters = []
-    cur_chapter = None
-    cur_sub = None
-    pending = []  # (kind, text) buffer for the current sub-chapter, flushed into a clause tree
-
-    def flush():
-        nonlocal pending
-        if cur_sub is not None and pending:
-            cur_sub['clauses'] = build_clause_tree(pending)
-        pending = []
-
-    for style, text, bold in paragraphs:
-        cs = chapter_start(text) if is_chapter_style(style) else None
-        if cs:
-            flush()
-            num, name = cs
-            meta = ref.get(num, {'discipline': 'OTHER'})
-            cur_chapter = {'num': num, 'name': ref.get(num, {}).get('name', name),
-                           'discipline': meta['discipline'], 'subChapters': []}
-            chapters.append(cur_chapter)
-            cur_sub = None
-            continue
-        if is_chapter_end(text):
-            flush(); cur_chapter = None; cur_sub = None; continue
-        if cur_chapter is None:
-            continue
-        role = classify(style, text, bold)
-        if role == 'subchapter':
-            flush()
-            cur_sub = {'id': new_id(), 'title': text, 'clauses': []}
-            cur_chapter['subChapters'].append(cur_sub)
-            continue
-        if cur_sub is None:
-            # clauses before the first sub-chapter go into an implicit "כללי" sub-chapter
-            flush()
-            cur_sub = {'id': new_id(), 'title': 'כללי', 'clauses': [], '_implicit': True}
-            cur_chapter['subChapters'].append(cur_sub)
-        if role == 'standard':
-            kind = 'standard'
-        elif role == 'heading':
-            kind = 'heading'
-        elif style in LIST_STYLES:
-            kind = 'list'
-        else:
-            kind = 'paragraph'
-        pending.append((kind, text))
-    flush()
-    return chapters
-
-
-def resplit_implicit(chapters):
-    """For chapters that produced no styled sub-chapters (all content landed in the
-    implicit 'כללי'), split that sub-chapter into real sub-chapters at its heading
-    clauses. Styled chapters (e.g. 12) are left untouched."""
-    for c in chapters:
-        new_subs = []
-        for s in c['subChapters']:
-            if not s.pop('_implicit', False):
-                new_subs.append(s)
-                continue
-            groups = split_by_headings(s['clauses'])
-            if len(groups) <= 1:
-                new_subs.append({'id': s['id'], 'title': s['title'], 'clauses': s['clauses']})
-                continue
-            for title, cls in groups:
-                if title is None:
-                    if cls:
-                        new_subs.append({'id': new_id(), 'title': 'כללי', 'clauses': cls})
-                else:
-                    new_subs.append({'id': new_id(), 'title': title, 'clauses': cls})
-        c['subChapters'] = new_subs
+    for ch in group_chapters(paragraphs):
+        meta = ref.get(ch['num'], {'discipline': 'OTHER'})
+        spine = detect_spine(ch['items'])
+        sub_chapters = build_chapter(ch['items'], spine)
+        chapters.append({'num': ch['num'],
+                         'name': ref.get(ch['num'], {}).get('name', ch['name']),
+                         'discipline': meta['discipline'],
+                         'subChapters': sub_chapters})
     return chapters
 
 
@@ -128,7 +103,6 @@ def main():
     ref = load_reference()
     paragraphs = read_paragraphs(args.docx_path)
     chapters = parse_library(paragraphs, ref)
-    chapters = resplit_implicit(chapters)
     library = {'_ts': int(time.time() * 1000), 'chapters': chapters,
                'presets': [build_preset(chapters, args.preset_name)]}
     with open(OUT_PATH, 'w', encoding='utf-8') as f:

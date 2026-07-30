@@ -122,13 +122,18 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--ink);font-s
 
 /* grouped parent + children: one card, parent as header, sub-clauses split by rules */
 .clause-group{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);margin-bottom:8px;overflow:hidden}
-.clause-group>.clause{border:none;box-shadow:none;margin:0;border-radius:0;background:#f4f7fb}
-.clause-group.kind-heading-group>.clause{background:#eef3f8}
-.subclauses{margin:0;padding-inline-start:14px;border-top:1px solid var(--line)}
-.subclauses>.clause{background:#fff;margin:0;border:none;border-radius:0;box-shadow:none}
+.clause-group>.clause{border:none;box-shadow:none;margin:0;border-radius:0;background:var(--panel)}
+.clause-group.kind-heading-group>.clause{background:var(--panel)}
+.subclauses{margin:0;padding-inline-start:14px;border-top:1px solid var(--line);background:#f3f5f8}
+.subclauses>.clause{background:transparent;margin:0;border:none;border-radius:0;box-shadow:none}
 .subclauses>.clause + .clause{border-top:1px solid var(--line)}
 .subclauses .clause .num{color:#2d84bd;min-width:78px;font-size:11.5px}
 .subclauses .clause-group{margin:8px 0;box-shadow:none}
+.disclosure{order:2;align-self:flex-start;margin:10px 8px 0 8px;width:22px;height:22px;flex:none;border:1px solid var(--line);background:#fff;border-radius:6px;color:var(--brand);cursor:pointer;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;transition:transform .12s,background .12s}
+.disclosure:hover{background:var(--brand-soft)}
+.disclosure.closed{transform:rotate(-90deg)}
+.clause-group.collapsed>.clause{border-bottom:none}
+.sub-count{color:var(--muted);font-size:11px;align-self:center;font-weight:600}
 .add-clause{display:flex;align-items:center;justify-content:center;gap:8px;padding:9px;border:1.5px dashed #cfd8e2;border-radius:9px;color:var(--brand);font-weight:600;cursor:pointer;font-size:12.5px}
 .add-clause:hover{background:var(--brand-soft)}
 .add-clause.nested{margin-inline-start:34px;margin-bottom:8px}
@@ -425,6 +430,7 @@ function ChapterTree({ project, activeChap, activeSub, onToggleChapter, onToggle
 function ClauseEditor({ chap, sub, onChangeClauses, onChangeTitle }) {
   const numbers = window.SpecNumbering.assignNumbers(chap.num, chap.subChapters);
   const base = numbers[sub.id] || '';
+  const [collapsed, setCollapsed] = useState({});
 
   const op = (fn) => onChangeClauses(fn(sub.clauses));
 
@@ -432,8 +438,14 @@ function ClauseEditor({ chap, sub, onChangeClauses, onChangeTitle }) {
     const isHeading = c.kind === 'heading';
     const isStd = c.kind === 'standard';
     const hasChildren = c.children && c.children.length;
+    const isCollapsed = hasChildren && collapsed[c.id];
     const clauseEl = (
       <div className={'clause' + (isHeading ? ' kind-heading' : '') + (isStd ? ' kind-standard' : '') + (hasChildren ? ' parent' : '')}>
+        {hasChildren ? (
+          <button className={'disclosure' + (isCollapsed ? ' closed' : '')}
+                  title={isCollapsed ? 'הצג תת-סעיפים' : 'הסתר תת-סעיפים'}
+                  onClick={() => setCollapsed(m => ({ ...m, [c.id]: !m[c.id] }))}>▾</button>
+        ) : null}
         <div className="reorder">
           <span className="grip">⋮⋮</span>
           <div className="mv-grid">
@@ -456,15 +468,16 @@ function ClauseEditor({ chap, sub, onChangeClauses, onChangeTitle }) {
           <div className="tools">
             <span className="tbtn" onClick={() => op(t => window.SpecTree.addChild(t, c.id, 'paragraph').tree)}>＋ תת-סעיף</span>
             <span className="tbtn danger" onClick={() => op(t => window.SpecTree.remove(t, c.id))}>מחק</span>
+            {isCollapsed ? <span className="sub-count">{c.children.length} תת-סעיפים מוסתרים</span> : null}
           </div>
         </div>
       </div>
     );
     if (!hasChildren) return <React.Fragment key={c.id}>{clauseEl}</React.Fragment>;
     return (
-      <div key={c.id} className={'clause-group' + (isHeading ? ' kind-heading-group' : '')}>
+      <div key={c.id} className={'clause-group' + (isHeading ? ' kind-heading-group' : '') + (isCollapsed ? ' collapsed' : '')}>
         {clauseEl}
-        <div className="subclauses">{c.children.map(cc => renderClause(cc, depth + 1))}</div>
+        {isCollapsed ? null : <div className="subclauses">{c.children.map(cc => renderClause(cc, depth + 1))}</div>}
       </div>
     );
   };
