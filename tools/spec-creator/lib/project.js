@@ -3,9 +3,20 @@
   function genId() { return Math.random().toString(36).slice(2, 12); }
   function deepCopy(x) { return JSON.parse(JSON.stringify(x || [])); }
 
+  function pruneExcluded(clauses, ex) {
+    const out = [];
+    (clauses || []).forEach(function (c) {
+      if (ex.has(c.id)) return;                       // dropping a node drops its whole subtree
+      c.children = pruneExcluded(c.children, ex);
+      out.push(c);
+    });
+    return out;
+  }
+
   function createProjectFromPreset(library, presetId, meta) {
     const preset = (library.presets || []).find(function (p) { return p.id === presetId; });
     if (!preset) throw new Error('preset not found: ' + presetId);
+    const ex = new Set(preset.excludedClauseIds || []);
     const selMap = {};
     preset.selections.forEach(function (s) { selMap[s.chapterNum] = new Set(s.subChapterIds); });
     const chapters = library.chapters.map(function (ch) {
@@ -16,7 +27,7 @@
         subChapters: ch.subChapters.map(function (s) {
           return { id: s.id, title: s.title,
                    included: included && sel.has(s.id),
-                   clauses: deepCopy(s.clauses) };
+                   clauses: pruneExcluded(deepCopy(s.clauses), ex) };
         }),
       };
     });
