@@ -1,7 +1,12 @@
 import os, sys, unittest
 sys.path.insert(0, os.path.dirname(__file__))
-from parser import (chapter_start, is_chapter_end, classify, new_id,
-                    build_clause_tree, is_chapter_style, split_by_headings)
+from parser import (chapter_start, is_chapter_end, is_appendix, is_chapter_style,
+                    body_kind, detect_spine, spine_level, build_chapter, new_id)
+
+
+def item(text, style='Normal', numId=None, ilvl=None, bold=False):
+    return {'style': style, 'text': text, 'bold': bold, 'numId': numId, 'ilvl': ilvl}
+
 
 class TestChapterBoundary(unittest.TestCase):
     def test_detects_chapter_start(self):
@@ -15,70 +20,116 @@ class TestChapterBoundary(unittest.TestCase):
         self.assertTrue(is_chapter_end('סוף פרק 12 – עבודות אלומיניום'))
         self.assertFalse(is_chapter_end('פרק 14 – עבודות אבן'))
 
-class TestClassify(unittest.TestCase):
-    def test_subchapter_from_style(self):
-        self.assertEqual(classify('סגנון טקסט', 'קיר מסך', False), 'subchapter')
-
-    def test_heading_from_short_bold(self):
-        # short bold line is an inline heading clause, not a new sub-chapter
-        self.assertEqual(classify('Normal', 'אדני חלון', True), 'heading')
-
-    def test_standard_line(self):
-        self.assertEqual(classify('Normal', 'ת"י 1068 - קירות מסך.', False), 'standard')
-
-    def test_plain_paragraph(self):
-        self.assertEqual(classify('Normal', 'מחיר הבסיס של אלמנטי קירות המסך יכלול חלונות ודלתות.', False), 'paragraph')
+    def test_detects_appendix(self):
+        self.assertTrue(is_appendix('נספחים'))
+        self.assertFalse(is_appendix('נספח א - רשימת תקנים'))
 
 
 class TestChapterStyleGate(unittest.TestCase):
     def test_real_chapter_styles_qualify(self):
         self.assertTrue(is_chapter_style('Normal'))
         self.assertTrue(is_chapter_style('Heading 1'))
+        self.assertTrue(is_chapter_style('Body Text 2'))
 
     def test_appendix_reference_styles_rejected(self):
         self.assertFalse(is_chapter_style('אורן סיני'))
         self.assertFalse(is_chapter_style('List Paragraph'))
 
-class TestClauseTree(unittest.TestCase):
-    def test_colon_paragraph_gets_following_list_as_children(self):
+
+class TestBodyKind(unittest.TestCase):
+    def test_standard_line(self):
+        self.assertEqual(body_kind('ת"י 1068 - חלונות אלומיניום.'), 'standard')
+
+    def test_plain_paragraph(self):
+        self.assertEqual(body_kind('מחיר הבסיס כולל חלונות ודלתות.'), 'paragraph')
+
+
+class TestSpineDetection(unittest.TestCase):
+    def test_style_spine_when_styled_headings_present(self):
+        items = [item('כללי', style='סגנון טקסט', ilvl=1),
+                 item('תכולות', style='סגנון טקסט', ilvl=2),
+                 item('תקנים', style='סגנון טקסט', ilvl=2),
+                 item('טקסט גוף', numId=99, ilvl=0)]
+        self.assertEqual(detect_spine(items), ('style', None))
+
+    def test_num_spine_picks_dominant_multilevel_list(self):
+        items = [item('כללי', numId=323, ilvl=1),
+                 item('תכולות', numId=323, ilvl=2),
+                 item('פסקה', numId=358, ilvl=0),
+                 item('דרישות', numId=323, ilvl=2)]
+        self.assertEqual(detect_spine(items), ('num', 323))
+
+    def test_spine_level_reads_ilvl_for_num_spine(self):
+        spine = ('num', 323)
+        self.assertEqual(spine_level(item('כללי', numId=323, ilvl=1), spine), 1)
+        self.assertEqual(spine_level(item('תכולות', numId=323, ilvl=2), spine), 2)
+        self.assertIsNone(spine_level(item('פסקה', numId=358, ilvl=0), spine))
+
+
+class TestBuildChapter(unittest.TestCase):
+    def test_paragraphs_under_clause_become_lettered_children(self):
+        # Mirrors the טיח reference: 09.01.01 תכולות -> (א)(ב)(ג)
+        spine = ('num', 323)
         items = [
-            ('paragraph', 'תכולות העבודה הכלולה במחיר היסוד הן:'),
-            ('list',      'ביצוע עבודות האלומיניום.'),
-            ('list',      'העסקת קונסטרוקטור.'),
-            ('paragraph', 'העבודה כוללת את כל הנדרש עד קבלת הבניין.'),
+            item('כללי', numId=323, ilvl=1),
+            item('תכולות', numId=323, ilvl=2),
+            item('מפרט זה מתייחס לטיח.', numId=358, ilvl=0),
+            item('רוב קירות חוץ יחופו.', numId=358, ilvl=0),
+            item('כל עבודות הטיח יבוצעו.', numId=358, ilvl=0),
         ]
-        tree = build_clause_tree(items)
-        self.assertEqual(len(tree), 2)
-        self.assertEqual(len(tree[0]['children']), 2)
-        self.assertEqual(tree[0]['children'][0]['text'], 'ביצוע עבודות האלומיניום.')
-        self.assertEqual(tree[1].get('children', []), [])
+        subs = build_chapter(items, spine)
+        self.assertEqual(len(subs), 1)
+        self.assertEqual(subs[0]['title'], 'כללי')
+        clauses = subs[0]['clauses']
+        self.assertEqual(len(clauses), 1)
+        self.assertEqual(clauses[0]['text'], 'תכולות')
+        self.assertEqual([c['text'] for c in clauses[0]['children']],
+                         ['מפרט זה מתייחס לטיח.', 'רוב קירות חוץ יחופו.', 'כל עבודות הטיח יבוצעו.'])
+
+    def test_colon_paragraph_adopts_distinct_sublist(self):
+        spine = ('num', 323)
+        items = [
+            item('כללי', numId=323, ilvl=1),
+            item('דרישות כלליות', numId=323, ilvl=2),
+            item('העבודה תבוצע עפ"י התקנים, כולל:', numId=359, ilvl=0),
+            item('ת"י 755.', numId=360, ilvl=0),
+            item('ת"י 921.', numId=360, ilvl=0),
+            item('כל התקנים יהיו מעודכנים.', numId=359, ilvl=0),
+        ]
+        subs = build_chapter(items, spine)
+        clause = subs[0]['clauses'][0]                # דרישות כלליות
+        self.assertEqual(len(clause['children']), 2)  # the ':' para + the trailing para
+        colon = clause['children'][0]
+        self.assertEqual(len(colon['children']), 2)   # two ת"י items nested under it
+        self.assertEqual(colon['children'][0]['kind'], 'standard')
+
+    def test_level3_spine_nests_under_level2(self):
+        spine = ('num', 323)
+        items = [
+            item('כללי', numId=323, ilvl=1),
+            item('הגשות', numId=323, ilvl=2),
+            item('דוגמאות', numId=323, ilvl=3),
+            item('להכין דוגמה.', numId=363, ilvl=0),
+        ]
+        subs = build_chapter(items, spine)
+        hagashot = subs[0]['clauses'][0]
+        self.assertEqual(hagashot['text'], 'הגשות')
+        self.assertEqual(len(hagashot['children']), 1)
+        dugmaot = hagashot['children'][0]
+        self.assertEqual(dugmaot['text'], 'דוגמאות')
+        self.assertEqual(dugmaot['children'][0]['text'], 'להכין דוגמה.')
+
+    def test_body_before_first_subchapter_gets_implicit_general(self):
+        spine = ('num', 323)
+        items = [item('פסקה יתומה.', numId=358, ilvl=0)]
+        subs = build_chapter(items, spine)
+        self.assertEqual(len(subs), 1)
+        self.assertEqual(subs[0]['title'], 'כללי')
+        self.assertEqual(subs[0]['clauses'][0]['text'], 'פסקה יתומה.')
 
     def test_ids_are_unique(self):
         self.assertNotEqual(new_id(), new_id())
 
-
-class TestSplitByHeadings(unittest.TestCase):
-    def _c(self, kind, text):
-        return {'id': new_id(), 'text': text, 'kind': kind, 'children': []}
-
-    def test_splits_at_headings(self):
-        clauses = [
-            self._c('paragraph', 'פסקת פתיחה'),
-            self._c('heading', 'תכולות'),
-            self._c('paragraph', 'העבודה כוללת אדני חלון.'),
-            self._c('heading', 'תקנים'),
-            self._c('standard', 'ת"י 1234.'),
-        ]
-        groups = split_by_headings(clauses)
-        self.assertEqual([t for t, _ in groups], [None, 'תכולות', 'תקנים'])
-        self.assertEqual(len(groups[0][1]), 1)   # leading paragraph
-        self.assertEqual(groups[2][1][0]['kind'], 'standard')
-
-    def test_no_headings_single_group(self):
-        clauses = [self._c('paragraph', 'א'), self._c('paragraph', 'ב')]
-        groups = split_by_headings(clauses)
-        self.assertEqual(len(groups), 1)
-        self.assertIsNone(groups[0][0])
 
 if __name__ == '__main__':
     unittest.main()

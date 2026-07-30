@@ -122,13 +122,18 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--ink);font-s
 
 /* grouped parent + children: one card, parent as header, sub-clauses split by rules */
 .clause-group{background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);margin-bottom:8px;overflow:hidden}
-.clause-group>.clause{border:none;box-shadow:none;margin:0;border-radius:0;background:#f4f7fb}
-.clause-group.kind-heading-group>.clause{background:#eef3f8}
-.subclauses{margin:0;padding-inline-start:14px;border-top:1px solid var(--line)}
-.subclauses>.clause{background:#fff;margin:0;border:none;border-radius:0;box-shadow:none}
+.clause-group>.clause{border:none;box-shadow:none;margin:0;border-radius:0;background:var(--panel)}
+.clause-group.kind-heading-group>.clause{background:var(--panel)}
+.subclauses{margin:0;padding-inline-start:14px;border-top:1px solid var(--line);background:#f3f5f8}
+.subclauses>.clause{background:transparent;margin:0;border:none;border-radius:0;box-shadow:none}
 .subclauses>.clause + .clause{border-top:1px solid var(--line)}
 .subclauses .clause .num{color:#2d84bd;min-width:78px;font-size:11.5px}
 .subclauses .clause-group{margin:8px 0;box-shadow:none}
+.disclosure{order:2;align-self:flex-start;margin:10px 8px 0 8px;width:22px;height:22px;flex:none;border:1px solid var(--line);background:#fff;border-radius:6px;color:var(--brand);cursor:pointer;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center;padding:0;transition:transform .12s,background .12s}
+.disclosure:hover{background:var(--brand-soft)}
+.disclosure.closed{transform:rotate(-90deg)}
+.clause-group.collapsed>.clause{border-bottom:none}
+.sub-count{color:var(--muted);font-size:11px;align-self:center;font-weight:600}
 .add-clause{display:flex;align-items:center;justify-content:center;gap:8px;padding:9px;border:1.5px dashed #cfd8e2;border-radius:9px;color:var(--brand);font-weight:600;cursor:pointer;font-size:12.5px}
 .add-clause:hover{background:var(--brand-soft)}
 .add-clause.nested{margin-inline-start:34px;margin-bottom:8px}
@@ -159,13 +164,35 @@ body{font-family:'Heebo',sans-serif;background:var(--bg);color:var(--ink);font-s
   .app,.body,.editor,main.editor{display:block;height:auto;overflow:visible}
   body{background:#fff}
 }
+.pm-head { display: flex; justify-content: space-between; align-items: center; }
+.preset-mgr { display: flex; gap: 16px; margin-top: 16px; align-items: flex-start; }
+.preset-list { width: 240px; flex: 0 0 240px; }
+.preset-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid #d9dee5; border-radius: 8px; margin-bottom: 6px; cursor: pointer; }
+.preset-item.active { border-color: #2d6cdf; background: #eef3fe; }
+.preset-item .pi-del { border: 0; background: transparent; color: #b23; cursor: pointer; font-size: 12px; }
+.preset-actions { display: flex; gap: 8px; margin-top: 8px; }
+.preset-editor { flex: 1 1 auto; min-width: 0; }
+.pe-label { display: block; font-size: 12px; color: #667; margin: 8px 0 4px; }
+.pe-input { width: 320px; max-width: 100%; padding: 6px 8px; border: 1px solid #d9dee5; border-radius: 6px; }
+.pe-empty { color: #889; }
+.ptree { margin-top: 12px; border: 1px solid #e6e9ee; border-radius: 8px; padding: 6px 4px; max-height: 60vh; overflow: auto; }
+.pt-row { display: flex; align-items: center; gap: 6px; padding: 2px 4px; }
+.pt-row input[type=checkbox] { cursor: pointer; }
+.pt-caret { width: 14px; display: inline-block; text-align: center; color: #99a; cursor: pointer; user-select: none; }
+.pt-caret.sp { cursor: default; }
+.pt-num { font-variant-numeric: tabular-nums; color: #556; font-size: 13px; }
+.pt-name { font-size: 14px; }
+.pt-name.arch { font-weight: 600; color: #1b4fb0; }
+.pt-text { font-size: 13px; color: #333; }
+.pt-text.off { color: #aab; text-decoration: line-through; }
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script src="tools/spec-creator/lib/numbering.js?v=2"></script>
-<script src="tools/spec-creator/lib/project.js?v=2"></script>
+<script src="tools/spec-creator/lib/project.js?v=3"></script>
 <script src="tools/spec-creator/lib/tree-ops.js?v=2"></script>
+<script src="tools/spec-creator/lib/preset-ops.js?v=1"></script>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -183,7 +210,9 @@ function App() {
   const [projects, setProjects] = useState({ items: [] });
   const [activeId, setActiveId] = useState(null);
   const [wizard, setWizard] = useState(false);
+  const [managing, setManaging] = useState(false);
   const saveTimer = useRef(null);
+  const libSaveTimer = useRef(null);
 
   useEffect(() => {
     (async () => {
@@ -200,6 +229,12 @@ function App() {
     saveTimer.current = setTimeout(() => apiPost('spec-projects', { ...next, _ts: Date.now() }), 400);
   }, []);
 
+  const persistLibrary = useCallback((next) => {
+    setLibrary(next);
+    clearTimeout(libSaveTimer.current);
+    libSaveTimer.current = setTimeout(() => apiPost('spec-library', { ...next, _ts: Date.now() }), 400);
+  }, []);
+
   const updateProject = useCallback((proj) => {
     persist({ items: projects.items.map(p => p.id === proj.id ? proj : p) });
   }, [projects, persist]);
@@ -211,17 +246,25 @@ function App() {
     return <Editor project={active} library={library}
                    onChange={updateProject} onBack={() => setActiveId(null)} />;
   }
+  if (managing) {
+    return <PresetManager library={library} onChange={persistLibrary} onClose={() => setManaging(false)} />;
+  }
   return <ProjectsView projects={projects} library={library} wizard={wizard}
-                       setWizard={setWizard}
+                       setWizard={setWizard} onManage={() => setManaging(true)}
                        onOpen={setActiveId}
                        onCreate={(proj) => { persist({ items: [...projects.items, proj] }); setWizard(false); setActiveId(proj.id); }} />;
 }
 
-function ProjectsView({ projects, library, wizard, setWizard, onOpen, onCreate }) {
+function ProjectsView({ projects, library, wizard, setWizard, onManage, onOpen, onCreate }) {
   return (
     <div className="pv">
       <h1>מחולל מפרטים ג2</h1>
-      {!wizard && <button className="btn primary" onClick={() => setWizard(true)}>＋ פרויקט חדש</button>}
+      {!wizard && (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn primary" onClick={() => setWizard(true)}>＋ פרויקט חדש</button>
+          <button className="btn" onClick={onManage}>⚙ ניהול תבניות</button>
+        </div>
+      )}
       {wizard && <Wizard library={library} onCancel={() => setWizard(false)} onCreate={onCreate} />}
       <div style={{ marginTop: 18 }}>
         {projects.items.map(p => (
@@ -231,6 +274,142 @@ function ProjectsView({ projects, library, wizard, setWizard, onOpen, onCreate }
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function PresetManager({ library, onChange, onClose }) {
+  const presets = library.presets || [];
+  const [selId, setSelId] = useState((presets[0] || {}).id || null);
+  const sel = presets.find(p => p.id === selId) || null;
+
+  const setPresets = (next) => onChange({ ...library, presets: next });
+  const updatePreset = (p) => setPresets(presets.map(x => x.id === p.id ? p : x));
+  const addPreset = () => {
+    const p = window.SpecPreset.createPreset('תבנית חדשה', '');
+    setPresets([...presets, p]); setSelId(p.id);
+  };
+  const dupPreset = () => {
+    if (!sel) return;
+    const p = window.SpecPreset.duplicatePreset(sel, sel.name + ' (עותק)');
+    setPresets([...presets, p]); setSelId(p.id);
+  };
+  const delPreset = (id) => {
+    const next = presets.filter(p => p.id !== id);
+    setPresets(next);
+    if (selId === id) setSelId((next[0] || {}).id || null);
+  };
+
+  return (
+    <div className="pv">
+      <div className="pm-head">
+        <h1>ניהול תבניות</h1>
+        <button className="btn" onClick={onClose}>← פרויקטים</button>
+      </div>
+      <div className="preset-mgr">
+        <div className="preset-list">
+          {presets.map(p => (
+            <div key={p.id} className={'preset-item' + (p.id === selId ? ' active' : '')}
+                 onClick={() => setSelId(p.id)}>
+              <span className="pi-name">{p.name || '(ללא שם)'}</span>
+              <button className="pi-del" onClick={(e) => { e.stopPropagation(); delPreset(p.id); }}>מחק</button>
+            </div>
+          ))}
+          <div className="preset-actions">
+            <button className="btn" onClick={addPreset}>＋ תבנית</button>
+            <button className="btn" onClick={dupPreset} disabled={!sel}>שכפל</button>
+          </div>
+        </div>
+        <div className="preset-editor">
+          {sel ? (
+            <div>
+              <label className="pe-label">שם התבנית</label>
+              <input className="pe-input" value={sel.name || ''}
+                     onChange={(e) => updatePreset({ ...sel, name: e.target.value })} />
+              <label className="pe-label">סוג מבנה</label>
+              <input className="pe-input" value={sel.buildingType || ''}
+                     onChange={(e) => updatePreset({ ...sel, buildingType: e.target.value })} />
+              <PresetTreeEditor library={library} preset={sel} onChange={updatePreset} />
+            </div>
+          ) : <p className="pe-empty">אין תבניות — צור תבנית חדשה.</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TriCheck({ state, disabled, onChange }) {
+  const ref = useRef(null);
+  useEffect(() => { if (ref.current) ref.current.indeterminate = (state === 'partial'); }, [state]);
+  return <input type="checkbox" ref={ref} disabled={!!disabled}
+                checked={state === 'on'}
+                onChange={(e) => onChange(e.target.checked)} />;
+}
+
+function ClauseNode({ clause, preset, depth, ancestorOff, onChange }) {
+  const P = window.SpecPreset;
+  const [open, setOpen] = useState(true);
+  const state = ancestorOff ? 'off' : P.resolveClauseState(preset, clause);
+  const kids = clause.children || [];
+  const childOff = ancestorOff || state === 'off';
+  return (
+    <div className="pt-clause">
+      <div className="pt-row" style={{ paddingInlineStart: (depth * 18) + 'px' }}>
+        <TriCheck state={state} disabled={ancestorOff}
+                  onChange={(on) => onChange(P.toggleClause(preset, clause, on))} />
+        {kids.length
+          ? <span className="pt-caret" onClick={() => setOpen(!open)}>{open ? '▾' : '▸'}</span>
+          : <span className="pt-caret sp"></span>}
+        <span className={'pt-text' + (state === 'off' ? ' off' : '')}>{clause.text || '(סעיף ריק)'}</span>
+      </div>
+      {open && kids.map(k => (
+        <ClauseNode key={k.id} clause={k} preset={preset} depth={depth + 1}
+                    ancestorOff={childOff} onChange={onChange} />
+      ))}
+    </div>
+  );
+}
+
+function PresetTreeEditor({ library, preset, onChange }) {
+  const P = window.SpecPreset;
+  const [open, setOpen] = useState({});
+  const toggleOpen = (k) => setOpen(o => ({ ...o, [k]: !o[k] }));
+  return (
+    <div className="ptree">
+      {library.chapters.map(ch => {
+        const chState = P.resolveChapterState(preset, ch);
+        const chOpen = open['c' + ch.num];
+        return (
+          <div key={ch.num} className="pt-chap">
+            <div className="pt-row">
+              <TriCheck state={chState} onChange={(on) => onChange(P.toggleChapter(preset, ch, on))} />
+              <span className="pt-caret" onClick={() => toggleOpen('c' + ch.num)}>{chOpen ? '▾' : '▸'}</span>
+              <span className="pt-num">{window.SpecNumbering.chapterCode(ch.num)}</span>
+              <span className={'pt-name' + (ch.discipline === 'ARCH' ? ' arch' : '')}>{ch.name}</span>
+            </div>
+            {chOpen && ch.subChapters.map(s => {
+              const subState = P.resolveSubChapterState(preset, ch.num, s);
+              const subOpen = open['s' + s.id];
+              return (
+                <div key={s.id} className="pt-sub">
+                  <div className="pt-row" style={{ paddingInlineStart: '18px' }}>
+                    <TriCheck state={subState}
+                              onChange={(on) => onChange(P.toggleSubChapter(preset, ch.num, s.id, on))} />
+                    {s.clauses.length
+                      ? <span className="pt-caret" onClick={() => toggleOpen('s' + s.id)}>{subOpen ? '▾' : '▸'}</span>
+                      : <span className="pt-caret sp"></span>}
+                    <span className="pt-name">{s.title}</span>
+                  </div>
+                  {subOpen && s.clauses.map(cl => (
+                    <ClauseNode key={cl.id} clause={cl} preset={preset} depth={2}
+                                ancestorOff={subState === 'off'} onChange={onChange} />
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -425,6 +604,7 @@ function ChapterTree({ project, activeChap, activeSub, onToggleChapter, onToggle
 function ClauseEditor({ chap, sub, onChangeClauses, onChangeTitle }) {
   const numbers = window.SpecNumbering.assignNumbers(chap.num, chap.subChapters);
   const base = numbers[sub.id] || '';
+  const [collapsed, setCollapsed] = useState({});
 
   const op = (fn) => onChangeClauses(fn(sub.clauses));
 
@@ -432,8 +612,14 @@ function ClauseEditor({ chap, sub, onChangeClauses, onChangeTitle }) {
     const isHeading = c.kind === 'heading';
     const isStd = c.kind === 'standard';
     const hasChildren = c.children && c.children.length;
+    const isCollapsed = hasChildren && collapsed[c.id];
     const clauseEl = (
       <div className={'clause' + (isHeading ? ' kind-heading' : '') + (isStd ? ' kind-standard' : '') + (hasChildren ? ' parent' : '')}>
+        {hasChildren ? (
+          <button className={'disclosure' + (isCollapsed ? ' closed' : '')}
+                  title={isCollapsed ? 'הצג תת-סעיפים' : 'הסתר תת-סעיפים'}
+                  onClick={() => setCollapsed(m => ({ ...m, [c.id]: !m[c.id] }))}>▾</button>
+        ) : null}
         <div className="reorder">
           <span className="grip">⋮⋮</span>
           <div className="mv-grid">
@@ -456,15 +642,16 @@ function ClauseEditor({ chap, sub, onChangeClauses, onChangeTitle }) {
           <div className="tools">
             <span className="tbtn" onClick={() => op(t => window.SpecTree.addChild(t, c.id, 'paragraph').tree)}>＋ תת-סעיף</span>
             <span className="tbtn danger" onClick={() => op(t => window.SpecTree.remove(t, c.id))}>מחק</span>
+            {isCollapsed ? <span className="sub-count">{c.children.length} תת-סעיפים מוסתרים</span> : null}
           </div>
         </div>
       </div>
     );
     if (!hasChildren) return <React.Fragment key={c.id}>{clauseEl}</React.Fragment>;
     return (
-      <div key={c.id} className={'clause-group' + (isHeading ? ' kind-heading-group' : '')}>
+      <div key={c.id} className={'clause-group' + (isHeading ? ' kind-heading-group' : '') + (isCollapsed ? ' collapsed' : '')}>
         {clauseEl}
-        <div className="subclauses">{c.children.map(cc => renderClause(cc, depth + 1))}</div>
+        {isCollapsed ? null : <div className="subclauses">{c.children.map(cc => renderClause(cc, depth + 1))}</div>}
       </div>
     );
   };
