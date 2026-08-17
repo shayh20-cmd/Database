@@ -1,0 +1,93 @@
+:root {
+  --knafo-black: #0b0b0a;
+  --knafo-white: #ffffff;
+  --knafo-gray: #6b6b68;
+  --knafo-gray-light: #d8d8d5;
+  --knafo-sage: #8fb874;
+  --knafo-sage-dark: #3d5c33;
+  --frame-padding: clamp(24px, 6vw, 64px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: 'Assistant', system-ui, sans-serif;
+  color: var(--knafo-black);
+  background: var(--knafo-white);
+  direction: rtl;
+}
+
+.frame {
+  min-height: 100vh;
+  min-height: 100svh;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: var(--frame-padding);
+  position: relative;
+}
+
+.frame--dark {
+  background: var(--knafo-black);
+  color: var(--knafo-white);
+}
+
+.eyebrow {
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: var(--knafo-gray);
+  text-transform: uppercase;
+  margin: 0 0 12px;
+}
+
+.frame--dark .eyebrow {
+  color: var(--knafo-gray-light);
+}
+
+.frame-title {
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 500;
+  margin: 0 0 32px;
+}
+
+.rule {
+  width: 40px;
+  height: 1px;
+  background: var(--knafo-sage);
+  margin: 16px 0;
+}
+
+.rule--center {
+  margin-inline: auto;
+}
+
+.form-message {
+  font-size: 14px;
+  margin-top: 12px;
+}
+
+.form-message--error {
+  color: #a32d2d;
+}
+
+.form-message--success {
+  color: var(--knafo-sage-dark);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+    scroll-snap-type: none;
+  }
+}
