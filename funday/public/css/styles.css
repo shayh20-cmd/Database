@@ -132,3 +132,65 @@ body {
   font-size: 20px;
   color: var(--knafo-sage);
 }
+
+.activities-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  width: 100%;
+  max-width: 1000px;
+  text-align: right;
+}
+
+.activity-card {
+  border: 0.5px solid var(--knafo-gray-light);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.activity-card h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.activity-card__desc {
+  margin: 0;
+  color: var(--knafo-gray);
+}
+
+.activity-card__meta {
+  display: flex;
+  gap: 20px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.activity-card__meta dt {
+  color: var(--knafo-gray);
+}
+
+.activity-card__meta dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+.activity-card__notes {
+  font-size: 13px;
+  color: var(--knafo-gray);
+  margin: 0;
+}
+
+.activity-card__link {
+  color: var(--knafo-sage-dark);
+  font-size: 13px;
+  text-decoration: none;
+  margin-top: auto;
+}
+
+.activity-card__link:hover {
+  text-decoration: underline;
+}
