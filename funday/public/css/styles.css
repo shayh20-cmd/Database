@@ -91,3 +91,44 @@ body {
     scroll-snap-type: none;
   }
 }
+
+.hero-title {
+  font-size: clamp(36px, 8vw, 64px);
+  font-weight: 500;
+  letter-spacing: 1px;
+  margin: 0;
+}
+
+.hero-title__accent {
+  color: var(--knafo-sage);
+}
+
+.hero-sub {
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--knafo-gray-light);
+  margin: 0 0 16px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  border-radius: 20px;
+  padding: 4px 14px;
+}
+
+.badge--sage {
+  color: var(--knafo-sage);
+  border: 0.5px solid var(--knafo-sage-dark);
+}
+
+.scroll-cue {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 20px;
+  color: var(--knafo-sage);
+}

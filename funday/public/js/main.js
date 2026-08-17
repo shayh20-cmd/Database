@@ -1,3 +1,6 @@
+import { initScrollReveal, initScrollCue } from './animations.js';
+
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('funday loaded');
+  initScrollReveal();
+  initScrollCue();
 });
