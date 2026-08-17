@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KNAFO KLIMOR — FUN DAY 2026</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+  <section id="frame-hero" class="frame frame--dark" data-reveal>
+    <p class="eyebrow" data-reveal-item>KNAFO KLIMOR ARCHITECTS</p>
+    <h1 class="hero-title" data-reveal-item>FUN DAY <span class="hero-title__accent">2026</span></h1>
+    <div class="rule rule--center" data-reveal-item></div>
+    <p class="hero-sub" data-reveal-item>NOVEMBER · TEL AVIV</p>
+    <p class="badge badge--sage" data-reveal-item>Green building studio</p>
+    <div class="scroll-cue" aria-hidden="true">↓</div>
+  </section>
+
+  <section id="frame-activities" class="frame" data-reveal>
+    <p class="eyebrow" data-reveal-item>החלופות</p>
+    <h2 class="frame-title" data-reveal-item>לאן יוצאים השנה?</h2>
+    <div id="activities-grid" class="activities-grid"></div>
+  </section>
+
+  <section id="frame-vote" class="frame" data-reveal>
+    <p class="eyebrow" data-reveal-item>ההצבעה</p>
+    <h2 class="frame-title" data-reveal-item>מה הבחירה שלך?</h2>
+    <form id="vote-form" class="vote-form" data-reveal-item>
+      <label for="employee-select">השם שלי</label>
+      <select id="employee-select" required></select>
+
+      <p class="vote-form__label">הפעילות שבחרתי</p>
+      <div id="activity-picker" class="activity-picker"></div>
+
+      <button id="vote-submit" type="submit" disabled>שולח/ת הצבעה</button>
+      <p id="vote-error" class="form-message form-message--error" hidden>לא הצלחנו לשמור את ההצבעה — נסה/י שוב.</p>
+      <p id="vote-confirmation" class="form-message form-message--success" hidden>ההצבעה שלך נרשמה!</p>
+    </form>
+  </section>
+
+  <section id="frame-results" class="frame" data-reveal>
+    <p class="eyebrow" data-reveal-item>התוצאות</p>
+    <h2 class="frame-title" data-reveal-item>איך זה עומד עד עכשיו</h2>
+    <p data-reveal-item><span id="results-total" data-value="0">0</span> הצבעות עד כה</p>
+    <div class="chart-wrap" data-reveal-item>
+      <canvas id="results-chart"></canvas>
+    </div>
+    <p id="results-error" class="form-message form-message--error" hidden>לא ניתן לטעון תוצאות כרגע.</p>
+  </section>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
