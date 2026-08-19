@@ -269,27 +269,35 @@ body {
 }
 
 .badge-leaf {
-  width: 26px;
-  height: 26px;
-  background: var(--knafo-sage);
-  border-radius: 0 100% 0 100%;
-  transform: rotate(-45deg);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1.5px solid var(--knafo-sage-vivid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--knafo-sage-vivid);
   animation: leaf-glow 2.2s ease-in-out infinite;
+}
+
+.badge-leaf svg {
+  width: 24px;
+  height: 24px;
 }
 
 @keyframes leaf-glow {
   0%,
   100% {
-    box-shadow: 0 0 4px 0 rgba(143, 184, 116, 0.4);
+    box-shadow: 0 0 6px 0 rgba(35, 122, 51, 0.35);
   }
   50% {
-    box-shadow: 0 0 16px 6px rgba(143, 184, 116, 0.7);
+    box-shadow: 0 0 20px 8px rgba(35, 122, 51, 0.55);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .badge-leaf {
     animation: none;
-    box-shadow: 0 0 4px 0 rgba(143, 184, 116, 0.4);
+    box-shadow: 0 0 6px 0 rgba(35, 122, 51, 0.35);
   }
 }
