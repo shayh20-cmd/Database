@@ -301,3 +301,40 @@ body {
     box-shadow: 0 0 6px 0 rgba(35, 122, 51, 0.35);
   }
 }
+
+.leaf-trail {
+  position: fixed;
+  left: 50%;
+  top: 0;
+  width: 26px;
+  height: 26px;
+  margin-left: -13px;
+  border-radius: 50%;
+  border: 1.5px solid var(--knafo-sage-vivid);
+  background: var(--knafo-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--knafo-sage-vivid);
+  box-shadow: 0 0 14px 4px rgba(35, 122, 51, 0.45);
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.leaf-trail svg {
+  width: 14px;
+  height: 14px;
+}
+
+.leaf-trail__beam {
+  position: fixed;
+  left: 50%;
+  top: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: linear-gradient(to bottom, rgba(35, 122, 51, 0), rgba(35, 122, 51, 0.5));
+  z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+}
