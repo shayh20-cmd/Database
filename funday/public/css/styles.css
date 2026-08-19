@@ -66,6 +66,93 @@ body {
   margin-inline: auto;
 }
 
+.vote-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 620px;
+  text-align: right;
+}
+
+.vote-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.vote-card__title {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--knafo-gray);
+}
+
+#employee-select {
+  font-family: inherit;
+  font-size: 16px;
+  color: var(--knafo-black);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--knafo-gray-light);
+  border-radius: 0;
+  padding: 8px 0;
+  width: 100%;
+}
+
+#employee-select:focus-visible {
+  outline: none;
+  border-bottom-color: var(--knafo-sage-vivid);
+}
+
+.activity-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.activity-option {
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--knafo-black);
+  background: transparent;
+  border: 0.5px solid var(--knafo-gray-light);
+  border-radius: 8px;
+  padding: 12px 10px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.activity-option:hover {
+  border-color: var(--knafo-sage-vivid);
+}
+
+.activity-option[aria-pressed='true'] {
+  border-color: var(--knafo-sage-vivid);
+  color: var(--knafo-sage-vivid);
+  font-weight: 500;
+}
+
+#vote-submit {
+  font-family: inherit;
+  font-size: 15px;
+  letter-spacing: 1px;
+  color: var(--knafo-white);
+  background: var(--knafo-sage-vivid);
+  border: 0;
+  border-radius: 8px;
+  padding: 14px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+#vote-submit:disabled {
+  background: var(--knafo-gray-light);
+  color: var(--knafo-gray);
+  cursor: not-allowed;
+}
+
 .form-message {
   font-size: 14px;
   margin-top: 12px;
@@ -115,17 +202,17 @@ body {
   text-align: right;
 }
 
-.activity-card {
+/* A panel the leaf trail can light up as it passes. The green outline itself is an SVG
+   rect overlay injected by leaf-trail.js, so it can be drawn on stroke-first rather than
+   just faded in. Used by both the activity cards and the vote form's panels. */
+.lit-card {
   border: 0.5px solid var(--knafo-gray-light);
   border-radius: 12px;
   padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
   position: relative;
 }
 
-.activity-card__outline {
+.lit-card__outline {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -134,11 +221,17 @@ body {
   overflow: visible;
 }
 
-.activity-card__outline rect {
+.lit-card__outline rect {
   fill: none;
   stroke: var(--knafo-sage-vivid);
   stroke-width: 1.5px;
   filter: drop-shadow(0 0 4px rgba(35, 122, 51, 0.6));
+}
+
+.activity-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .activity-card h3 {

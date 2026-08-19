@@ -5,7 +5,7 @@ export function renderActivityCards() {
   grid.innerHTML = '';
   for (const activity of ACTIVITIES) {
     const card = document.createElement('article');
-    card.className = 'activity-card';
+    card.className = 'lit-card activity-card';
     card.setAttribute('data-reveal-item', '');
     card.innerHTML = `
       <h3>${activity.name}</h3>

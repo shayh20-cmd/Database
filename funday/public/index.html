@@ -37,11 +37,15 @@
     <p class="eyebrow" data-reveal-item>ההצבעה</p>
     <h2 class="frame-title" data-reveal-item>מה הבחירה שלך?</h2>
     <form id="vote-form" class="vote-form" data-reveal-item>
-      <label for="employee-select">השם שלי</label>
-      <select id="employee-select" required></select>
+      <div class="lit-card vote-card">
+        <label class="vote-card__title" for="employee-select">השם שלי</label>
+        <select id="employee-select" required></select>
+      </div>
 
-      <p class="vote-form__label">הפעילות שבחרתי</p>
-      <div id="activity-picker" class="activity-picker"></div>
+      <div class="lit-card vote-card">
+        <p class="vote-card__title">הפעילות שבחרתי</p>
+        <div id="activity-picker" class="activity-picker"></div>
+      </div>
 
       <button id="vote-submit" type="submit" disabled>שולח/ת הצבעה</button>
       <p id="vote-error" class="form-message form-message--error" hidden>לא הצלחנו לשמור את ההצבעה — נסה/י שוב.</p>

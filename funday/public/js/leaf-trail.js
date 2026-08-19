@@ -36,7 +36,7 @@ function buildCardOutline(card) {
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
   svg.setAttribute('preserveAspectRatio', 'none');
-  svg.classList.add('activity-card__outline');
+  svg.classList.add('lit-card__outline');
 
   const rect = document.createElementNS(SVG_NS, 'rect');
   rect.setAttribute('x', 0.75);
@@ -64,7 +64,9 @@ export function initLeafTrail() {
 
   const leaf = buildLeafMarker();
   const beam = buildBeam();
-  const cards = document.querySelectorAll('.activity-card');
+  // Every .lit-card on the page — the activity cards in frame 2 and the vote form's
+  // panels in frame 3 — lights up the same way as the trail sweeps past it.
+  const cards = document.querySelectorAll('.lit-card');
   const outlines = Array.from(cards).map(buildCardOutline);
   const shadowInterp = gsap.utils.interpolate(
     '0 0 0px 0px rgba(35, 122, 51, 0)',
