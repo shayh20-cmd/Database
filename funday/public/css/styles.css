@@ -38,21 +38,12 @@ body {
   position: relative;
 }
 
-.frame--dark {
-  background: var(--knafo-black);
-  color: var(--knafo-white);
-}
-
 .eyebrow {
   font-size: 12px;
   letter-spacing: 3px;
   color: var(--knafo-gray);
   text-transform: uppercase;
   margin: 0 0 12px;
-}
-
-.frame--dark .eyebrow {
-  color: var(--knafo-gray-light);
 }
 
 .frame-title {
@@ -100,13 +91,13 @@ body {
 }
 
 .hero-title__accent {
-  color: var(--knafo-sage);
+  color: var(--knafo-sage-dark);
 }
 
 .hero-sub {
   font-size: 13px;
   letter-spacing: 2px;
-  color: var(--knafo-gray-light);
+  color: var(--knafo-gray);
   margin: 0 0 16px;
 }
 
@@ -120,7 +111,7 @@ body {
 }
 
 .badge--sage {
-  color: var(--knafo-sage);
+  color: var(--knafo-sage-dark);
   border: 0.5px solid var(--knafo-sage-dark);
 }
 
@@ -261,4 +252,12 @@ body {
   transform: rotate(-45deg);
   z-index: 3;
   pointer-events: none;
+}
+
+.hero-tagline {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  color: var(--knafo-black);
+  margin: 12px 0 0;
 }
