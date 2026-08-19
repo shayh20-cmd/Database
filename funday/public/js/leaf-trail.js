@@ -59,7 +59,7 @@ export function initLeafTrail() {
       const vh = window.innerHeight;
       const progress = self.progress;
       const top = startY + progress * (vh - 40 - startY);
-      const fade = Math.min(progress / FADE_ZONE, (1 - progress) / FADE_ZONE, 1);
+      const fade = Math.min(progress / FADE_ZONE, 1);
       gsap.set(leaf, { top, opacity: fade });
       gsap.set(beam, { top: startY, height: Math.max(top - startY, 0), opacity: fade * 0.8 });
     },
@@ -67,6 +67,9 @@ export function initLeafTrail() {
 
   // Scene 2: activities — the trail continues downward while the frame stays pinned,
   // arriving at the card row and lighting the four activity tabs up as it lands.
+  // Neither scene fades the trail out at its own boundary, so during the natural
+  // scroll gap between the two pins the trail just holds its last position/opacity
+  // instead of vanishing and popping back in.
   const activitiesPinDistance = Math.round(window.innerHeight * 1.4);
   const cardsY = activitiesGrid.getBoundingClientRect().top - activitiesFrame.getBoundingClientRect().top;
 
@@ -79,7 +82,7 @@ export function initLeafTrail() {
     onUpdate: (self) => {
       const progress = self.progress;
       const top = 40 + progress * (cardsY - 40);
-      const fade = Math.min(progress / FADE_ZONE, (1 - progress) / 0.2, 1);
+      const fade = Math.min((1 - progress) / 0.2, 1);
       gsap.set(leaf, { top, opacity: fade });
       gsap.set(beam, { top: 40, height: Math.max(top - 40, 0), opacity: fade * 0.8 });
 
