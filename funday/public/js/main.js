@@ -1,10 +1,12 @@
 import { initScrollReveal, initScrollCue } from './animations.js';
 import { renderActivityCards } from './activities-view.js';
 import { initCursorTrail } from './cursor-trail.js';
+import { initHeroRain } from './hero-rain.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   renderActivityCards();
   initCursorTrail();
+  initHeroRain();
   initScrollReveal();
   initScrollCue();
 });
