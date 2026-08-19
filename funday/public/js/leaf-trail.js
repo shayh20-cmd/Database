@@ -78,27 +78,22 @@ export function initLeafTrail() {
   );
   const outlines = Array.from(cards).map(buildCardOutline);
 
-  // Scene 1: hero — the trail is born at the badge and descends as the hero stays pinned,
-  // continuing past the bottom edge so it exits the screen rather than stopping mid-air.
-  // (The activities card row sits higher on screen than the badge does in the hero, so a
-  // trail that always moves downward can never land exactly on the cards without first
-  // leaving the viewport — same as a light exiting one film frame and continuing into
-  // the next, rather than reversing direction to "back up" onto a target above it.)
-  const heroPinDistance = Math.round(window.innerHeight * 2.5);
+  // The activities card row is deliberately laid out near the bottom of its frame (see
+  // #frame-activities in styles.css) so its top edge sits just below the hero badge's own
+  // position — close enough that a single, always-visible, always-descending trail can
+  // travel from the badge straight down onto the cards without ever leaving the screen
+  // or reversing direction. That's the geometry the rest of this file leans on.
   const badgeRect = badge.getBoundingClientRect();
   const startY = badgeRect.top + badgeRect.height / 2;
+  const cardsY = activitiesGrid.getBoundingClientRect().top - activitiesFrame.getBoundingClientRect().top;
+  const exitY = window.innerHeight - 40;
 
-  // GSAP's default pin spacing reserves the pinned element's own natural height *in
-  // addition to* the pin distance, so hero stays visible (unpinned, but still in normal
-  // flow) for roughly one more viewport of scrolling after the pin itself ends — before
-  // activitiesFrame ever arrives. Driving the trail off the pin trigger alone would
-  // freeze it the moment the pin ends, well before hero actually leaves the screen, which
-  // reads as the trail finishing and going dead for a stretch. Scrub it over that entire
-  // hero-visible distance instead (pin duration + one viewport) so it keeps moving right
-  // up until hero truly scrolls away — exactly when scene 2 picks it up. This trigger is
-  // created *before* the pin trigger below: once heroFrame is pinned, GSAP measures a
-  // fresh 'top top' against its post-pin (spacer-wrapped) layout instead of its original
-  // position, which would throw this range off.
+  // Scene 1: hero — the trail is born at the badge and eases down toward the card row's
+  // position while the hero stays pinned (and for the natural extra viewport of scrolling
+  // GSAP's pin spacing reserves afterward), so it's exactly at the cards the instant scene
+  // 2 takes over. See the note on the second ScrollTrigger below for why this spans that
+  // extra distance and why it's created before the pin trigger.
+  const heroPinDistance = Math.round(window.innerHeight * 2.5);
   const heroVisibleDistance = heroPinDistance + window.innerHeight;
 
   ScrollTrigger.create({
@@ -107,9 +102,8 @@ export function initLeafTrail() {
     end: `+=${heroVisibleDistance}`,
     scrub: true,
     onUpdate: (self) => {
-      const vh = window.innerHeight;
       const progress = self.progress;
-      const top = startY + progress * (vh + 40 - startY);
+      const top = startY + progress * (cardsY - startY);
       const fade = Math.min(progress / FADE_ZONE, 1);
       gsap.set(leaf, { top, opacity: fade });
       gsap.set(beam, { top: startY, height: Math.max(top - startY, 0), opacity: fade * 0.8 });
@@ -123,14 +117,11 @@ export function initLeafTrail() {
     pin: true,
   });
 
-  // Scene 2: activities — the trail re-enters from above the viewport (continuing the
-  // same downward motion, never reversing), arrives at the card row and draws each
-  // card's outline top-to-bottom as it lands, then keeps moving down toward the
-  // handoff to the next frame, fading only once there is nowhere further to go.
+  // Scene 2: activities — the trail is already sitting exactly on the card row when this
+  // pin engages, so it holds there and draws each card's outline top-to-bottom, then
+  // keeps moving down (still the same direction, never reversing) toward the handoff to
+  // the next frame, fading only once there is nowhere further to go.
   const activitiesPinDistance = Math.round(window.innerHeight * 1.4);
-  const cardsY = activitiesGrid.getBoundingClientRect().top - activitiesFrame.getBoundingClientRect().top;
-  const enterY = -40;
-  const exitY = window.innerHeight - 40;
 
   ScrollTrigger.create({
     trigger: activitiesFrame,
@@ -140,16 +131,13 @@ export function initLeafTrail() {
     scrub: true,
     onUpdate: (self) => {
       const progress = self.progress;
-      let top;
-      if (progress < 0.3) top = segment(progress, 0, 0.3, enterY, cardsY);
-      else if (progress < 0.7) top = cardsY;
-      else top = segment(progress, 0.7, 1, cardsY, exitY);
+      const top = progress < 0.4 ? cardsY : segment(progress, 0.4, 1, cardsY, exitY);
 
       const fade = progress < 0.85 ? 1 : Math.max(0, 1 - (progress - 0.85) / 0.15);
       gsap.set(leaf, { top, opacity: fade });
-      gsap.set(beam, { top: Math.min(top, 40), height: Math.max(top - Math.min(top, 40), 0), opacity: fade * 0.8 });
+      gsap.set(beam, { top: 40, height: Math.max(top - 40, 0), opacity: fade * 0.8 });
 
-      const draw = segment(progress, 0.3, 0.7, 0, 1);
+      const draw = segment(progress, 0, 0.4, 0, 1);
       gsap.set(cards, { boxShadow: shadowInterp(draw) });
       for (const rect of outlines) {
         const length = Number(rect.style.strokeDasharray);

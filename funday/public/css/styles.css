@@ -42,6 +42,11 @@ body {
   scroll-snap-align: none;
 }
 
+#frame-activities {
+  justify-content: flex-end;
+  padding-bottom: 56px;
+}
+
 .eyebrow {
   font-size: 12px;
   letter-spacing: 3px;
