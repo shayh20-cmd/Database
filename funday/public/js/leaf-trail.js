@@ -54,28 +54,22 @@ export function initLeafTrail() {
 
   const leaf = buildLeafMarker();
   const beam = buildBeam();
-  const extraScroll = Math.round(window.innerHeight * 0.6);
+  const pinDistance = Math.round(window.innerHeight * 2.5);
+  const FADE_ZONE = 0.08;
 
   ScrollTrigger.create({
     trigger: heroFrame,
-    start: 'bottom bottom',
-    endTrigger: activitiesFrame,
-    end: `bottom top-=${extraScroll}`,
+    start: 'top top',
+    end: `+=${pinDistance}`,
+    pin: true,
     scrub: true,
     onUpdate: (self) => {
       const vh = window.innerHeight;
-      const top = 40 + self.progress * (vh - 80);
-      gsap.set(leaf, { top });
-      gsap.set(beam, { top: 0, height: top, opacity: Math.min(self.progress * 3, 1) * 0.8 });
-    },
-    onLeave: () => {
-      gsap.to([leaf, beam], { opacity: 0, duration: 0.3 });
-    },
-    onEnterBack: () => {
-      gsap.to(leaf, { opacity: 1, duration: 0.3 });
-    },
-    onLeaveBack: () => {
-      gsap.to([leaf, beam], { opacity: 0, duration: 0.3 });
+      const progress = self.progress;
+      const top = 40 + progress * (vh - 80);
+      const fade = Math.min(progress / FADE_ZONE, (1 - progress) / FADE_ZONE, 1);
+      gsap.set(leaf, { top, opacity: fade });
+      gsap.set(beam, { top: 0, height: top, opacity: fade * 0.8 });
     },
   });
 

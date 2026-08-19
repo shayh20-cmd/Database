@@ -14,7 +14,6 @@
 }
 
 html {
-  scroll-snap-type: y mandatory;
   scroll-behavior: smooth;
 }
 
@@ -37,6 +36,10 @@ body {
   text-align: center;
   padding: var(--frame-padding);
   position: relative;
+}
+
+#frame-hero {
+  scroll-snap-align: none;
 }
 
 .eyebrow {
@@ -80,7 +83,6 @@ body {
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
-    scroll-snap-type: none;
   }
 }
 
