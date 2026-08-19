@@ -2,6 +2,7 @@ const gsap = window.gsap;
 const ScrollTrigger = window.ScrollTrigger;
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const SVG_NS = 'http://www.w3.org/2000/svg';
+const FADE_ZONE = 0.12;
 
 function buildLeafMarker() {
   const leaf = document.createElement('div');
@@ -53,60 +54,58 @@ function buildCardOutline(card) {
   return rect;
 }
 
-function segment(progress, pStart, pEnd, vStart, vEnd) {
-  const t = gsap.utils.clamp(0, 1, (progress - pStart) / (pEnd - pStart));
-  return vStart + t * (vEnd - vStart);
-}
-
 export function initLeafTrail() {
   if (prefersReducedMotion || !gsap || !ScrollTrigger) return;
   gsap.registerPlugin(ScrollTrigger);
 
   const heroFrame = document.getElementById('frame-hero');
-  const activitiesFrame = document.getElementById('frame-activities');
-  const activitiesGrid = document.getElementById('activities-grid');
   const badge = document.querySelector('.badge-leaf');
-  if (!heroFrame || !activitiesFrame || !activitiesGrid || !badge) return;
+  if (!heroFrame || !badge) return;
 
   const leaf = buildLeafMarker();
   const beam = buildBeam();
-  const FADE_ZONE = 0.08;
   const cards = document.querySelectorAll('.activity-card');
+  const outlines = Array.from(cards).map(buildCardOutline);
   const shadowInterp = gsap.utils.interpolate(
     '0 0 0px 0px rgba(35, 122, 51, 0)',
     '0 0 18px 2px rgba(35, 122, 51, 0.35)'
   );
-  const outlines = Array.from(cards).map(buildCardOutline);
 
-  // The activities card row is deliberately laid out near the bottom of its frame (see
-  // #frame-activities in styles.css) so its top edge sits just below the hero badge's own
-  // position — close enough that a single, always-visible, always-descending trail can
-  // travel from the badge straight down onto the cards without ever leaving the screen
-  // or reversing direction. That's the geometry the rest of this file leans on.
   const badgeRect = badge.getBoundingClientRect();
   const startY = badgeRect.top + badgeRect.height / 2;
-  const cardsY = activitiesGrid.getBoundingClientRect().top - activitiesFrame.getBoundingClientRect().top;
-  const exitY = window.innerHeight - 40;
+  // Where the light settles and stays: a fixed beacon near the bottom of the screen.
+  const restY = window.innerHeight - 48;
+  const lightY = restY + 13;
 
-  // Scene 1: hero — the trail is born at the badge and eases down toward the card row's
-  // position while the hero stays pinned (and for the natural extra viewport of scrolling
-  // GSAP's pin spacing reserves afterward), so it's exactly at the cards the instant scene
-  // 2 takes over. See the note on the second ScrollTrigger below for why this spans that
-  // extra distance and why it's created before the pin trigger.
-  const heroPinDistance = Math.round(window.innerHeight * 2.5);
-  const heroVisibleDistance = heroPinDistance + window.innerHeight;
+  // The hero pin is the page's one deliberate hold — about one and a bit screens of
+  // scrolling during which the light is born at the badge and descends to its resting
+  // point. Everything after it scrolls at the normal 1:1 rate.
+  //
+  // Earlier versions tried to keep the light's viewport position glued to the cards'
+  // viewport position, which forced a tiny travel distance (~40px) across several
+  // screens of pinned scrolling — so the light looked frozen, and the two pinned scenes
+  // ran at wildly different rates. Instead the light now simply comes to rest and the
+  // page scrolls past it, which is both continuous and evenly paced.
+  const heroPinDistance = Math.round(window.innerHeight * 1.2);
+  const trailRange = heroPinDistance + window.innerHeight * 4;
 
+  // Created before the pin trigger: once heroFrame is pinned, GSAP measures a fresh
+  // 'top top' against its spacer-wrapped layout instead of its original position.
   ScrollTrigger.create({
     trigger: heroFrame,
     start: 'top top',
-    end: `+=${heroVisibleDistance}`,
+    end: `+=${trailRange}`,
     scrub: true,
     onUpdate: (self) => {
-      const progress = self.progress;
-      const top = startY + progress * (cardsY - startY);
-      const fade = Math.min(progress / FADE_ZONE, 1);
-      gsap.set(leaf, { top, opacity: fade });
-      gsap.set(beam, { top: startY, height: Math.max(top - startY, 0), opacity: fade * 0.8 });
+      const descent = gsap.utils.clamp(0, 1, (self.progress * trailRange) / heroPinDistance);
+      const tipY = startY + descent * (restY - startY);
+      // Anchor the beam to the badge's live position, so it visibly starts at the icon
+      // while the icon is on screen, and simply streams in from above once it isn't.
+      const anchor = badge.getBoundingClientRect();
+      const beamTop = Math.min(anchor.top + anchor.height / 2, tipY);
+      const fade = Math.min(descent / FADE_ZONE, 1);
+      gsap.set(leaf, { top: tipY, opacity: fade });
+      gsap.set(beam, { top: beamTop, height: Math.max(tipY - beamTop, 0), opacity: fade * 0.8 });
     },
   });
 
@@ -117,32 +116,21 @@ export function initLeafTrail() {
     pin: true,
   });
 
-  // Scene 2: activities — the trail is already sitting exactly on the card row when this
-  // pin engages, so it holds there and draws each card's outline top-to-bottom, then
-  // keeps moving down (still the same direction, never reversing) toward the handoff to
-  // the next frame, fading only once there is nowhere further to go.
-  const activitiesPinDistance = Math.round(window.innerHeight * 1.4);
-
-  ScrollTrigger.create({
-    trigger: activitiesFrame,
-    start: 'top top',
-    end: `+=${activitiesPinDistance}`,
-    pin: true,
-    scrub: true,
-    onUpdate: (self) => {
-      const progress = self.progress;
-      const top = progress < 0.4 ? cardsY : segment(progress, 0.4, 1, cardsY, exitY);
-
-      const fade = progress < 0.85 ? 1 : Math.max(0, 1 - (progress - 0.85) / 0.15);
-      gsap.set(leaf, { top, opacity: fade });
-      gsap.set(beam, { top: 40, height: Math.max(top - 40, 0), opacity: fade * 0.8 });
-
-      const draw = segment(progress, 0, 0.4, 0, 1);
-      gsap.set(cards, { boxShadow: shadowInterp(draw) });
-      for (const rect of outlines) {
-        const length = Number(rect.style.strokeDasharray);
-        gsap.set(rect, { strokeDashoffset: length * (1 - draw) });
-      }
-    },
+  // Each card sweeps up through the resting light, and its outline draws top-to-bottom
+  // as it passes: the draw starts when the card's top edge reaches the light and
+  // completes when its bottom edge does.
+  cards.forEach((card, index) => {
+    const rect = outlines[index];
+    const length = Number(rect.style.strokeDasharray);
+    ScrollTrigger.create({
+      trigger: card,
+      start: `top ${lightY}px`,
+      end: `bottom ${lightY}px`,
+      scrub: true,
+      onUpdate: (self) => {
+        gsap.set(rect, { strokeDashoffset: length * (1 - self.progress) });
+        gsap.set(card, { boxShadow: shadowInterp(self.progress) });
+      },
+    });
   });
 }

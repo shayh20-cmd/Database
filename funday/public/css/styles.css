@@ -13,9 +13,8 @@
   box-sizing: border-box;
 }
 
-html {
-  scroll-behavior: smooth;
-}
+/* No scroll-behavior/scroll-snap here: the page is driven by GSAP pinning now, and
+   browser-side smoothing or snapping fights it and makes the scroll feel laggy. */
 
 body {
   margin: 0;
@@ -28,7 +27,6 @@ body {
 .frame {
   min-height: 100vh;
   min-height: 100svh;
-  scroll-snap-align: start;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -36,10 +34,6 @@ body {
   text-align: center;
   padding: var(--frame-padding);
   position: relative;
-}
-
-#frame-hero {
-  scroll-snap-align: none;
 }
 
 #frame-activities {
@@ -83,12 +77,6 @@ body {
 
 .form-message--success {
   color: var(--knafo-sage-dark);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
 }
 
 .hero-title {
