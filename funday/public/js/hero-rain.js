@@ -1,7 +1,10 @@
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-function drawLeaf(ctx, x, y, color) {
+const LEAF_MAX_ALPHA = 0.5;
+
+function drawLeaf(ctx, x, y, color, alpha) {
   ctx.save();
+  ctx.globalAlpha = alpha;
   ctx.translate(x, y);
   ctx.rotate(-Math.PI / 4);
   ctx.fillStyle = color;
@@ -15,6 +18,16 @@ function drawLeaf(ctx, x, y, color) {
 
 function randomLeafColor() {
   return Math.random() > 0.5 ? '#8fb874' : '#3d5c33';
+}
+
+function randomSpawnY(canvasHeight) {
+  return -Math.random() * canvasHeight * 0.6;
+}
+
+function leafAlpha(progress) {
+  const fadeIn = Math.min(progress / 0.18, 1);
+  const fadeOut = Math.min((1 - progress) / 0.4, 1);
+  return Math.max(0, Math.min(fadeIn, fadeOut)) * LEAF_MAX_ALPHA;
 }
 
 export function initHeroRain() {
@@ -34,7 +47,7 @@ export function initHeroRain() {
     canvas.height = canvas.clientHeight;
     const columns = Math.max(1, Math.floor(canvas.width / columnWidth));
     drops = new Array(columns).fill(0).map(() => ({
-      y: -Math.random() * canvas.height,
+      y: (Math.random() * 1.3 - 0.3) * canvas.height,
       color: randomLeafColor(),
     }));
   }
@@ -46,10 +59,14 @@ export function initHeroRain() {
     for (let i = 0; i < drops.length; i++) {
       const drop = drops[i];
       const x = i * columnWidth + columnWidth / 2;
-      drawLeaf(ctx, x, drop.y, drop.color);
+      const progress = Math.min(Math.max(drop.y / canvas.height, 0), 1);
+      const alpha = leafAlpha(progress);
+      if (alpha > 0) {
+        drawLeaf(ctx, x, drop.y, drop.color, alpha);
+      }
       drop.y += 2 + Math.random() * 2;
       if (drop.y > canvas.height + 20) {
-        drop.y = -20 - Math.random() * 100;
+        drop.y = randomSpawnY(canvas.height);
         drop.color = randomLeafColor();
       }
     }

@@ -5,6 +5,7 @@
   --knafo-gray-light: #d8d8d5;
   --knafo-sage: #8fb874;
   --knafo-sage-dark: #3d5c33;
+  --knafo-sage-vivid: #237a33;
   --frame-padding: clamp(24px, 6vw, 64px);
 }
 
@@ -91,7 +92,7 @@ body {
 }
 
 .hero-title__accent {
-  color: var(--knafo-sage-dark);
+  color: var(--knafo-sage-vivid);
 }
 
 .hero-sub {
@@ -99,20 +100,6 @@ body {
   letter-spacing: 2px;
   color: var(--knafo-gray);
   margin: 0 0 16px;
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  border-radius: 20px;
-  padding: 4px 14px;
-}
-
-.badge--sage {
-  color: var(--knafo-sage-dark);
-  border: 0.5px solid var(--knafo-sage-dark);
 }
 
 .scroll-cue {
@@ -279,4 +266,30 @@ body {
   height: 100%;
   z-index: -1;
   pointer-events: none;
+}
+
+.badge-leaf {
+  width: 26px;
+  height: 26px;
+  background: var(--knafo-sage);
+  border-radius: 0 100% 0 100%;
+  transform: rotate(-45deg);
+  animation: leaf-glow 2.2s ease-in-out infinite;
+}
+
+@keyframes leaf-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 4px 0 rgba(143, 184, 116, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 16px 6px rgba(143, 184, 116, 0.7);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge-leaf {
+    animation: none;
+    box-shadow: 0 0 4px 0 rgba(143, 184, 116, 0.4);
+  }
 }
