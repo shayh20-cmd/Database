@@ -54,12 +54,13 @@ export function initLeafTrail() {
 
   const leaf = buildLeafMarker();
   const beam = buildBeam();
+  const extraScroll = Math.round(window.innerHeight * 0.6);
 
   ScrollTrigger.create({
     trigger: heroFrame,
     start: 'bottom bottom',
     endTrigger: activitiesFrame,
-    end: 'bottom top',
+    end: `bottom top-=${extraScroll}`,
     scrub: true,
     onUpdate: (self) => {
       const vh = window.innerHeight;
