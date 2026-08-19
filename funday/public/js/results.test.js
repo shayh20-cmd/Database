@@ -52,3 +52,40 @@ test('ignores votes with an activityId not in the known list', () => {
   const total = result.reduce((sum, r) => sum + r.count, 0);
   assert.equal(total, 1);
 });
+
+test('collects the voter names for each activity, in the order they voted', () => {
+  const votes = [
+    { activityId: 'cooking', employeeName: 'דוד קנפו' },
+    { activityId: 'molet', employeeName: 'נורית לוי' },
+    { activityId: 'cooking', employeeName: 'אריה חיון' },
+  ];
+  const result = aggregateVotes(votes, activities);
+  assert.deepEqual(result.find((r) => r.id === 'cooking').voters, ['דוד קנפו', 'אריה חיון']);
+  assert.deepEqual(result.find((r) => r.id === 'molet').voters, ['נורית לוי']);
+});
+
+test('gives activities with no votes an empty voters list', () => {
+  const result = aggregateVotes([{ activityId: 'cooking', employeeName: 'דוד קנפו' }], activities);
+  assert.deepEqual(result.find((r) => r.id === 'print').voters, []);
+  assert.deepEqual(aggregateVotes([], activities).map((r) => r.voters), [[], [], [], []]);
+});
+
+test('counts a vote with no usable name but keeps it out of the voter list', () => {
+  const votes = [
+    { activityId: 'cooking', employeeName: 'דוד קנפו' },
+    { activityId: 'cooking', employeeName: '  ' },
+    { activityId: 'cooking' },
+  ];
+  const result = aggregateVotes(votes, activities);
+  const cooking = result.find((r) => r.id === 'cooking');
+  assert.equal(cooking.count, 3);
+  assert.deepEqual(cooking.voters, ['דוד קנפו']);
+});
+
+test('does not collect voters for an activityId outside the known list', () => {
+  const votes = [{ activityId: 'unknown-activity', employeeName: 'דוד קנפו' }];
+  const result = aggregateVotes(votes, activities);
+  for (const row of result) {
+    assert.deepEqual(row.voters, []);
+  }
+});

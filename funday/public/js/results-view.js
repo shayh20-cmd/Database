@@ -1,4 +1,4 @@
-import { ACTIVITIES } from './data.js';
+import { ACTIVITIES, EMPLOYEES } from './data.js';
 import { aggregateVotes } from './results.js';
 
 const Chart = window.Chart;
@@ -11,15 +11,46 @@ const TEXT_COLOR = '#6b6b68';
 const GRID_COLOR = '#ececea';
 
 // Stand-in until votes come from the live feed, so the frame can be designed and
-// reviewed with realistic numbers. Replaced wholesale by the real vote documents.
-const SAMPLE_VOTES = [
-  ...Array.from({ length: 9 }, () => ({ activityId: 'tlvshow' })),
-  ...Array.from({ length: 6 }, () => ({ activityId: 'cooking' })),
-  ...Array.from({ length: 4 }, () => ({ activityId: 'molet' })),
-  ...Array.from({ length: 2 }, () => ({ activityId: 'print' })),
-];
+// reviewed with realistic names and numbers. Replaced wholesale by the real vote
+// documents, which carry the same activityId/employeeName shape.
+const SAMPLE_VOTES = (() => {
+  const spread = [
+    ['tlvshow', 9],
+    ['cooking', 6],
+    ['molet', 4],
+    ['print', 2],
+  ];
+  let next = 0;
+  return spread.flatMap(([activityId, count]) =>
+    Array.from({ length: count }, () => ({
+      activityId,
+      employeeName: EMPLOYEES[next++ % EMPLOYEES.length].name,
+    }))
+  );
+})();
+
+// A whole-office sweep for one activity would be 27 names; past this many the tooltip
+// grows taller than a phone screen, so the tail is summarised instead.
+const MAX_TOOLTIP_NAMES = 12;
 
 let chart = null;
+let currentRows = [];
+
+function votesLabel(count) {
+  return count === 1 ? 'הצבעה אחת' : `${count} הצבעות`;
+}
+
+function tooltipLines(index) {
+  const row = currentRows[index];
+  if (!row) return '';
+  if (row.count === 0) return 'אין הצבעות עדיין';
+
+  const lines = [`${votesLabel(row.count)} · ${row.percent}%`, ''];
+  lines.push(...row.voters.slice(0, MAX_TOOLTIP_NAMES));
+  const hidden = row.voters.length - MAX_TOOLTIP_NAMES;
+  if (hidden > 0) lines.push(`ועוד ${hidden}…`);
+  return lines;
+}
 
 function countUp(el, to) {
   if (!el) return;
@@ -52,12 +83,12 @@ export function renderResults(votes = SAMPLE_VOTES) {
   );
 
   countUp(document.getElementById('results-total'), total);
+  currentRows = rows;
 
   if (chart) {
     chart.data.labels = rows.map((row) => row.name);
     chart.data.datasets[0].data = rows.map((row) => row.count);
     chart.data.datasets[0].backgroundColor = colors;
-    chart._rows = rows;
     chart.update();
     return;
   }
@@ -88,13 +119,14 @@ export function renderResults(votes = SAMPLE_VOTES) {
           rtl: true,
           textDirection: 'rtl',
           backgroundColor: '#0b0b0a',
-          padding: 10,
+          padding: 12,
           displayColors: false,
+          bodySpacing: 5,
+          bodyFont: { family: 'Assistant, system-ui, sans-serif', size: 13 },
+          titleFont: { family: 'Assistant, system-ui, sans-serif', size: 13, weight: '700' },
+          titleMarginBottom: 8,
           callbacks: {
-            label: (item) => {
-              const row = (chart && chart._rows ? chart._rows : rows)[item.dataIndex];
-              return `${row.count} הצבעות · ${row.percent}%`;
-            },
+            label: (item) => tooltipLines(item.dataIndex),
           },
         },
       },
