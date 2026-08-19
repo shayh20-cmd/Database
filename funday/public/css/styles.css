@@ -203,46 +203,6 @@ body {
   border-inline-end: 1px solid var(--knafo-sage);
 }
 
-.construction-beam {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 160px;
-  height: 6px;
-  margin: -3px 0 0 -80px;
-  background: var(--knafo-sage-dark);
-  border-radius: 3px;
-  z-index: 2;
-  transform-origin: center;
-  pointer-events: none;
-}
-
-.construction-bolt {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 22px;
-  height: 22px;
-  margin: -11px 0 0 -11px;
-  background: var(--knafo-sage-dark);
-  clip-path: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0% 50%);
-  z-index: 3;
-  pointer-events: none;
-}
-
-.construction-leaf {
-  position: absolute;
-  top: 16px;
-  inset-inline-end: 44px;
-  width: 14px;
-  height: 14px;
-  background: var(--knafo-sage);
-  border-radius: 0 100% 0 100%;
-  transform: rotate(-45deg);
-  z-index: 3;
-  pointer-events: none;
-}
-
 .hero-tagline {
   font-size: 15px;
   font-weight: 500;
