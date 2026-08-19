@@ -1,4 +1,5 @@
 import { playLeafBurst } from './leaf-burst.js';
+import { renderResults } from './results-view.js';
 
 const gsap = window.gsap;
 const ScrollTrigger = window.ScrollTrigger;
@@ -23,6 +24,9 @@ export function initResultsFinale(trail) {
 
   function revealResults() {
     gsap.to(items, { opacity: 1, y: 0, duration: 0.6, stagger: 0.1, ease: 'power2.out' });
+    // Built here rather than at startup so the chart's own grow-in animation and the
+    // total's count-up play on cue with the reveal instead of behind a hidden frame.
+    renderResults();
   }
 
   // Re-pinning the hero on the way back up briefly changes the document height, which

@@ -153,6 +153,16 @@ body {
   cursor: not-allowed;
 }
 
+/* Chart.js needs a sized container to lay out into: the canvas' own 300x150 default
+   would otherwise win, since maintainAspectRatio is off. */
+.chart-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+  height: clamp(220px, 34vh, 320px);
+  margin-top: 28px;
+}
+
 .leaf-burst__particle {
   position: fixed;
   top: 0;
