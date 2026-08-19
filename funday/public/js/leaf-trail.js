@@ -78,7 +78,12 @@ export function initLeafTrail() {
   );
   const outlines = Array.from(cards).map(buildCardOutline);
 
-  // Scene 1: hero — the trail is born at the badge and descends as the hero stays pinned.
+  // Scene 1: hero — the trail is born at the badge and descends as the hero stays pinned,
+  // continuing past the bottom edge so it exits the screen rather than stopping mid-air.
+  // (The activities card row sits higher on screen than the badge does in the hero, so a
+  // trail that always moves downward can never land exactly on the cards without first
+  // leaving the viewport — same as a light exiting one film frame and continuing into
+  // the next, rather than reversing direction to "back up" onto a target above it.)
   const heroPinDistance = Math.round(window.innerHeight * 2.5);
   const badgeRect = badge.getBoundingClientRect();
   const startY = badgeRect.top + badgeRect.height / 2;
@@ -92,19 +97,21 @@ export function initLeafTrail() {
     onUpdate: (self) => {
       const vh = window.innerHeight;
       const progress = self.progress;
-      const top = startY + progress * (vh - 40 - startY);
+      const top = startY + progress * (vh + 40 - startY);
       const fade = Math.min(progress / FADE_ZONE, 1);
       gsap.set(leaf, { top, opacity: fade });
       gsap.set(beam, { top: startY, height: Math.max(top - startY, 0), opacity: fade * 0.8 });
     },
   });
 
-  // Scene 2: activities — the trail picks up exactly where scene 1 left it (no jump),
-  // arrives at the card row and draws each card's outline top-to-bottom as it lands,
-  // then keeps moving down again toward the handoff to the next frame.
+  // Scene 2: activities — the trail re-enters from above the viewport (continuing the
+  // same downward motion, never reversing), arrives at the card row and draws each
+  // card's outline top-to-bottom as it lands, then keeps moving down toward the
+  // handoff to the next frame, fading only once there is nowhere further to go.
   const activitiesPinDistance = Math.round(window.innerHeight * 1.4);
   const cardsY = activitiesGrid.getBoundingClientRect().top - activitiesFrame.getBoundingClientRect().top;
-  const bottomY = window.innerHeight - 40;
+  const enterY = -40;
+  const exitY = window.innerHeight - 40;
 
   ScrollTrigger.create({
     trigger: activitiesFrame,
@@ -115,13 +122,13 @@ export function initLeafTrail() {
     onUpdate: (self) => {
       const progress = self.progress;
       let top;
-      if (progress < 0.3) top = segment(progress, 0, 0.3, bottomY, cardsY);
+      if (progress < 0.3) top = segment(progress, 0, 0.3, enterY, cardsY);
       else if (progress < 0.7) top = cardsY;
-      else top = segment(progress, 0.7, 1, cardsY, bottomY);
+      else top = segment(progress, 0.7, 1, cardsY, exitY);
 
       const fade = progress < 0.85 ? 1 : Math.max(0, 1 - (progress - 0.85) / 0.15);
       gsap.set(leaf, { top, opacity: fade });
-      gsap.set(beam, { top: 40, height: Math.max(top - 40, 0), opacity: fade * 0.8 });
+      gsap.set(beam, { top: Math.min(top, 40), height: Math.max(top - Math.min(top, 40), 0), opacity: fade * 0.8 });
 
       const draw = segment(progress, 0.3, 0.7, 0, 1);
       gsap.set(cards, { boxShadow: shadowInterp(draw) });
