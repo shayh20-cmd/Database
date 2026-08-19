@@ -50,12 +50,15 @@ export function initLeafTrail() {
 
   const heroFrame = document.getElementById('frame-hero');
   const activitiesFrame = document.getElementById('frame-activities');
-  if (!heroFrame || !activitiesFrame) return;
+  const badge = document.querySelector('.badge-leaf');
+  if (!heroFrame || !activitiesFrame || !badge) return;
 
   const leaf = buildLeafMarker();
   const beam = buildBeam();
   const pinDistance = Math.round(window.innerHeight * 2.5);
   const FADE_ZONE = 0.08;
+  const badgeRect = badge.getBoundingClientRect();
+  const startY = badgeRect.top + badgeRect.height / 2;
 
   ScrollTrigger.create({
     trigger: heroFrame,
@@ -66,10 +69,10 @@ export function initLeafTrail() {
     onUpdate: (self) => {
       const vh = window.innerHeight;
       const progress = self.progress;
-      const top = 40 + progress * (vh - 80);
+      const top = startY + progress * (vh - 40 - startY);
       const fade = Math.min(progress / FADE_ZONE, (1 - progress) / FADE_ZONE, 1);
       gsap.set(leaf, { top, opacity: fade });
-      gsap.set(beam, { top: 0, height: top, opacity: fade * 0.8 });
+      gsap.set(beam, { top: startY, height: Math.max(top - startY, 0), opacity: fade * 0.8 });
     },
   });
 
