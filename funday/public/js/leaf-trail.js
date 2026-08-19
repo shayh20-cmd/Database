@@ -88,11 +88,23 @@ export function initLeafTrail() {
   const badgeRect = badge.getBoundingClientRect();
   const startY = badgeRect.top + badgeRect.height / 2;
 
+  // GSAP's default pin spacing reserves the pinned element's own natural height *in
+  // addition to* the pin distance, so hero stays visible (unpinned, but still in normal
+  // flow) for roughly one more viewport of scrolling after the pin itself ends — before
+  // activitiesFrame ever arrives. Driving the trail off the pin trigger alone would
+  // freeze it the moment the pin ends, well before hero actually leaves the screen, which
+  // reads as the trail finishing and going dead for a stretch. Scrub it over that entire
+  // hero-visible distance instead (pin duration + one viewport) so it keeps moving right
+  // up until hero truly scrolls away — exactly when scene 2 picks it up. This trigger is
+  // created *before* the pin trigger below: once heroFrame is pinned, GSAP measures a
+  // fresh 'top top' against its post-pin (spacer-wrapped) layout instead of its original
+  // position, which would throw this range off.
+  const heroVisibleDistance = heroPinDistance + window.innerHeight;
+
   ScrollTrigger.create({
     trigger: heroFrame,
     start: 'top top',
-    end: `+=${heroPinDistance}`,
-    pin: true,
+    end: `+=${heroVisibleDistance}`,
     scrub: true,
     onUpdate: (self) => {
       const vh = window.innerHeight;
@@ -102,6 +114,13 @@ export function initLeafTrail() {
       gsap.set(leaf, { top, opacity: fade });
       gsap.set(beam, { top: startY, height: Math.max(top - startY, 0), opacity: fade * 0.8 });
     },
+  });
+
+  ScrollTrigger.create({
+    trigger: heroFrame,
+    start: 'top top',
+    end: `+=${heroPinDistance}`,
+    pin: true,
   });
 
   // Scene 2: activities — the trail re-enters from above the viewport (continuing the
