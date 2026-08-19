@@ -53,7 +53,9 @@
     </form>
   </section>
 
-  <section id="frame-results" class="frame" data-reveal>
+  <!-- No data-reveal: results-finale.js owns this frame's entrance, revealing it out of
+       the leaf burst rather than on a plain scroll-into-view fade. -->
+  <section id="frame-results" class="frame">
     <p class="eyebrow" data-reveal-item>התוצאות</p>
     <h2 class="frame-title" data-reveal-item>איך זה עומד עד עכשיו</h2>
     <p data-reveal-item><span id="results-total" data-value="0">0</span> הצבעות עד כה</p>

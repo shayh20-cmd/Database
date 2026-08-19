@@ -47,9 +47,17 @@ export function renderVoteForm() {
 
   select.addEventListener('change', refreshSubmitState);
 
-  // Without this the form would navigate away on submit; the real handler lands with
-  // the Firestore wiring.
-  form.addEventListener('submit', (event) => event.preventDefault());
+  form.addEventListener('submit', (event) => {
+    // Nothing is persisted yet — saving the vote lands with the Firestore wiring. The
+    // preventDefault also stops the form navigating away.
+    event.preventDefault();
+    if (submit.disabled) return;
+    document.dispatchEvent(
+      new CustomEvent('funday:vote-submitted', {
+        detail: { employeeId: select.value, activityId: selectedActivityId },
+      })
+    );
+  });
 
   refreshSubmitState();
 }

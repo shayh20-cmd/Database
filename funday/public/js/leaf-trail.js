@@ -93,7 +93,7 @@ export function initLeafTrail() {
 
   // Created before the pin trigger: once heroFrame is pinned, GSAP measures a fresh
   // 'top top' against its spacer-wrapped layout instead of its original position.
-  ScrollTrigger.create({
+  const trailTrigger = ScrollTrigger.create({
     trigger: heroFrame,
     start: 'top top',
     end: `+=${trailRange}`,
@@ -135,4 +135,13 @@ export function initLeafTrail() {
       },
     });
   });
+
+  // Handed to the results finale, which takes the light over for its closing burst.
+  // releaseTrail stops this module driving the light's position/opacity so the two
+  // don't fight over it; the card outlines keep their own triggers either way.
+  return {
+    leaf,
+    beam,
+    releaseTrail: () => trailTrigger.kill(),
+  };
 }
