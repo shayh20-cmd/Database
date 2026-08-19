@@ -1,6 +1,7 @@
 const gsap = window.gsap;
 const ScrollTrigger = window.ScrollTrigger;
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const SVG_NS = 'http://www.w3.org/2000/svg';
 
 function buildLeafMarker() {
   const leaf = document.createElement('div');
@@ -24,6 +25,39 @@ function buildBeam() {
   return beam;
 }
 
+// Overlays each card with an SVG rect stroke so its outline can be drawn on,
+// starting from the top edge, rather than just fading a CSS border in place.
+function buildCardOutline(card) {
+  const rect0 = card.getBoundingClientRect();
+  const width = rect0.width;
+  const height = rect0.height;
+
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.classList.add('activity-card__outline');
+
+  const rect = document.createElementNS(SVG_NS, 'rect');
+  rect.setAttribute('x', 0.75);
+  rect.setAttribute('y', 0.75);
+  rect.setAttribute('width', Math.max(width - 1.5, 0));
+  rect.setAttribute('height', Math.max(height - 1.5, 0));
+  rect.setAttribute('rx', 12);
+  rect.setAttribute('ry', 12);
+  svg.appendChild(rect);
+  card.appendChild(svg);
+
+  const length = rect.getTotalLength();
+  rect.style.strokeDasharray = String(length);
+  rect.style.strokeDashoffset = String(length);
+  return rect;
+}
+
+function segment(progress, pStart, pEnd, vStart, vEnd) {
+  const t = gsap.utils.clamp(0, 1, (progress - pStart) / (pEnd - pStart));
+  return vStart + t * (vEnd - vStart);
+}
+
 export function initLeafTrail() {
   if (prefersReducedMotion || !gsap || !ScrollTrigger) return;
   gsap.registerPlugin(ScrollTrigger);
@@ -38,11 +72,11 @@ export function initLeafTrail() {
   const beam = buildBeam();
   const FADE_ZONE = 0.08;
   const cards = document.querySelectorAll('.activity-card');
-  const borderInterp = gsap.utils.interpolate('#d8d8d5', '#237a33');
   const shadowInterp = gsap.utils.interpolate(
     '0 0 0px 0px rgba(35, 122, 51, 0)',
     '0 0 18px 2px rgba(35, 122, 51, 0.35)'
   );
+  const outlines = Array.from(cards).map(buildCardOutline);
 
   // Scene 1: hero — the trail is born at the badge and descends as the hero stays pinned.
   const heroPinDistance = Math.round(window.innerHeight * 2.5);
@@ -65,13 +99,12 @@ export function initLeafTrail() {
     },
   });
 
-  // Scene 2: activities — the trail continues downward while the frame stays pinned,
-  // arriving at the card row and lighting the four activity tabs up as it lands.
-  // Neither scene fades the trail out at its own boundary, so during the natural
-  // scroll gap between the two pins the trail just holds its last position/opacity
-  // instead of vanishing and popping back in.
+  // Scene 2: activities — the trail picks up exactly where scene 1 left it (no jump),
+  // arrives at the card row and draws each card's outline top-to-bottom as it lands,
+  // then keeps moving down again toward the handoff to the next frame.
   const activitiesPinDistance = Math.round(window.innerHeight * 1.4);
   const cardsY = activitiesGrid.getBoundingClientRect().top - activitiesFrame.getBoundingClientRect().top;
+  const bottomY = window.innerHeight - 40;
 
   ScrollTrigger.create({
     trigger: activitiesFrame,
@@ -81,13 +114,21 @@ export function initLeafTrail() {
     scrub: true,
     onUpdate: (self) => {
       const progress = self.progress;
-      const top = 40 + progress * (cardsY - 40);
-      const fade = Math.min((1 - progress) / 0.2, 1);
+      let top;
+      if (progress < 0.3) top = segment(progress, 0, 0.3, bottomY, cardsY);
+      else if (progress < 0.7) top = cardsY;
+      else top = segment(progress, 0.7, 1, cardsY, bottomY);
+
+      const fade = progress < 0.85 ? 1 : Math.max(0, 1 - (progress - 0.85) / 0.15);
       gsap.set(leaf, { top, opacity: fade });
       gsap.set(beam, { top: 40, height: Math.max(top - 40, 0), opacity: fade * 0.8 });
 
-      const glow = gsap.utils.clamp(0, 1, (progress - 0.55) / 0.45);
-      gsap.set(cards, { borderColor: borderInterp(glow), boxShadow: shadowInterp(glow) });
+      const draw = segment(progress, 0.3, 0.7, 0, 1);
+      gsap.set(cards, { boxShadow: shadowInterp(draw) });
+      for (const rect of outlines) {
+        const length = Number(rect.style.strokeDasharray);
+        gsap.set(rect, { strokeDashoffset: length * (1 - draw) });
+      }
     },
   });
 }
