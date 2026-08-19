@@ -24,46 +24,35 @@ function buildBeam() {
   return beam;
 }
 
-function outlineActivityCards() {
-  const cards = document.querySelectorAll('.activity-card');
-  for (const card of cards) {
-    gsap.fromTo(
-      card,
-      { borderColor: '#d8d8d5', boxShadow: '0 0 0px 0px rgba(35, 122, 51, 0)' },
-      {
-        borderColor: '#237a33',
-        boxShadow: '0 0 18px 2px rgba(35, 122, 51, 0.35)',
-        scrollTrigger: {
-          trigger: card,
-          start: 'top 75%',
-          end: 'top 45%',
-          scrub: true,
-        },
-      }
-    );
-  }
-}
-
 export function initLeafTrail() {
   if (prefersReducedMotion || !gsap || !ScrollTrigger) return;
   gsap.registerPlugin(ScrollTrigger);
 
   const heroFrame = document.getElementById('frame-hero');
   const activitiesFrame = document.getElementById('frame-activities');
+  const activitiesGrid = document.getElementById('activities-grid');
   const badge = document.querySelector('.badge-leaf');
-  if (!heroFrame || !activitiesFrame || !badge) return;
+  if (!heroFrame || !activitiesFrame || !activitiesGrid || !badge) return;
 
   const leaf = buildLeafMarker();
   const beam = buildBeam();
-  const pinDistance = Math.round(window.innerHeight * 2.5);
   const FADE_ZONE = 0.08;
+  const cards = document.querySelectorAll('.activity-card');
+  const borderInterp = gsap.utils.interpolate('#d8d8d5', '#237a33');
+  const shadowInterp = gsap.utils.interpolate(
+    '0 0 0px 0px rgba(35, 122, 51, 0)',
+    '0 0 18px 2px rgba(35, 122, 51, 0.35)'
+  );
+
+  // Scene 1: hero — the trail is born at the badge and descends as the hero stays pinned.
+  const heroPinDistance = Math.round(window.innerHeight * 2.5);
   const badgeRect = badge.getBoundingClientRect();
   const startY = badgeRect.top + badgeRect.height / 2;
 
   ScrollTrigger.create({
     trigger: heroFrame,
     start: 'top top',
-    end: `+=${pinDistance}`,
+    end: `+=${heroPinDistance}`,
     pin: true,
     scrub: true,
     onUpdate: (self) => {
@@ -76,5 +65,26 @@ export function initLeafTrail() {
     },
   });
 
-  outlineActivityCards();
+  // Scene 2: activities — the trail continues downward while the frame stays pinned,
+  // arriving at the card row and lighting the four activity tabs up as it lands.
+  const activitiesPinDistance = Math.round(window.innerHeight * 1.4);
+  const cardsY = activitiesGrid.getBoundingClientRect().top - activitiesFrame.getBoundingClientRect().top;
+
+  ScrollTrigger.create({
+    trigger: activitiesFrame,
+    start: 'top top',
+    end: `+=${activitiesPinDistance}`,
+    pin: true,
+    scrub: true,
+    onUpdate: (self) => {
+      const progress = self.progress;
+      const top = 40 + progress * (cardsY - 40);
+      const fade = Math.min(progress / FADE_ZONE, (1 - progress) / 0.2, 1);
+      gsap.set(leaf, { top, opacity: fade });
+      gsap.set(beam, { top: 40, height: Math.max(top - 40, 0), opacity: fade * 0.8 });
+
+      const glow = gsap.utils.clamp(0, 1, (progress - 0.55) / 0.45);
+      gsap.set(cards, { borderColor: borderInterp(glow), boxShadow: shadowInterp(glow) });
+    },
+  });
 }
