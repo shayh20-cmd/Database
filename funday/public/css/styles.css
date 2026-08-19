@@ -261,3 +261,13 @@ body {
   color: var(--knafo-black);
   margin: 12px 0 0;
 }
+
+.cursor-leaf {
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  border-radius: 0 100% 0 100%;
+  transform: translate(-50%, -50%) rotate(var(--leaf-rotate, -45deg));
+  pointer-events: none;
+  z-index: 999;
+}
