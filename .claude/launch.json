@@ -26,6 +26,13 @@
       "runtimeArgs": ["C:\\Users\\Omega\\Database\\tools\\local-server\\server.js", "C:\\Users\\Omega\\Database", "--port", "3404"],
       "port": 3404,
       "autoPort": true
+    },
+    {
+      "name": "funday",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:\\Users\\Omega\\Database\\tools\\local-server\\server.js", "C:\\Users\\Omega\\Database\\.claude\\worktrees\\fun-day-vote\\funday\\public", "--port", "3410"],
+      "port": 3410,
+      "autoPort": true
     }
   ]
 }
