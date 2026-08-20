@@ -1,5 +1,7 @@
-import { ACTIVITIES, EMPLOYEES } from './data.js';
+import { ACTIVITIES } from './data.js';
 import { aggregateVotes } from './results.js';
+import { db } from './firebase-init.js';
+import { collection, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js';
 
 const Chart = window.Chart;
 const gsap = window.gsap;
@@ -10,31 +12,16 @@ const BAR_COLOR_LEADING = '#237a33';
 const TEXT_COLOR = '#6b6b68';
 const GRID_COLOR = '#ececea';
 
-// Stand-in until votes come from the live feed, so the frame can be designed and
-// reviewed with realistic names and numbers. Replaced wholesale by the real vote
-// documents, which carry the same activityId/employeeName shape.
-const SAMPLE_VOTES = (() => {
-  const spread = [
-    ['tlvshow', 9],
-    ['cooking', 6],
-    ['molet', 4],
-    ['print', 2],
-  ];
-  let next = 0;
-  return spread.flatMap(([activityId, count]) =>
-    Array.from({ length: count }, () => ({
-      activityId,
-      employeeName: EMPLOYEES[next++ % EMPLOYEES.length].name,
-    }))
-  );
-})();
-
 // A whole-office sweep for one activity would be 28 names; past this many the tooltip
 // grows taller than a phone screen, so the tail is summarised instead.
 const MAX_TOOLTIP_NAMES = 12;
 
 let chart = null;
 let currentRows = [];
+let latestVotes = [];
+// Guards against building the chart before the results frame's reveal has actually
+// asked for it — see renderResults()/initResultsFeed() below.
+let readyToRender = false;
 
 function votesLabel(count) {
   return count === 1 ? 'הצבעה אחת' : `${count} הצבעות`;
@@ -70,11 +57,11 @@ function countUp(el, to) {
   el.dataset.value = String(to);
 }
 
-export function renderResults(votes = SAMPLE_VOTES) {
+function draw() {
   const canvas = document.getElementById('results-chart');
   if (!canvas || !Chart) return;
 
-  const rows = aggregateVotes(votes, ACTIVITIES);
+  const rows = aggregateVotes(latestVotes, ACTIVITIES);
   const total = rows.reduce((sum, row) => sum + row.count, 0);
   const leading = Math.max(...rows.map((row) => row.count));
   // Ties all read as leading, which is the honest way to show them.
@@ -154,5 +141,33 @@ export function renderResults(votes = SAMPLE_VOTES) {
       },
     },
   });
-  chart._rows = rows;
+}
+
+// Called once, at the moment the results frame is actually revealed (from the leaf
+// burst, or the plain scroll-into-view fallback) — see results-finale.js. Bars grow in
+// and the total counts up on cue with that reveal rather than behind a hidden frame.
+// Live updates that arrive before this has run are cached (see onSnapshot below) and
+// drawn without animation the moment it does; updates after just redraw in place.
+export function renderResults() {
+  readyToRender = true;
+  draw();
+}
+
+// Starts listening immediately on page load — independent of renderResults() above —
+// so the very first paint already reflects real data instead of a placeholder, and so
+// results keep updating live in any tab left open on this frame.
+export function initResultsFeed() {
+  const errorMessage = document.getElementById('results-error');
+
+  onSnapshot(
+    collection(db, 'votes'),
+    (snapshot) => {
+      if (errorMessage) errorMessage.hidden = true;
+      latestVotes = snapshot.docs.map((docSnapshot) => docSnapshot.data());
+      if (readyToRender) draw();
+    },
+    () => {
+      if (errorMessage) errorMessage.hidden = false;
+    }
+  );
 }

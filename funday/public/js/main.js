@@ -5,6 +5,7 @@ import { initCursorTrail } from './cursor-trail.js';
 import { initHeroRain } from './hero-rain.js';
 import { initLeafTrail } from './leaf-trail.js';
 import { initResultsFinale } from './results-finale.js';
+import { initResultsFeed } from './results-view.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   // This page is one scroll-driven sequence, so a browser-restored mid-page position on
@@ -19,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initCursorTrail();
   initHeroRain();
   initResultsFinale(initLeafTrail());
+  initResultsFeed();
   initScrollReveal();
   initScrollCue();
 });
