@@ -41,6 +41,11 @@ body {
   padding-bottom: 56px;
 }
 
+/* Extra bottom padding biases the vertically-centered content upward, off dead centre. */
+#frame-hero {
+  padding-bottom: calc(var(--frame-padding) + 72px);
+}
+
 .eyebrow {
   font-size: 12px;
   letter-spacing: 3px;

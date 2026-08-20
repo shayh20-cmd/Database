@@ -10,10 +10,10 @@ import {
   employeesSortedForDropdown,
 } from './data.js';
 
-test('has exactly 27 employees with unique ids and non-empty names', () => {
-  assert.equal(EMPLOYEES.length, 27);
+test('has exactly 28 employees with unique ids and non-empty names', () => {
+  assert.equal(EMPLOYEES.length, 28);
   const ids = EMPLOYEES.map((e) => e.id);
-  assert.equal(new Set(ids).size, 27);
+  assert.equal(new Set(ids).size, 28);
   for (const employee of EMPLOYEES) {
     assert.match(employee.id, /^emp-\d{2}$/);
     assert.ok(employee.name.trim().length > 0);
@@ -38,14 +38,14 @@ test('getActivityById finds a known activity and returns null for unknown', () =
 
 test('isValidEmployeeId / isValidActivityId reject unknown ids', () => {
   assert.equal(isValidEmployeeId('emp-01'), true);
-  assert.equal(isValidEmployeeId('emp-28'), false);
+  assert.equal(isValidEmployeeId('emp-99'), false);
   assert.equal(isValidActivityId('cooking'), true);
   assert.equal(isValidActivityId('bogus'), false);
 });
 
-test('employeesSortedForDropdown returns all 27 employees sorted by Hebrew name', () => {
+test('employeesSortedForDropdown returns all 28 employees sorted by Hebrew name', () => {
   const sorted = employeesSortedForDropdown();
-  assert.equal(sorted.length, 27);
+  assert.equal(sorted.length, 28);
   const names = sorted.map((e) => e.name);
   const expected = [...names].sort((a, b) => a.localeCompare(b, 'he'));
   assert.deepEqual(names, expected);

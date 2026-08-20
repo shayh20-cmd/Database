@@ -26,6 +26,7 @@ export const EMPLOYEES = [
   { id: 'emp-25', name: 'סתיו ברקוביץ' },
   { id: 'emp-26', name: 'עדי מחוליה עמנואל' },
   { id: 'emp-27', name: 'לי גלביס' },
+  { id: 'emp-28', name: 'כלימור' },
 ];
 
 export const ACTIVITIES = [
@@ -44,7 +45,7 @@ export const ACTIVITIES = [
     description: 'סדנת הדפס קדום (אופציה לשילוב קדרות לסירוגין)',
     time: '2 שעות',
     location: 'עין הוד',
-    notes: 'איש קשר: תמר נבון, 054-4246549',
+    notes: '',
     link: 'https://www.ein-hod.org/סדנת-הדפס-עין-הוד/',
   },
   {
@@ -53,7 +54,7 @@ export const ACTIVITIES = [
     description: 'פעילות חברתית בעיר בשילוב חידות ומשחקים — כמו אסקייפ רום',
     time: '2-2.5 שעות',
     location: 'תל אביב / חיפה',
-    notes: 'מומלץ מאוד ע"י חברים, האפשרות של תל אביב הכי פופולרית',
+    notes: '',
     link: 'https://tlvshow.com/',
   },
   {

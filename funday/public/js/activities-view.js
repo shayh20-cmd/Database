@@ -14,7 +14,7 @@ export function renderActivityCards() {
         <div><dt>זמן</dt><dd>${activity.time}</dd></div>
         <div><dt>מיקום</dt><dd>${activity.location}</dd></div>
       </dl>
-      <p class="activity-card__notes">${activity.notes}</p>
+      ${activity.notes ? `<p class="activity-card__notes">${activity.notes}</p>` : ''}
       <a class="activity-card__link" href="${activity.link}" target="_blank" rel="noopener noreferrer">לפרטים נוספים ↗</a>
     `;
     grid.appendChild(card);

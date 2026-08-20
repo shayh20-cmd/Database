@@ -29,7 +29,7 @@ const SAMPLE_VOTES = (() => {
   );
 })();
 
-// A whole-office sweep for one activity would be 27 names; past this many the tooltip
+// A whole-office sweep for one activity would be 28 names; past this many the tooltip
 // grows taller than a phone screen, so the tail is summarised instead.
 const MAX_TOOLTIP_NAMES = 12;
 
