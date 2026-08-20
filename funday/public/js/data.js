@@ -26,7 +26,7 @@ export const EMPLOYEES = [
   { id: 'emp-25', name: 'סתיו ברקוביץ' },
   { id: 'emp-26', name: 'עדי מחוליה עמנואל' },
   { id: 'emp-27', name: 'לי גלביס' },
-  { id: 'emp-28', name: 'כלימור' },
+  { id: 'emp-28', name: 'תגית כלימור' },
 ];
 
 export const ACTIVITIES = [
