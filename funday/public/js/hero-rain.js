@@ -53,8 +53,15 @@ export function initHeroRain() {
   }
 
   function tick() {
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+    // Fade the previous frame to build the trailing streaks. This erases toward
+    // transparent rather than painting white over the top: an opaque canvas would hide
+    // the leaf trail travelling behind the hero, and the pin puts a transform on the
+    // frame, so no z-index from outside can lift the trail back out.
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
 
     for (let i = 0; i < drops.length; i++) {
       const drop = drops[i];

@@ -247,6 +247,9 @@ body {
   border-radius: 12px;
   padding: 20px;
   position: relative;
+  /* Opaque so the leaf trail passing behind is hidden by the card rather than showing
+     through it. */
+  background: var(--knafo-white);
 }
 
 .lit-card__outline {
@@ -315,8 +318,19 @@ body {
   text-decoration: underline;
 }
 
+/* Deliberately no z-index, so .frame does NOT open a stacking context. Its decorative
+   layers below (the blueprint grid, and #hero-rain) use z-index:-1 and need to reach the
+   root's negative band to sit behind the leaf trail. A stacking context here would trap
+   them above it instead — and since the hero rain canvas paints an opaque white sheet,
+   that hid the trail completely.
+
+   Page layers, back to front:
+     -2  leaf trail beam
+     -1  frame decorations, then the leaf marker (later in the DOM, so above them)
+      -  frame content in normal flow — text, headings and .lit-card panels
+   1000+ cursor leaves and the finale burst. */
 .frame {
-  z-index: 0;
+  position: relative;
 }
 
 .frame::before {
@@ -422,7 +436,8 @@ body {
     0 0 8px 2px rgba(200, 245, 190, 0.9),
     0 0 22px 6px rgba(35, 122, 51, 0.55),
     0 0 44px 14px rgba(35, 122, 51, 0.25);
-  z-index: 1000;
+  /* Negative, so the trail travels behind the cards, headings and text. */
+  z-index: -1;
   opacity: 0;
   pointer-events: none;
 }
@@ -447,7 +462,8 @@ body {
   );
   box-shadow: 0 0 16px 4px rgba(35, 122, 51, 0.35);
   border-radius: 2px;
-  z-index: 999;
+  /* Below the leaf marker it trails from, and behind the content with it. */
+  z-index: -2;
   opacity: 0;
   pointer-events: none;
 }
