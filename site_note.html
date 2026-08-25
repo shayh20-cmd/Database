@@ -285,8 +285,9 @@ img { max-width: 100%; display: block; }
 .organize-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
 .group-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 14px; box-shadow: var(--shadow-sm); overflow: hidden; }
 .group-header { display: flex; align-items: center; gap: 8px; padding: 12px 12px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
-.group-name-input { flex: 1; font-size: 14.5px; font-weight: 700; background: transparent; border: none; padding: 4px 2px; border-bottom: 1.5px dashed transparent; }
-.group-name-input:focus { border-bottom-color: var(--accent-light-2); }
+.group-name-input { flex: 1; font-size: 14.5px; font-weight: 700; background: transparent; border: none; padding: 4px 2px; border-bottom: 1.5px dashed var(--border-strong); }
+.group-name-input:focus { border-bottom-color: var(--accent); }
+.group-name-static { flex: 1; font-size: 14.5px; font-weight: 600; color: var(--text-2); padding: 4px 2px; }
 .group-count { font-size: 11.5px; color: var(--text-3); font-weight: 600; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 2px 9px; flex-shrink: 0; }
 .group-btn { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-3); flex-shrink: 0; }
 .group-btn:hover { background: var(--surface); color: var(--text); }
@@ -1069,7 +1070,7 @@ function OrganizeScreen({ report, updateReport, onOpenTask }) {
 
       <div className="group-section">
         <div className="group-header">
-          <span style={{ flex: 1, fontWeight: 700, fontSize: 14.5 }}>ללא קבוצה</span>
+          <span className="group-name-static">ללא קבוצה</span>
           <span className="group-count">{ungrouped.length}</span>
         </div>
         <div className="group-body">
