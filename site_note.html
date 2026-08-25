@@ -997,7 +997,7 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
   function setGroups(newGroups) { updateReport({ ...report, groups: newGroups }); }
 
   function addGroup(name) {
-    const g = { id: uid(), name: name, order: groups.length };
+    const g = { id: uid(), name: name, order: groups.length, auto: null };
     setGroups(groups.concat([g]));
   }
   function renameGroup(id, name) { setGroups(groups.map((g) => (g.id === id ? { ...g, name } : g))); }
@@ -1018,19 +1018,24 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
     const values = [];
     report.tasks.forEach((t) => { const v = (t[field] || '').trim(); if (v && values.indexOf(v) === -1) values.push(v); });
     if (!values.length) { window.alert('אין נתונים לקיבוץ אוטומטי'); return; }
-    let nextGroups = groups.slice();
+
+    // Auto-group buttons are mutually exclusive presets: rebuild groups previously
+    // created by ANY auto-group action (this field or another), but never touch
+    // groups the user created manually, or tasks the user manually placed into one.
+    const manualGroups = groups.filter((g) => !g.auto);
+    const manualGroupIds = new Set(manualGroups.map((g) => g.id));
+
+    let nextGroups = manualGroups.slice();
     const nameToId = {};
-    nextGroups.forEach((g) => { nameToId[g.name] = g.id; });
     values.forEach((v) => {
-      if (!nameToId[v]) {
-        const g = { id: uid(), name: v, order: nextGroups.length };
-        nextGroups = nextGroups.concat([g]);
-        nameToId[v] = g.id;
-      }
+      const g = { id: uid(), name: v, order: nextGroups.length, auto: field };
+      nextGroups = nextGroups.concat([g]);
+      nameToId[v] = g.id;
     });
     const nextTasks = report.tasks.map((t) => {
+      if (t.groupId && manualGroupIds.has(t.groupId)) return t;
       const v = (t[field] || '').trim();
-      return v ? { ...t, groupId: nameToId[v] } : t;
+      return v ? { ...t, groupId: nameToId[v] } : { ...t, groupId: null };
     });
     updateReport({ ...report, groups: nextGroups, tasks: nextTasks, groupedBy: field });
   }
