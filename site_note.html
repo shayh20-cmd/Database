@@ -159,6 +159,15 @@ img { max-width: 100%; display: block; }
 .field { margin-bottom: 16px; }
 .field-label { display: block; font-size: 13px; font-weight: 700; color: var(--text-2); margin-bottom: 7px; }
 .field-label .opt { font-weight: 400; color: var(--text-3); }
+.field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+.field-label-row .field-label { margin-bottom: 0; }
+.text-toolbar { display: flex; gap: 4px; }
+.text-toolbar-btn {
+  width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); font-size: 13px;
+}
+.text-toolbar-btn svg { width: 15px; height: 15px; }
+.text-toolbar-btn:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent-light-2); }
 .field-input, .field-textarea, .field-select {
   width: 100%; background: var(--surface-2); border: 1.5px solid var(--border); border-radius: var(--radius-md);
   padding: 12px 13px; font-size: 15px; color: var(--text); transition: border-color .15s, background .15s;
@@ -402,6 +411,8 @@ const IconType = (p) => <Icon d="M5 5h14M12 5v14M9 19h6" {...p} />;
 const IconUndo = (p) => <Icon {...p}><path d="M3 7v6h6" /><path d="M3 13a9 9 0 1 0 3-6.7L3 9" /></Icon>;
 const IconPrint = (p) => <Icon><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></Icon>;
 const IconGroup = (p) => <Icon d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" {...p} />;
+const IconListBullet = (p) => <Icon><circle cx="4" cy="6" r="1.4" fill="currentColor" stroke="none" /><circle cx="4" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="4" cy="18" r="1.4" fill="currentColor" stroke="none" /><path d="M9 6h11M9 12h11M9 18h11" /></Icon>;
+const IconListNumber = (p) => <Icon><path d="M9 6h11M9 12h11M9 18h11" /><text x="1.5" y="8.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">1</text><text x="1.5" y="14.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">2</text><text x="1.5" y="20.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">3</text></Icon>;
 
 /* ============================== Utils ============================== */
 const STORAGE_KEY = 'sitenote_reports_v1';
@@ -427,6 +438,7 @@ function formatDateTimeHe(ts) {
   return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' · ' +
     d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 }
+function stripMarkup(text) { return (text || '').replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1'); }
 function downscaleImage(file, maxDim, quality) {
   maxDim = maxDim || 1600; quality = quality || 0.78;
   return new Promise((resolve, reject) => {
@@ -700,9 +712,45 @@ function TaskEditor({ task, floors, assignees, onCancel, onSave, onDelete }) {
   const [annotatingPhotoId, setAnnotatingPhotoId] = useState(null);
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
+  const textareaRef = useRef(null);
   const [busy, setBusy] = useState(false);
 
   function set(field, value) { setDraft((d) => ({ ...d, [field]: value })); }
+
+  function wrapSelection(prefix, suffix) {
+    const el = textareaRef.current;
+    if (!el) return;
+    const s = el.selectionStart, e = el.selectionEnd;
+    const text = draft.text || '';
+    const selected = text.slice(s, e);
+    const newText = text.slice(0, s) + prefix + selected + suffix + text.slice(e);
+    set('text', newText);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(s + prefix.length, s + prefix.length + selected.length);
+    });
+  }
+
+  function applyListMarker(marker) {
+    const el = textareaRef.current;
+    if (!el) return;
+    const text = draft.text || '';
+    const s = el.selectionStart, e = el.selectionEnd;
+    const lineStart = text.lastIndexOf('\n', s - 1) + 1;
+    const nextBreak = text.indexOf('\n', e);
+    const lineEnd = nextBreak === -1 ? text.length : nextBreak;
+    const lines = text.slice(lineStart, lineEnd).split('\n');
+    const newBlock = lines.map((line, i) => {
+      const stripped = line.replace(/^(\d+\.\s|•\s)/, '');
+      return (marker === 'number' ? `${i + 1}. ` : '• ') + stripped;
+    }).join('\n');
+    const newText = text.slice(0, lineStart) + newBlock + text.slice(lineEnd);
+    set('text', newText);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(lineStart, lineStart + newBlock.length);
+    });
+  }
 
   async function handleFiles(fileList, openAnnotatorAfter) {
     const files = Array.from(fileList || []);
@@ -744,8 +792,16 @@ function TaskEditor({ task, floors, assignees, onCancel, onSave, onDelete }) {
       saveLabel="שמירה"
     >
       <div className="field">
-        <label className="field-label">תיאור המשימה</label>
-        <textarea className="field-textarea" placeholder="לדוגמה: יש להשלים איטום בפינת הקיר הצפונית..." value={draft.text} onChange={(e) => set('text', e.target.value)} autoFocus />
+        <div className="field-label-row">
+          <label className="field-label">תיאור המשימה</label>
+          <div className="text-toolbar">
+            <button type="button" className="text-toolbar-btn" style={{ fontWeight: 800 }} onClick={() => wrapSelection('**', '**')} aria-label="הדגשה">B</button>
+            <button type="button" className="text-toolbar-btn" style={{ textDecoration: 'underline' }} onClick={() => wrapSelection('__', '__')} aria-label="קו תחתון">U</button>
+            <button type="button" className="text-toolbar-btn" onClick={() => applyListMarker('bullet')} aria-label="רשימת תבליטים"><IconListBullet /></button>
+            <button type="button" className="text-toolbar-btn" onClick={() => applyListMarker('number')} aria-label="רשימה ממוספרת"><IconListNumber /></button>
+          </div>
+        </div>
+        <textarea ref={textareaRef} className="field-textarea" placeholder="לדוגמה: יש להשלים איטום בפינת הקיר הצפונית..." value={draft.text} onChange={(e) => set('text', e.target.value)} autoFocus />
       </div>
 
       <div className="field">
@@ -924,7 +980,7 @@ function CaptureScreen({ report, onEditTask, onNewTask, onDeleteTask }) {
                 </div>
                 <div className="task-card-body">
                   <div className="task-card-num">משימה {i + 1}</div>
-                  <div className={"task-card-text" + (t.text ? "" : " empty")}>{t.text || 'ללא תיאור'}</div>
+                  <div className={"task-card-text" + (t.text ? "" : " empty")}>{stripMarkup(t.text) || 'ללא תיאור'}</div>
                   <div className="task-meta-row">
                     {t.floor && <span className="meta-pill"><IconLayer />{t.floor}</span>}
                     {t.location && <span className="meta-pill"><IconMapPin />{t.location}</span>}
@@ -961,7 +1017,7 @@ function OrgRow({ task, listKey, index, groups, onDragStart, onDragEnd, dragging
         {task.photos[0] ? <img src={displaySrc(task.photos[0])} alt="" /> : <IconImage />}
       </div>
       <div className="org-row-body" onClick={() => onOpen(task.id)}>
-        <div className={"org-row-text" + (task.text ? "" : " empty")}>{task.text || 'ללא תיאור'}</div>
+        <div className={"org-row-text" + (task.text ? "" : " empty")}>{stripMarkup(task.text) || 'ללא תיאור'}</div>
         <div className="org-row-sub">{[task.floor, task.location, task.assignee].filter(Boolean).join(' · ') || '—'}</div>
       </div>
       <select className="org-row-select" value={task.groupId || ''} onChange={(e) => onReassign(task.id, e.target.value || null)}>
@@ -1102,13 +1158,32 @@ function OrganizeScreen({ report, updateReport, onOpenTask }) {
   );
 }
 
+function parseInlineMarkup(text) {
+  const parts = [];
+  const regex = /\*\*(.+?)\*\*|__(.+?)__/g;
+  let lastIndex = 0, m, key = 0;
+  while ((m = regex.exec(text))) {
+    if (m.index > lastIndex) parts.push(text.slice(lastIndex, m.index));
+    if (m[1] !== undefined) parts.push(<b key={key++}>{m[1]}</b>);
+    else parts.push(<u key={key++}>{m[2]}</u>);
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts;
+}
+
 function TaskTextBlock({ text }) {
   const lines = (text || '').split('\n').map((l) => l.trim()).filter(Boolean);
-  if (lines.length <= 1) return <span className="doc-task-text">{text || 'ללא תיאור'}</span>;
+  if (lines.length === 0) return <span className="doc-task-text">ללא תיאור</span>;
+  if (lines.length === 1 && !/^(\d+\.\s|•\s)/.test(lines[0])) {
+    return <span className="doc-task-text">{parseInlineMarkup(lines[0])}</span>;
+  }
+  const isNumbered = lines.some((l) => /^\d+\.\s/.test(l));
+  const ListTag = isNumbered ? 'ol' : 'ul';
   return (
-    <ul className="doc-task-list">
-      {lines.map((line, i) => <li key={i}>{line}</li>)}
-    </ul>
+    <ListTag className="doc-task-list">
+      {lines.map((line, i) => <li key={i}>{parseInlineMarkup(line.replace(/^(\d+\.\s|•\s)/, ''))}</li>)}
+    </ListTag>
   );
 }
 
