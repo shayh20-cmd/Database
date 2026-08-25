@@ -73,6 +73,7 @@ img { max-width: 100%; display: block; }
 .topbar-subtitle { font-size: 12.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; }
 .save-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
 .save-dot.saving { background: var(--amber); animation: pulse 1s infinite; }
+.save-dot.error { background: var(--red); }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
 
 .brand-mark { display: flex; align-items: center; gap: 9px; }
@@ -596,7 +597,7 @@ const WIDTHS = { thin: 4, medium: 9, thick: 16 };
 const FONT_SIZES = { thin: 26, medium: 38, thick: 54 };
 
 function PhotoAnnotator({ photo, onCancel, onSave }) {
-  const { confirm } = useDialog();
+  const { confirm, notify } = useDialog();
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const imgRef = useRef(null);
@@ -617,6 +618,7 @@ function PhotoAnnotator({ photo, onCancel, onSave }) {
       canvas.height = img.naturalHeight;
       setReady(true);
     };
+    img.onerror = () => { notify('לא ניתן לטעון את התמונה לעריכה'); onCancel(); };
     img.src = photo.src;
   }, [photo.src]);
 
@@ -1070,14 +1072,12 @@ function OrgRowText({ text }) {
   );
 }
 
-function OrgRow({ task, listKey, index, groups, onDragStart, onDragEnd, dragging, onOpen, onReassign, onDelete }) {
+function OrgRow({ task, listKey, index, groups, onDragHandleDown, dragging, onOpen, onReassign, onDelete }) {
   return (
-    <div className={"org-row" + (dragging ? " dragging" : "")}>
+    <div className={"org-row" + (dragging ? " dragging" : "")} data-org-row data-list-key={listKey} data-index={index}>
       <span
         className="org-drag-handle"
-        draggable
-        onDragStart={() => onDragStart(listKey, index)}
-        onDragEnd={onDragEnd}
+        onPointerDown={(e) => onDragHandleDown(e, listKey, index)}
       ><IconGrip /></span>
       <div className="org-row-thumb">
         {task.photos[0] ? <img src={displaySrc(task.photos[0])} alt="" /> : <IconImage />}
@@ -1179,18 +1179,69 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
   }
   function handleDragEnd() { setDragInfo(null); }
 
+  // Pointer-Events-based drag (works on touch and mouse alike — native HTML5
+  // draggable/dragover does not fire from touch input on most mobile browsers).
+  // The handler below is attached once per gesture via window listeners, so it
+  // reads handleDragOverList through a ref kept fresh on every render instead
+  // of closing over a single (potentially stale) render's version.
+  const handleDragOverListRef = useRef(handleDragOverList);
+  handleDragOverListRef.current = handleDragOverList;
+
+  function findDropTarget(clientY) {
+    const emptyGroups = document.querySelectorAll('[data-empty-group]');
+    for (const el of emptyGroups) {
+      const r = el.getBoundingClientRect();
+      if (clientY >= r.top && clientY <= r.bottom) return { listKey: el.getAttribute('data-empty-group'), index: 0 };
+    }
+    // Find the row closest to the pointer (by distance to its vertical midpoint), then
+    // decide before/after based on which side of that specific row the pointer is on.
+    // Scanning for the first row whose midpoint is below the pointer would instead pick
+    // whichever row happens to satisfy that first — which can resolve to the wrong group
+    // when the pointer sits right at a row's boundary.
+    const rows = document.querySelectorAll('[data-org-row]');
+    let closest = null, closestDist = Infinity;
+    for (const el of rows) {
+      const r = el.getBoundingClientRect();
+      const mid = r.top + r.height / 2;
+      const dist = Math.abs(clientY - mid);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = { listKey: el.getAttribute('data-list-key'), index: Number(el.getAttribute('data-index')), mid };
+      }
+    }
+    if (!closest) return null;
+    return { listKey: closest.listKey, index: clientY < closest.mid ? closest.index : closest.index + 1 };
+  }
+
+  function onDragHandleDown(e, listKey, index) {
+    e.preventDefault();
+    handleDragStart(listKey, index);
+    function onMove(ev) {
+      const target = findDropTarget(ev.clientY);
+      if (target) handleDragOverListRef.current(target.listKey, target.index);
+    }
+    function onUp() {
+      handleDragEnd();
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  }
+
   const [newGroupName, setNewGroupName] = useState('');
 
   function renderList(listKey, list) {
     return list.map((t, i) => (
-      <div key={t.id} onDragOver={(e) => { e.preventDefault(); handleDragOverList(listKey, i); }}>
-        <OrgRow
-          task={t} index={i} listKey={listKey} groups={groups}
-          dragging={dragInfo && dragInfo.listKey === listKey && dragInfo.index === i}
-          onDragStart={handleDragStart} onDragEnd={handleDragEnd}
-          onOpen={onOpenTask} onReassign={reassignTask} onDelete={deleteTask}
-        />
-      </div>
+      <OrgRow
+        key={t.id}
+        task={t} index={i} listKey={listKey} groups={groups}
+        dragging={dragInfo && dragInfo.listKey === listKey && dragInfo.index === i}
+        onDragHandleDown={onDragHandleDown}
+        onOpen={onOpenTask} onReassign={reassignTask} onDelete={deleteTask}
+      />
     ));
   }
 
@@ -1227,8 +1278,8 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
                 <button className="group-btn" onClick={() => moveGroup(g.id, 1)} disabled={gi === groups.length - 1} aria-label="הזז למטה"><IconDown /></button>
                 <button className="group-btn del" onClick={() => deleteGroup(g.id)} aria-label="מחיקת קבוצה"><IconTrash /></button>
               </div>
-              <div className="group-body" onDragOver={(e) => { if (dragInfo && list.length === 0) { e.preventDefault(); handleDragOverList(g.id, 0); } }}>
-                {list.length === 0 ? <div className="group-empty">גררו משימות לכאן או בחרו קבוצה זו מהתפריט</div> : renderList(g.id, list)}
+              <div className="group-body">
+                {list.length === 0 ? <div className="group-empty" data-empty-group={g.id}>גררו משימות לכאן או בחרו קבוצה זו מהתפריט</div> : renderList(g.id, list)}
               </div>
             </div>
           );
@@ -1344,7 +1395,7 @@ function PreviewScreen({ report, updateReport }) {
     });
   }
 
-  const sections = groups.map((g) => ({ id: g.id, name: g.name, tasks: tasksByGroup(g.id) })).filter((s) => s.tasks.length > 0);
+  const sections = groups.map((g) => ({ id: g.id, name: (g.name && g.name.trim()) || 'קבוצה ללא שם', tasks: tasksByGroup(g.id) })).filter((s) => s.tasks.length > 0);
   if (ungrouped.length > 0) sections.push({ id: '__ungrouped__', name: groups.length ? 'משימות נוספות' : 'משימות', tasks: ungrouped });
 
   const photoEntries = [];
@@ -1499,7 +1550,7 @@ function PreviewScreen({ report, updateReport }) {
 }
 
 /* ============================== Report Workspace (shell for an open report) ============================== */
-function ReportWorkspace({ report, updateReport, onBack, onDeleteReport, saveState }) {
+function ReportWorkspace({ report, updateReport, onBack, saveState }) {
   const [tab, setTab] = useState('tasks');
   const [taskOverlay, setTaskOverlay] = useState(null); // 'new' | taskId | null
   const [metaOpen, setMetaOpen] = useState(() => !report.siteName.trim());
@@ -1553,8 +1604,8 @@ function ReportWorkspace({ report, updateReport, onBack, onDeleteReport, saveSta
           <div className="topbar-titles" onClick={() => setMetaOpen(true)}>
             <div className="topbar-title">{reportTitle(report)}</div>
             <div className="topbar-subtitle">
-              <span className={"save-dot" + (saveState === 'saving' ? ' saving' : '')} />
-              {saveState === 'saving' ? 'שומר...' : 'נשמר'} · {formatDateHe(report.date)}
+              <span className={"save-dot" + (saveState === 'saving' ? ' saving' : '') + (saveState === 'error' ? ' error' : '')} />
+              {saveState === 'saving' ? 'שומר...' : saveState === 'error' ? 'שגיאה בשמירה — נסו לפנות מקום או להוריד תמונות' : 'נשמר'} · {formatDateHe(report.date)}
             </div>
           </div>
           <button className="topbar-icon-btn" onClick={() => setMetaOpen(true)} aria-label="פרטי דוח"><IconEdit /></button>
@@ -1611,8 +1662,7 @@ function App() {
     setSaveState('saving');
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      persistReports(reports);
-      setSaveState('saved');
+      setSaveState(persistReports(reports) ? 'saved' : 'error');
     }, 350);
     return () => clearTimeout(saveTimer.current);
   }, [reports]);
