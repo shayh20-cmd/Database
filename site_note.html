@@ -111,8 +111,6 @@ img { max-width: 100%; display: block; }
 .btn-primary:disabled { background: var(--border-strong); color: var(--text-3); cursor: default; box-shadow: none; }
 .btn-secondary { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
 .btn-secondary:hover { background: var(--surface-2); }
-.btn-secondary.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-.btn-secondary.active:hover { background: var(--accent-h); }
 .btn-ghost { background: transparent; color: var(--text-2); }
 .btn-ghost:hover { background: var(--surface-2); }
 .btn-danger { background: var(--red-light); color: var(--red); }
@@ -405,8 +403,6 @@ const IconCircleTool = (p) => <Icon><circle cx="12" cy="12" r="8" /></Icon>;
 const IconType = (p) => <Icon d="M5 5h14M12 5v14M9 19h6" {...p} />;
 const IconUndo = (p) => <Icon {...p}><path d="M3 7v6h6" /><path d="M3 13a9 9 0 1 0 3-6.7L3 9" /></Icon>;
 const IconPrint = (p) => <Icon><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></Icon>;
-const IconGroup = (p) => <Icon d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" {...p} />;
-const IconTag = (p) => <Icon><path d="M20.59 13.41 12 22l-9-9 8.59-8.59A2 2 0 0 1 13 4h6a1 1 0 0 1 1 1v6a2 2 0 0 1-.41 1.41Z" transform="translate(-1 -1)" /><circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none" /></Icon>;
 const IconListBullet = (p) => <Icon><circle cx="4" cy="6" r="1.4" fill="currentColor" stroke="none" /><circle cx="4" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="4" cy="18" r="1.4" fill="currentColor" stroke="none" /><path d="M9 6h11M9 12h11M9 18h11" /></Icon>;
 const IconListNumber = (p) => <Icon><path d="M9 6h11M9 12h11M9 18h11" /><text x="1.5" y="8.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">1</text><text x="1.5" y="14.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">2</text><text x="1.5" y="20.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">3</text></Icon>;
 
@@ -461,12 +457,12 @@ function downscaleImage(file, maxDim, quality) {
 }
 
 function newTask(order) {
-  return { id: uid(), text: '', topic: '', floor: '', location: '', assignee: '', dueDate: '', groupId: null, order, photos: [], createdAt: Date.now() };
+  return { id: uid(), text: '', floor: '', location: '', assignee: '', dueDate: '', groupId: null, order, photos: [], createdAt: Date.now() };
 }
 function newReport() {
   return {
     id: uid(), siteName: '', inspector: '', date: todayISO(),
-    reportNumber: '', participants: '', notes: '', groupedBy: null,
+    reportNumber: '', participants: '', notes: '',
     groups: [], tasks: [], floors: [], assignees: [],
     createdAt: Date.now(), updatedAt: Date.now(),
   };
@@ -748,7 +744,7 @@ function PhotoAnnotator({ photo, onCancel, onSave }) {
 }
 
 /* ============================== Task Editor ============================== */
-function TaskEditor({ task, floors, assignees, topics, onCancel, onSave, onDelete }) {
+function TaskEditor({ task, floors, assignees, onCancel, onSave, onDelete }) {
   const { notify } = useDialog();
   const [draft, setDraft] = useState(() => ({ ...task, photos: task.photos.map((p) => ({ ...p })) }));
   const [annotatingPhotoId, setAnnotatingPhotoId] = useState(null);
@@ -844,18 +840,6 @@ function TaskEditor({ task, floors, assignees, topics, onCancel, onSave, onDelet
           </div>
         </div>
         <textarea ref={textareaRef} className="field-textarea" placeholder="לדוגמה: יש להשלים איטום בפינת הקיר הצפונית..." value={draft.text} onChange={(e) => set('text', e.target.value)} autoFocus />
-      </div>
-
-      <div className="field">
-        <label className="field-label">נושא <span className="opt">(אופציונלי)</span></label>
-        <input className="field-input" placeholder="לדוגמה: חשמל, איטום, בטיחות" value={draft.topic} onChange={(e) => set('topic', e.target.value)} />
-        {topics.length > 0 && (
-          <div className="chip-row">
-            {topics.map((t) => (
-              <button key={t} type="button" className={"chip" + (draft.topic === t ? " active" : "")} onClick={() => set('topic', t)}>{t}</button>
-            ))}
-          </div>
-        )}
       </div>
 
       <div className="field">
@@ -1029,7 +1013,6 @@ function OrgRow({ task, listKey, index, groups, onDragStart, onDragEnd, dragging
       <div className="org-row-body" onClick={() => onOpen(task.id)}>
         <div className={"org-row-text" + (task.text ? "" : " empty")}>{stripMarkup(task.text) || 'ללא תיאור'}</div>
         <div className="task-meta-row">
-          {task.topic && <span className="meta-pill"><IconTag />{task.topic}</span>}
           {task.floor && <span className="meta-pill"><IconLayer />{task.floor}</span>}
           {task.location && <span className="meta-pill"><IconMapPin />{task.location}</span>}
           {task.assignee && <span className="meta-pill"><IconUser />{task.assignee}</span>}
@@ -1048,7 +1031,7 @@ function OrgRow({ task, listKey, index, groups, onDragStart, onDragEnd, dragging
 
 /* ============================== Tasks Screen (capture + organize) ============================== */
 function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
-  const { confirm, notify } = useDialog();
+  const { confirm } = useDialog();
   const [dragInfo, setDragInfo] = useState(null); // {listKey, index}
 
   const groups = report.groups.slice().sort((a, b) => a.order - b.order);
@@ -1059,7 +1042,7 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
   function setGroups(newGroups) { updateReport({ ...report, groups: newGroups }); }
 
   function addGroup(name) {
-    const g = { id: uid(), name: name, order: groups.length, auto: null };
+    const g = { id: uid(), name: name, order: groups.length };
     setGroups(groups.concat([g]));
   }
   function renameGroup(id, name) { setGroups(groups.map((g) => (g.id === id ? { ...g, name } : g))); }
@@ -1074,32 +1057,6 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
     if (swapIdx < 0 || swapIdx >= groups.length) return;
     const reordered = moveItem(groups, idx, swapIdx).map((g, i) => ({ ...g, order: i }));
     setGroups(reordered);
-  }
-
-  function autoGroupBy(field) {
-    const values = [];
-    report.tasks.forEach((t) => { const v = (t[field] || '').trim(); if (v && values.indexOf(v) === -1) values.push(v); });
-    if (!values.length) { notify('אין נתונים לקיבוץ אוטומטי'); return; }
-
-    // Auto-group buttons are mutually exclusive presets: rebuild groups previously
-    // created by ANY auto-group action (this field or another), but never touch
-    // groups the user created manually, or tasks the user manually placed into one.
-    const manualGroups = groups.filter((g) => !g.auto);
-    const manualGroupIds = new Set(manualGroups.map((g) => g.id));
-
-    let nextGroups = manualGroups.slice();
-    const nameToId = {};
-    values.forEach((v) => {
-      const g = { id: uid(), name: v, order: nextGroups.length, auto: field };
-      nextGroups = nextGroups.concat([g]);
-      nameToId[v] = g.id;
-    });
-    const nextTasks = report.tasks.map((t) => {
-      if (t.groupId && manualGroupIds.has(t.groupId)) return t;
-      const v = (t[field] || '').trim();
-      return v ? { ...t, groupId: nameToId[v] } : { ...t, groupId: null };
-    });
-    updateReport({ ...report, groups: nextGroups, tasks: nextTasks, groupedBy: field });
   }
 
   function reassignTask(taskId, groupId) {
@@ -1154,11 +1111,6 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
   return (
     <>
       <div className="organize-wrap">
-        <div className="organize-actions">
-          <button className={"btn btn-secondary btn-sm" + (report.groupedBy === 'floor' ? " active" : "")} onClick={() => autoGroupBy('floor')}><IconGroup />קיבוץ לפי קומה</button>
-          <button className={"btn btn-secondary btn-sm" + (report.groupedBy === 'assignee' ? " active" : "")} onClick={() => autoGroupBy('assignee')}><IconGroup />קיבוץ לפי אחראי</button>
-          <button className={"btn btn-secondary btn-sm" + (report.groupedBy === 'topic' ? " active" : "")} onClick={() => autoGroupBy('topic')}><IconGroup />קיבוץ לפי נושא</button>
-        </div>
         <div className="organize-actions" style={{ marginBottom: 20 }}>
           <input className="field-input" style={{ flex: 1, minWidth: 140 }} placeholder="שם קבוצה חדשה" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && newGroupName.trim()) { addGroup(newGroupName.trim()); setNewGroupName(''); } }} />
@@ -1282,7 +1234,6 @@ function PreviewScreen({ report }) {
                       <TaskTextBlock text={t.text} />
                     </div>
                     <div className="doc-task-meta">
-                      {t.topic && <span>נושא: <b>{t.topic}</b></span>}
                       {t.floor && <span>קומה: <b>{t.floor}</b></span>}
                       {t.location && <span>מיקום: <b>{t.location}</b></span>}
                       {t.assignee && <span>אחראי: <b>{t.assignee}</b></span>}
@@ -1320,11 +1271,6 @@ function ReportWorkspace({ report, updateReport, onBack, onDeleteReport, saveSta
   const assignees = useMemo(() => {
     const s = [];
     report.tasks.forEach((t) => { if (t.assignee && s.indexOf(t.assignee) === -1) s.push(t.assignee); });
-    return s;
-  }, [report.tasks]);
-  const topics = useMemo(() => {
-    const s = [];
-    report.tasks.forEach((t) => { if (t.topic && s.indexOf(t.topic) === -1) s.push(t.topic); });
     return s;
   }, [report.tasks]);
 
@@ -1393,7 +1339,6 @@ function ReportWorkspace({ report, updateReport, onBack, onDeleteReport, saveSta
           task={isNewTask ? newTask(report.tasks.length) : { ...editingTask, _existing: true }}
           floors={floors}
           assignees={assignees}
-          topics={topics}
           onCancel={closeTaskOverlay}
           onSave={saveTask}
           onDelete={isNewTask ? null : () => deleteTaskById(editingTask.id)}
