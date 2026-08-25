@@ -186,6 +186,21 @@ img { max-width: 100%; display: block; }
 .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .chip.add-chip { color: var(--accent); border-style: dashed; border-color: var(--accent-light-2); background: var(--accent-light); }
 
+/* ───────────────────────── Custom dialog (confirm / alert) ───────────────────────── */
+.dialog-backdrop {
+  position: fixed; inset: 0; z-index: 200; background: rgba(15,17,21,.5);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  animation: fadeIn .15s ease-out;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.dialog-box {
+  background: var(--surface); border-radius: var(--radius-lg); padding: 20px;
+  max-width: 320px; width: 100%; box-shadow: var(--shadow-lg);
+}
+.dialog-message { font-size: 14.5px; color: var(--text); line-height: 1.5; margin-bottom: 18px; text-align: center; }
+.dialog-actions { display: flex; gap: 10px; }
+.dialog-actions .btn { flex: 1; }
+
 /* ───────────────────────── Full-screen overlay (task editor / meta / annotator) ───────────────────────── */
 .overlay {
   position: fixed; inset: 0; z-index: 50; background: var(--bg);
@@ -356,7 +371,7 @@ img { max-width: 100%; display: block; }
 <div id="root"></div>
 <script type="text/babel" data-presets="react">
 
-const { useState, useEffect, useRef, useMemo, useCallback } = React;
+const { useState, useEffect, useRef, useMemo, useCallback, useContext } = React;
 
 /* ============================== Icons ============================== */
 const Icon = ({ d, children, ...p }) => (
@@ -468,8 +483,49 @@ function moveItem(arr, from, to) {
   return copy;
 }
 
-/* ============================== Confirm dialog ============================== */
-function confirmAction(msg) { return window.confirm(msg); }
+/* ============================== Dialogs (custom confirm/alert) =============================
+   Native window.confirm/alert are silently swallowed inside a sandboxed iframe
+   (e.g. the Claude Artifact preview) without "allow-modals" — confirm() always
+   returns false and alert() shows nothing, so every delete button and every
+   alert looked dead. These custom modals work everywhere, and read better in
+   a touch-first app than native browser dialogs anyway. */
+const DialogContext = React.createContext(null);
+
+function DialogProvider({ children }) {
+  const [dialog, setDialog] = useState(null); // { message, mode: 'confirm'|'alert', resolve }
+
+  const confirm = useCallback((message) => new Promise((resolve) => setDialog({ message, mode: 'confirm', resolve })), []);
+  const notify = useCallback((message) => new Promise((resolve) => setDialog({ message, mode: 'alert', resolve })), []);
+
+  function close(result) {
+    if (dialog) dialog.resolve(result);
+    setDialog(null);
+  }
+
+  return (
+    <DialogContext.Provider value={{ confirm, notify }}>
+      {children}
+      {dialog && (
+        <div className="dialog-backdrop" onClick={() => close(dialog.mode === 'confirm' ? false : undefined)}>
+          <div className="dialog-box" onClick={(e) => e.stopPropagation()}>
+            <div className="dialog-message">{dialog.message}</div>
+            <div className="dialog-actions">
+              {dialog.mode === 'confirm' ? (
+                <>
+                  <button className="btn btn-secondary" onClick={() => close(false)}>ביטול</button>
+                  <button className="btn btn-danger" onClick={() => close(true)}>מחיקה</button>
+                </>
+              ) : (
+                <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => close()}>הבנתי</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </DialogContext.Provider>
+  );
+}
+function useDialog() { return useContext(DialogContext); }
 
 /* ============================== Bottom sheet-ish full overlay wrapper ============================== */
 function Overlay({ title, onClose, onSave, saveLabel, saveDisabled, children, noPad, rightExtra }) {
@@ -495,6 +551,7 @@ const WIDTHS = { thin: 4, medium: 9, thick: 16 };
 const FONT_SIZES = { thin: 26, medium: 38, thick: 54 };
 
 function PhotoAnnotator({ photo, onCancel, onSave }) {
+  const { confirm } = useDialog();
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const imgRef = useRef(null);
@@ -616,7 +673,10 @@ function PhotoAnnotator({ photo, onCancel, onSave }) {
   }
 
   function undo() { setElements((prev) => prev.slice(0, -1)); }
-  function clearAll() { if (elements.length && confirmAction('למחוק את כל הסימונים בתמונה?')) setElements([]); }
+  async function clearAll() {
+    if (!elements.length) return;
+    if (await confirm('למחוק את כל הסימונים בתמונה?')) setElements([]);
+  }
 
   function handleSave() {
     const canvas = canvasRef.current;
@@ -689,6 +749,7 @@ function PhotoAnnotator({ photo, onCancel, onSave }) {
 
 /* ============================== Task Editor ============================== */
 function TaskEditor({ task, floors, assignees, topics, onCancel, onSave, onDelete }) {
+  const { notify } = useDialog();
   const [draft, setDraft] = useState(() => ({ ...task, photos: task.photos.map((p) => ({ ...p })) }));
   const [annotatingPhotoId, setAnnotatingPhotoId] = useState(null);
   const cameraInputRef = useRef(null);
@@ -746,7 +807,7 @@ function TaskEditor({ task, floors, assignees, topics, onCancel, onSave, onDelet
       setDraft((d) => ({ ...d, photos: d.photos.concat(added) }));
       if (openAnnotatorAfter && added.length === 1) setAnnotatingPhotoId(added[0].id);
     } catch (e) {
-      window.alert('שגיאה בטעינת התמונה');
+      notify('שגיאה בטעינת התמונה');
     } finally {
       setBusy(false);
     }
@@ -987,6 +1048,7 @@ function OrgRow({ task, listKey, index, groups, onDragStart, onDragEnd, dragging
 
 /* ============================== Tasks Screen (capture + organize) ============================== */
 function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
+  const { confirm, notify } = useDialog();
   const [dragInfo, setDragInfo] = useState(null); // {listKey, index}
 
   const groups = report.groups.slice().sort((a, b) => a.order - b.order);
@@ -1001,8 +1063,8 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
     setGroups(groups.concat([g]));
   }
   function renameGroup(id, name) { setGroups(groups.map((g) => (g.id === id ? { ...g, name } : g))); }
-  function deleteGroup(id) {
-    if (!confirmAction('למחוק את הקבוצה? המשימות בתוכה יעברו ל"ללא קבוצה".')) return;
+  async function deleteGroup(id) {
+    if (!(await confirm('למחוק את הקבוצה? המשימות בתוכה יעברו ל"ללא קבוצה".'))) return;
     setGroups(groups.filter((g) => g.id !== id));
     setTasks(report.tasks.map((t) => (t.groupId === id ? { ...t, groupId: null } : t)));
   }
@@ -1017,7 +1079,7 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
   function autoGroupBy(field) {
     const values = [];
     report.tasks.forEach((t) => { const v = (t[field] || '').trim(); if (v && values.indexOf(v) === -1) values.push(v); });
-    if (!values.length) { window.alert('אין נתונים לקיבוץ אוטומטי'); return; }
+    if (!values.length) { notify('אין נתונים לקיבוץ אוטומטי'); return; }
 
     // Auto-group buttons are mutually exclusive presets: rebuild groups previously
     // created by ANY auto-group action (this field or another), but never touch
@@ -1044,8 +1106,8 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
     const targetList = tasksByGroup(groupId);
     setTasks(report.tasks.map((t) => (t.id === taskId ? { ...t, groupId, order: targetList.length } : t)));
   }
-  function deleteTask(taskId) {
-    if (!confirmAction('למחוק את המשימה?')) return;
+  async function deleteTask(taskId) {
+    if (!(await confirm('למחוק את המשימה?'))) return;
     setTasks(report.tasks.filter((t) => t.id !== taskId));
   }
 
@@ -1351,6 +1413,7 @@ function ReportWorkspace({ report, updateReport, onBack, onDeleteReport, saveSta
 
 /* ============================== App Root ============================== */
 function App() {
+  const { confirm } = useDialog();
   const [reports, setReports] = useState(() => loadReports());
   const [openReportId, setOpenReportId] = useState(null);
   const [saveState, setSaveState] = useState('saved');
@@ -1371,8 +1434,8 @@ function App() {
     setReports((prev) => prev.concat([r]));
     setOpenReportId(r.id);
   }
-  function deleteReport(id) {
-    if (!confirmAction('למחוק את הדוח לצמיתות?')) return;
+  async function deleteReport(id) {
+    if (!(await confirm('למחוק את הדוח לצמיתות?'))) return;
     setReports((prev) => prev.filter((r) => r.id !== id));
   }
   function updateReport(next) {
@@ -1402,7 +1465,7 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+ReactDOM.createRoot(document.getElementById('root')).render(<DialogProvider><App /></DialogProvider>);
 </script>
 </body>
 </html>
