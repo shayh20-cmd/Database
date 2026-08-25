@@ -319,7 +319,12 @@ img { max-width: 100%; display: block; }
 .org-row-select { flex-shrink: 0; font-size: 12px; font-weight: 600; background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px; padding: 5px 6px; max-width: 92px; color: var(--text-2); margin-top: 2px; }
 
 /* ───────────────────────── Preview / Print document ───────────────────────── */
-.preview-toolbar { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 16px; display: flex; gap: 8px; justify-content: flex-end; }
+.preview-toolbar { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 16px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.preview-toolbar-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.layout-toggle { display: flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
+.layout-btn { border: none; background: transparent; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: var(--text-2); border-radius: 6px; cursor: pointer; }
+.layout-btn.active { background: var(--accent); color: #fff; }
+.preview-loc-toggle { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--text-2); cursor: pointer; }
 .preview-scroll { padding: 20px 12px 60px; display: flex; justify-content: center; }
 .doc-page {
   background: #fff; width: 100%; max-width: 780px; padding: 34px 30px; box-shadow: var(--shadow-lg);
@@ -358,6 +363,20 @@ img { max-width: 100%; display: block; }
   box-shadow: 0 1px 3px rgba(0,0,0,.35); cursor: nwse-resize; touch-action: none;
 }
 .doc-empty-note { text-align: center; color: #888; padding: 40px 20px; font-size: 13px; }
+
+.doc-table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12.5px; }
+.doc-table thead th {
+  background: var(--accent); color: #fff; font-weight: 800; font-size: 12px;
+  padding: 8px 10px; border: 1px solid var(--accent); text-align: right;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.doc-table td { border: 1px solid #D8DAE0; padding: 8px 10px; text-align: right; vertical-align: top; }
+.doc-table tr { page-break-inside: avoid; break-inside: avoid; }
+.doc-table-num { width: 48px; text-align: center; font-weight: 800; color: var(--accent); white-space: nowrap; }
+.doc-table-topic { width: 96px; font-weight: 800; text-align: center; vertical-align: middle; background: #F6F7FA; }
+.doc-table-desc { min-width: 220px; }
+.doc-table-assignee, .doc-table-due { width: 104px; white-space: normal; }
+.doc-table-loc { margin-top: 6px; font-size: 11px; color: #666; display: flex; gap: 12px; flex-wrap: wrap; }
 
 /* ───────────────────────── Photo lightbox (PDF preview) ───────────────────────── */
 .lightbox-backdrop {
@@ -487,6 +506,7 @@ function newReport() {
     id: uid(), siteName: '', inspector: '', date: todayISO(),
     reportNumber: '', participants: '', notes: '',
     groups: [], tasks: [], floors: [], assignees: [],
+    pdfLayout: 'cards', pdfShowLocation: true,
     createdAt: Date.now(), updatedAt: Date.now(),
   };
 }
@@ -1304,6 +1324,8 @@ function PreviewScreen({ report, updateReport }) {
   const tasksByGroup = (groupId) => report.tasks.filter((t) => (t.groupId || null) === groupId).sort((a, b) => a.order - b.order);
   const ungrouped = tasksByGroup(null);
   const pad2 = (n) => String(n).padStart(2, '0');
+  const layout = report.pdfLayout || 'cards';
+  const showLocation = report.pdfShowLocation !== false;
 
   function resizePhoto(photoId, w, h) {
     updateReport({
@@ -1321,6 +1343,18 @@ function PreviewScreen({ report, updateReport }) {
   return (
     <>
       <div className="preview-toolbar">
+        <div className="preview-toolbar-controls">
+          <div className="layout-toggle">
+            <button className={"layout-btn" + (layout === 'cards' ? ' active' : '')} onClick={() => updateReport({ ...report, pdfLayout: 'cards' })}>כרטיסים</button>
+            <button className={"layout-btn" + (layout === 'table' ? ' active' : '')} onClick={() => updateReport({ ...report, pdfLayout: 'table' })}>טבלה</button>
+          </div>
+          {layout === 'table' && (
+            <label className="preview-loc-toggle">
+              <input type="checkbox" checked={showLocation} onChange={(e) => updateReport({ ...report, pdfShowLocation: e.target.checked })} />
+              הצג מיקום/קומה
+            </label>
+          )}
+        </div>
         <button className="btn btn-primary btn-sm" onClick={() => window.print()}><IconPrint />הפקת PDF</button>
       </div>
       <div className="preview-scroll">
@@ -1346,6 +1380,46 @@ function PreviewScreen({ report, updateReport }) {
 
           {report.tasks.length === 0 ? (
             <div className="doc-empty-note">לא נוספו משימות עדיין</div>
+          ) : layout === 'table' ? (
+            <table className="doc-table">
+              <thead>
+                <tr>
+                  <th>מס'</th>
+                  <th>נושא</th>
+                  <th>תיאור</th>
+                  <th>אחראי</th>
+                  <th>תאריך יעד</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sections.map((sec, secIndex) => sec.tasks.map((t, taskIndex) => (
+                  <tr key={t.id}>
+                    <td className="doc-table-num">{pad2(secIndex + 1)}.{pad2(taskIndex + 1)}</td>
+                    {taskIndex === 0 && (
+                      <td className="doc-table-topic" rowSpan={sec.tasks.length}>{sec.name}</td>
+                    )}
+                    <td className="doc-table-desc">
+                      <TaskTextBlock text={t.text} />
+                      {showLocation && (t.floor || t.location) && (
+                        <div className="doc-table-loc">
+                          {t.floor && <span>קומה: {t.floor}</span>}
+                          {t.location && <span>מיקום: {t.location}</span>}
+                        </div>
+                      )}
+                      {t.photos.length > 0 && (
+                        <div className="doc-photos">
+                          {t.photos.map((p) => (
+                            <DocPhoto key={p.id} photo={p} onOpen={() => setLightboxSrc(displaySrc(p))} onResize={resizePhoto} />
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td className="doc-table-assignee">{t.assignee || '—'}</td>
+                    <td className="doc-table-due">{t.dueDate ? formatDateHe(t.dueDate) : '—'}</td>
+                  </tr>
+                )))}
+              </tbody>
+            </table>
           ) : sections.map((sec, secIndex) => (
             <div key={sec.id}>
               <div className="doc-group-title">{pad2(secIndex + 1)}. {sec.name}</div>
