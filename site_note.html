@@ -346,9 +346,22 @@ img { max-width: 100%; display: block; }
 .doc-task-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11.5px; color: #555; margin-bottom: 10px; }
 .doc-task-meta span b { color: #222; font-weight: 700; }
 .doc-photos { display: flex; flex-wrap: wrap; gap: 8px; }
-.doc-photo { width: 150px; height: 112px; border-radius: 6px; overflow: hidden; border: 1px solid #E2E4E9; }
+.doc-photo { width: 150px; height: 112px; border-radius: 6px; overflow: hidden; border: 1px solid #E2E4E9; cursor: zoom-in; }
 .doc-photo img { width: 100%; height: 100%; object-fit: cover; }
 .doc-empty-note { text-align: center; color: #888; padding: 40px 20px; font-size: 13px; }
+
+/* ───────────────────────── Photo lightbox (PDF preview) ───────────────────────── */
+.lightbox-backdrop {
+  position: fixed; inset: 0; z-index: 210; background: rgba(10,11,14,.92);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  animation: fadeIn .15s ease-out;
+}
+.lightbox-img { max-width: 100%; max-height: 100%; border-radius: 6px; box-shadow: var(--shadow-lg); cursor: default; }
+.lightbox-close {
+  position: absolute; top: calc(var(--safe-t) + 14px); left: 14px; width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(255,255,255,.12); color: #fff; display: flex; align-items: center; justify-content: center;
+}
+.lightbox-close svg { width: 20px; height: 20px; }
 
 @media (min-width: 720px) {
   .home-list { max-width: 640px; margin: 0 auto; }
@@ -744,7 +757,7 @@ function PhotoAnnotator({ photo, onCancel, onSave }) {
 }
 
 /* ============================== Task Editor ============================== */
-function TaskEditor({ task, floors, assignees, onCancel, onSave, onDelete }) {
+function TaskEditor({ task, floors, assignees, groups, onCancel, onSave, onDelete }) {
   const { notify } = useDialog();
   const [draft, setDraft] = useState(() => ({ ...task, photos: task.photos.map((p) => ({ ...p })) }));
   const [annotatingPhotoId, setAnnotatingPhotoId] = useState(null);
@@ -874,6 +887,14 @@ function TaskEditor({ task, floors, assignees, onCancel, onSave, onDelete }) {
       <div className="field">
         <label className="field-label">תאריך יעד <span className="opt">(אופציונלי)</span></label>
         <input type="date" className="field-input" value={draft.dueDate} onChange={(e) => set('dueDate', e.target.value)} />
+      </div>
+
+      <div className="field">
+        <label className="field-label">קבוצה <span className="opt">(אופציונלי)</span></label>
+        <select className="field-select" value={draft.groupId || ''} onChange={(e) => set('groupId', e.target.value || null)}>
+          <option value="">ללא קבוצה</option>
+          {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+        </select>
       </div>
 
       <div className="field">
@@ -1073,13 +1094,37 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
 
   function handleDragStart(listKey, index) { setDragInfo({ listKey, index }); }
   function handleDragOverList(listKey, hoverIndex) {
-    if (!dragInfo || dragInfo.listKey !== listKey || dragInfo.index === hoverIndex) return;
-    const groupKey = listKey === '__ungrouped__' ? null : listKey;
-    const list = listKey === '__ungrouped__' ? ungrouped : tasksByGroup(listKey);
-    const reordered = moveItem(list, dragInfo.index, hoverIndex).map((t, i) => ({ ...t, order: i }));
-    const otherTasks = report.tasks.filter((t) => (t.groupId || null) !== groupKey);
-    setTasks(otherTasks.concat(reordered));
-    setDragInfo({ listKey, index: hoverIndex });
+    if (!dragInfo) return;
+    if (dragInfo.listKey === listKey) {
+      if (dragInfo.index === hoverIndex) return;
+      const groupKey = listKey === '__ungrouped__' ? null : listKey;
+      const list = listKey === '__ungrouped__' ? ungrouped : tasksByGroup(listKey);
+      const reordered = moveItem(list, dragInfo.index, hoverIndex).map((t, i) => ({ ...t, order: i }));
+      const otherTasks = report.tasks.filter((t) => (t.groupId || null) !== groupKey);
+      setTasks(otherTasks.concat(reordered));
+      setDragInfo({ listKey, index: hoverIndex });
+      return;
+    }
+
+    // moving between two different groups
+    const sourceGroupKey = dragInfo.listKey === '__ungrouped__' ? null : dragInfo.listKey;
+    const targetGroupKey = listKey === '__ungrouped__' ? null : listKey;
+    const sourceList = dragInfo.listKey === '__ungrouped__' ? ungrouped : tasksByGroup(dragInfo.listKey);
+    const draggedTask = sourceList[dragInfo.index];
+    if (!draggedTask) return;
+
+    const newSourceList = sourceList.filter((t) => t.id !== draggedTask.id).map((t, i) => ({ ...t, order: i }));
+    const targetList = (listKey === '__ungrouped__' ? ungrouped : tasksByGroup(listKey)).slice();
+    const clampedIndex = Math.min(hoverIndex, targetList.length);
+    targetList.splice(clampedIndex, 0, { ...draggedTask, groupId: targetGroupKey });
+    const newTargetList = targetList.map((t, i) => ({ ...t, order: i }));
+
+    const otherTasks = report.tasks.filter((t) => {
+      const g = t.groupId || null;
+      return g !== sourceGroupKey && g !== targetGroupKey;
+    });
+    setTasks(otherTasks.concat(newSourceList, newTargetList));
+    setDragInfo({ listKey, index: clampedIndex });
   }
   function handleDragEnd() { setDragInfo(null); }
 
@@ -1131,7 +1176,7 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
                 <button className="group-btn" onClick={() => moveGroup(g.id, 1)} disabled={gi === groups.length - 1} aria-label="הזז למטה"><IconDown /></button>
                 <button className="group-btn del" onClick={() => deleteGroup(g.id)} aria-label="מחיקת קבוצה"><IconTrash /></button>
               </div>
-              <div className="group-body">
+              <div className="group-body" onDragOver={(e) => { if (dragInfo && list.length === 0) { e.preventDefault(); handleDragOverList(g.id, 0); } }}>
                 {list.length === 0 ? <div className="group-empty">גררו משימות לכאן או בחרו קבוצה זו מהתפריט</div> : renderList(g.id, list)}
               </div>
             </div>
@@ -1148,7 +1193,7 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
               <span className="group-name-static">ללא קבוצה</span>
               <span className="group-count">{ungrouped.length}</span>
             </div>
-            <div className="group-body">
+            <div className="group-body" onDragOver={(e) => { if (dragInfo && ungrouped.length === 0) { e.preventDefault(); handleDragOverList('__ungrouped__', 0); } }}>
               {ungrouped.length === 0 ? <div className="group-empty">כל המשימות שובצו לקבוצה</div> : renderList('__ungrouped__', ungrouped)}
             </div>
           </div>
@@ -1190,6 +1235,7 @@ function TaskTextBlock({ text }) {
 
 /* ============================== Preview / PDF Screen ============================== */
 function PreviewScreen({ report }) {
+  const [lightboxSrc, setLightboxSrc] = useState(null);
   const groups = report.groups.slice().sort((a, b) => a.order - b.order);
   const tasksByGroup = (groupId) => report.tasks.filter((t) => (t.groupId || null) === groupId).sort((a, b) => a.order - b.order);
   const ungrouped = tasksByGroup(null);
@@ -1245,7 +1291,9 @@ function PreviewScreen({ report }) {
                     {t.photos.length > 0 && (
                       <div className="doc-photos">
                         {t.photos.map((p) => (
-                          <div className="doc-photo" key={p.id}><img src={displaySrc(p)} alt="" /></div>
+                          <div className="doc-photo" key={p.id} onClick={() => setLightboxSrc(displaySrc(p))}>
+                            <img src={displaySrc(p)} alt="" />
+                          </div>
                         ))}
                       </div>
                     )}
@@ -1256,6 +1304,12 @@ function PreviewScreen({ report }) {
           ))}
         </div>
       </div>
+      {lightboxSrc && (
+        <div className="lightbox-backdrop" onClick={() => setLightboxSrc(null)}>
+          <button className="lightbox-close" onClick={() => setLightboxSrc(null)} aria-label="סגירה"><IconClose /></button>
+          <img className="lightbox-img" src={lightboxSrc} alt="" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
     </>
   );
 }
@@ -1276,6 +1330,7 @@ function ReportWorkspace({ report, updateReport, onBack, onDeleteReport, saveSta
     report.tasks.forEach((t) => { if (t.assignee && s.indexOf(t.assignee) === -1) s.push(t.assignee); });
     return s;
   }, [report.tasks]);
+  const sortedGroups = useMemo(() => report.groups.slice().sort((a, b) => a.order - b.order), [report.groups]);
 
   function openNewTask() { setTaskOverlay('new'); }
   function openEditTask(id) { setTaskOverlay(id); }
@@ -1342,6 +1397,7 @@ function ReportWorkspace({ report, updateReport, onBack, onDeleteReport, saveSta
           task={isNewTask ? newTask(report.tasks.length) : { ...editingTask, _existing: true }}
           floors={floors}
           assignees={assignees}
+          groups={sortedGroups}
           onCancel={closeTaskOverlay}
           onSave={saveTask}
           onDelete={isNewTask ? null : () => deleteTaskById(editingTask.id)}
