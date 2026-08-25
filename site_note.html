@@ -262,32 +262,13 @@ img { max-width: 100%; display: block; }
 .width-btn .dot { border-radius: 50%; background: #C7C9CF; }
 .width-btn.active .dot { background: var(--accent); }
 
-/* ───────────────────────── Task cards (capture list) ───────────────────────── */
-.task-list { padding: 12px 16px calc(var(--nav-h) + var(--safe-b) + 90px); display: flex; flex-direction: column; gap: 10px; }
-.task-card {
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
-  padding: 12px; display: flex; gap: 12px; box-shadow: var(--shadow-sm); align-items: flex-start;
-}
-.task-card-thumb {
-  width: 60px; height: 60px; border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-2);
-  flex-shrink: 0; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--text-3);
-}
-.task-card-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.task-card-thumb svg { width: 22px; height: 22px; }
-.task-card-body { flex: 1; min-width: 0; text-align: right; }
-.task-card-num { font-size: 11px; font-weight: 800; color: var(--accent); }
-.task-card-text { font-size: 14px; font-weight: 600; line-height: 1.4; margin-top: 2px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.task-card-text.empty { color: var(--text-3); font-weight: 400; font-style: normal; }
-.task-meta-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+/* ───────────────────────── Task meta pills (shared) ───────────────────────── */
+.task-meta-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .meta-pill {
   display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--text-2);
   background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 3px 7px;
 }
 .meta-pill svg { width: 11px; height: 11px; color: var(--text-3); flex-shrink: 0; }
-.task-card-actions { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
-.task-card-actions button { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-3); }
-.task-card-actions button:hover { background: var(--surface-2); color: var(--text); }
-.task-card-actions button.del:hover { color: var(--red); background: var(--red-light); }
 
 /* ───────────────────────── Organize screen ───────────────────────── */
 .organize-wrap { padding: 14px 16px calc(var(--nav-h) + var(--safe-b) + 40px); max-width: 760px; margin: 0 auto; }
@@ -305,20 +286,19 @@ img { max-width: 100%; display: block; }
 .group-empty { padding: 16px; text-align: center; color: var(--text-3); font-size: 12.5px; }
 
 .org-row {
-  display: flex; align-items: center; gap: 8px; padding: 9px 7px; border-radius: var(--radius-md);
+  display: flex; align-items: flex-start; gap: 8px; padding: 10px 7px; border-radius: var(--radius-md);
   background: var(--surface); transition: background .12s, box-shadow .12s;
 }
 .org-row.dragging { box-shadow: var(--shadow-lg); background: var(--surface-2); position: relative; z-index: 5; }
-.org-drag-handle { color: var(--text-3); flex-shrink: 0; padding: 6px; touch-action: none; cursor: grab; }
+.org-drag-handle { color: var(--text-3); flex-shrink: 0; padding: 6px; touch-action: none; cursor: grab; margin-top: 3px; }
 .org-drag-handle svg { width: 18px; height: 18px; }
-.org-row-thumb { width: 40px; height: 40px; border-radius: 7px; overflow: hidden; background: var(--surface-2); flex-shrink: 0; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--text-3); }
+.org-row-thumb { width: 48px; height: 48px; border-radius: 7px; overflow: hidden; background: var(--surface-2); flex-shrink: 0; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--text-3); }
 .org-row-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.org-row-thumb svg { width: 16px; height: 16px; }
-.org-row-body { flex: 1; min-width: 0; text-align: right; cursor: pointer; }
-.org-row-text { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.org-row-thumb svg { width: 18px; height: 18px; }
+.org-row-body { flex: 1; min-width: 0; text-align: right; cursor: pointer; padding-top: 2px; }
+.org-row-text { font-size: 13.5px; font-weight: 600; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .org-row-text.empty { color: var(--text-3); font-weight: 400; }
-.org-row-sub { font-size: 11.5px; color: var(--text-3); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.org-row-select { flex-shrink: 0; font-size: 12px; font-weight: 600; background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px; padding: 5px 6px; max-width: 92px; color: var(--text-2); }
+.org-row-select { flex-shrink: 0; font-size: 12px; font-weight: 600; background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px; padding: 5px 6px; max-width: 92px; color: var(--text-2); margin-top: 2px; }
 
 /* ───────────────────────── Preview / Print document ───────────────────────── */
 .preview-toolbar { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 16px; display: flex; gap: 8px; justify-content: flex-end; }
@@ -356,7 +336,6 @@ img { max-width: 100%; display: block; }
 .doc-empty-note { text-align: center; color: #888; padding: 40px 20px; font-size: 13px; }
 
 @media (min-width: 720px) {
-  .task-list { max-width: 640px; margin: 0 auto; }
   .home-list { max-width: 640px; margin: 0 auto; }
   .overlay-body { max-width: 640px; margin: 0 auto; width: 100%; }
 }
@@ -393,7 +372,6 @@ const IconCamera = (p) => <Icon><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a
 const IconImage = (p) => <Icon><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></Icon>;
 const IconFolder = (p) => <Icon d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2Z" {...p} />;
 const IconClipboard = (p) => <Icon><rect x="8" y="2" width="8" height="4" rx="1" /><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3" /><path d="M9 12h6M9 16h6" /></Icon>;
-const IconLayers = (p) => <Icon><path d="M12 2 2 7l10 5 10-5-10-5Z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></Icon>;
 const IconFile = (p) => <Icon><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6" /></Icon>;
 const IconLayer = (p) => <Icon d="M12 2 2 7l10 5 10-5-10-5ZM2 17l10 5 10-5M2 12l10 5 10-5" {...p} />;
 const IconMapPin = (p) => <Icon><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z" /><circle cx="12" cy="10" r="3" /></Icon>;
@@ -959,51 +937,7 @@ function HomeScreen({ reports, onOpen, onCreate, onDelete }) {
 }
 
 /* ============================== Capture Screen ============================== */
-function CaptureScreen({ report, onEditTask, onNewTask, onDeleteTask }) {
-  const tasks = report.tasks.slice().sort((a, b) => a.order - b.order);
-  return (
-    <>
-      {tasks.length === 0 ? (
-        <div className="empty-state">
-          <IconClipboard />
-          <h3>עדיין לא נוספו משימות</h3>
-          <p>הקישו על כפתור ה-+ כדי לתעד את המשימה הראשונה מהסיור</p>
-        </div>
-      ) : (
-        <div className="task-list">
-          {tasks.map((t, i) => {
-            const thumb = t.photos[0];
-            return (
-              <div key={t.id} className="task-card" onClick={() => onEditTask(t.id)}>
-                <div className="task-card-thumb">
-                  {thumb ? <img src={displaySrc(thumb)} alt="" /> : <IconImage />}
-                </div>
-                <div className="task-card-body">
-                  <div className="task-card-num">משימה {i + 1}</div>
-                  <div className={"task-card-text" + (t.text ? "" : " empty")}>{stripMarkup(t.text) || 'ללא תיאור'}</div>
-                  <div className="task-meta-row">
-                    {t.floor && <span className="meta-pill"><IconLayer />{t.floor}</span>}
-                    {t.location && <span className="meta-pill"><IconMapPin />{t.location}</span>}
-                    {t.assignee && <span className="meta-pill"><IconUser />{t.assignee}</span>}
-                    {t.dueDate && <span className="meta-pill"><IconCalendar />{formatDateHe(t.dueDate)}</span>}
-                    {t.photos.length > 0 && <span className="meta-pill"><IconImage />{t.photos.length}</span>}
-                  </div>
-                </div>
-                <div className="task-card-actions">
-                  <button onClick={(e) => { e.stopPropagation(); onEditTask(t.id); }} aria-label="עריכה"><IconEdit /></button>
-                  <button className="del" onClick={(e) => { e.stopPropagation(); onDeleteTask(t.id); }} aria-label="מחיקה"><IconTrash /></button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      <button className="fab" onClick={onNewTask} aria-label="הוספת משימה"><IconPlus /></button>
-    </>
-  );
-}
-
-/* ============================== Organize Row (drag reorder) ============================== */
+/* ============================== Task Row (drag reorder) ============================== */
 function OrgRow({ task, listKey, index, groups, onDragStart, onDragEnd, dragging, onOpen, onReassign, onDelete }) {
   return (
     <div className={"org-row" + (dragging ? " dragging" : "")}>
@@ -1018,7 +952,13 @@ function OrgRow({ task, listKey, index, groups, onDragStart, onDragEnd, dragging
       </div>
       <div className="org-row-body" onClick={() => onOpen(task.id)}>
         <div className={"org-row-text" + (task.text ? "" : " empty")}>{stripMarkup(task.text) || 'ללא תיאור'}</div>
-        <div className="org-row-sub">{[task.floor, task.location, task.assignee].filter(Boolean).join(' · ') || '—'}</div>
+        <div className="task-meta-row">
+          {task.floor && <span className="meta-pill"><IconLayer />{task.floor}</span>}
+          {task.location && <span className="meta-pill"><IconMapPin />{task.location}</span>}
+          {task.assignee && <span className="meta-pill"><IconUser />{task.assignee}</span>}
+          {task.dueDate && <span className="meta-pill"><IconCalendar />{formatDateHe(task.dueDate)}</span>}
+          {task.photos.length > 0 && <span className="meta-pill"><IconImage />{task.photos.length}</span>}
+        </div>
       </div>
       <select className="org-row-select" value={task.groupId || ''} onChange={(e) => onReassign(task.id, e.target.value || null)}>
         <option value="">ללא קבוצה</option>
@@ -1029,8 +969,8 @@ function OrgRow({ task, listKey, index, groups, onDragStart, onDragEnd, dragging
   );
 }
 
-/* ============================== Organize Screen ============================== */
-function OrganizeScreen({ report, updateReport, onOpenTask }) {
+/* ============================== Tasks Screen (capture + organize) ============================== */
+function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
   const [dragInfo, setDragInfo] = useState(null); // {listKey, index}
 
   const groups = report.groups.slice().sort((a, b) => a.order - b.order);
@@ -1115,46 +1055,68 @@ function OrganizeScreen({ report, updateReport, onOpenTask }) {
     ));
   }
 
-  return (
-    <div className="organize-wrap">
-      <div className="organize-actions">
-        <button className="btn btn-secondary btn-sm" onClick={() => autoGroupBy('floor')}><IconGroup />קיבוץ לפי קומה</button>
-        <button className="btn btn-secondary btn-sm" onClick={() => autoGroupBy('assignee')}><IconGroup />קיבוץ לפי אחראי</button>
-      </div>
-      <div className="organize-actions" style={{ marginBottom: 20 }}>
-        <input className="field-input" style={{ flex: 1, minWidth: 140 }} placeholder="שם קבוצה חדשה" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && newGroupName.trim()) { addGroup(newGroupName.trim()); setNewGroupName(''); } }} />
-        <button className="btn btn-primary btn-sm" onClick={() => { if (newGroupName.trim()) { addGroup(newGroupName.trim()); setNewGroupName(''); } }}><IconPlus />הוספה</button>
-      </div>
+  if (report.tasks.length === 0) {
+    return (
+      <>
+        <div className="empty-state">
+          <IconClipboard />
+          <h3>עדיין לא נוספו משימות</h3>
+          <p>הקישו על כפתור ה-+ כדי לתעד את המשימה הראשונה מהסיור</p>
+        </div>
+        <button className="fab" onClick={onNewTask} aria-label="הוספת משימה"><IconPlus /></button>
+      </>
+    );
+  }
 
-      {groups.map((g, gi) => {
-        const list = tasksByGroup(g.id);
-        return (
-          <div className="group-section" key={g.id}>
+  return (
+    <>
+      <div className="organize-wrap">
+        <div className="organize-actions">
+          <button className="btn btn-secondary btn-sm" onClick={() => autoGroupBy('floor')}><IconGroup />קיבוץ לפי קומה</button>
+          <button className="btn btn-secondary btn-sm" onClick={() => autoGroupBy('assignee')}><IconGroup />קיבוץ לפי אחראי</button>
+        </div>
+        <div className="organize-actions" style={{ marginBottom: 20 }}>
+          <input className="field-input" style={{ flex: 1, minWidth: 140 }} placeholder="שם קבוצה חדשה" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && newGroupName.trim()) { addGroup(newGroupName.trim()); setNewGroupName(''); } }} />
+          <button className="btn btn-primary btn-sm" onClick={() => { if (newGroupName.trim()) { addGroup(newGroupName.trim()); setNewGroupName(''); } }}><IconPlus />הוספה</button>
+        </div>
+
+        {groups.map((g, gi) => {
+          const list = tasksByGroup(g.id);
+          return (
+            <div className="group-section" key={g.id}>
+              <div className="group-header">
+                <input className="group-name-input" value={g.name} onChange={(e) => renameGroup(g.id, e.target.value)} />
+                <span className="group-count">{list.length}</span>
+                <button className="group-btn" onClick={() => moveGroup(g.id, -1)} disabled={gi === 0} aria-label="הזז למעלה"><IconUp /></button>
+                <button className="group-btn" onClick={() => moveGroup(g.id, 1)} disabled={gi === groups.length - 1} aria-label="הזז למטה"><IconDown /></button>
+                <button className="group-btn del" onClick={() => deleteGroup(g.id)} aria-label="מחיקת קבוצה"><IconTrash /></button>
+              </div>
+              <div className="group-body">
+                {list.length === 0 ? <div className="group-empty">גררו משימות לכאן או בחרו קבוצה זו מהתפריט</div> : renderList(g.id, list)}
+              </div>
+            </div>
+          );
+        })}
+
+        {groups.length === 0 ? (
+          <div className="group-section">
+            <div className="group-body">{renderList('__ungrouped__', ungrouped)}</div>
+          </div>
+        ) : (
+          <div className="group-section">
             <div className="group-header">
-              <input className="group-name-input" value={g.name} onChange={(e) => renameGroup(g.id, e.target.value)} />
-              <span className="group-count">{list.length}</span>
-              <button className="group-btn" onClick={() => moveGroup(g.id, -1)} disabled={gi === 0} aria-label="הזז למעלה"><IconUp /></button>
-              <button className="group-btn" onClick={() => moveGroup(g.id, 1)} disabled={gi === groups.length - 1} aria-label="הזז למטה"><IconDown /></button>
-              <button className="group-btn del" onClick={() => deleteGroup(g.id)} aria-label="מחיקת קבוצה"><IconTrash /></button>
+              <span className="group-name-static">ללא קבוצה</span>
+              <span className="group-count">{ungrouped.length}</span>
             </div>
             <div className="group-body">
-              {list.length === 0 ? <div className="group-empty">גררו משימות לכאן או בחרו קבוצה זו מהתפריט</div> : renderList(g.id, list)}
+              {ungrouped.length === 0 ? <div className="group-empty">כל המשימות שובצו לקבוצה</div> : renderList('__ungrouped__', ungrouped)}
             </div>
           </div>
-        );
-      })}
-
-      <div className="group-section">
-        <div className="group-header">
-          <span className="group-name-static">ללא קבוצה</span>
-          <span className="group-count">{ungrouped.length}</span>
-        </div>
-        <div className="group-body">
-          {ungrouped.length === 0 ? <div className="group-empty">כל המשימות שובצו לקבוצה</div> : renderList('__ungrouped__', ungrouped)}
-        </div>
+        )}
       </div>
-    </div>
+      <button className="fab" onClick={onNewTask} aria-label="הוספת משימה"><IconPlus /></button>
+    </>
   );
 }
 
@@ -1261,7 +1223,7 @@ function PreviewScreen({ report }) {
 
 /* ============================== Report Workspace (shell for an open report) ============================== */
 function ReportWorkspace({ report, updateReport, onBack, onDeleteReport, saveState }) {
-  const [tab, setTab] = useState('capture');
+  const [tab, setTab] = useState('tasks');
   const [taskOverlay, setTaskOverlay] = useState(null); // 'new' | taskId | null
   const [metaOpen, setMetaOpen] = useState(() => !report.siteName.trim());
 
@@ -1296,17 +1258,12 @@ function ReportWorkspace({ report, updateReport, onBack, onDeleteReport, saveSta
     updateReport({ ...report, tasks: report.tasks.filter((t) => t.id !== id) });
     setTaskOverlay(null);
   }
-  function deleteTaskFromList(id) {
-    if (!confirmAction('למחוק את המשימה?')) return;
-    updateReport({ ...report, tasks: report.tasks.filter((t) => t.id !== id) });
-  }
 
   const editingTask = taskOverlay && taskOverlay !== 'new' ? report.tasks.find((t) => t.id === taskOverlay) : null;
   const isNewTask = taskOverlay === 'new';
 
   const tabs = [
-    { id: 'capture', label: 'משימות', icon: IconClipboard },
-    { id: 'organize', label: 'ארגון', icon: IconLayers },
+    { id: 'tasks', label: 'משימות', icon: IconClipboard },
     { id: 'preview', label: 'PDF', icon: IconFile },
   ];
 
@@ -1327,11 +1284,8 @@ function ReportWorkspace({ report, updateReport, onBack, onDeleteReport, saveSta
       </div>
 
       <div className="main-scroll">
-        {tab === 'capture' && (
-          <CaptureScreen report={report} onEditTask={openEditTask} onNewTask={openNewTask} onDeleteTask={deleteTaskFromList} />
-        )}
-        {tab === 'organize' && (
-          <OrganizeScreen report={report} updateReport={updateReport} onOpenTask={openEditTask} />
+        {tab === 'tasks' && (
+          <TasksScreen report={report} updateReport={updateReport} onOpenTask={openEditTask} onNewTask={openNewTask} />
         )}
         {tab === 'preview' && <PreviewScreen report={report} />}
       </div>
