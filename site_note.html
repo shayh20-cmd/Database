@@ -1422,7 +1422,7 @@ function PreviewScreen({ report, updateReport }) {
                           {t.location && <span>מיקום: {t.location}</span>}
                         </div>
                       )}
-                      {t.photos.length > 0 && (
+                      {!photoAppendix && t.photos.length > 0 && (
                         <div className="doc-photos">
                           {t.photos.map((p) => (
                             <DocPhoto key={p.id} photo={p} onOpen={() => setLightboxSrc(displaySrc(p))} onResize={resizePhoto} />
@@ -1452,7 +1452,7 @@ function PreviewScreen({ report, updateReport }) {
                       {t.assignee && <span>אחראי: <b>{t.assignee}</b></span>}
                       {t.dueDate && <span>תאריך יעד: <b>{formatDateHe(t.dueDate)}</b></span>}
                     </div>
-                    {t.photos.length > 0 && (
+                    {!photoAppendix && t.photos.length > 0 && (
                       <div className="doc-photos">
                         {t.photos.map((p) => (
                           <DocPhoto key={p.id} photo={p} onOpen={() => setLightboxSrc(displaySrc(p))} onResize={resizePhoto} />
