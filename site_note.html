@@ -325,6 +325,8 @@ img { max-width: 100%; display: block; }
 .doc-header-right { text-align: left; font-size: 12px; color: #555; line-height: 1.6; white-space: nowrap; }
 .doc-summary { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 22px; font-size: 12.5px; color: #444; }
 .doc-summary b { color: #111; }
+.doc-participants { font-size: 12.5px; color: #444; margin: -10px 0 22px; line-height: 1.5; }
+.doc-participants b { color: #111; }
 .doc-group-title {
   font-size: 14.5px; font-weight: 800; color: #fff; background: var(--accent);
   padding: 7px 12px; border-radius: 6px 6px 0 0; margin-top: 22px;
@@ -453,6 +455,7 @@ function newTask(order) {
 function newReport() {
   return {
     id: uid(), siteName: '', inspector: '', date: todayISO(),
+    reportNumber: '', participants: '',
     groups: [], tasks: [], floors: [], assignees: [],
     createdAt: Date.now(), updatedAt: Date.now(),
   };
@@ -812,12 +815,19 @@ function TaskEditor({ task, floors, assignees, onCancel, onSave, onDelete }) {
 
 /* ============================== Report Meta Editor ============================== */
 function ReportMetaEditor({ report, onCancel, onSave }) {
-  const [draft, setDraft] = useState({ siteName: report.siteName, inspector: report.inspector, date: report.date });
+  const [draft, setDraft] = useState({
+    siteName: report.siteName, inspector: report.inspector, date: report.date,
+    reportNumber: report.reportNumber || '', participants: report.participants || '',
+  });
   return (
     <Overlay title="פרטי דוח" onClose={onCancel} onSave={() => onSave(draft)} saveDisabled={!draft.siteName.trim()}>
       <div className="field">
         <label className="field-label">שם האתר / פרויקט</label>
         <input className="field-input" placeholder="לדוגמה: מגדל רוטשילד 12" value={draft.siteName} onChange={(e) => setDraft({ ...draft, siteName: e.target.value })} autoFocus />
+      </div>
+      <div className="field">
+        <label className="field-label">מס' דוח <span className="opt">(אופציונלי)</span></label>
+        <input className="field-input" placeholder="לדוגמה: 12" value={draft.reportNumber} onChange={(e) => setDraft({ ...draft, reportNumber: e.target.value })} />
       </div>
       <div className="field">
         <label className="field-label">שם המפקח <span className="opt">(אופציונלי)</span></label>
@@ -826,6 +836,10 @@ function ReportMetaEditor({ report, onCancel, onSave }) {
       <div className="field">
         <label className="field-label">תאריך הסיור</label>
         <input type="date" className="field-input" value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} />
+      </div>
+      <div className="field">
+        <label className="field-label">משתתפים בסיור <span className="opt">(אופציונלי)</span></label>
+        <textarea className="field-textarea" placeholder="שמות המשתתפים, מופרדים בפסיק" value={draft.participants} onChange={(e) => setDraft({ ...draft, participants: e.target.value })} style={{ minHeight: 60 }} />
       </div>
     </Overlay>
   );
@@ -864,7 +878,7 @@ function HomeScreen({ reports, onOpen, onCreate, onDelete }) {
               <div key={r.id} className="report-card" onClick={() => onOpen(r.id)}>
                 <div className="report-card-icon"><IconBuilding /></div>
                 <div className="report-card-body">
-                  <div className="report-card-title">{reportTitle(r)}</div>
+                  <div className="report-card-title">{r.reportNumber ? `#${r.reportNumber} · ` : ''}{reportTitle(r)}</div>
                   <div className="report-card-meta">
                     <span>{formatDateHe(r.date)}</span>
                     <span>·</span>
@@ -1086,7 +1100,7 @@ function PreviewScreen({ report }) {
   const groups = report.groups.slice().sort((a, b) => a.order - b.order);
   const tasksByGroup = (groupId) => report.tasks.filter((t) => (t.groupId || null) === groupId).sort((a, b) => a.order - b.order);
   const ungrouped = tasksByGroup(null);
-  let counter = 0;
+  const pad2 = (n) => String(n).padStart(2, '0');
 
   const sections = groups.map((g) => ({ id: g.id, name: g.name, tasks: tasksByGroup(g.id) })).filter((s) => s.tasks.length > 0);
   if (ungrouped.length > 0) sections.push({ id: '__ungrouped__', name: groups.length ? 'משימות נוספות' : 'משימות', tasks: ungrouped });
@@ -1104,6 +1118,7 @@ function PreviewScreen({ report }) {
               <div className="doc-title">{reportTitle(report)}</div>
             </div>
             <div className="doc-header-right">
+              {report.reportNumber && <div>מס' דוח: {report.reportNumber}</div>}
               <div>תאריך סיור: {formatDateHe(report.date)}</div>
               {report.inspector && <div>מפקח: {report.inspector}</div>}
               <div>הופק: {formatDateTimeHe(Date.now())}</div>
@@ -1114,18 +1129,18 @@ function PreviewScreen({ report }) {
             <div><b>{sections.length}</b> חלקים</div>
             <div><b>{report.tasks.reduce((s, t) => s + t.photos.length, 0)}</b> תמונות</div>
           </div>
+          {report.participants && <div className="doc-participants"><b>משתתפים בסיור:</b> {report.participants}</div>}
 
           {report.tasks.length === 0 ? (
             <div className="doc-empty-note">לא נוספו משימות עדיין</div>
-          ) : sections.map((sec) => (
+          ) : sections.map((sec, secIndex) => (
             <div key={sec.id}>
-              <div className="doc-group-title">{sec.name}</div>
-              {sec.tasks.map((t) => {
-                counter += 1;
+              <div className="doc-group-title">{pad2(secIndex + 1)}. {sec.name}</div>
+              {sec.tasks.map((t, taskIndex) => {
                 return (
                   <div className="doc-task" key={t.id}>
                     <div className="doc-task-head">
-                      <span className="doc-task-num">{counter}.</span>
+                      <span className="doc-task-num">{pad2(secIndex + 1)}.{pad2(taskIndex + 1)}</span>
                       <span className="doc-task-text">{t.text || 'ללא תיאור'}</span>
                     </div>
                     <div className="doc-task-meta">
