@@ -378,6 +378,12 @@ img { max-width: 100%; display: block; }
 .doc-table-assignee, .doc-table-due { width: 104px; white-space: normal; }
 .doc-table-loc { margin-top: 6px; font-size: 11px; color: #666; display: flex; gap: 12px; flex-wrap: wrap; }
 
+.doc-appendix { margin-top: 30px; padding-top: 20px; border-top: 2px dashed var(--border); page-break-before: always; break-before: page; }
+.doc-appendix-title { font-size: 18px; font-weight: 800; color: #111; margin-bottom: 16px; }
+.doc-appendix-item { margin-bottom: 18px; page-break-inside: avoid; break-inside: avoid; }
+.doc-appendix-item-head { font-size: 13px; font-weight: 800; color: var(--accent); margin-bottom: 3px; }
+.doc-appendix-item-loc { font-size: 11px; color: #666; margin-bottom: 8px; display: flex; gap: 12px; flex-wrap: wrap; }
+
 /* ───────────────────────── Photo lightbox (PDF preview) ───────────────────────── */
 .lightbox-backdrop {
   position: fixed; inset: 0; z-index: 210; background: rgba(10,11,14,.92);
@@ -506,7 +512,7 @@ function newReport() {
     id: uid(), siteName: '', inspector: '', date: todayISO(),
     reportNumber: '', participants: '', notes: '',
     groups: [], tasks: [], floors: [], assignees: [],
-    pdfLayout: 'cards', pdfShowLocation: true,
+    pdfLayout: 'cards', pdfShowLocation: true, pdfPhotoAppendix: false,
     createdAt: Date.now(), updatedAt: Date.now(),
   };
 }
@@ -1326,6 +1332,7 @@ function PreviewScreen({ report, updateReport }) {
   const pad2 = (n) => String(n).padStart(2, '0');
   const layout = report.pdfLayout || 'cards';
   const showLocation = report.pdfShowLocation !== false;
+  const photoAppendix = !!report.pdfPhotoAppendix;
 
   function resizePhoto(photoId, w, h) {
     updateReport({
@@ -1340,6 +1347,13 @@ function PreviewScreen({ report, updateReport }) {
   const sections = groups.map((g) => ({ id: g.id, name: g.name, tasks: tasksByGroup(g.id) })).filter((s) => s.tasks.length > 0);
   if (ungrouped.length > 0) sections.push({ id: '__ungrouped__', name: groups.length ? 'משימות נוספות' : 'משימות', tasks: ungrouped });
 
+  const photoEntries = [];
+  sections.forEach((sec, secIndex) => {
+    sec.tasks.forEach((t, taskIndex) => {
+      if (t.photos.length > 0) photoEntries.push({ sec, secIndex, t, taskIndex });
+    });
+  });
+
   return (
     <>
       <div className="preview-toolbar">
@@ -1348,12 +1362,14 @@ function PreviewScreen({ report, updateReport }) {
             <button className={"layout-btn" + (layout === 'cards' ? ' active' : '')} onClick={() => updateReport({ ...report, pdfLayout: 'cards' })}>כרטיסים</button>
             <button className={"layout-btn" + (layout === 'table' ? ' active' : '')} onClick={() => updateReport({ ...report, pdfLayout: 'table' })}>טבלה</button>
           </div>
-          {layout === 'table' && (
-            <label className="preview-loc-toggle">
-              <input type="checkbox" checked={showLocation} onChange={(e) => updateReport({ ...report, pdfShowLocation: e.target.checked })} />
-              הצג מיקום/קומה
-            </label>
-          )}
+          <label className="preview-loc-toggle">
+            <input type="checkbox" checked={showLocation} onChange={(e) => updateReport({ ...report, pdfShowLocation: e.target.checked })} />
+            הצג מיקום/קומה
+          </label>
+          <label className="preview-loc-toggle">
+            <input type="checkbox" checked={photoAppendix} onChange={(e) => updateReport({ ...report, pdfPhotoAppendix: e.target.checked })} />
+            נספח תמונות
+          </label>
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => window.print()}><IconPrint />הפקת PDF</button>
       </div>
@@ -1448,6 +1464,28 @@ function PreviewScreen({ report, updateReport }) {
               })}
             </div>
           ))}
+
+          {photoAppendix && photoEntries.length > 0 && (
+            <div className="doc-appendix">
+              <div className="doc-appendix-title">נספח תמונות</div>
+              {photoEntries.map(({ sec, secIndex, t, taskIndex }) => (
+                <div className="doc-appendix-item" key={t.id}>
+                  <div className="doc-appendix-item-head">{pad2(secIndex + 1)}.{pad2(taskIndex + 1)} · {sec.name}</div>
+                  {showLocation && (t.floor || t.location) && (
+                    <div className="doc-appendix-item-loc">
+                      {t.floor && <span>קומה: {t.floor}</span>}
+                      {t.location && <span>מיקום: {t.location}</span>}
+                    </div>
+                  )}
+                  <div className="doc-photos">
+                    {t.photos.map((p) => (
+                      <DocPhoto key={p.id} photo={p} onOpen={() => setLightboxSrc(displaySrc(p))} onResize={resizePhoto} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       {lightboxSrc && (
