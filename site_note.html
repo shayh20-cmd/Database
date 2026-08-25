@@ -325,7 +325,7 @@ img { max-width: 100%; display: block; }
 .doc-header-right { text-align: left; font-size: 12px; color: #555; line-height: 1.6; white-space: nowrap; }
 .doc-summary { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 22px; font-size: 12.5px; color: #444; }
 .doc-summary b { color: #111; }
-.doc-participants { font-size: 12.5px; color: #444; margin: -10px 0 22px; line-height: 1.5; }
+.doc-participants { font-size: 12.5px; color: #444; margin: 0 0 12px; line-height: 1.5; white-space: pre-line; }
 .doc-participants b { color: #111; }
 .doc-group-title {
   font-size: 14.5px; font-weight: 800; color: #fff; background: var(--accent);
@@ -333,9 +333,12 @@ img { max-width: 100%; display: block; }
 }
 .doc-task { border: 1px solid #E2E4E9; border-top: none; padding: 14px 14px 16px; page-break-inside: avoid; break-inside: avoid; }
 .doc-task:last-child { border-radius: 0 0 6px 6px; }
-.doc-task-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
-.doc-task-num { font-size: 12.5px; font-weight: 800; color: var(--accent); flex-shrink: 0; }
+.doc-task-head { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+.doc-task-num { font-size: 12.5px; font-weight: 800; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
 .doc-task-text { font-size: 14px; font-weight: 700; line-height: 1.45; }
+.doc-task-list { font-size: 14px; font-weight: 700; line-height: 1.5; margin: 0; padding-inline-start: 18px; }
+.doc-task-list li { margin-bottom: 2px; }
+.doc-task-list li:last-child { margin-bottom: 0; }
 .doc-task-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11.5px; color: #555; margin-bottom: 10px; }
 .doc-task-meta span b { color: #222; font-weight: 700; }
 .doc-photos { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -455,7 +458,7 @@ function newTask(order) {
 function newReport() {
   return {
     id: uid(), siteName: '', inspector: '', date: todayISO(),
-    reportNumber: '', participants: '',
+    reportNumber: '', participants: '', notes: '',
     groups: [], tasks: [], floors: [], assignees: [],
     createdAt: Date.now(), updatedAt: Date.now(),
   };
@@ -817,7 +820,7 @@ function TaskEditor({ task, floors, assignees, onCancel, onSave, onDelete }) {
 function ReportMetaEditor({ report, onCancel, onSave }) {
   const [draft, setDraft] = useState({
     siteName: report.siteName, inspector: report.inspector, date: report.date,
-    reportNumber: report.reportNumber || '', participants: report.participants || '',
+    reportNumber: report.reportNumber || '', participants: report.participants || '', notes: report.notes || '',
   });
   return (
     <Overlay title="פרטי דוח" onClose={onCancel} onSave={() => onSave(draft)} saveDisabled={!draft.siteName.trim()}>
@@ -840,6 +843,10 @@ function ReportMetaEditor({ report, onCancel, onSave }) {
       <div className="field">
         <label className="field-label">משתתפים בסיור <span className="opt">(אופציונלי)</span></label>
         <textarea className="field-textarea" placeholder="שמות המשתתפים, מופרדים בפסיק" value={draft.participants} onChange={(e) => setDraft({ ...draft, participants: e.target.value })} style={{ minHeight: 60 }} />
+      </div>
+      <div className="field">
+        <label className="field-label">הערות כלליות <span className="opt">(אופציונלי)</span></label>
+        <textarea className="field-textarea" placeholder="טקסט חופשי שיופיע בראש הדוח" value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} style={{ minHeight: 80 }} />
       </div>
     </Overlay>
   );
@@ -1095,6 +1102,16 @@ function OrganizeScreen({ report, updateReport, onOpenTask }) {
   );
 }
 
+function TaskTextBlock({ text }) {
+  const lines = (text || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  if (lines.length <= 1) return <span className="doc-task-text">{text || 'ללא תיאור'}</span>;
+  return (
+    <ul className="doc-task-list">
+      {lines.map((line, i) => <li key={i}>{line}</li>)}
+    </ul>
+  );
+}
+
 /* ============================== Preview / PDF Screen ============================== */
 function PreviewScreen({ report }) {
   const groups = report.groups.slice().sort((a, b) => a.order - b.order);
@@ -1125,11 +1142,11 @@ function PreviewScreen({ report }) {
             </div>
           </div>
           <div className="doc-summary">
-            <div><b>{report.tasks.length}</b> משימות</div>
             <div><b>{sections.length}</b> חלקים</div>
             <div><b>{report.tasks.reduce((s, t) => s + t.photos.length, 0)}</b> תמונות</div>
           </div>
           {report.participants && <div className="doc-participants"><b>משתתפים בסיור:</b> {report.participants}</div>}
+          {report.notes && <div className="doc-participants"><b>הערות כלליות:</b> {report.notes}</div>}
 
           {report.tasks.length === 0 ? (
             <div className="doc-empty-note">לא נוספו משימות עדיין</div>
@@ -1141,7 +1158,7 @@ function PreviewScreen({ report }) {
                   <div className="doc-task" key={t.id}>
                     <div className="doc-task-head">
                       <span className="doc-task-num">{pad2(secIndex + 1)}.{pad2(taskIndex + 1)}</span>
-                      <span className="doc-task-text">{t.text || 'ללא תיאור'}</span>
+                      <TaskTextBlock text={t.text} />
                     </div>
                     <div className="doc-task-meta">
                       {t.floor && <span>קומה: <b>{t.floor}</b></span>}
