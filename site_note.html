@@ -313,6 +313,9 @@ img { max-width: 100%; display: block; }
 .org-row-body { flex: 1; min-width: 0; text-align: right; cursor: pointer; padding-top: 2px; }
 .org-row-text { font-size: 13.5px; font-weight: 600; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .org-row-text.empty { color: var(--text-3); font-weight: 400; }
+.org-row-list { font-size: 13.5px; font-weight: 600; line-height: 1.35; margin: 0; padding-inline-start: 18px; }
+.org-row-list li { margin-bottom: 1px; }
+.org-row-list li:last-child { margin-bottom: 0; }
 .org-row-select { flex-shrink: 0; font-size: 12px; font-weight: 600; background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px; padding: 5px 6px; max-width: 92px; color: var(--text-2); margin-top: 2px; }
 
 /* ───────────────────────── Preview / Print document ───────────────────────── */
@@ -346,8 +349,14 @@ img { max-width: 100%; display: block; }
 .doc-task-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11.5px; color: #555; margin-bottom: 10px; }
 .doc-task-meta span b { color: #222; font-weight: 700; }
 .doc-photos { display: flex; flex-wrap: wrap; gap: 8px; }
-.doc-photo { width: 150px; height: 112px; border-radius: 6px; overflow: hidden; border: 1px solid #E2E4E9; cursor: zoom-in; }
+.doc-photo { position: relative; width: 150px; height: 112px; border-radius: 6px; overflow: visible; cursor: zoom-in; flex-shrink: 0; }
+.doc-photo-frame { width: 100%; height: 100%; border-radius: 6px; overflow: hidden; border: 1px solid #E2E4E9; }
 .doc-photo img { width: 100%; height: 100%; object-fit: cover; }
+.doc-photo-resize {
+  position: absolute; right: -6px; bottom: -6px; width: 18px; height: 18px;
+  background: var(--accent); border: 2px solid #fff; border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.35); cursor: nwse-resize; touch-action: none;
+}
 .doc-empty-note { text-align: center; color: #888; padding: 40px 20px; font-size: 13px; }
 
 /* ───────────────────────── Photo lightbox (PDF preview) ───────────────────────── */
@@ -375,6 +384,7 @@ img { max-width: 100%; display: block; }
   .doc-page { box-shadow: none !important; max-width: 100% !important; padding: 6mm 4mm; }
   @page { size: A4; margin: 12mm 12mm; }
   .doc-group-title { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .doc-photo-resize { display: none; }
 }
 </style>
 </head>
@@ -1019,6 +1029,21 @@ function HomeScreen({ reports, onOpen, onCreate, onDelete }) {
 
 /* ============================== Capture Screen ============================== */
 /* ============================== Task Row (drag reorder) ============================== */
+function OrgRowText({ text }) {
+  const lines = (text || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return <div className="org-row-text empty">ללא תיאור</div>;
+  if (lines.length === 1 && !/^(\d+\.\s|•\s)/.test(lines[0])) {
+    return <div className="org-row-text">{parseInlineMarkup(lines[0])}</div>;
+  }
+  const isNumbered = lines.some((l) => /^\d+\.\s/.test(l));
+  const ListTag = isNumbered ? 'ol' : 'ul';
+  return (
+    <ListTag className="org-row-list">
+      {lines.map((line, i) => <li key={i}>{parseInlineMarkup(line.replace(/^(\d+\.\s|•\s)/, ''))}</li>)}
+    </ListTag>
+  );
+}
+
 function OrgRow({ task, listKey, index, groups, onDragStart, onDragEnd, dragging, onOpen, onReassign, onDelete }) {
   return (
     <div className={"org-row" + (dragging ? " dragging" : "")}>
@@ -1032,7 +1057,7 @@ function OrgRow({ task, listKey, index, groups, onDragStart, onDragEnd, dragging
         {task.photos[0] ? <img src={displaySrc(task.photos[0])} alt="" /> : <IconImage />}
       </div>
       <div className="org-row-body" onClick={() => onOpen(task.id)}>
-        <div className={"org-row-text" + (task.text ? "" : " empty")}>{stripMarkup(task.text) || 'ללא תיאור'}</div>
+        <OrgRowText text={task.text} />
         <div className="task-meta-row">
           {task.floor && <span className="meta-pill"><IconLayer />{task.floor}</span>}
           {task.location && <span className="meta-pill"><IconMapPin />{task.location}</span>}
@@ -1187,17 +1212,17 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
           <div className="group-section">
             <div className="group-body">{renderList('__ungrouped__', ungrouped)}</div>
           </div>
-        ) : (
+        ) : ungrouped.length > 0 ? (
           <div className="group-section">
             <div className="group-header">
               <span className="group-name-static">ללא קבוצה</span>
               <span className="group-count">{ungrouped.length}</span>
             </div>
-            <div className="group-body" onDragOver={(e) => { if (dragInfo && ungrouped.length === 0) { e.preventDefault(); handleDragOverList('__ungrouped__', 0); } }}>
-              {ungrouped.length === 0 ? <div className="group-empty">כל המשימות שובצו לקבוצה</div> : renderList('__ungrouped__', ungrouped)}
+            <div className="group-body">
+              {renderList('__ungrouped__', ungrouped)}
             </div>
           </div>
-        )}
+        ) : null}
       </div>
       <button className="fab" onClick={onNewTask} aria-label="הוספת משימה"><IconPlus /></button>
     </>
@@ -1233,13 +1258,62 @@ function TaskTextBlock({ text }) {
   );
 }
 
+function DocPhoto({ photo, onOpen, onResize }) {
+  const [size, setSize] = useState({ w: photo.docW || 150, h: photo.docH || 112 });
+  useEffect(() => { setSize({ w: photo.docW || 150, h: photo.docH || 112 }); }, [photo.docW, photo.docH]);
+  const dragRef = useRef(null);
+
+  function handlePointerDown(e) {
+    e.stopPropagation();
+    dragRef.current = { startX: e.clientX, startY: e.clientY, startW: size.w, startH: size.h };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+  function handlePointerMove(e) {
+    if (!dragRef.current) return;
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+    const w = Math.max(70, Math.min(480, Math.round(dragRef.current.startW + dx)));
+    const h = Math.max(52, Math.min(480, Math.round(dragRef.current.startH + dy)));
+    setSize({ w, h });
+  }
+  function handlePointerUp(e) {
+    if (!dragRef.current) return;
+    dragRef.current = null;
+    onResize(photo.id, size.w, size.h);
+  }
+
+  return (
+    <div className="doc-photo" style={{ width: size.w, height: size.h }} onClick={onOpen}>
+      <div className="doc-photo-frame"><img src={displaySrc(photo)} alt="" /></div>
+      <span
+        className="doc-photo-resize"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onClick={(e) => e.stopPropagation()}
+        aria-label="שינוי גודל תמונה"
+      />
+    </div>
+  );
+}
+
 /* ============================== Preview / PDF Screen ============================== */
-function PreviewScreen({ report }) {
+function PreviewScreen({ report, updateReport }) {
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const groups = report.groups.slice().sort((a, b) => a.order - b.order);
   const tasksByGroup = (groupId) => report.tasks.filter((t) => (t.groupId || null) === groupId).sort((a, b) => a.order - b.order);
   const ungrouped = tasksByGroup(null);
   const pad2 = (n) => String(n).padStart(2, '0');
+
+  function resizePhoto(photoId, w, h) {
+    updateReport({
+      ...report,
+      tasks: report.tasks.map((t) => ({
+        ...t,
+        photos: t.photos.map((p) => (p.id === photoId ? { ...p, docW: w, docH: h } : p)),
+      })),
+    });
+  }
 
   const sections = groups.map((g) => ({ id: g.id, name: g.name, tasks: tasksByGroup(g.id) })).filter((s) => s.tasks.length > 0);
   if (ungrouped.length > 0) sections.push({ id: '__ungrouped__', name: groups.length ? 'משימות נוספות' : 'משימות', tasks: ungrouped });
@@ -1291,9 +1365,7 @@ function PreviewScreen({ report }) {
                     {t.photos.length > 0 && (
                       <div className="doc-photos">
                         {t.photos.map((p) => (
-                          <div className="doc-photo" key={p.id} onClick={() => setLightboxSrc(displaySrc(p))}>
-                            <img src={displaySrc(p)} alt="" />
-                          </div>
+                          <DocPhoto key={p.id} photo={p} onOpen={() => setLightboxSrc(displaySrc(p))} onResize={resizePhoto} />
                         ))}
                       </div>
                     )}
@@ -1381,7 +1453,7 @@ function ReportWorkspace({ report, updateReport, onBack, onDeleteReport, saveSta
         {tab === 'tasks' && (
           <TasksScreen report={report} updateReport={updateReport} onOpenTask={openEditTask} onNewTask={openNewTask} />
         )}
-        {tab === 'preview' && <PreviewScreen report={report} />}
+        {tab === 'preview' && <PreviewScreen report={report} updateReport={updateReport} />}
       </div>
 
       <div className="bottom-nav">
