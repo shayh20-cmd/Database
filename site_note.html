@@ -1048,8 +1048,11 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
   function renameGroup(id, name) { setGroups(groups.map((g) => (g.id === id ? { ...g, name } : g))); }
   async function deleteGroup(id) {
     if (!(await confirm('למחוק את הקבוצה? המשימות בתוכה יעברו ל"ללא קבוצה".'))) return;
-    setGroups(groups.filter((g) => g.id !== id));
-    setTasks(report.tasks.map((t) => (t.groupId === id ? { ...t, groupId: null } : t)));
+    updateReport({
+      ...report,
+      groups: groups.filter((g) => g.id !== id),
+      tasks: report.tasks.map((t) => (t.groupId === id ? { ...t, groupId: null } : t)),
+    });
   }
   function moveGroup(id, dir) {
     const idx = groups.findIndex((g) => g.id === id);
