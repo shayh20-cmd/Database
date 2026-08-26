@@ -184,6 +184,16 @@ img { max-width: 100%; display: block; }
 }
 .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .chip.add-chip { color: var(--accent); border-style: dashed; border-color: var(--accent-light-2); background: var(--accent-light); }
+.status-chip.active[data-status="open"] { background: #6B7280; border-color: #6B7280; color: #fff; }
+.status-chip.active[data-status="in_progress"] { background: var(--amber); border-color: var(--amber); color: #fff; }
+.status-chip.active[data-status="closed"] { background: var(--green); border-color: var(--green); color: #fff; }
+.status-badge { display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 20px; border: 1px solid; flex-shrink: 0; }
+.status-badge-inline { margin-inline-end: 6px; margin-bottom: 4px; }
+.template-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px 4px 13px; }
+.template-chip-apply { background: none; border: none; color: inherit; font: inherit; font-weight: 600; padding: 0; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.template-chip-del { display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; color: var(--text-3); flex-shrink: 0; }
+.template-chip-del svg { width: 11px; height: 11px; }
+.template-chip-del:hover { background: var(--red-light); color: var(--red); }
 
 /* ───────────────────────── Custom dialog (confirm / alert) ───────────────────────── */
 .dialog-backdrop {
@@ -454,6 +464,7 @@ const IconUndo = (p) => <Icon {...p}><path d="M3 7v6h6" /><path d="M3 13a9 9 0 1
 const IconPrint = (p) => <Icon><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></Icon>;
 const IconListBullet = (p) => <Icon><circle cx="4" cy="6" r="1.4" fill="currentColor" stroke="none" /><circle cx="4" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="4" cy="18" r="1.4" fill="currentColor" stroke="none" /><path d="M9 6h11M9 12h11M9 18h11" /></Icon>;
 const IconListNumber = (p) => <Icon><path d="M9 6h11M9 12h11M9 18h11" /><text x="1.5" y="8.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">1</text><text x="1.5" y="14.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">2</text><text x="1.5" y="20.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">3</text></Icon>;
+const IconBookmark = (p) => <Icon d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" {...p} />;
 
 /* ============================== Utils ============================== */
 const STORAGE_KEY = 'sitenote_reports_v1';
@@ -506,7 +517,28 @@ function downscaleImage(file, maxDim, quality) {
 }
 
 function newTask(order) {
-  return { id: uid(), text: '', floor: '', location: '', assignee: '', dueDate: '', groupId: null, order, photos: [], createdAt: Date.now() };
+  return { id: uid(), text: '', floor: '', location: '', assignee: '', dueDate: '', groupId: null, status: 'open', order, photos: [], createdAt: Date.now() };
+}
+
+const STATUSES = [
+  { id: 'open', label: 'פתוח', color: '#6B7280' },
+  { id: 'in_progress', label: 'בטיפול', color: '#D97706' },
+  { id: 'closed', label: 'סגור', color: '#16A34A' },
+];
+function statusMeta(id) { return STATUSES.find((s) => s.id === id) || STATUSES[0]; }
+function StatusBadge({ status, className, style }) {
+  const m = statusMeta(status);
+  return <span className={"status-badge" + (className ? " " + className : "")} style={{ color: m.color, borderColor: m.color, background: m.color + '1F', ...style }}>{m.label}</span>;
+}
+
+const TEMPLATES_KEY = 'sitenote_templates_v1';
+function loadTemplates() {
+  try { const raw = localStorage.getItem(TEMPLATES_KEY); return raw ? JSON.parse(raw) : []; }
+  catch (e) { return []; }
+}
+function persistTemplates(templates) {
+  try { localStorage.setItem(TEMPLATES_KEY, JSON.stringify(templates)); return true; }
+  catch (e) { return false; }
 }
 function newReport() {
   return {
@@ -803,8 +835,23 @@ function TaskEditor({ task, floors, assignees, groups, onCancel, onSave, onDelet
   const galleryInputRef = useRef(null);
   const textareaRef = useRef(null);
   const [busy, setBusy] = useState(false);
+  const [templates, setTemplates] = useState(() => loadTemplates());
 
   function set(field, value) { setDraft((d) => ({ ...d, [field]: value })); }
+
+  function applyTemplate(t) { set('text', t.text); }
+  function saveCurrentAsTemplate() {
+    const text = (draft.text || '').trim();
+    if (!text || templates.some((t) => t.text === text)) return;
+    const next = templates.concat([{ id: uid(), text }]);
+    setTemplates(next);
+    persistTemplates(next);
+  }
+  function deleteTemplate(id) {
+    const next = templates.filter((t) => t.id !== id);
+    setTemplates(next);
+    persistTemplates(next);
+  }
 
   function wrapSelection(prefix, suffix) {
     const el = textareaRef.current;
@@ -888,9 +935,29 @@ function TaskEditor({ task, floors, assignees, groups, onCancel, onSave, onDelet
             <button type="button" className="text-toolbar-btn" style={{ textDecoration: 'underline' }} onClick={() => wrapSelection('__', '__')} aria-label="קו תחתון">U</button>
             <button type="button" className="text-toolbar-btn" onClick={() => applyListMarker('bullet')} aria-label="רשימת תבליטים"><IconListBullet /></button>
             <button type="button" className="text-toolbar-btn" onClick={() => applyListMarker('number')} aria-label="רשימה ממוספרת"><IconListNumber /></button>
+            <button type="button" className="text-toolbar-btn" onClick={saveCurrentAsTemplate} disabled={!draft.text.trim()} aria-label="שמירה כתבנית"><IconBookmark /></button>
           </div>
         </div>
         <textarea ref={textareaRef} className="field-textarea" placeholder="לדוגמה: יש להשלים איטום בפינת הקיר הצפונית..." value={draft.text} onChange={(e) => set('text', e.target.value)} autoFocus />
+        {templates.length > 0 && (
+          <div className="chip-row">
+            {templates.map((t) => (
+              <span key={t.id} className="chip template-chip">
+                <button type="button" className="template-chip-apply" onClick={() => applyTemplate(t)}>{t.text}</button>
+                <button type="button" className="template-chip-del" onClick={() => deleteTemplate(t.id)} aria-label="מחיקת תבנית"><IconClose /></button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="field">
+        <label className="field-label">סטטוס</label>
+        <div className="chip-row" style={{ marginTop: 0 }}>
+          {STATUSES.map((s) => (
+            <button key={s.id} type="button" data-status={s.id} className={"chip status-chip" + (draft.status === s.id ? " active" : "")} onClick={() => set('status', s.id)}>{s.label}</button>
+          ))}
+        </div>
       </div>
 
       <div className="field">
@@ -1085,6 +1152,7 @@ function OrgRow({ task, listKey, index, groups, onDragHandleDown, dragging, onOp
       <div className="org-row-body" onClick={() => onOpen(task.id)}>
         <OrgRowText text={task.text} />
         <div className="task-meta-row">
+          <StatusBadge status={task.status} />
           {task.floor && <span className="meta-pill"><IconLayer />{task.floor}</span>}
           {task.location && <span className="meta-pill"><IconMapPin />{task.location}</span>}
           {task.assignee && <span className="meta-pill"><IconUser />{task.assignee}</span>}
@@ -1466,6 +1534,7 @@ function PreviewScreen({ report, updateReport }) {
                       <td className="doc-table-topic" rowSpan={sec.tasks.length}>{sec.name}</td>
                     )}
                     <td className="doc-table-desc">
+                      <StatusBadge status={t.status} className="status-badge-inline" />
                       <TaskTextBlock text={t.text} />
                       {showLocation && (t.floor || t.location) && (
                         <div className="doc-table-loc">
@@ -1495,6 +1564,7 @@ function PreviewScreen({ report, updateReport }) {
                   <div className="doc-task" key={t.id}>
                     <div className="doc-task-head">
                       <span className="doc-task-num">{pad2(secIndex + 1)}.{pad2(taskIndex + 1)}</span>
+                      <StatusBadge status={t.status} className="status-badge-inline" />
                       <TaskTextBlock text={t.text} />
                     </div>
                     <div className="doc-task-meta">
@@ -1521,7 +1591,10 @@ function PreviewScreen({ report, updateReport }) {
               <div className="doc-appendix-title">נספח תמונות</div>
               {photoEntries.map(({ sec, secIndex, t, taskIndex }) => (
                 <div className="doc-appendix-item" key={t.id}>
-                  <div className="doc-appendix-item-head">{pad2(secIndex + 1)}.{pad2(taskIndex + 1)} · {sec.name}</div>
+                  <div className="doc-appendix-item-head">
+                    {pad2(secIndex + 1)}.{pad2(taskIndex + 1)} · {sec.name}
+                    <StatusBadge status={t.status} className="status-badge-inline" style={{ marginInlineStart: 8 }} />
+                  </div>
                   {showLocation && (t.floor || t.location) && (
                     <div className="doc-appendix-item-loc">
                       {t.floor && <span>קומה: {t.floor}</span>}
