@@ -362,6 +362,9 @@ img { max-width: 100%; display: block; }
 .doc-task-list { font-size: 14px; font-weight: 400; line-height: 1.5; margin: 0; padding-inline-start: 18px; }
 .doc-task-list li { margin-bottom: 2px; }
 .doc-task-list li:last-child { margin-bottom: 0; }
+.doc-task-list-custom-num { list-style: none; padding-inline-start: 0; }
+.doc-task-list-custom-num li { display: flex; gap: 6px; align-items: baseline; }
+.doc-task-list-num { font-weight: 800; color: var(--accent); flex-shrink: 0; }
 .doc-task-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11.5px; color: #555; margin-bottom: 10px; }
 .doc-task-meta span b { color: #222; font-weight: 700; }
 .doc-photos { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -387,6 +390,7 @@ img { max-width: 100%; display: block; }
 .doc-table-topic { width: 96px; font-weight: 800; text-align: center; vertical-align: middle; background: #F6F7FA; }
 .doc-table-desc { min-width: 220px; }
 .doc-table-assignee, .doc-table-due { width: 104px; white-space: normal; }
+.doc-table-status { width: 84px; text-align: center; }
 .doc-table-loc { margin-top: 6px; font-size: 11px; color: #666; display: flex; gap: 12px; flex-wrap: wrap; }
 
 .doc-appendix { margin-top: 30px; padding-top: 20px; border-top: 2px dashed var(--border); page-break-before: always; break-before: page; }
@@ -545,7 +549,7 @@ function newReport() {
     id: uid(), siteName: '', inspector: '', date: todayISO(),
     reportNumber: '', participants: '', notes: '',
     groups: [], tasks: [], floors: [], assignees: [],
-    pdfLayout: 'cards', pdfShowLocation: true, pdfPhotoAppendix: false,
+    pdfLayout: 'cards', pdfShowLocation: true, pdfPhotoAppendix: false, pdfShowStatus: true,
     createdAt: Date.now(), updatedAt: Date.now(),
   };
 }
@@ -1388,13 +1392,25 @@ function parseInlineMarkup(text) {
   return parts;
 }
 
-function TaskTextBlock({ text }) {
+function TaskTextBlock({ text, topicNum }) {
   const lines = (text || '').split('\n').map((l) => l.trim()).filter(Boolean);
   if (lines.length === 0) return <span className="doc-task-text">ללא תיאור</span>;
   if (lines.length === 1 && !/^(\d+\.\s|•\s)/.test(lines[0])) {
     return <span className="doc-task-text">{parseInlineMarkup(lines[0])}</span>;
   }
   const isNumbered = lines.some((l) => /^\d+\.\s/.test(l));
+  if (isNumbered && topicNum) {
+    return (
+      <ol className="doc-task-list doc-task-list-custom-num">
+        {lines.map((line, i) => (
+          <li key={i}>
+            <span className="doc-task-list-num">{i + 1}.{topicNum}</span>
+            {parseInlineMarkup(line.replace(/^(\d+\.\s|•\s)/, ''))}
+          </li>
+        ))}
+      </ol>
+    );
+  }
   const ListTag = isNumbered ? 'ol' : 'ul';
   return (
     <ListTag className="doc-task-list">
@@ -1452,6 +1468,7 @@ function PreviewScreen({ report, updateReport }) {
   const layout = report.pdfLayout || 'cards';
   const showLocation = report.pdfShowLocation !== false;
   const photoAppendix = !!report.pdfPhotoAppendix;
+  const showStatus = report.pdfShowStatus !== false;
 
   function resizePhoto(photoId, w, h) {
     updateReport({
@@ -1489,6 +1506,10 @@ function PreviewScreen({ report, updateReport }) {
             <input type="checkbox" checked={photoAppendix} onChange={(e) => updateReport({ ...report, pdfPhotoAppendix: e.target.checked })} />
             נספח תמונות
           </label>
+          <label className="preview-loc-toggle">
+            <input type="checkbox" checked={showStatus} onChange={(e) => updateReport({ ...report, pdfShowStatus: e.target.checked })} />
+            הצג סטטוס
+          </label>
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => window.print()}><IconPrint />הפקת PDF</button>
       </div>
@@ -1524,18 +1545,20 @@ function PreviewScreen({ report, updateReport }) {
                   <th>תיאור</th>
                   <th>אחראי</th>
                   <th>תאריך יעד</th>
+                  {showStatus && <th>סטטוס</th>}
                 </tr>
               </thead>
               <tbody>
                 {sections.map((sec, secIndex) => sec.tasks.map((t, taskIndex) => (
                   <tr key={t.id}>
-                    <td className="doc-table-num">{pad2(secIndex + 1)}.{pad2(taskIndex + 1)}</td>
+                    {taskIndex === 0 && (
+                      <td className="doc-table-num" rowSpan={sec.tasks.length}>{pad2(secIndex + 1)}</td>
+                    )}
                     {taskIndex === 0 && (
                       <td className="doc-table-topic" rowSpan={sec.tasks.length}>{sec.name}</td>
                     )}
                     <td className="doc-table-desc">
-                      <StatusBadge status={t.status} className="status-badge-inline" />
-                      <TaskTextBlock text={t.text} />
+                      <TaskTextBlock text={t.text} topicNum={pad2(secIndex + 1)} />
                       {showLocation && (t.floor || t.location) && (
                         <div className="doc-table-loc">
                           {t.floor && <span>קומה: {t.floor}</span>}
@@ -1552,6 +1575,7 @@ function PreviewScreen({ report, updateReport }) {
                     </td>
                     <td className="doc-table-assignee">{t.assignee || '—'}</td>
                     <td className="doc-table-due">{t.dueDate ? formatDateHe(t.dueDate) : '—'}</td>
+                    {showStatus && <td className="doc-table-status"><StatusBadge status={t.status} /></td>}
                   </tr>
                 )))}
               </tbody>
@@ -1564,7 +1588,7 @@ function PreviewScreen({ report, updateReport }) {
                   <div className="doc-task" key={t.id}>
                     <div className="doc-task-head">
                       <span className="doc-task-num">{pad2(secIndex + 1)}.{pad2(taskIndex + 1)}</span>
-                      <StatusBadge status={t.status} className="status-badge-inline" />
+                      {showStatus && <StatusBadge status={t.status} className="status-badge-inline" />}
                       <TaskTextBlock text={t.text} />
                     </div>
                     <div className="doc-task-meta">
@@ -1593,7 +1617,7 @@ function PreviewScreen({ report, updateReport }) {
                 <div className="doc-appendix-item" key={t.id}>
                   <div className="doc-appendix-item-head">
                     {pad2(secIndex + 1)}.{pad2(taskIndex + 1)} · {sec.name}
-                    <StatusBadge status={t.status} className="status-badge-inline" style={{ marginInlineStart: 8 }} />
+                    {showStatus && <StatusBadge status={t.status} className="status-badge-inline" style={{ marginInlineStart: 8 }} />}
                   </div>
                   {showLocation && (t.floor || t.location) && (
                     <div className="doc-appendix-item-loc">
