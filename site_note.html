@@ -346,8 +346,6 @@ img { max-width: 100%; display: block; }
 .doc-header-brand svg { width: 16px; height: 16px; }
 .doc-title { font-size: 21px; font-weight: 800; margin-top: 4px; }
 .doc-header-right { text-align: left; font-size: 12px; color: #555; line-height: 1.6; white-space: nowrap; }
-.doc-summary { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 22px; font-size: 12.5px; color: #444; }
-.doc-summary b { color: #111; }
 .doc-participants { font-size: 12.5px; color: #444; margin: 0 0 12px; line-height: 1.5; white-space: pre-line; }
 .doc-participants b { color: #111; }
 .doc-group-title {
@@ -1431,11 +1429,20 @@ function DocPhoto({ photo, onOpen, onResize }) {
   }
   function handlePointerMove(e) {
     if (!dragRef.current) return;
-    const dx = e.clientX - dragRef.current.startX;
-    const dy = e.clientY - dragRef.current.startY;
-    const w = Math.max(70, Math.min(480, Math.round(dragRef.current.startW + dx)));
-    const h = Math.max(52, Math.min(480, Math.round(dragRef.current.startH + dy)));
-    setSize({ w, h });
+    const { startX, startY, startW, startH } = dragRef.current;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    // Scale both dimensions uniformly (distance from the fixed top-left corner to the
+    // pointer vs. to the original bottom-right corner) so the box's aspect ratio never
+    // changes mid-resize — otherwise object-fit: cover would shift the crop as the box's
+    // own ratio drifted from the image's.
+    const origDist = Math.hypot(startW, startH);
+    const newDist = Math.hypot(startW + dx, startH + dy);
+    const rawScale = newDist / origDist;
+    const minScale = Math.max(70 / startW, 52 / startH);
+    const maxScale = Math.min(480 / startW, 480 / startH);
+    const scale = Math.min(Math.max(rawScale, minScale), maxScale);
+    setSize({ w: Math.round(startW * scale), h: Math.round(startH * scale) });
   }
   function handlePointerUp(e) {
     if (!dragRef.current) return;
@@ -1526,10 +1533,6 @@ function PreviewScreen({ report, updateReport }) {
               {report.inspector && <div>מפקח: {report.inspector}</div>}
               <div>הופק: {formatDateTimeHe(Date.now())}</div>
             </div>
-          </div>
-          <div className="doc-summary">
-            <div><b>{sections.length}</b> חלקים</div>
-            <div><b>{report.tasks.reduce((s, t) => s + t.photos.length, 0)}</b> תמונות</div>
           </div>
           {report.participants && <div className="doc-participants"><b>משתתפים בסיור:</b> {report.participants}</div>}
           {report.notes && <div className="doc-participants"><b>הערות כלליות:</b> {report.notes}</div>}
