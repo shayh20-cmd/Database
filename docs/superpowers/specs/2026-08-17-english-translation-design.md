@@ -88,6 +88,32 @@ Consequence: English mode will have some layout imperfections at ship time. The 
 
 **`protein_explorer.html`.** Unrelated standalone file, not part of the dashboard suite.
 
+---
+
+## Known issues found during verification (2026-08-17)
+
+**1. `document.title` still translates user data on `project_hub.html`.**
+`applyTitle()` calls `tr()` directly and never consults `skip()`, so the browser
+tab title bypasses the user-data protection. The three pages differ in what
+their title actually contains, so no blanket rule is correct:
+
+| Page | Title | Translating it is… |
+|---|---|---|
+| `planning_dashboard.html` | `ניהול סטטוס תכנון` | correct — pure UI chrome |
+| `home_dashboard.html` | `דף הבית — שי הורביץ` | acceptable — chrome plus a transliterated name |
+| `project_hub.html` | `ספריית לוד` | **wrong** — this is purely a project name |
+
+So `project_hub.html` shows `ספריית לוד` in the app but `Lod Library` in the tab.
+A minimal fix would be an opt-out marker (e.g. `data-i18n-skip-title` on `<html>`)
+honoured by `applyTitle()`, set only on `project_hub.html`. Deferred: it needs a
+decision, not just a patch.
+
+**2. LTR layout imperfections.** 158 physical `left`/`right` declarations remain,
+against 85 logical. Text is readable and direction flips correctly, but some
+absolutely-positioned chrome sits on the wrong side in English mode. Many of
+these are intentional (JS-computed Gantt coordinates) and must not be bulk
+converted. Tracked as the separate RTL audit above.
+
 ## Verification
 
 No test framework, no build step, no `package.json` — consistent with the rest of this repo.
