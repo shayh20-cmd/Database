@@ -18,6 +18,13 @@ var LS_KEY = 'appLang';
 var HE_RX = /[֐-׿]/;
 var ATTRS = ['title', 'placeholder', 'aria-label', 'alt'];
 
+/* Containers that render user-entered data (task titles, project names, notes).
+   Their contents are NEVER translated: a project someone named in Hebrew is a
+   proper noun and should stay Hebrew even in English mode.
+   When adding a component that renders stored data, add its class here — or put
+   data-i18n-skip on the element. */
+var USER_DATA_SEL = '.name-text,.cmt,.proj-name,.sb-proj-btn';
+
 /* ── Dictionary (loaded from i18n-dict.js) ── */
 var HE_EN = window.I18N_HE_EN;
 if (!HE_EN) {
@@ -42,7 +49,7 @@ function tr(s) {
 function skip(node) {
   var el = node.nodeType === 3 ? node.parentElement : node;
   if (!el) return false;
-  if (el.closest && el.closest('#lang-toggle,[data-i18n-skip],[contenteditable="true"],script,style')) return true;
+  if (el.closest && el.closest('#lang-toggle,[data-i18n-skip],[contenteditable="true"],script,style,' + USER_DATA_SEL)) return true;
   var tag = el.tagName;
   return tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT';
 }
