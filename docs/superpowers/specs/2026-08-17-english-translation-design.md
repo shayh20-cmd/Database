@@ -90,37 +90,47 @@ Consequence: English mode will have some layout imperfections at ship time. The 
 
 ---
 
-## Known issues found during verification (2026-08-17)
+## Verification outcome (2026-08-17) — both issues resolved
 
-**1. `document.title` still translates user data on `project_hub.html`.**
-`applyTitle()` calls `tr()` directly and never consults `skip()`, so the browser
-tab title bypasses the user-data protection. The three pages differ in what
-their title actually contains, so no blanket rule is correct:
+**1. `document.title` — fixed.** `applyTitle()` now honours a
+`data-i18n-skip-title` attribute on `<html>`, set only on `project_hub.html`,
+whose title *is* the project name. The other two pages have chrome titles and
+still translate:
 
-| Page | Title | Translating it is… |
+| Page | Title | English mode |
 |---|---|---|
-| `planning_dashboard.html` | `ניהול סטטוס תכנון` | correct — pure UI chrome |
-| `home_dashboard.html` | `דף הבית — שי הורביץ` | acceptable — chrome plus a transliterated name |
-| `project_hub.html` | `ספריית לוד` | **wrong** — this is purely a project name |
+| `planning_dashboard.html` | `ניהול סטטוס תכנון` | `Design Status Management` |
+| `home_dashboard.html` | `דף הבית — שי הורביץ` | `Home — Shai Horowitz` |
+| `project_hub.html` | `ספריית לוד` | unchanged — it is a project name |
 
-So `project_hub.html` shows `ספריית לוד` in the app but `Lod Library` in the tab.
-A minimal fix would be an opt-out marker (e.g. `data-i18n-skip-title` on `<html>`)
-honoured by `applyTitle()`, set only on `project_hub.html`. Deferred: it needs a
-decision, not just a patch.
+**2. RTL→LTR audit — done.** The headline "158 physical declarations" was
+misleading: most were JS inline-style coordinates (Gantt columns, popup
+positions) that are direction-agnostic by construction. Only **19** lived in
+CSS. Auditing by comparing rendered geometry between modes — rather than
+reading CSS — found three real bugs, all fixed:
 
-**2. LTR layout imperfections.** 158 physical `left`/`right` declarations remain,
-against 85 logical. Text is readable and direction flips correctly, but some
-absolutely-positioned chrome sits on the wrong side in English mode. Many of
-these are intentional (JS-computed Gantt coordinates) and must not be bulk
-converted. Tracked as the separate RTL audit above.
+- **6 hardcoded `dir="rtl"`** on portal-rendered context menus, the duplicate
+  and delete modals, and the task detail panel. These pinned those surfaces to
+  RTL in English mode. Portals into `document.body` already inherit `dir` from
+  `<html>`, so the attribute was redundant in Hebrew and harmful in English.
+- **`.hero::before` / `::after`** used physical `left`/`right` and were measured
+  byte-identical in both directions, while `text-align: start` correctly flipped
+  the text — so in English the heading moved onto the decoration. Now logical.
+- **6 image resize handles** positioned physically, with resize maths hardcoded
+  to RTL (`// RTL: drag right = smaller`). Position is now logical and the drag
+  maths reads the document direction. RTL behaviour is byte-identical; LTR is
+  its mirror.
 
-## Verification
+The 11 remaining physical `left`/`right` declarations are verified
+direction-neutral: `translateX(-50%)` centering idioms, full-bleed
+`left:0;right:0`, and `.select`, which already carries a `[dir="ltr"]` override.
 
-No test framework, no build step, no `package.json` — consistent with the rest of this repo.
+**Verified in-browser on all three pages:** no horizontal overflow, zero
+mirror failures (every positioned element lands at its mirrored coordinate),
+chrome translates, user data does not, clean Hebrew round-trip, no console
+errors.
 
-1. **Syntax:** `node --check` on `i18n.js`, `i18n-dict.js`, and `tools/i18n-extract.js`.
-2. **Dictionary integrity:** confirm the split preserves all 1,457 entries — key count before and after must match, and the regex must still build without throwing.
-3. **Extractor self-check:** running it against the current tree should report few or no missing strings, since the dictionary was built from this same source. A large result means the extraction regex is wrong.
-4. **Browser:** load each of the three files, toggle to English, confirm chrome translates and direction flips; toggle back and confirm Hebrew is restored exactly (the engine caches originals in `__i18nHe`, so round-tripping is testable).
-5. **User-data isolation:** rename a seed project to a string that exists as a dictionary key, switch to English, confirm it does *not* translate.
-6. **No console errors** in either language.
+**Not verified hands-on:** the image-resize *drag* interaction requires
+inserting an image into a task description and dragging a corner. The change is
+a provable mirror of existing behaviour, so RTL cannot regress, but LTR drag
+direction deserves a manual try.
