@@ -260,7 +260,8 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Produces, exported from `tools/i18n-extract.js` via `module.exports`:
-  - `extractHebrewLiterals(source: string) => string[]` — quoted literals containing ≥1 Hebrew char, de-duplicated, source order.
+  - `extractHebrewLiterals(source: string) => string[]` — quoted literals containing ≥1 Hebrew char, escapes decoded, de-duplicated, source order.
+  - `unescapeLiteral(raw: string) => string` — decodes JS escapes. Required: 39 dictionary keys contain a `"` written as `\"` in source, which raw capture could never match.
   - `loadDict(dictSource: string) => Object` — evaluates an `i18n-dict.js` source string and returns the `HE_EN` map.
   - `buildTranslator(dict: Object) => (s: string) => string` — replicates the engine's replacement exactly (longest-key-first alternation with Hebrew-boundary lookarounds).
   - `findUntranslated(sources: {file, text}[], dict: Object) => {file, items: {literal, residual}[]}[]`
@@ -280,10 +281,9 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 Create `tools/i18n-extract.test.js`:
 
-```js
-'use strict';
+```js'use strict';
 const assert = require('assert');
-const { extractHebrewLiterals, loadDict, buildTranslator, findUntranslated } = require('./i18n-extract.js');
+const { extractHebrewLiterals, unescapeLiteral, loadDict, buildTranslator, findUntranslated } = require('./i18n-extract.js');
 
 /* extractHebrewLiterals */
 assert.deepStrictEqual(
@@ -366,6 +366,30 @@ assert.deepStrictEqual(
   'residual shows which part is still Hebrew'
 );
 
+/* unescapeLiteral — 39 real dictionary keys contain a `"` written as \" in
+   source. Without decoding, an extracted literal can never match them. */
+assert.strictEqual(unescapeLiteral('\\"'), '"', 'escaped double quote');
+assert.strictEqual(unescapeLiteral("\\'"), "'", 'escaped single quote');
+assert.strictEqual(unescapeLiteral('a\\\\b'), 'a\\b', 'escaped backslash');
+assert.strictEqual(unescapeLiteral('a\\nb'), 'a\nb', 'newline escape');
+assert.strictEqual(unescapeLiteral('\\u05e9'), 'ש', 'unicode escape');
+assert.strictEqual(unescapeLiteral('plain'), 'plain', 'no escapes untouched');
+
+/* the real-world case: ` מ\"ר` (sqm) must extract as ` מ"ר`, not ` מ\"ר` */
+assert.deepStrictEqual(
+  extractHebrewLiterals('const u = " מ\\"ר";'),
+  [' מ"ר'],
+  'literal with an escaped quote decodes to the real character'
+);
+
+/* and once decoded it must match a dictionary key containing that character */
+const qDict = loadDict('window.I18N_HE_EN = { \' מ"ר\': " sqm" };');
+assert.deepStrictEqual(
+  findUntranslated([{ file: 'a.html', text: 'const u = " מ\\"ר";' }], qDict),
+  [],
+  'escaped-quote literal is recognised as already translated'
+);
+
 console.log('ALL TESTS PASSED');
 ```
 
@@ -381,22 +405,58 @@ Expected: `Error: Cannot find module './i18n-extract.js'`
 
 Create `tools/i18n-extract.js`:
 
-```js
-#!/usr/bin/env node
+```js#!/usr/bin/env node
 'use strict';
-/* Reports Hebrew strings present in the dashboards but missing from i18n-dict.js.
-   Zero dependencies. Run from the repo root:  node tools/i18n-extract.js */
+/* Reports Hebrew that would still render untranslated in English mode.
+   Zero dependencies. Run from the repo root:  node tools/i18n-extract.js
+
+   IMPORTANT: the engine translates by SUBSTRING, so a literal like
+   "תכנית קומות רלוונטיות 1:100" is fully covered by the shorter key
+   "תכנית קומות רלוונטיות". Checking for exact dictionary keys instead
+   reports ~330 false gaps against ~12 real ones. Do not "simplify" this
+   to a key lookup. */
 
 const fs = require('fs');
 const path = require('path');
 
-const HEBREW = /[\u0590-\u05FF]/;
+const HEBREW = /[֐-׿]/;
 const FILES = ['home_dashboard.html', 'planning_dashboard.html', 'project_hub.html'];
 const DICT = 'i18n-dict.js';
 
-/* Walks the source character by character so quotes nested inside a differently
-   quoted literal ("שלום" within '...') don't terminate it early. A regex cannot
-   do this reliably across three quote styles with escapes. */
+/* Decode the JS escapes a source literal carries, so extracted text matches the
+   DECODED dictionary keys. 39 keys contain a real `"` written as \" in source;
+   without this they could never match. */
+const SIMPLE = { n: '\n', t: '\t', r: '\r', b: '\b', f: '\f', v: '\v', '0': '\0' };
+function unescapeLiteral(raw) {
+  let out = '';
+  for (let i = 0; i < raw.length; i++) {
+    if (raw[i] !== '\\') { out += raw[i]; continue; }
+    const c = raw[++i];
+    if (c === undefined) break;
+    if (c === 'u') {
+      if (raw[i + 1] === '{') {
+        const end = raw.indexOf('}', i);
+        out += String.fromCodePoint(parseInt(raw.slice(i + 2, end), 16));
+        i = end;
+      } else {
+        out += String.fromCharCode(parseInt(raw.substr(i + 1, 4), 16));
+        i += 4;
+      }
+    } else if (c === 'x') {
+      out += String.fromCharCode(parseInt(raw.substr(i + 1, 2), 16));
+      i += 2;
+    } else if (Object.prototype.hasOwnProperty.call(SIMPLE, c)) {
+      out += SIMPLE[c];
+    } else {
+      out += c; /* \" \' \` \\ and any other escaped char */
+    }
+  }
+  return out;
+}
+
+/* Walks character by character so quotes nested inside a differently quoted
+   literal ("שלום" within '...') don't terminate it early. A regex cannot do
+   this reliably across three quote styles with escapes. */
 function extractHebrewLiterals(source) {
   const found = [];
   const seen = new Set();
@@ -406,16 +466,17 @@ function extractHebrewLiterals(source) {
     if (ch === "'" || ch === '"' || ch === '`') {
       const quote = ch;
       let j = i + 1;
-      let buf = '';
+      let raw = '';
       while (j < source.length) {
-        if (source[j] === '\\') { buf += source[j] + source[j + 1]; j += 2; continue; }
+        if (source[j] === '\\') { raw += source[j] + source[j + 1]; j += 2; continue; }
         if (source[j] === quote) break;
-        if (source[j] === '\n' && quote !== '`') { buf = null; break; }
-        buf += source[j];
+        if (source[j] === '\n' && quote !== '`') { raw = null; break; }
+        raw += source[j];
         j++;
       }
-      if (buf === null) { i++; continue; }  /* unterminated: resume past the quote */
-      if (HEBREW.test(buf) && !seen.has(buf)) { seen.add(buf); found.push(buf); }
+      if (raw === null) { i++; continue; }  /* unterminated: resume past the quote */
+      const text = unescapeLiteral(raw);
+      if (HEBREW.test(text) && !seen.has(text)) { seen.add(text); found.push(text); }
       i = j + 1;
       continue;
     }
@@ -429,9 +490,8 @@ function extractHebrewLiterals(source) {
    (which breaks on ternaries like `cond ? 'עברית' : 'x'`, where the string is
    also followed by a colon). */
 function loadDict(dictSource) {
-  const sandbox = { window: {} };
   const fn = new Function('window', dictSource + '\nreturn window.I18N_HE_EN;');
-  return fn(sandbox.window) || {};
+  return fn({}) || {};
 }
 
 /* Mirrors i18n.js buildRegex()/tr() exactly: longest key first, with Hebrew
@@ -502,7 +562,7 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { extractHebrewLiterals, loadDict, buildTranslator, findUntranslated };
+module.exports = { extractHebrewLiterals, unescapeLiteral, loadDict, buildTranslator, findUntranslated };
 ```
 
 - [ ] **Step 4: Run the test to verify it passes**
@@ -519,17 +579,18 @@ Expected output: `ALL TESTS PASSED`
 node tools/i18n-extract.js
 ```
 
-Expected: `Dictionary: 1457 entries`, then **roughly 12 items, all from `project_hub.html`** — `home_dashboard.html` and `planning_dashboard.html` should report nothing. This was measured against the real tree before this plan was written.
+Expected: `Dictionary: 1457 entries`, then **11 items, all from `project_hub.html`** — `home_dashboard.html` and `planning_dashboard.html` report nothing. Measured against the real tree.
 
-The 12, verbatim:
+The 11, verbatim:
 
 | Literal | Verdict |
 |---|---|
 | `"א"` `"ב"` `"ג"` `"ד"` `"ה"` `"ו"` `"ש"` | Genuine — stage labels (`שלב א׳`). Safe to add: the engine's boundary lookarounds stop a single-letter key from matching inside a word. |
 | `"מ- "` | Genuine — a `from-` prefix fragment. |
-| `" מ\"ר"` | Genuine — the `sqm` unit suffix. |
 | `"עדכון ≥${fEventDays}י"` | Genuine but **composed at runtime**. Add the static part (`"עדכון ≥"`) rather than the whole literal. |
 | `` "}},xy?`${xy.elapsed}/${xy.total}`:g.targetDate?`${…" `` ×2 | **False positive.** A backtick inside minified code starts what the scanner reads as a literal. Ignore. |
+
+The `sqm` suffix `" מ\"ר"` is *not* in this list, and that is the escape-decoding fix working: it is already a dictionary key, and only matches once `unescapeLiteral` turns `\"` into a real `"`. If it reappears, escape decoding has regressed.
 
 If you instead see a number in the **hundreds**, the tool has regressed to exact-key matching — re-read the Critical design note above. If you see thousands, `extractHebrewLiterals` is broken.
 
