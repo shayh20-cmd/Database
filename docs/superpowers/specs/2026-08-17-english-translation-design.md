@@ -64,7 +64,13 @@ The script reports candidates, not truth. Some hits will be non-UI strings (comm
 
 All application data lives in a single localStorage JSON blob per app (`pm_asana_v9`, `planning_dashboard_data_v4`), seeded on first load with sample data. Currently `data-i18n-skip` is applied only to the language toggle button itself, so **nothing protects user content** — any project name, task title, or person name that matches a dictionary key gets rewritten.
 
-Mark the components that render values from the stored JSON with `data-i18n-skip`. The engine already honours this attribute via `closest()` in its `skip()` check, so no engine change is required — only the markers.
+Mark the components that render values from the stored JSON so the engine skips them.
+
+*As built:* rather than tagging ~100 individual `createElement` call sites, the
+engine grew a `USER_DATA_SEL` class selector (`.name-text, .cmt, .proj-name,
+.sb-proj-btn`) folded into its existing `closest()` check. User data renders
+through a small set of shared containers, so one selector covers every site.
+`data-i18n-skip` remains available for one-offs.
 
 **Accepted consequence:** the seed/demo data flows through those same components, so sample projects (`מרכז קהילתי רמת גן`, `בית ספר בית שמש`) and person names will render in Hebrew even in English mode. On a dashboard that data is most of the visible text, so English mode will look mixed when running on seed data.
 
@@ -78,9 +84,7 @@ If polished all-English demos are wanted later, the fix is a separate English se
 
 ## Out of scope
 
-**RTL→LTR CSS audit.** The three files carry 158 physical `left`/`right` declarations against 85 already-converted logical ones. These are *not* uniformly convertible: a large share in `project_hub.html` position Gantt bars from JS-computed coordinates, where physical positioning is intentional and a logical property would break the timeline. This needs a considered audit, not a bulk find-replace, and is tracked as separate follow-up work.
-
-Consequence: English mode will have some layout imperfections at ship time. The text is readable and the direction flips correctly; some absolutely-positioned chrome will sit on the wrong side.
+**RTL→LTR CSS audit.** Was scoped out here, then completed — see *Verification outcome* below.
 
 **Language-specific number, date, and currency formatting.** Dates render via existing helpers; English mode shows Hebrew-locale formatting.
 
