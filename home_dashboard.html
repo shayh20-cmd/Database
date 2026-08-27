@@ -119,14 +119,14 @@ button { cursor: pointer; }
 }
 .hero::before {
   content: '';
-  position: absolute; top: -60px; left: -60px;
+  position: absolute; top: -60px; inset-inline-end: -60px;
   width: 280px; height: 280px; border-radius: 50%;
   background: rgba(255,255,255,.06);
   pointer-events: none;
 }
 .hero::after {
   content: '';
-  position: absolute; bottom: -80px; right: 30%;
+  position: absolute; bottom: -80px; inset-inline-start: 30%;
   width: 220px; height: 220px; border-radius: 50%;
   background: rgba(255,255,255,.04);
   pointer-events: none;
