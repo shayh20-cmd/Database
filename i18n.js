@@ -104,9 +104,13 @@ function walk(root) {
   }
 }
 
-/* document.title */
+/* document.title — has no DOM node, so skip() cannot reach it. A page whose
+   title is user data (e.g. project_hub.html, whose title IS the project name)
+   opts out with data-i18n-skip-title on <html>. Pages whose title is UI chrome
+   leave the attribute off and translate normally. */
 var titleHe = null;
 function applyTitle() {
+  if (document.documentElement.hasAttribute('data-i18n-skip-title')) return;
   if (lang === 'en') {
     if (titleHe == null) titleHe = document.title;
     if (HE_RX.test(titleHe)) document.title = tr(titleHe);
