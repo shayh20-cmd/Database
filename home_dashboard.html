@@ -4,6 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>דף הבית — שי הורביץ</title>
+<script>try{if(localStorage.getItem('appLang')==='en'){document.documentElement.dir='ltr';document.documentElement.lang='en';}}catch(e){}</script>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -89,7 +90,7 @@ button { cursor: pointer; }
 }
 .topbar-bell:hover { background: var(--bg); border-color: var(--border-strong); color: var(--text); }
 .topbar-bell-dot {
-  position: absolute; top: 7px; left: 7px;
+  position: absolute; top: 7px; inset-inline-end: 7px;
   width: 8px; height: 8px; border-radius: 50%;
   background: var(--red); border: 1.5px solid var(--surface);
 }
@@ -153,7 +154,7 @@ button { cursor: pointer; }
   border-radius: 20px; padding: 1px 9px; font-size: 11px; font-weight: 700;
 }
 .sec-hdr-link {
-  margin-right: auto; font-size: 12px; color: var(--accent); font-weight: 600;
+  margin-inline-start: auto; font-size: 12px; color: var(--accent); font-weight: 600;
   background: none; border: none; text-decoration: none; transition: opacity .15s;
 }
 .sec-hdr-link:hover { opacity: .75; }
@@ -205,7 +206,7 @@ button { cursor: pointer; }
 .proj-name { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
 .proj-client { font-size: 12px; color: var(--text-3); font-weight: 400; }
 .proj-status-pill {
-  margin-right: auto;
+  margin-inline-start: auto;
   font-size: 11px; font-weight: 600;
   border-radius: 20px; padding: 3px 10px;
   white-space: nowrap;
@@ -256,11 +257,11 @@ button { cursor: pointer; }
 .gantt-month {
   flex: 1; text-align: center; font-size: 11px; font-weight: 600;
   color: var(--text-3); padding-bottom: 4px;
-  border-left: 1px dashed var(--border);
+  border-inline-end: 1px dashed var(--border);
 }
-.gantt-month:first-child { border-left: none; }
+.gantt-month:first-child { border-inline-end: none; }
 .gantt-row { display: flex; align-items: center; margin-bottom: 8px; position: relative; }
-.gantt-row-label { width: 200px; flex-shrink: 0; padding-left: 8px; }
+.gantt-row-label { width: 200px; flex-shrink: 0; padding-inline-end: 8px; }
 .gantt-row-name { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gantt-row-sub { font-size: 10px; color: var(--text-3); font-weight: 400; }
 .gantt-track { flex: 1; height: 28px; background: var(--border); border-radius: 4px; position: relative; overflow: visible; }
@@ -268,7 +269,7 @@ button { cursor: pointer; }
   position: absolute; top: 0; bottom: 0; left: 0; right: 0;
   display: flex; pointer-events: none;
 }
-.gantt-bg-col { flex: 1; border-left: 1px dashed rgba(0,0,0,.06); }
+.gantt-bg-col { flex: 1; border-inline-end: 1px dashed rgba(0,0,0,.06); }
 .gantt-bar {
   position: absolute; top: 4px; height: 20px;
   border-radius: 4px; display: flex; align-items: center;
@@ -279,7 +280,7 @@ button { cursor: pointer; }
 }
 .gantt-bar:hover { filter: brightness(1.1); }
 .gantt-milestone {
-  position: absolute; top: 50%; transform: translateY(-50%);
+  position: absolute; top: 50%; transform: translate(50%, -50%);
   width: 14px; height: 14px; border-radius: 50%;
   background: var(--surface); border: 2.5px solid;
   box-shadow: 0 1px 4px rgba(0,0,0,.15);
@@ -369,6 +370,13 @@ button { cursor: pointer; }
 .delay-2 { animation-delay: .10s; }
 .delay-3 { animation-delay: .15s; }
 .delay-4 { animation-delay: .20s; }
+
+/* ── Language toggle / LTR support ── */
+:root { --lang-toggle-top: 13px; --lang-toggle-end: 20px; }
+.topbar { padding-inline-end: 150px; }
+[dir="ltr"] .gantt-today-line::before { content: 'Today'; }
+[dir="ltr"] .gantt-milestone { transform: translate(-50%, -50%); }
+[dir="ltr"] body { font-family: 'Heebo', system-ui, sans-serif; }
 
 @media (max-width: 900px) {
   .main { padding: 20px 16px 32px; }
@@ -769,7 +777,7 @@ function GanttChart() {
       <div className="sec-hdr" style={{marginBottom:16}}>
         <span style={{fontSize:16}}>📅</span>
         <span className="sec-hdr-title">ציר זמן — גנט פרויקטים</span>
-        <span style={{fontSize:11,color:'var(--text-3)',marginRight:8,fontWeight:500}}>מרץ–נובמבר 2026</span>
+        <span style={{fontSize:11,color:'var(--text-3)',marginInlineStart:8,fontWeight:500}}>מרץ–נובמבר 2026</span>
       </div>
       <div className="gantt-wrap">
         <div className="gantt">
@@ -794,14 +802,14 @@ function GanttChart() {
                   {GANTT_MONTHS.map((_,i)=><div key={i} className="gantt-bg-col"/>)}
                 </div>
                 {/* Today line */}
-                <div className="gantt-today-line" style={{right:`${todayPct}%`}} />
+                <div className="gantt-today-line" style={{insetInlineStart:`${todayPct}%`}} />
                 {/* Bars */}
                 {row.bars.map((bar, bi) => {
                   const l = pct(bar.start);
                   const w = pct(bar.end) - l;
                   return (
                     <div key={bi} className="gantt-bar" title={bar.label}
-                      style={{right:`${l}%`, width:`${w}%`, background:bar.color}}>
+                      style={{insetInlineStart:`${l}%`, width:`${w}%`, background:bar.color}}>
                       {w > 12 ? bar.label : ''}
                     </div>
                   );
@@ -809,7 +817,7 @@ function GanttChart() {
                 {/* Milestones */}
                 {row.milestones.map((ms, mi) => (
                   <div key={mi} className="gantt-milestone" title={ms.tip}
-                    style={{right:`${pct(ms.date)}%`, borderColor: ms.color, transform:'translate(50%,-50%)'}} />
+                    style={{insetInlineStart:`${pct(ms.date)}%`, borderColor: ms.color}} />
                 ))}
               </div>
             </div>
@@ -995,5 +1003,6 @@ function App() {
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
+<script src="i18n.js"></script>
 </body>
 </html>
