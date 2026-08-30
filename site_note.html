@@ -1534,6 +1534,7 @@ function DocPhoto({ photo, onOpen, onResize }) {
 
 /* ============================== Preview / PDF Screen ============================== */
 function PreviewScreen({ report, updateReport }) {
+  const { notify } = useDialog();
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const groups = report.groups.slice().sort((a, b) => a.order - b.order);
   const tasksByGroup = (groupId) => report.tasks.filter((t) => (t.groupId || null) === groupId).sort((a, b) => a.order - b.order);
@@ -1564,6 +1565,22 @@ function PreviewScreen({ report, updateReport }) {
     });
   });
 
+  function handlePrint() {
+    // window.print() is silently ignored inside a sandboxed iframe missing "allow-modals"
+    // (e.g. this Artifact preview) — no exception, no callback, just nothing happening. The
+    // only observable signal is whether the browser's own "beforeprint" event ever fires.
+    let firedPrint = false;
+    const onBeforePrint = () => { firedPrint = true; };
+    window.addEventListener('beforeprint', onBeforePrint);
+    window.print();
+    setTimeout(() => {
+      window.removeEventListener('beforeprint', onBeforePrint);
+      if (!firedPrint) {
+        notify('לא ניתן לפתוח את חלון ההדפסה מתוך התצוגה המוטמעת הזו. פתחו את האפליקציה בכרטיסיית דפדפן נפרדת (למשל דרך קישור משותף, או הריצו את הקובץ באופן עצמאי) ונסו שוב.');
+      }
+    }, 700);
+  }
+
   return (
     <>
       <div className="preview-toolbar">
@@ -1585,7 +1602,7 @@ function PreviewScreen({ report, updateReport }) {
             הצג סטטוס
           </label>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={() => window.print()}><IconPrint />הפקת PDF</button>
+        <button className="btn btn-primary btn-sm" onClick={handlePrint}><IconPrint />הפקת PDF</button>
       </div>
       <div className="preview-scroll">
         <div className="doc-print-root">
