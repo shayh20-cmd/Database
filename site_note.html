@@ -148,8 +148,9 @@ img { max-width: 100%; display: block; }
 .report-card-body { flex: 1; min-width: 0; text-align: right; }
 .report-card-title { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .report-card-meta { font-size: 12.5px; color: var(--text-3); margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap; }
-.report-card-del { color: var(--text-3); padding: 8px; border-radius: 50%; flex-shrink: 0; }
+.report-card-del, .report-card-followup { color: var(--text-3); padding: 8px; border-radius: 50%; flex-shrink: 0; }
 .report-card-del:hover { color: var(--red); background: var(--red-light); }
+.report-card-followup:hover { color: var(--accent); background: var(--accent-light); }
 .empty-state { text-align: center; padding: 60px 24px; color: var(--text-3); }
 .empty-state svg { width: 52px; height: 52px; margin: 0 auto 14px; opacity: .5; }
 .empty-state h3 { color: var(--text-2); font-size: 15.5px; font-weight: 700; margin-bottom: 5px; }
@@ -158,6 +159,11 @@ img { max-width: 100%; display: block; }
 
 /* ───────────────────────── Form fields ───────────────────────── */
 .field { margin-bottom: 16px; }
+.carried-note {
+  display: flex; align-items: flex-start; gap: 8px; background: var(--accent-light); border: 1px solid var(--accent-light-2);
+  border-radius: var(--radius-md); padding: 10px 12px; font-size: 12.5px; color: var(--accent-h); margin-bottom: 16px; line-height: 1.5;
+}
+.carried-note svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
 .field-label { display: block; font-size: 13px; font-weight: 700; color: var(--text-2); margin-bottom: 7px; }
 .field-label .opt { font-weight: 400; color: var(--text-3); }
 .field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
@@ -295,6 +301,8 @@ img { max-width: 100%; display: block; }
   background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 3px 7px;
 }
 .meta-pill svg { width: 11px; height: 11px; color: var(--text-3); flex-shrink: 0; }
+.meta-pill.carried-pill { background: var(--accent-light); border-color: var(--accent-light-2); color: var(--accent-h); }
+.meta-pill.carried-pill svg { color: var(--accent); }
 
 /* ───────────────────────── Organize screen ───────────────────────── */
 .organize-wrap { padding: 14px 16px calc(var(--nav-h) + var(--safe-b) + 40px); max-width: 760px; margin: 0 auto; }
@@ -466,6 +474,7 @@ const IconPrint = (p) => <Icon><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 
 const IconListBullet = (p) => <Icon><circle cx="4" cy="6" r="1.4" fill="currentColor" stroke="none" /><circle cx="4" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="4" cy="18" r="1.4" fill="currentColor" stroke="none" /><path d="M9 6h11M9 12h11M9 18h11" /></Icon>;
 const IconListNumber = (p) => <Icon><path d="M9 6h11M9 12h11M9 18h11" /><text x="1.5" y="8.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">1</text><text x="1.5" y="14.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">2</text><text x="1.5" y="20.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">3</text></Icon>;
 const IconBookmark = (p) => <Icon d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" {...p} />;
+const IconFollowUp = (p) => <Icon><path d="M17 2v4M7 2v4M3 10h18" /><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M9.5 17l2.5-2.5-2.5-2.5M12 14.5h4" /></Icon>;
 
 /* ============================== Utils ============================== */
 const STORAGE_KEY = 'sitenote_reports_v1';
@@ -485,6 +494,9 @@ function formatDateHe(iso) {
   const d = new Date(iso + 'T00:00:00');
   if (isNaN(d.getTime())) return iso;
   return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+function formatDateHeFromTs(ts) {
+  return new Date(ts).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 function formatDateTimeHe(ts) {
   const d = new Date(ts);
@@ -552,6 +564,41 @@ function newReport() {
 }
 function reportTitle(r) { return r.siteName && r.siteName.trim() ? r.siteName : 'דוח ללא שם'; }
 
+function nextReportNumber(prev) {
+  const trimmed = (prev || '').trim();
+  const n = Number(trimmed);
+  return trimmed && Number.isFinite(n) && String(n) === trimmed ? String(n + 1) : '';
+}
+
+function buildFollowUpReport(source) {
+  const groupIdMap = {};
+  const newGroups = source.groups.map((g) => {
+    const newId = uid();
+    groupIdMap[g.id] = newId;
+    return { ...g, id: newId };
+  });
+  const openTasks = source.tasks.filter((t) => t.status !== 'closed');
+  const newTasks = openTasks.map((t, i) => ({
+    ...t,
+    id: uid(),
+    groupId: t.groupId ? (groupIdMap[t.groupId] || null) : null,
+    order: i,
+    photos: t.photos.map((p) => ({ ...p, id: uid() })),
+    createdAt: t.createdAt, // preserve the task's true original creation date across every carry-over
+    carriedFromReportTitle: reportTitle(source),
+    carriedFromReportDate: source.date,
+  }));
+  return {
+    ...newReport(),
+    siteName: source.siteName,
+    inspector: source.inspector,
+    reportNumber: nextReportNumber(source.reportNumber),
+    groups: newGroups,
+    tasks: newTasks,
+    previousReportId: source.id,
+  };
+}
+
 function displaySrc(photo) { return (photo && (photo.annotatedSrc || photo.src)) || ''; }
 
 /* Reorder helper: move item at `from` to `to` within array copy */
@@ -573,7 +620,7 @@ const DialogContext = React.createContext(null);
 function DialogProvider({ children }) {
   const [dialog, setDialog] = useState(null); // { message, mode: 'confirm'|'alert', resolve }
 
-  const confirm = useCallback((message) => new Promise((resolve) => setDialog({ message, mode: 'confirm', resolve })), []);
+  const confirm = useCallback((message, opts) => new Promise((resolve) => setDialog({ message, mode: 'confirm', resolve, confirmLabel: (opts && opts.confirmLabel) || 'מחיקה', danger: !opts || opts.danger !== false })), []);
   const notify = useCallback((message) => new Promise((resolve) => setDialog({ message, mode: 'alert', resolve })), []);
 
   function close(result) {
@@ -592,7 +639,7 @@ function DialogProvider({ children }) {
               {dialog.mode === 'confirm' ? (
                 <>
                   <button className="btn btn-secondary" onClick={() => close(false)}>ביטול</button>
-                  <button className="btn btn-danger" onClick={() => close(true)}>מחיקה</button>
+                  <button className={"btn " + (dialog.danger ? "btn-danger" : "btn-primary")} onClick={() => close(true)}>{dialog.confirmLabel}</button>
                 </>
               ) : (
                 <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => close()}>הבנתי</button>
@@ -928,6 +975,12 @@ function TaskEditor({ task, floors, assignees, groups, onCancel, onSave, onDelet
       onSave={() => onSave(draft)}
       saveLabel="שמירה"
     >
+      {draft.carriedFromReportTitle && (
+        <div className="carried-note">
+          <IconFollowUp />
+          <span>משימה זו הועברה מדוח "{draft.carriedFromReportTitle}" ({formatDateHe(draft.carriedFromReportDate)}) · נוצרה במקור בתאריך {formatDateHeFromTs(draft.createdAt)}</span>
+        </div>
+      )}
       <div className="field">
         <div className="field-label-row">
           <label className="field-label">תיאור המשימה</label>
@@ -1074,7 +1127,7 @@ function ReportMetaEditor({ report, onCancel, onSave }) {
 }
 
 /* ============================== Home Screen ============================== */
-function HomeScreen({ reports, onOpen, onCreate, onDelete }) {
+function HomeScreen({ reports, onOpen, onCreate, onDelete, onFollowUp }) {
   const sorted = useMemo(() => reports.slice().sort((a, b) => b.updatedAt - a.updatedAt), [reports]);
   return (
     <div className="app-shell">
@@ -1113,6 +1166,7 @@ function HomeScreen({ reports, onOpen, onCreate, onDelete }) {
                     <span>{r.tasks.length} משימות</span>
                   </div>
                 </div>
+                <button className="report-card-followup" onClick={(e) => { e.stopPropagation(); onFollowUp(r.id); }} aria-label="דוח המשך" title="צור דוח המשך"><IconFollowUp /></button>
                 <button className="report-card-del" onClick={(e) => { e.stopPropagation(); onDelete(r.id); }} aria-label="מחיקה"><IconTrash /></button>
               </div>
             ))}
@@ -1154,6 +1208,11 @@ function OrgRow({ task, listKey, index, groups, onDragHandleDown, dragging, onOp
         <OrgRowText text={task.text} />
         <div className="task-meta-row">
           <StatusBadge status={task.status} />
+          {task.carriedFromReportTitle && (
+            <span className="meta-pill carried-pill" title={'הועברה מדוח: ' + task.carriedFromReportTitle}>
+              <IconFollowUp />נוצרה {formatDateHeFromTs(task.createdAt)}
+            </span>
+          )}
           {task.floor && <span className="meta-pill"><IconLayer />{task.floor}</span>}
           {task.location && <span className="meta-pill"><IconMapPin />{task.location}</span>}
           {task.assignee && <span className="meta-pill"><IconUser />{task.assignee}</span>}
@@ -1766,6 +1825,18 @@ function App() {
     if (!(await confirm('למחוק את הדוח לצמיתות?'))) return;
     setReports((prev) => prev.filter((r) => r.id !== id));
   }
+  async function createFollowUpReport(id) {
+    const source = reports.find((r) => r.id === id);
+    if (!source) return;
+    const openCount = source.tasks.filter((t) => t.status !== 'closed').length;
+    const message = openCount > 0
+      ? `ליצור דוח המשך המבוסס על "${reportTitle(source)}"? ${openCount} משימות פתוחות יועברו אליו.`
+      : `ליצור דוח המשך המבוסס על "${reportTitle(source)}"? אין בו כרגע משימות פתוחות להעברה.`;
+    if (!(await confirm(message, { confirmLabel: 'יצירה', danger: false }))) return;
+    const r = buildFollowUpReport(source);
+    setReports((prev) => prev.concat([r]));
+    setOpenReportId(r.id);
+  }
   function updateReport(next) {
     setReports((prev) => prev.map((r) => (r.id === next.id ? { ...next, updatedAt: Date.now() } : r)));
   }
@@ -1789,6 +1860,7 @@ function App() {
       onOpen={setOpenReportId}
       onCreate={createReport}
       onDelete={deleteReport}
+      onFollowUp={createFollowUpReport}
     />
   );
 }
