@@ -1,0 +1,33 @@
+{
+  "name": "Site Note",
+  "short_name": "Site Note",
+  "description": "אפליקציית פיקוח אתרי בנייה — תיעוד משימות עם תמונות מסומנות, ארגון וייצוא ל-PDF",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F2F4F7",
+  "theme_color": "#2563EB",
+  "dir": "rtl",
+  "lang": "he",
+  "icons": [
+    {
+      "src": "https://shayh20-cmd.github.io/Database/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://shayh20-cmd.github.io/Database/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://shayh20-cmd.github.io/Database/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
