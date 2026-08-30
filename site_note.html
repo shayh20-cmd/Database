@@ -1058,9 +1058,9 @@ function TaskEditor({ task, floors, assignees, groups, onCancel, onSave, onDelet
       </div>
 
       <div className="field">
-        <label className="field-label">קבוצה <span className="opt">(אופציונלי)</span></label>
+        <label className="field-label">נושא <span className="opt">(אופציונלי)</span></label>
         <select className="field-select" value={draft.groupId || ''} onChange={(e) => set('groupId', e.target.value || null)}>
-          <option value="">ללא קבוצה</option>
+          <option value="">ללא נושא</option>
           {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
         </select>
       </div>
@@ -1250,7 +1250,7 @@ function OrgRow({ task, listKey, index, groups, onDragHandleDown, dragging, onOp
         </div>
       </div>
       <select className="org-row-select" value={task.groupId || ''} onChange={(e) => onReassign(task.id, e.target.value || null)}>
-        <option value="">ללא קבוצה</option>
+        <option value="">ללא נושא</option>
         {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
       </select>
       <button className="group-btn del" onClick={() => onDelete(task.id)} aria-label="מחיקה"><IconTrash /></button>
@@ -1276,7 +1276,7 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
   }
   function renameGroup(id, name) { setGroups(groups.map((g) => (g.id === id ? { ...g, name } : g))); }
   async function deleteGroup(id) {
-    if (!(await confirm('למחוק את הקבוצה? המשימות בתוכה יעברו ל"ללא קבוצה".'))) return;
+    if (!(await confirm('למחוק את הנושא? המשימות בתוכו יעברו ל"ללא נושא".'))) return;
     updateReport({
       ...report,
       groups: groups.filter((g) => g.id !== id),
@@ -1419,7 +1419,7 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
     <>
       <div className="organize-wrap">
         <div className="organize-actions" style={{ marginBottom: 20 }}>
-          <input className="field-input" style={{ flex: 1, minWidth: 140 }} placeholder="שם קבוצה חדשה" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
+          <input className="field-input" style={{ flex: 1, minWidth: 140 }} placeholder="שם נושא חדש" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && newGroupName.trim()) { addGroup(newGroupName.trim()); setNewGroupName(''); } }} />
           <button className="btn btn-primary btn-sm" onClick={() => { if (newGroupName.trim()) { addGroup(newGroupName.trim()); setNewGroupName(''); } }}><IconPlus />הוספה</button>
         </div>
@@ -1433,10 +1433,10 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
                 <span className="group-count">{list.length}</span>
                 <button className="group-btn" onClick={() => moveGroup(g.id, -1)} disabled={gi === 0} aria-label="הזז למעלה"><IconUp /></button>
                 <button className="group-btn" onClick={() => moveGroup(g.id, 1)} disabled={gi === groups.length - 1} aria-label="הזז למטה"><IconDown /></button>
-                <button className="group-btn del" onClick={() => deleteGroup(g.id)} aria-label="מחיקת קבוצה"><IconTrash /></button>
+                <button className="group-btn del" onClick={() => deleteGroup(g.id)} aria-label="מחיקת נושא"><IconTrash /></button>
               </div>
               <div className="group-body">
-                {list.length === 0 ? <div className="group-empty" data-empty-group={g.id}>גררו משימות לכאן או בחרו קבוצה זו מהתפריט</div> : renderList(g.id, list)}
+                {list.length === 0 ? <div className="group-empty" data-empty-group={g.id}>גררו משימות לכאן או בחרו נושא זה מהתפריט</div> : renderList(g.id, list)}
               </div>
             </div>
           );
@@ -1449,7 +1449,7 @@ function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
         ) : ungrouped.length > 0 ? (
           <div className="group-section">
             <div className="group-header">
-              <span className="group-name-static">ללא קבוצה</span>
+              <span className="group-name-static">ללא נושא</span>
               <span className="group-count">{ungrouped.length}</span>
             </div>
             <div className="group-body">
@@ -1563,7 +1563,7 @@ function PreviewScreen({ report, updateReport }) {
     });
   }
 
-  const sections = groups.map((g) => ({ id: g.id, name: (g.name && g.name.trim()) || 'קבוצה ללא שם', tasks: tasksByGroup(g.id) })).filter((s) => s.tasks.length > 0);
+  const sections = groups.map((g) => ({ id: g.id, name: (g.name && g.name.trim()) || 'נושא ללא שם', tasks: tasksByGroup(g.id) })).filter((s) => s.tasks.length > 0);
   if (ungrouped.length > 0) sections.push({ id: '__ungrouped__', name: groups.length ? 'משימות נוספות' : 'משימות', tasks: ungrouped });
 
   const photoEntries = [];
