@@ -336,7 +336,8 @@ img { max-width: 100%; display: block; }
 .layout-btn { border: none; background: transparent; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: var(--text-2); border-radius: 6px; cursor: pointer; }
 .layout-btn.active { background: var(--accent); color: #fff; }
 .preview-loc-toggle { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--text-2); cursor: pointer; }
-.preview-scroll { padding: 20px 12px 60px; display: flex; justify-content: center; }
+.preview-scroll { padding: 20px 12px 60px; display: flex; flex-direction: column; align-items: center; }
+.doc-print-root { display: flex; flex-direction: column; align-items: center; gap: 24px; width: 100%; }
 .doc-page {
   background: #fff; width: 100%; max-width: 780px; padding: 34px 30px; box-shadow: var(--shadow-lg);
   border-radius: 4px; color: #1a1a1a;
@@ -389,7 +390,7 @@ img { max-width: 100%; display: block; }
 .doc-table-status { width: 84px; text-align: center; }
 .doc-table-loc { margin-top: 6px; font-size: 11px; color: #666; display: flex; gap: 12px; flex-wrap: wrap; }
 
-.doc-appendix { margin-top: 30px; padding-top: 20px; border-top: 2px dashed var(--border); page-break-before: always; break-before: page; }
+.doc-appendix-page { page-break-before: always; break-before: page; }
 .doc-appendix-title { font-size: 18px; font-weight: 800; color: #111; margin-bottom: 16px; }
 .doc-appendix-item { margin-bottom: 18px; page-break-inside: avoid; break-inside: avoid; }
 .doc-appendix-item-head { font-size: 13px; font-weight: 800; color: var(--accent); margin-bottom: 3px; }
@@ -1507,7 +1508,8 @@ function PreviewScreen({ report, updateReport }) {
         <button className="btn btn-primary btn-sm" onClick={() => window.print()}><IconPrint />הפקת PDF</button>
       </div>
       <div className="preview-scroll">
-        <div className="doc-print-root doc-page">
+        <div className="doc-print-root">
+        <div className="doc-page">
           <div className="doc-header">
             <div>
               <div className="doc-header-brand"><IconClipboard />Site Note</div>
@@ -1599,31 +1601,32 @@ function PreviewScreen({ report, updateReport }) {
               })}
             </div>
           ))}
+        </div>
 
-          {photoAppendix && photoEntries.length > 0 && (
-            <div className="doc-appendix">
-              <div className="doc-appendix-title">נספח תמונות</div>
-              {photoEntries.map(({ sec, secIndex, t, taskIndex }) => (
-                <div className="doc-appendix-item" key={t.id}>
-                  <div className="doc-appendix-item-head">
-                    {pad2(secIndex + 1)}.{pad2(taskIndex + 1)} · {sec.name}
-                    {showStatus && <StatusBadge status={t.status} className="status-badge-inline" style={{ marginInlineStart: 8 }} />}
-                  </div>
-                  {showLocation && (t.floor || t.location) && (
-                    <div className="doc-appendix-item-loc">
-                      {t.floor && <span>קומה: {t.floor}</span>}
-                      {t.location && <span>מיקום: {t.location}</span>}
-                    </div>
-                  )}
-                  <div className="doc-photos">
-                    {t.photos.map((p) => (
-                      <DocPhoto key={p.id} photo={p} onOpen={() => setLightboxSrc(displaySrc(p))} onResize={resizePhoto} />
-                    ))}
-                  </div>
+        {photoAppendix && photoEntries.length > 0 && (
+          <div className="doc-page doc-appendix-page">
+            <div className="doc-appendix-title">נספח תמונות</div>
+            {photoEntries.map(({ sec, secIndex, t, taskIndex }) => (
+              <div className="doc-appendix-item" key={t.id}>
+                <div className="doc-appendix-item-head">
+                  {pad2(secIndex + 1)}.{pad2(taskIndex + 1)} · {sec.name}
+                  {showStatus && <StatusBadge status={t.status} className="status-badge-inline" style={{ marginInlineStart: 8 }} />}
                 </div>
-              ))}
-            </div>
-          )}
+                {showLocation && (t.floor || t.location) && (
+                  <div className="doc-appendix-item-loc">
+                    {t.floor && <span>קומה: {t.floor}</span>}
+                    {t.location && <span>מיקום: {t.location}</span>}
+                  </div>
+                )}
+                <div className="doc-photos">
+                  {t.photos.map((p) => (
+                    <DocPhoto key={p.id} photo={p} onOpen={() => setLightboxSrc(displaySrc(p))} onResize={resizePhoto} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         </div>
       </div>
       {lightboxSrc && (
