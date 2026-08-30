@@ -322,9 +322,9 @@ img { max-width: 100%; display: block; }
 .org-row-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .org-row-thumb svg { width: 18px; height: 18px; }
 .org-row-body { flex: 1; min-width: 0; text-align: right; cursor: pointer; padding-top: 2px; }
-.org-row-text { font-size: 13.5px; font-weight: 600; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.org-row-text { font-size: 13.5px; font-weight: 400; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .org-row-text.empty { color: var(--text-3); font-weight: 400; }
-.org-row-list { font-size: 13.5px; font-weight: 600; line-height: 1.35; margin: 0; padding-inline-start: 18px; }
+.org-row-list { font-size: 13.5px; font-weight: 400; line-height: 1.35; margin: 0; padding-inline-start: 18px; }
 .org-row-list li { margin-bottom: 1px; }
 .org-row-list li:last-child { margin-bottom: 0; }
 .org-row-select { flex-shrink: 0; font-size: 12px; font-weight: 600; background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px; padding: 5px 6px; max-width: 92px; color: var(--text-2); margin-top: 2px; }
@@ -1554,9 +1554,7 @@ function PreviewScreen({ report, updateReport }) {
               <tbody>
                 {sections.map((sec, secIndex) => sec.tasks.map((t, taskIndex) => (
                   <tr key={t.id}>
-                    {taskIndex === 0 && (
-                      <td className="doc-table-num" rowSpan={sec.tasks.length}>{pad2(secIndex + 1)}</td>
-                    )}
+                    <td className="doc-table-num">{taskIndex + 1}.{pad2(secIndex + 1)}</td>
                     {taskIndex === 0 && (
                       <td className="doc-table-topic" rowSpan={sec.tasks.length}>{sec.name}</td>
                     )}
