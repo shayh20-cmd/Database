@@ -148,7 +148,11 @@ img { max-width: 100%; display: block; }
 .report-card-body { flex: 1; min-width: 0; text-align: right; }
 .report-card-title { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .report-card-meta { font-size: 12.5px; color: var(--text-3); margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap; }
-.report-card-del, .report-card-followup { color: var(--text-3); padding: 8px; border-radius: 50%; flex-shrink: 0; }
+.report-card-del, .report-card-followup {
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-3); width: 36px; height: 36px; padding: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.report-card-del svg, .report-card-followup svg { width: 20px; height: 20px; }
 .report-card-del:hover { color: var(--red); background: var(--red-light); }
 .report-card-followup:hover { color: var(--accent); background: var(--accent-light); }
 .empty-state { text-align: center; padding: 60px 24px; color: var(--text-3); }
@@ -397,6 +401,7 @@ img { max-width: 100%; display: block; }
 .doc-table-assignee, .doc-table-due { width: 104px; white-space: normal; }
 .doc-table-status { width: 84px; text-align: center; }
 .doc-table-loc { margin-top: 6px; font-size: 11px; color: #666; display: flex; gap: 12px; flex-wrap: wrap; }
+.doc-created-note { margin-top: 4px; font-size: 11px; color: var(--accent); font-weight: 600; }
 
 .doc-appendix-page { page-break-before: always; break-before: page; }
 .doc-appendix-title { font-size: 18px; font-weight: 800; color: #111; margin-bottom: 16px; }
@@ -427,7 +432,7 @@ img { max-width: 100%; display: block; }
   .doc-print-root, .doc-print-root * { visibility: visible; }
   .doc-print-root { position: absolute; top: 0; left: 0; width: 100% !important; }
   .doc-page { box-shadow: none !important; max-width: 100% !important; padding: 6mm 4mm; }
-  @page { size: A4; margin: 12mm 12mm; }
+  @page { size: A4 portrait; margin: 12mm 12mm; }
   .doc-group-title { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .doc-photo-resize { display: none; }
 }
@@ -475,6 +480,7 @@ const IconListBullet = (p) => <Icon><circle cx="4" cy="6" r="1.4" fill="currentC
 const IconListNumber = (p) => <Icon><path d="M9 6h11M9 12h11M9 18h11" /><text x="1.5" y="8.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">1</text><text x="1.5" y="14.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">2</text><text x="1.5" y="20.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">3</text></Icon>;
 const IconBookmark = (p) => <Icon d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" {...p} />;
 const IconFollowUp = (p) => <Icon><path d="M17 2v4M7 2v4M3 10h18" /><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M9.5 17l2.5-2.5-2.5-2.5M12 14.5h4" /></Icon>;
+const IconFilePlus = (p) => <Icon><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6" /><path d="M12 12v6M9 15h6" /></Icon>;
 
 /* ============================== Utils ============================== */
 const STORAGE_KEY = 'sitenote_reports_v1';
@@ -497,11 +503,6 @@ function formatDateHe(iso) {
 }
 function formatDateHeFromTs(ts) {
   return new Date(ts).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
-function formatDateTimeHe(ts) {
-  const d = new Date(ts);
-  return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' · ' +
-    d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 }
 function stripMarkup(text) { return (text || '').replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1'); }
 function downscaleImage(file, maxDim, quality) {
@@ -1096,6 +1097,20 @@ function ReportMetaEditor({ report, onCancel, onSave }) {
     siteName: report.siteName, inspector: report.inspector, date: report.date,
     reportNumber: report.reportNumber || '', participants: report.participants || '', notes: report.notes || '',
   });
+  const notesRef = useRef(null);
+  function wrapNotesSelection(prefix, suffix) {
+    const el = notesRef.current;
+    if (!el) return;
+    const s = el.selectionStart, e = el.selectionEnd;
+    const text = draft.notes || '';
+    const selected = text.slice(s, e);
+    const newText = text.slice(0, s) + prefix + selected + suffix + text.slice(e);
+    setDraft((d) => ({ ...d, notes: newText }));
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(s + prefix.length, s + prefix.length + selected.length);
+    });
+  }
   return (
     <Overlay title="פרטי דוח" onClose={onCancel} onSave={() => onSave(draft)} saveDisabled={!draft.siteName.trim()}>
       <div className="field">
@@ -1107,7 +1122,7 @@ function ReportMetaEditor({ report, onCancel, onSave }) {
         <input className="field-input" placeholder="לדוגמה: 12" value={draft.reportNumber} onChange={(e) => setDraft({ ...draft, reportNumber: e.target.value })} />
       </div>
       <div className="field">
-        <label className="field-label">שם המפקח <span className="opt">(אופציונלי)</span></label>
+        <label className="field-label">שם האדריכל <span className="opt">(אופציונלי)</span></label>
         <input className="field-input" placeholder="שם מלא" value={draft.inspector} onChange={(e) => setDraft({ ...draft, inspector: e.target.value })} />
       </div>
       <div className="field">
@@ -1119,8 +1134,14 @@ function ReportMetaEditor({ report, onCancel, onSave }) {
         <textarea className="field-textarea" placeholder="שמות המשתתפים, מופרדים בפסיק" value={draft.participants} onChange={(e) => setDraft({ ...draft, participants: e.target.value })} style={{ minHeight: 60 }} />
       </div>
       <div className="field">
-        <label className="field-label">הערות כלליות <span className="opt">(אופציונלי)</span></label>
-        <textarea className="field-textarea" placeholder="טקסט חופשי שיופיע בראש הדוח" value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} style={{ minHeight: 80 }} />
+        <div className="field-label-row">
+          <label className="field-label">הערות כלליות <span className="opt">(אופציונלי)</span></label>
+          <div className="text-toolbar">
+            <button type="button" className="text-toolbar-btn" style={{ fontWeight: 800 }} onClick={() => wrapNotesSelection('**', '**')} aria-label="הדגשה">B</button>
+            <button type="button" className="text-toolbar-btn" style={{ textDecoration: 'underline' }} onClick={() => wrapNotesSelection('__', '__')} aria-label="קו תחתון">U</button>
+          </div>
+        </div>
+        <textarea ref={notesRef} className="field-textarea" placeholder="טקסט חופשי שיופיע בראש הדוח" value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} style={{ minHeight: 80 }} />
       </div>
     </Overlay>
   );
@@ -1166,7 +1187,7 @@ function HomeScreen({ reports, onOpen, onCreate, onDelete, onFollowUp }) {
                     <span>{r.tasks.length} משימות</span>
                   </div>
                 </div>
-                <button className="report-card-followup" onClick={(e) => { e.stopPropagation(); onFollowUp(r.id); }} aria-label="דוח המשך" title="צור דוח המשך"><IconFollowUp /></button>
+                <button className="report-card-followup" onClick={(e) => { e.stopPropagation(); onFollowUp(r.id); }} aria-label="דוח המשך" title="צור דוח המשך"><IconFilePlus /></button>
                 <button className="report-card-del" onClick={(e) => { e.stopPropagation(); onDelete(r.id); }} aria-label="מחיקה"><IconTrash /></button>
               </div>
             ))}
@@ -1577,12 +1598,12 @@ function PreviewScreen({ report, updateReport }) {
             <div className="doc-header-right">
               {report.reportNumber && <div>מס' דוח: {report.reportNumber}</div>}
               <div>תאריך סיור: {formatDateHe(report.date)}</div>
-              {report.inspector && <div>מפקח: {report.inspector}</div>}
-              <div>הופק: {formatDateTimeHe(Date.now())}</div>
+              {report.inspector && <div>אדריכל: {report.inspector}</div>}
+              <div>הופק: {formatDateHeFromTs(Date.now())}</div>
             </div>
           </div>
           {report.participants && <div className="doc-participants"><b>משתתפים בסיור:</b> {report.participants}</div>}
-          {report.notes && <div className="doc-participants"><b>הערות כלליות:</b> {report.notes}</div>}
+          {report.notes && <div className="doc-participants">{parseInlineMarkup(report.notes)}</div>}
 
           {report.tasks.length === 0 ? (
             <div className="doc-empty-note">לא נוספו משימות עדיין</div>
@@ -1616,6 +1637,9 @@ function PreviewScreen({ report, updateReport }) {
                           {t.location && <span>מיקום: {t.location}</span>}
                         </div>
                       )}
+                      {t.carriedFromReportTitle && (
+                        <div className="doc-created-note">נוצרה בתאריך: {formatDateHeFromTs(t.createdAt)}</div>
+                      )}
                       {!photoAppendix && t.photos.length > 0 && (
                         <div className="doc-photos">
                           {t.photos.map((p) => (
@@ -1648,6 +1672,9 @@ function PreviewScreen({ report, updateReport }) {
                       {t.assignee && <span>אחראי: <b>{t.assignee}</b></span>}
                       {t.dueDate && <span>תאריך יעד: <b>{formatDateHe(t.dueDate)}</b></span>}
                     </div>
+                    {t.carriedFromReportTitle && (
+                      <div className="doc-created-note">נוצרה בתאריך: {formatDateHeFromTs(t.createdAt)}</div>
+                    )}
                     {!photoAppendix && t.photos.length > 0 && (
                       <div className="doc-photos">
                         {t.photos.map((p) => (
@@ -1676,6 +1703,9 @@ function PreviewScreen({ report, updateReport }) {
                     {t.floor && <span>קומה: {t.floor}</span>}
                     {t.location && <span>מיקום: {t.location}</span>}
                   </div>
+                )}
+                {t.carriedFromReportTitle && (
+                  <div className="doc-created-note">נוצרה בתאריך: {formatDateHeFromTs(t.createdAt)}</div>
                 )}
                 <div className="doc-photos">
                   {t.photos.map((p) => (
