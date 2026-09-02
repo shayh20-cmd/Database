@@ -408,7 +408,8 @@ img { max-width: 100%; display: block; }
 }
 .doc-empty-note { text-align: center; color: #888; padding: 40px 20px; font-size: 13px; }
 
-.doc-table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12.5px; }
+.doc-table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 14px; }
+.doc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .doc-table thead th {
   background: var(--accent); color: #fff; font-weight: 800; font-size: 12px;
   padding: 8px 10px; border: 1px solid var(--accent); text-align: right;
@@ -454,6 +455,7 @@ img { max-width: 100%; display: block; }
   .doc-print-root, .doc-print-root * { visibility: visible; }
   .doc-print-root { position: absolute; top: 0; left: 0; width: 100% !important; }
   .doc-page { box-shadow: none !important; max-width: 100% !important; padding: 6mm 4mm; }
+  .doc-table-scroll { overflow: visible !important; }
   @page { size: A4 portrait; margin: 12mm 12mm; }
   .doc-group-title { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .doc-photo-resize { display: none; }
@@ -1787,6 +1789,7 @@ function PreviewScreen({ report, updateReport }) {
           {report.tasks.length === 0 ? (
             <div className="doc-empty-note">לא נוספו משימות עדיין</div>
           ) : layout === 'table' ? (
+            <div className="doc-table-scroll">
             <table className="doc-table">
               <thead>
                 <tr>
@@ -1834,6 +1837,7 @@ function PreviewScreen({ report, updateReport }) {
                 )))}
               </tbody>
             </table>
+            </div>
           ) : sections.map((sec, secIndex) => (
             <div key={sec.id}>
               <div className="doc-group-title">{pad2(secIndex + 1)}. {sec.name}</div>
