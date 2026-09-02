@@ -991,6 +991,14 @@ function TaskEditor({ task, floors, assignees, groups, onCancel, onSave, onDelet
         </div>
       )}
       <div className="field">
+        <label className="field-label">נושא <span className="opt">(אופציונלי)</span></label>
+        <select className="field-select" value={draft.groupId || ''} onChange={(e) => set('groupId', e.target.value || null)}>
+          <option value="">ללא נושא</option>
+          {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+        </select>
+      </div>
+
+      <div className="field">
         <div className="field-label-row">
           <label className="field-label">תיאור המשימה</label>
           <div className="text-toolbar">
@@ -1021,6 +1029,31 @@ function TaskEditor({ task, floors, assignees, groups, onCancel, onSave, onDelet
             <button key={s.id} type="button" data-status={s.id} className={"chip status-chip" + (draft.status === s.id ? " active" : "")} onClick={() => set('status', s.id)}>{s.label}</button>
           ))}
         </div>
+      </div>
+
+      <div className="field">
+        <label className="field-label">תמונות</label>
+        <div className="photo-strip">
+          {draft.photos.map((p) => (
+            <div key={p.id} className="photo-thumb" onClick={() => setAnnotatingPhotoId(p.id)}>
+              <img src={displaySrc(p)} alt="" />
+              {p.annotatedSrc && <span className="photo-thumb-badge"><IconPen /></span>}
+              <button className="photo-thumb-del" onClick={(e) => { e.stopPropagation(); removePhoto(p.id); }}><IconClose /></button>
+            </div>
+          ))}
+          <button className="photo-add-tile" onClick={() => cameraInputRef.current.click()} disabled={busy}>
+            <IconCamera /><span>מצלמה</span>
+          </button>
+        </div>
+        <div className="photo-add-actions">
+          <button className="btn btn-secondary btn-sm" onClick={() => galleryInputRef.current.click()} disabled={busy}>
+            <IconImage />מהגלריה
+          </button>
+        </div>
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
+          onChange={(e) => { handleFiles(e.target.files, true); e.target.value = ''; }} />
+        <input ref={galleryInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
+          onChange={(e) => { handleFiles(e.target.files, false); e.target.value = ''; }} />
       </div>
 
       <div className="field">
@@ -1055,39 +1088,6 @@ function TaskEditor({ task, floors, assignees, groups, onCancel, onSave, onDelet
       <div className="field">
         <label className="field-label">תאריך יעד <span className="opt">(אופציונלי)</span></label>
         <input type="date" className="field-input" value={draft.dueDate} onChange={(e) => set('dueDate', e.target.value)} />
-      </div>
-
-      <div className="field">
-        <label className="field-label">נושא <span className="opt">(אופציונלי)</span></label>
-        <select className="field-select" value={draft.groupId || ''} onChange={(e) => set('groupId', e.target.value || null)}>
-          <option value="">ללא נושא</option>
-          {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-        </select>
-      </div>
-
-      <div className="field">
-        <label className="field-label">תמונות</label>
-        <div className="photo-strip">
-          {draft.photos.map((p) => (
-            <div key={p.id} className="photo-thumb" onClick={() => setAnnotatingPhotoId(p.id)}>
-              <img src={displaySrc(p)} alt="" />
-              {p.annotatedSrc && <span className="photo-thumb-badge"><IconPen /></span>}
-              <button className="photo-thumb-del" onClick={(e) => { e.stopPropagation(); removePhoto(p.id); }}><IconClose /></button>
-            </div>
-          ))}
-          <button className="photo-add-tile" onClick={() => cameraInputRef.current.click()} disabled={busy}>
-            <IconCamera /><span>מצלמה</span>
-          </button>
-        </div>
-        <div className="photo-add-actions">
-          <button className="btn btn-secondary btn-sm" onClick={() => galleryInputRef.current.click()} disabled={busy}>
-            <IconImage />מהגלריה
-          </button>
-        </div>
-        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
-          onChange={(e) => { handleFiles(e.target.files, true); e.target.value = ''; }} />
-        <input ref={galleryInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
-          onChange={(e) => { handleFiles(e.target.files, false); e.target.value = ''; }} />
       </div>
 
       {onDelete && (
