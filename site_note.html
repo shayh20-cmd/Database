@@ -196,6 +196,7 @@ img { max-width: 100%; display: block; }
 .field-input:focus, .field-textarea:focus, .field-select:focus { border-color: var(--accent); background: var(--surface); }
 .field-textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
 .field-hint { font-size: 12px; color: var(--text-3); margin-top: 6px; }
+.floor-divider { height: 1px; background: var(--border); margin: 10px 0; }
 .two-col-row { display: flex; gap: 10px; }
 .two-col-row > div { flex: 1; min-width: 0; }
 .field-sublabel { display: block; font-size: 12px; color: var(--text-3); margin-bottom: 5px; }
@@ -567,12 +568,12 @@ function newTask(order) {
 function buildFloorList(report) {
   const above = Math.max(0, Number(report.floorsAboveGround) || 0);
   const below = Math.max(0, Number(report.floorsBelowGround) || 0);
-  if (above === 0 && below === 0) return [];
-  const list = [];
-  for (let i = below; i >= 1; i--) list.push('מרתף ' + i);
-  list.push('קומת קרקע');
-  for (let i = 1; i <= above; i++) list.push('קומה ' + i);
-  return list;
+  if (above === 0 && below === 0) return { above: [], below: [] };
+  const aboveList = ['קומת קרקע'];
+  for (let i = 1; i <= above; i++) aboveList.push('קומה ' + i);
+  const belowList = [];
+  for (let i = 1; i <= below; i++) belowList.push('מרתף ' + i);
+  return { above: aboveList, below: belowList };
 }
 
 const STATUSES = [
@@ -1087,7 +1088,7 @@ function TaskEditor({ task, floors, floorPlan, assignees, groups, onCancel, onSa
             <button type="button" className="text-toolbar-btn" onClick={saveCurrentAsTemplate} disabled={!draft.text.trim()} aria-label="שמירה כתבנית"><IconBookmark /></button>
           </div>
         </div>
-        <textarea ref={textareaRef} className="field-textarea" placeholder="לדוגמה: יש להשלים איטום בפינת הקיר הצפונית..." value={draft.text} onChange={(e) => set('text', e.target.value)} autoFocus />
+        <textarea ref={textareaRef} className="field-textarea" placeholder="לדוגמה: יש להשלים איטום בפינת הקיר הצפונית..." value={draft.text} onChange={(e) => set('text', e.target.value)} style={{ minHeight: 120 }} autoFocus />
         {templates.length > 0 && (
           <div className="chip-row">
             {templates.map((t) => (
@@ -1136,13 +1137,25 @@ function TaskEditor({ task, floors, floorPlan, assignees, groups, onCancel, onSa
 
       <div className="field">
         <label className="field-label">קומה <span className="opt">(אופציונלי)</span></label>
-        {floorPlan.length > 0 ? (
+        {(floorPlan.above.length > 0 || floorPlan.below.length > 0) ? (
           <>
-            <div className="chip-row" style={{ marginTop: 0 }}>
-              {floorPlan.map((f) => (
-                <button key={f} type="button" className={"chip" + ((draft.floors || []).includes(f) ? " active" : "")} onClick={() => toggleFloor(f)}>{f}</button>
-              ))}
-            </div>
+            {floorPlan.above.length > 0 && (
+              <div className="chip-row" style={{ marginTop: 0 }}>
+                {floorPlan.above.map((f) => (
+                  <button key={f} type="button" className={"chip" + ((draft.floors || []).includes(f) ? " active" : "")} onClick={() => toggleFloor(f)}>{f}</button>
+                ))}
+              </div>
+            )}
+            {floorPlan.below.length > 0 && (
+              <>
+                <div className="floor-divider" />
+                <div className="chip-row" style={{ marginTop: 0 }}>
+                  {floorPlan.below.map((f) => (
+                    <button key={f} type="button" className={"chip" + ((draft.floors || []).includes(f) ? " active" : "")} onClick={() => toggleFloor(f)}>{f}</button>
+                  ))}
+                </div>
+              </>
+            )}
             <div className="field-hint">אפשר לבחור יותר מקומה אחת</div>
           </>
         ) : (
