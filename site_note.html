@@ -168,6 +168,8 @@ img { max-width: 100%; display: block; }
 .empty-state h3 { color: var(--text-2); font-size: 15.5px; font-weight: 700; margin-bottom: 5px; }
 .empty-state p { font-size: 13px; line-height: 1.5; }
 .home-new-btn-wrap { padding: 4px 18px 10px; }
+.home-sort-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding: 0 18px 10px; }
+.home-sort-label { font-size: 12.5px; color: var(--text-3); }
 
 /* ───────────────────────── Form fields ───────────────────────── */
 .field { margin-bottom: 16px; }
@@ -1157,7 +1159,16 @@ function ReportMetaEditor({ report, onCancel, onSave }) {
 
 /* ============================== Home Screen ============================== */
 function HomeScreen({ reports, onOpen, onCreate, onDelete, onFollowUp }) {
-  const sorted = useMemo(() => reports.slice().sort((a, b) => b.updatedAt - a.updatedAt), [reports]);
+  const [sortBy, setSortBy] = useState('date');
+  const sorted = useMemo(() => {
+    const list = reports.slice();
+    if (sortBy === 'name') {
+      list.sort((a, b) => reportTitle(a).localeCompare(reportTitle(b), 'he'));
+    } else {
+      list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.updatedAt - a.updatedAt);
+    }
+    return list;
+  }, [reports, sortBy]);
   return (
     <div className="app-shell">
       <div className="topbar">
@@ -1176,6 +1187,13 @@ function HomeScreen({ reports, onOpen, onCreate, onDelete, onFollowUp }) {
         <div className="home-new-btn-wrap">
           <button className="btn btn-primary btn-block" onClick={onCreate}><IconPlus />דוח סיור חדש</button>
         </div>
+        {reports.length > 0 && (
+          <div className="home-sort-row">
+            <span className="home-sort-label">מיון:</span>
+            <button type="button" className={"chip" + (sortBy === 'date' ? " active" : "")} onClick={() => setSortBy('date')}>לפי תאריך</button>
+            <button type="button" className={"chip" + (sortBy === 'name' ? " active" : "")} onClick={() => setSortBy('name')}>לפי שם הפרויקט</button>
+          </div>
+        )}
         {sorted.length === 0 ? (
           <div className="empty-state">
             <IconFolder />
@@ -1188,8 +1206,14 @@ function HomeScreen({ reports, onOpen, onCreate, onDelete, onFollowUp }) {
               <div key={r.id} className="report-card" onClick={() => onOpen(r.id)}>
                 <div className="report-card-icon"><IconBuilding /></div>
                 <div className="report-card-body">
-                  <div className="report-card-title">{r.reportNumber ? `#${r.reportNumber} · ` : ''}{reportTitle(r)}</div>
+                  <div className="report-card-title">{reportTitle(r)}</div>
                   <div className="report-card-meta">
+                    {r.reportNumber && (
+                      <>
+                        <span>מס' פיקוח: {r.reportNumber}</span>
+                        <span>·</span>
+                      </>
+                    )}
                     <span>{formatDateHe(r.date)}</span>
                     <span>·</span>
                     <span>{r.tasks.length} משימות</span>
