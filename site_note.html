@@ -197,6 +197,14 @@ img { max-width: 100%; display: block; }
 .field-textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
 .field-hint { font-size: 12px; color: var(--text-3); margin-top: 6px; }
 
+.new-group-link {
+  display: inline-flex; align-items: center; gap: 4px; margin-top: 8px;
+  font-size: 12.5px; font-weight: 600; color: var(--accent);
+}
+.new-group-link svg { width: 15px; height: 15px; }
+.new-group-row { display: flex; align-items: center; gap: 7px; margin-top: 8px; }
+.new-group-row .field-input { flex: 1; min-width: 0; }
+
 .chip-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
 .chip {
   padding: 7px 13px; border-radius: 20px; background: var(--surface-2); border: 1.5px solid var(--border);
@@ -549,6 +557,8 @@ const STATUSES = [
   { id: 'in_progress', label: 'בטיפול', color: '#D97706' },
   { id: 'closed', label: 'סגור', color: '#16A34A' },
 ];
+
+const DEFAULT_ASSIGNEES = ['אדריכל', 'קבלן', 'מפקח', 'מנהל פרויקט'];
 function statusMeta(id) { return STATUSES.find((s) => s.id === id) || STATUSES[0]; }
 function StatusBadge({ status, className, style }) {
   const m = statusMeta(status);
@@ -886,7 +896,7 @@ function PhotoAnnotator({ photo, onCancel, onSave }) {
 }
 
 /* ============================== Task Editor ============================== */
-function TaskEditor({ task, floors, assignees, groups, onCancel, onSave, onDelete }) {
+function TaskEditor({ task, floors, assignees, groups, onCancel, onSave, onDelete, onCreateGroup, onCreateAssignee }) {
   const { notify } = useDialog();
   const [draft, setDraft] = useState(() => ({ ...task, photos: task.photos.map((p) => ({ ...p })) }));
   const [annotatingPhotoId, setAnnotatingPhotoId] = useState(null);
@@ -895,6 +905,28 @@ function TaskEditor({ task, floors, assignees, groups, onCancel, onSave, onDelet
   const textareaRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [templates, setTemplates] = useState(() => loadTemplates());
+  const [addingGroup, setAddingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [addingAssignee, setAddingAssignee] = useState(false);
+  const [newAssigneeName, setNewAssigneeName] = useState('');
+
+  function submitNewGroup() {
+    const name = newGroupName.trim();
+    if (!name) return;
+    const g = onCreateGroup(name);
+    set('groupId', g.id);
+    setNewGroupName('');
+    setAddingGroup(false);
+  }
+
+  function submitNewAssignee() {
+    const name = newAssigneeName.trim();
+    if (!name) return;
+    onCreateAssignee(name);
+    set('assignee', name);
+    setNewAssigneeName('');
+    setAddingAssignee(false);
+  }
 
   function set(field, value) { setDraft((d) => ({ ...d, [field]: value })); }
 
@@ -998,6 +1030,17 @@ function TaskEditor({ task, floors, assignees, groups, onCancel, onSave, onDelet
           <option value="">ללא נושא</option>
           {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
         </select>
+        {addingGroup ? (
+          <div className="new-group-row">
+            <input className="field-input" placeholder="שם נושא חדש" value={newGroupName} autoFocus
+              onChange={(e) => setNewGroupName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') submitNewGroup(); if (e.key === 'Escape') { setAddingGroup(false); setNewGroupName(''); } }} />
+            <button type="button" className="btn btn-primary btn-sm" onClick={submitNewGroup} disabled={!newGroupName.trim()}>הוספה</button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setAddingGroup(false); setNewGroupName(''); }}>ביטול</button>
+          </div>
+        ) : (
+          <button type="button" className="new-group-link" onClick={() => setAddingGroup(true)}><IconPlus />נושא חדש</button>
+        )}
       </div>
 
       <div className="field">
@@ -1022,15 +1065,6 @@ function TaskEditor({ task, floors, assignees, groups, onCancel, onSave, onDelet
             ))}
           </div>
         )}
-      </div>
-
-      <div className="field">
-        <label className="field-label">סטטוס</label>
-        <div className="chip-row" style={{ marginTop: 0 }}>
-          {STATUSES.map((s) => (
-            <button key={s.id} type="button" data-status={s.id} className={"chip status-chip" + (draft.status === s.id ? " active" : "")} onClick={() => set('status', s.id)}>{s.label}</button>
-          ))}
-        </div>
       </div>
 
       <div className="field">
@@ -1059,6 +1093,15 @@ function TaskEditor({ task, floors, assignees, groups, onCancel, onSave, onDelet
       </div>
 
       <div className="field">
+        <label className="field-label">סטטוס</label>
+        <div className="chip-row" style={{ marginTop: 0 }}>
+          {STATUSES.map((s) => (
+            <button key={s.id} type="button" data-status={s.id} className={"chip status-chip" + (draft.status === s.id ? " active" : "")} onClick={() => set('status', s.id)}>{s.label}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="field">
         <label className="field-label">קומה <span className="opt">(אופציונלי)</span></label>
         <input className="field-input" placeholder="לדוגמה: קומה 3" value={draft.floor} onChange={(e) => set('floor', e.target.value)} />
         {floors.length > 0 && (
@@ -1084,6 +1127,17 @@ function TaskEditor({ task, floors, assignees, groups, onCancel, onSave, onDelet
               <button key={a} type="button" className={"chip" + (draft.assignee === a ? " active" : "")} onClick={() => set('assignee', a)}>{a}</button>
             ))}
           </div>
+        )}
+        {addingAssignee ? (
+          <div className="new-group-row">
+            <input className="field-input" placeholder="שם אחראי חדש" value={newAssigneeName} autoFocus
+              onChange={(e) => setNewAssigneeName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') submitNewAssignee(); if (e.key === 'Escape') { setAddingAssignee(false); setNewAssigneeName(''); } }} />
+            <button type="button" className="btn btn-primary btn-sm" onClick={submitNewAssignee} disabled={!newAssigneeName.trim()}>הוספה</button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setAddingAssignee(false); setNewAssigneeName(''); }}>ביטול</button>
+          </div>
+        ) : (
+          <button type="button" className="new-group-link" onClick={() => setAddingAssignee(true)}><IconPlus />הוספת אחראי</button>
         )}
       </div>
 
@@ -1789,11 +1843,25 @@ function ReportWorkspace({ report, updateReport, onBack, saveState }) {
     return s;
   }, [report.tasks]);
   const assignees = useMemo(() => {
-    const s = [];
+    const s = DEFAULT_ASSIGNEES.slice();
+    (report.assignees || []).forEach((a) => { if (s.indexOf(a) === -1) s.push(a); });
     report.tasks.forEach((t) => { if (t.assignee && s.indexOf(t.assignee) === -1) s.push(t.assignee); });
     return s;
-  }, [report.tasks]);
+  }, [report.tasks, report.assignees]);
   const sortedGroups = useMemo(() => report.groups.slice().sort((a, b) => a.order - b.order), [report.groups]);
+
+  function createGroup(name) {
+    const g = { id: uid(), name, order: report.groups.length };
+    updateReport({ ...report, groups: report.groups.concat([g]) });
+    return g;
+  }
+
+  function createAssignee(name) {
+    if ((report.assignees || []).indexOf(name) === -1 && DEFAULT_ASSIGNEES.indexOf(name) === -1) {
+      updateReport({ ...report, assignees: (report.assignees || []).concat([name]) });
+    }
+    return name;
+  }
 
   function openNewTask() { setTaskOverlay('new'); }
   function openEditTask(id) { setTaskOverlay(id); }
@@ -1861,6 +1929,8 @@ function ReportWorkspace({ report, updateReport, onBack, saveState }) {
           floors={floors}
           assignees={assignees}
           groups={sortedGroups}
+          onCreateGroup={createGroup}
+          onCreateAssignee={createAssignee}
           onCancel={closeTaskOverlay}
           onSave={saveTask}
           onDelete={isNewTask ? null : () => deleteTaskById(editingTask.id)}
