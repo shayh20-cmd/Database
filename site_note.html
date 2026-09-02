@@ -386,9 +386,10 @@ img { max-width: 100%; display: block; }
 .preview-scroll { padding: 20px 12px 60px; display: flex; flex-direction: column; align-items: center; }
 .doc-print-root { display: flex; flex-direction: column; align-items: center; gap: 24px; width: 100%; }
 .doc-page {
-  background: #fff; width: 100%; max-width: 780px; padding: 34px 30px; box-shadow: var(--shadow-lg);
-  border-radius: 4px; color: #1a1a1a;
+  background: #fff; width: 100%; max-width: 794px; min-height: 1123px; padding: 34px 30px; box-shadow: var(--shadow-lg);
+  border-radius: 4px; color: #1a1a1a; box-sizing: border-box;
 }
+.doc-page-num { text-align: center; font-size: 11px; color: var(--text-3); margin-top: 14px; }
 .doc-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid var(--accent); padding-bottom: 14px; margin-bottom: 18px; gap: 12px; }
 .doc-header-brand { display: flex; align-items: center; gap: 8px; color: var(--accent); font-weight: 800; font-size: 13px; }
 .doc-header-brand svg { width: 16px; height: 16px; }
@@ -439,7 +440,6 @@ img { max-width: 100%; display: block; }
 .doc-table-loc { margin-top: 6px; font-size: 11px; color: #666; display: flex; gap: 12px; flex-wrap: wrap; }
 .doc-created-note { margin-top: 4px; font-size: 11px; color: var(--accent); font-weight: 600; }
 
-.doc-appendix-page { page-break-before: always; break-before: page; }
 .doc-appendix-title { font-size: 18px; font-weight: 800; color: #111; margin-bottom: 16px; }
 .doc-appendix-item { margin-bottom: 18px; page-break-inside: avoid; break-inside: avoid; }
 .doc-appendix-item-head { font-size: 13px; font-weight: 800; color: var(--accent); margin-bottom: 3px; }
@@ -467,7 +467,9 @@ img { max-width: 100%; display: block; }
   body * { visibility: hidden; }
   .doc-print-root, .doc-print-root * { visibility: visible; }
   .doc-print-root { position: absolute; top: 0; left: 0; width: 100% !important; zoom: 1 !important; }
-  .doc-page { box-shadow: none !important; max-width: 100% !important; padding: 6mm 4mm; }
+  .doc-page { box-shadow: none !important; max-width: 100% !important; min-height: 0 !important; padding: 6mm 4mm; page-break-after: always; break-after: page; }
+  .doc-page:last-child { page-break-after: auto; break-after: auto; }
+  .doc-page-num { display: none; }
   .doc-table-scroll { overflow: visible !important; }
   @page { size: A4 portrait; margin: 12mm 12mm; }
   .doc-group-title { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -479,7 +481,7 @@ img { max-width: 100%; display: block; }
 <div id="root"></div>
 <script type="text/babel" data-presets="react">
 
-const { useState, useEffect, useRef, useMemo, useCallback, useContext } = React;
+const { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, useContext } = React;
 
 /* ============================== Icons ============================== */
 const Icon = ({ d, children, ...p }) => (
@@ -1721,6 +1723,68 @@ function DocPhoto({ photo, onOpen, onResize }) {
   );
 }
 
+/* ============================== A4 pagination ==============================
+ * The on-screen preview is meant to always look like real, stacked A4 pages —
+ * not one endlessly-tall scrolling block. We measure every atomic "unit" of
+ * content (a header block, a task card, a table row, an appendix item) in a
+ * hidden off-screen pass, then bucket them into pages that fit a fixed A4
+ * content-height budget, and finally render the real, visible pages from
+ * that grouping. A unit is never split across pages. */
+const A4_PAGE_WIDTH = 794;
+const A4_CONTENT_WIDTH = A4_PAGE_WIDTH - 30 * 2;
+const A4_CONTENT_HEIGHT = 950; // conservative vs. the real print page's tighter margins
+
+function pagesEqual(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].length !== b[i].length) return false;
+    for (let j = 0; j < a[i].length; j++) if (a[i][j] !== b[i][j]) return false;
+  }
+  return true;
+}
+
+function usePagedUnits(units, contentHeight) {
+  const [pages, setPages] = useState(null);
+  const refsRef = useRef([]);
+
+  useLayoutEffect(() => {
+    const heights = units.map((u, i) => (refsRef.current[i] ? refsRef.current[i].offsetHeight : 0));
+    let result = [];
+    let current = [];
+    let currentHeight = 0;
+    units.forEach((u, i) => {
+      const h = heights[i] || 0;
+      const forcePage = u.breakBefore === 'page' && current.length > 0;
+      const wouldOverflow = current.length > 0 && currentHeight + h > contentHeight;
+      if (forcePage || wouldOverflow) {
+        result.push(current);
+        current = [];
+        currentHeight = 0;
+      }
+      current.push(i);
+      currentHeight += h;
+    });
+    if (current.length > 0) result.push(current);
+
+    // A lone group title must never be the last thing on a page with none of
+    // its tasks alongside it — push it onto the following page instead.
+    for (let p = 0; p < result.length - 1; p++) {
+      const page = result[p];
+      const lastIdx = page[page.length - 1];
+      if (page.length > 0 && units[lastIdx] && units[lastIdx].isGroupTitle) {
+        page.pop();
+        result[p + 1].unshift(lastIdx);
+      }
+    }
+    result = result.filter((p) => p.length > 0);
+
+    setPages((prev) => (pagesEqual(prev, result) ? prev : result));
+  });
+
+  const setRef = (i) => (el) => { refsRef.current[i] = el; };
+  return { pages, setRef };
+}
+
 /* ============================== Preview / PDF Screen ============================== */
 const ZOOM_LEVELS = [1, 0.85, 0.7, 0.55, 0.4];
 
@@ -1759,6 +1823,143 @@ function PreviewScreen({ report, updateReport }) {
       if (t.photos.length > 0) photoEntries.push({ sec, secIndex, t, taskIndex });
     });
   });
+
+  function renderPhotos(photos) {
+    return (
+      <div className="doc-photos">
+        {photos.map((p) => (
+          <DocPhoto key={p.id} photo={p} onOpen={() => setLightboxSrc(displaySrc(p))} onResize={resizePhoto} />
+        ))}
+      </div>
+    );
+  }
+
+  // The ordered list of atomic, unsplittable content units for the current
+  // layout/settings — the pagination pass below groups these into real
+  // A4-sized pages, exactly like a real paginated document would.
+  const units = [];
+  units.push({
+    key: 'header',
+    kind: 'div',
+    render: () => (
+      <>
+        <div className="doc-header">
+          <div>
+            <div className="doc-header-brand"><IconClipboard />Site Note</div>
+            <div className="doc-title">{reportTitle(report)}</div>
+          </div>
+          <div className="doc-header-right">
+            {report.reportNumber && <div>מס' דוח: {report.reportNumber}</div>}
+            <div>תאריך סיור: {formatDateHe(report.date)}</div>
+            {report.inspector && <div>אדריכל: {report.inspector}</div>}
+            <div>הופק: {formatDateHeFromTs(Date.now())}</div>
+          </div>
+        </div>
+        {report.participants && <div className="doc-participants"><b>משתתפים בסיור:</b> {report.participants}</div>}
+        {report.notes && <div className="doc-participants">{parseInlineMarkup(report.notes)}</div>}
+      </>
+    ),
+  });
+
+  if (report.tasks.length === 0) {
+    units.push({ key: 'empty', kind: 'div', render: () => <div className="doc-empty-note">לא נוספו משימות עדיין</div> });
+  } else if (layout === 'table') {
+    sections.forEach((sec, secIndex) => {
+      sec.tasks.forEach((t, taskIndex) => {
+        const renderRow = (showLead, leadRowSpan, refCb) => (
+          <tr key={t.id} ref={refCb}>
+            {showLead && <td className="doc-table-num" rowSpan={leadRowSpan}>{pad2(secIndex + 1)}</td>}
+            {showLead && <td className="doc-table-topic" rowSpan={leadRowSpan}>{sec.name}</td>}
+            <td className="doc-table-desc">
+              <span className="doc-table-item-num">{taskIndex + 1}.{pad2(secIndex + 1)}</span>
+              <TaskTextBlock text={t.text} />
+              {showLocation && ((t.floors && t.floors.length > 0) || t.location) && (
+                <div className="doc-table-loc">
+                  {t.floors && t.floors.length > 0 && <span>קומה: {t.floors.join(', ')}</span>}
+                  {t.location && <span>מיקום: {t.location}</span>}
+                </div>
+              )}
+              {t.carriedFromReportTitle && (
+                <div className="doc-created-note">נוצרה בתאריך: {formatDateHeFromTs(t.createdAt)}</div>
+              )}
+              {!photoAppendix && t.photos.length > 0 && renderPhotos(t.photos)}
+            </td>
+            <td className="doc-table-assignee">{t.assignee || '—'}</td>
+            <td className="doc-table-due">{t.dueDate ? formatDateHe(t.dueDate) : '—'}</td>
+            {showStatus && <td className="doc-table-status"><StatusBadge status={t.status} /></td>}
+          </tr>
+        );
+        units.push({ key: 'row-' + t.id, kind: 'row', sectionId: sec.id, renderRow });
+      });
+    });
+  } else {
+    sections.forEach((sec, secIndex) => {
+      units.push({
+        key: 'title-' + sec.id, kind: 'div', isGroupTitle: true,
+        render: () => <div className="doc-group-title">{pad2(secIndex + 1)}. {sec.name}</div>,
+      });
+      sec.tasks.forEach((t, taskIndex) => {
+        units.push({
+          key: 'task-' + t.id, kind: 'div',
+          render: () => (
+            <div className="doc-task">
+              <div className="doc-task-head">
+                <span className="doc-task-num">{pad2(secIndex + 1)}.{pad2(taskIndex + 1)}</span>
+                {showStatus && <StatusBadge status={t.status} className="status-badge-inline" />}
+                <TaskTextBlock text={t.text} />
+              </div>
+              <div className="doc-task-meta">
+                {t.floors && t.floors.length > 0 && <span>קומה: <b>{t.floors.join(', ')}</b></span>}
+                {t.location && <span>מיקום: <b>{t.location}</b></span>}
+                {t.assignee && <span>אחראי: <b>{t.assignee}</b></span>}
+                {t.dueDate && <span>תאריך יעד: <b>{formatDateHe(t.dueDate)}</b></span>}
+              </div>
+              {t.carriedFromReportTitle && (
+                <div className="doc-created-note">נוצרה בתאריך: {formatDateHeFromTs(t.createdAt)}</div>
+              )}
+              {!photoAppendix && t.photos.length > 0 && renderPhotos(t.photos)}
+            </div>
+          ),
+        });
+      });
+    });
+  }
+
+  if (photoAppendix && photoEntries.length > 0) {
+    units.push({ key: 'appendix-title', kind: 'div', breakBefore: 'page', render: () => <div className="doc-appendix-title">נספח תמונות</div> });
+    photoEntries.forEach(({ sec, secIndex, t, taskIndex }) => {
+      units.push({
+        key: 'appendix-' + t.id, kind: 'div',
+        render: () => (
+          <div className="doc-appendix-item">
+            <div className="doc-appendix-item-head">
+              {pad2(secIndex + 1)}.{pad2(taskIndex + 1)} · {sec.name}
+              {showStatus && <StatusBadge status={t.status} className="status-badge-inline" style={{ marginInlineStart: 8 }} />}
+            </div>
+            {showLocation && ((t.floors && t.floors.length > 0) || t.location) && (
+              <div className="doc-appendix-item-loc">
+                {t.floors && t.floors.length > 0 && <span>קומה: {t.floors.join(', ')}</span>}
+                {t.location && <span>מיקום: {t.location}</span>}
+              </div>
+            )}
+            {t.carriedFromReportTitle && (
+              <div className="doc-created-note">נוצרה בתאריך: {formatDateHeFromTs(t.createdAt)}</div>
+            )}
+            {renderPhotos(t.photos)}
+          </div>
+        ),
+      });
+    });
+  }
+
+  const { pages, setRef } = usePagedUnits(units, A4_CONTENT_HEIGHT);
+  // `pages` can briefly hold indices computed for a *previous* units array
+  // (e.g. the render right after switching cards<->table layout, before the
+  // pagination effect has re-measured) — never trust it across a shape
+  // change, fall back to one unpaginated page for that single render instead.
+  const pagesValid = pages && pages.every((pg) => pg.every((i) => i >= 0 && i < units.length));
+  const pageList = pagesValid ? pages : [units.map((_, i) => i)];
+  const hasRowUnits = units.some((u) => u.kind === 'row');
 
   function handlePrint() {
     // window.print() is silently ignored inside a sandboxed iframe missing "allow-modals"
@@ -1806,135 +2007,67 @@ function PreviewScreen({ report, updateReport }) {
       </div>
       <div className="preview-scroll">
         <div className="doc-print-root" style={{ zoom }}>
-        <div className="doc-page">
-          <div className="doc-header">
-            <div>
-              <div className="doc-header-brand"><IconClipboard />Site Note</div>
-              <div className="doc-title">{reportTitle(report)}</div>
-            </div>
-            <div className="doc-header-right">
-              {report.reportNumber && <div>מס' דוח: {report.reportNumber}</div>}
-              <div>תאריך סיור: {formatDateHe(report.date)}</div>
-              {report.inspector && <div>אדריכל: {report.inspector}</div>}
-              <div>הופק: {formatDateHeFromTs(Date.now())}</div>
-            </div>
-          </div>
-          {report.participants && <div className="doc-participants"><b>משתתפים בסיור:</b> {report.participants}</div>}
-          {report.notes && <div className="doc-participants">{parseInlineMarkup(report.notes)}</div>}
-
-          {report.tasks.length === 0 ? (
-            <div className="doc-empty-note">לא נוספו משימות עדיין</div>
-          ) : layout === 'table' ? (
-            <div className="doc-table-scroll">
-            <table className="doc-table">
-              <thead>
-                <tr>
-                  <th>מס'</th>
-                  <th>נושא</th>
-                  <th>תיאור</th>
-                  <th>אחראי</th>
-                  <th>תאריך יעד</th>
-                  {showStatus && <th>סטטוס</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {sections.map((sec, secIndex) => sec.tasks.map((t, taskIndex) => (
-                  <tr key={t.id}>
-                    {taskIndex === 0 && (
-                      <td className="doc-table-num" rowSpan={sec.tasks.length}>{pad2(secIndex + 1)}</td>
-                    )}
-                    {taskIndex === 0 && (
-                      <td className="doc-table-topic" rowSpan={sec.tasks.length}>{sec.name}</td>
-                    )}
-                    <td className="doc-table-desc">
-                      <span className="doc-table-item-num">{taskIndex + 1}.{pad2(secIndex + 1)}</span>
-                      <TaskTextBlock text={t.text} />
-                      {showLocation && ((t.floors && t.floors.length > 0) || t.location) && (
-                        <div className="doc-table-loc">
-                          {t.floors && t.floors.length > 0 && <span>קומה: {t.floors.join(', ')}</span>}
-                          {t.location && <span>מיקום: {t.location}</span>}
-                        </div>
-                      )}
-                      {t.carriedFromReportTitle && (
-                        <div className="doc-created-note">נוצרה בתאריך: {formatDateHeFromTs(t.createdAt)}</div>
-                      )}
-                      {!photoAppendix && t.photos.length > 0 && (
-                        <div className="doc-photos">
-                          {t.photos.map((p) => (
-                            <DocPhoto key={p.id} photo={p} onOpen={() => setLightboxSrc(displaySrc(p))} onResize={resizePhoto} />
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    <td className="doc-table-assignee">{t.assignee || '—'}</td>
-                    <td className="doc-table-due">{t.dueDate ? formatDateHe(t.dueDate) : '—'}</td>
-                    {showStatus && <td className="doc-table-status"><StatusBadge status={t.status} /></td>}
-                  </tr>
-                )))}
-              </tbody>
-            </table>
-            </div>
-          ) : sections.map((sec, secIndex) => (
-            <div key={sec.id}>
-              <div className="doc-group-title">{pad2(secIndex + 1)}. {sec.name}</div>
-              {sec.tasks.map((t, taskIndex) => {
-                return (
-                  <div className="doc-task" key={t.id}>
-                    <div className="doc-task-head">
-                      <span className="doc-task-num">{pad2(secIndex + 1)}.{pad2(taskIndex + 1)}</span>
-                      {showStatus && <StatusBadge status={t.status} className="status-badge-inline" />}
-                      <TaskTextBlock text={t.text} />
-                    </div>
-                    <div className="doc-task-meta">
-                      {t.floors && t.floors.length > 0 && <span>קומה: <b>{t.floors.join(', ')}</b></span>}
-                      {t.location && <span>מיקום: <b>{t.location}</b></span>}
-                      {t.assignee && <span>אחראי: <b>{t.assignee}</b></span>}
-                      {t.dueDate && <span>תאריך יעד: <b>{formatDateHe(t.dueDate)}</b></span>}
-                    </div>
-                    {t.carriedFromReportTitle && (
-                      <div className="doc-created-note">נוצרה בתאריך: {formatDateHeFromTs(t.createdAt)}</div>
-                    )}
-                    {!photoAppendix && t.photos.length > 0 && (
-                      <div className="doc-photos">
-                        {t.photos.map((p) => (
-                          <DocPhoto key={p.id} photo={p} onOpen={() => setLightboxSrc(displaySrc(p))} onResize={resizePhoto} />
-                        ))}
-                      </div>
-                    )}
+          {pageList.map((idxs, pageIdx) => {
+            const pageUnits = idxs.map((i) => units[i]);
+            const rowUnits = pageUnits.filter((u) => u.kind === 'row');
+            return (
+              <div className="doc-page" key={'page-' + pageIdx}>
+                {pageUnits.map((u) => (
+                  u.kind === 'div' ? <React.Fragment key={u.key}>{u.render()}</React.Fragment> : null
+                ))}
+                {rowUnits.length > 0 && (
+                  <div className="doc-table-scroll">
+                    <table className="doc-table">
+                      <thead>
+                        <tr>
+                          <th>מס'</th>
+                          <th>נושא</th>
+                          <th>תיאור</th>
+                          <th>אחראי</th>
+                          <th>תאריך יעד</th>
+                          {showStatus && <th>סטטוס</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const out = [];
+                          let i = 0;
+                          while (i < rowUnits.length) {
+                            const sid = rowUnits[i].sectionId;
+                            let j = i;
+                            while (j < rowUnits.length && rowUnits[j].sectionId === sid) j++;
+                            const runLen = j - i;
+                            for (let k = i; k < j; k++) out.push(rowUnits[k].renderRow(k === i, runLen));
+                            i = j;
+                          }
+                          return out;
+                        })()}
+                      </tbody>
+                    </table>
                   </div>
-                );
-              })}
-            </div>
-          ))}
+                )}
+                {pagesValid && <div className="doc-page-num">עמוד {pageIdx + 1} מתוך {pageList.length}</div>}
+              </div>
+            );
+          })}
         </div>
 
-        {photoAppendix && photoEntries.length > 0 && (
-          <div className="doc-page doc-appendix-page">
-            <div className="doc-appendix-title">נספח תמונות</div>
-            {photoEntries.map(({ sec, secIndex, t, taskIndex }) => (
-              <div className="doc-appendix-item" key={t.id}>
-                <div className="doc-appendix-item-head">
-                  {pad2(secIndex + 1)}.{pad2(taskIndex + 1)} · {sec.name}
-                  {showStatus && <StatusBadge status={t.status} className="status-badge-inline" style={{ marginInlineStart: 8 }} />}
-                </div>
-                {showLocation && ((t.floors && t.floors.length > 0) || t.location) && (
-                  <div className="doc-appendix-item-loc">
-                    {t.floors && t.floors.length > 0 && <span>קומה: {t.floors.join(', ')}</span>}
-                    {t.location && <span>מיקום: {t.location}</span>}
-                  </div>
-                )}
-                {t.carriedFromReportTitle && (
-                  <div className="doc-created-note">נוצרה בתאריך: {formatDateHeFromTs(t.createdAt)}</div>
-                )}
-                <div className="doc-photos">
-                  {t.photos.map((p) => (
-                    <DocPhoto key={p.id} photo={p} onOpen={() => setLightboxSrc(displaySrc(p))} onResize={resizePhoto} />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        {/* Hidden off-screen measuring pass — comes AFTER the real pages in the
+            DOM (so any ".doc-task"/".doc-table" query naturally finds the real,
+            visible one first). Reuses the real .doc-page CSS so its width always
+            matches the visible pages at any screen size / zoom level. Never
+            seen, never clickable. */}
+        <div className="doc-page" style={{ position: 'fixed', top: 0, left: -99999, visibility: 'hidden', pointerEvents: 'none' }} aria-hidden="true">
+          {units.map((u, i) => (
+            u.kind === 'div' ? <div key={u.key} ref={setRef(i)}>{u.render()}</div> : null
+          ))}
+          {hasRowUnits && (
+            <table className="doc-table" style={{ width: '100%' }}>
+              <tbody>
+                {units.map((u, i) => (u.kind === 'row' ? u.renderRow(true, 1, setRef(i)) : null))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
       {lightboxSrc && (
