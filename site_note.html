@@ -370,6 +370,12 @@ img { max-width: 100%; display: block; }
 .layout-btn { border: none; background: transparent; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: var(--text-2); border-radius: 6px; cursor: pointer; }
 .layout-btn.active { background: var(--accent); color: #fff; }
 .preview-loc-toggle { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--text-2); cursor: pointer; }
+.zoom-controls { display: flex; align-items: center; gap: 4px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 2px 6px; }
+.zoom-btn { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; color: var(--text-2); border-radius: 6px; }
+.zoom-btn:hover:not(:disabled) { background: var(--surface); }
+.zoom-btn:disabled { opacity: .4; }
+.zoom-btn svg { width: 16px; height: 16px; }
+.zoom-level { font-size: 11.5px; font-weight: 700; color: var(--text-2); min-width: 34px; text-align: center; }
 .preview-scroll { padding: 20px 12px 60px; display: flex; flex-direction: column; align-items: center; }
 .doc-print-root { display: flex; flex-direction: column; align-items: center; gap: 24px; width: 100%; }
 .doc-page {
@@ -453,7 +459,7 @@ img { max-width: 100%; display: block; }
 @media print {
   body * { visibility: hidden; }
   .doc-print-root, .doc-print-root * { visibility: visible; }
-  .doc-print-root { position: absolute; top: 0; left: 0; width: 100% !important; }
+  .doc-print-root { position: absolute; top: 0; left: 0; width: 100% !important; zoom: 1 !important; }
   .doc-page { box-shadow: none !important; max-width: 100% !important; padding: 6mm 4mm; }
   .doc-table-scroll { overflow: visible !important; }
   @page { size: A4 portrait; margin: 12mm 12mm; }
@@ -500,6 +506,8 @@ const IconCircleTool = (p) => <Icon><circle cx="12" cy="12" r="8" /></Icon>;
 const IconType = (p) => <Icon d="M5 5h14M12 5v14M9 19h6" {...p} />;
 const IconUndo = (p) => <Icon {...p}><path d="M3 7v6h6" /><path d="M3 13a9 9 0 1 0 3-6.7L3 9" /></Icon>;
 const IconPrint = (p) => <Icon><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></Icon>;
+const IconZoomOut = (p) => <Icon><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="8" y1="11" x2="14" y2="11" /></Icon>;
+const IconZoomIn = (p) => <Icon><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" /></Icon>;
 const IconListBullet = (p) => <Icon><circle cx="4" cy="6" r="1.4" fill="currentColor" stroke="none" /><circle cx="4" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="4" cy="18" r="1.4" fill="currentColor" stroke="none" /><path d="M9 6h11M9 12h11M9 18h11" /></Icon>;
 const IconListNumber = (p) => <Icon><path d="M9 6h11M9 12h11M9 18h11" /><text x="1.5" y="8.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">1</text><text x="1.5" y="14.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">2</text><text x="1.5" y="20.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">3</text></Icon>;
 const IconBookmark = (p) => <Icon d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" {...p} />;
@@ -1217,7 +1225,7 @@ function TaskEditor({ task, floors, floorPlan, assignees, groups, onCancel, onSa
 }
 
 /* ============================== Report Meta Editor ============================== */
-function ReportMetaEditor({ report, onCancel, onSave }) {
+function ReportMetaEditor({ report, existingSiteNames, onCancel, onSave }) {
   const [draft, setDraft] = useState({
     siteName: report.siteName, inspector: report.inspector, date: report.date,
     reportNumber: report.reportNumber || '', participants: report.participants || '', notes: report.notes || '',
@@ -1242,6 +1250,16 @@ function ReportMetaEditor({ report, onCancel, onSave }) {
       <div className="field">
         <label className="field-label">שם האתר / פרויקט</label>
         <input className="field-input" placeholder="לדוגמה: מגדל רוטשילד 12" value={draft.siteName} onChange={(e) => setDraft({ ...draft, siteName: e.target.value })} autoFocus />
+        {existingSiteNames && existingSiteNames.length > 0 && (
+          <>
+            <div className="chip-row">
+              {existingSiteNames.map((n) => (
+                <button key={n} type="button" className={"chip" + (draft.siteName === n ? " active" : "")} onClick={() => setDraft({ ...draft, siteName: n })}>{n}</button>
+              ))}
+            </div>
+            <div className="field-hint">בחרו פרויקט קיים מהרשימה, או הקלידו שם חדש</div>
+          </>
+        )}
       </div>
       <div className="field">
         <label className="field-label">מס' דוח <span className="opt">(אופציונלי)</span></label>
@@ -1697,9 +1715,15 @@ function DocPhoto({ photo, onOpen, onResize }) {
 }
 
 /* ============================== Preview / PDF Screen ============================== */
+const ZOOM_LEVELS = [1, 0.85, 0.7, 0.55, 0.4];
+
 function PreviewScreen({ report, updateReport }) {
   const { notify } = useDialog();
   const [lightboxSrc, setLightboxSrc] = useState(null);
+  const [zoomIndex, setZoomIndex] = useState(0);
+  const zoom = ZOOM_LEVELS[zoomIndex];
+  function zoomOut() { setZoomIndex((i) => Math.min(ZOOM_LEVELS.length - 1, i + 1)); }
+  function zoomIn() { setZoomIndex((i) => Math.max(0, i - 1)); }
   const groups = report.groups.slice().sort((a, b) => a.order - b.order);
   const tasksByGroup = (groupId) => report.tasks.filter((t) => (t.groupId || null) === groupId).sort((a, b) => a.order - b.order);
   const ungrouped = tasksByGroup(null);
@@ -1765,11 +1789,16 @@ function PreviewScreen({ report, updateReport }) {
             <input type="checkbox" checked={showStatus} onChange={(e) => updateReport({ ...report, pdfShowStatus: e.target.checked })} />
             הצג סטטוס
           </label>
+          <div className="zoom-controls">
+            <button type="button" className="zoom-btn" onClick={zoomOut} disabled={zoomIndex === ZOOM_LEVELS.length - 1} aria-label="הקטנת תצוגה"><IconZoomOut /></button>
+            <span className="zoom-level">{Math.round(zoom * 100)}%</span>
+            <button type="button" className="zoom-btn" onClick={zoomIn} disabled={zoomIndex === 0} aria-label="הגדלת תצוגה"><IconZoomIn /></button>
+          </div>
         </div>
         <button className="btn btn-primary btn-sm" onClick={handlePrint}><IconPrint />הפקת PDF</button>
       </div>
       <div className="preview-scroll">
-        <div className="doc-print-root">
+        <div className="doc-print-root" style={{ zoom }}>
         <div className="doc-page">
           <div className="doc-header">
             <div>
@@ -1912,7 +1941,7 @@ function PreviewScreen({ report, updateReport }) {
 }
 
 /* ============================== Report Workspace (shell for an open report) ============================== */
-function ReportWorkspace({ report, updateReport, onBack, saveState }) {
+function ReportWorkspace({ report, updateReport, existingSiteNames, onBack, saveState }) {
   const [tab, setTab] = useState('tasks');
   const [taskOverlay, setTaskOverlay] = useState(null); // 'new' | taskId | null
   const [metaOpen, setMetaOpen] = useState(() => !report.siteName.trim());
@@ -2022,6 +2051,7 @@ function ReportWorkspace({ report, updateReport, onBack, saveState }) {
       {metaOpen && (
         <ReportMetaEditor
           report={report}
+          existingSiteNames={existingSiteNames}
           onCancel={() => setMetaOpen(false)}
           onSave={(meta) => { updateReport({ ...report, ...meta }); setMetaOpen(false); }}
         />
@@ -2073,12 +2103,18 @@ function App() {
   }
 
   const openReport = reports.find((r) => r.id === openReportId);
+  const existingSiteNames = useMemo(() => {
+    const s = [];
+    reports.forEach((r) => { if (r.siteName && r.siteName.trim() && s.indexOf(r.siteName) === -1) s.push(r.siteName); });
+    return s;
+  }, [reports]);
 
   if (openReport) {
     return (
       <ReportWorkspace
         report={openReport}
         updateReport={updateReport}
+        existingSiteNames={existingSiteNames}
         onBack={() => setOpenReportId(null)}
         saveState={saveState}
       />
