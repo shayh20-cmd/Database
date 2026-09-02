@@ -1879,14 +1879,21 @@ function PreviewScreen({ report, updateReport }) {
                   {t.location && <span>מיקום: {t.location}</span>}
                 </div>
               )}
-              {t.carriedFromReportTitle && (
+              {!showStatus && t.carriedFromReportTitle && (
                 <div className="doc-created-note">נוצרה בתאריך: {formatDateHeFromTs(t.createdAt)}</div>
               )}
               {!photoAppendix && t.photos.length > 0 && renderPhotos(t.photos)}
             </td>
             <td className="doc-table-assignee">{t.assignee || '—'}</td>
             <td className="doc-table-due">{t.dueDate ? formatDateHe(t.dueDate) : '—'}</td>
-            {showStatus && <td className="doc-table-status"><StatusBadge status={t.status} /></td>}
+            {showStatus && (
+              <td className="doc-table-status">
+                <StatusBadge status={t.status} />
+                {t.carriedFromReportTitle && (
+                  <div className="doc-created-note">נוצרה בתאריך: {formatDateHeFromTs(t.createdAt)}</div>
+                )}
+              </td>
+            )}
           </tr>
         );
         units.push({ key: 'row-' + t.id, kind: 'row', sectionId: sec.id, renderRow });
