@@ -196,6 +196,9 @@ img { max-width: 100%; display: block; }
 .field-input:focus, .field-textarea:focus, .field-select:focus { border-color: var(--accent); background: var(--surface); }
 .field-textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
 .field-hint { font-size: 12px; color: var(--text-3); margin-top: 6px; }
+.two-col-row { display: flex; gap: 10px; }
+.two-col-row > div { flex: 1; min-width: 0; }
+.field-sublabel { display: block; font-size: 12px; color: var(--text-3); margin-bottom: 5px; }
 
 .new-group-link {
   display: inline-flex; align-items: center; gap: 4px; margin-top: 8px;
@@ -505,7 +508,16 @@ const STORAGE_KEY = 'sitenote_reports_v1';
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
 function loadReports() {
-  try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : []; }
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const reports = raw ? JSON.parse(raw) : [];
+    return reports.map((r) => ({
+      ...r,
+      floorsAboveGround: r.floorsAboveGround || 0,
+      floorsBelowGround: r.floorsBelowGround || 0,
+      tasks: (r.tasks || []).map((t) => (t.floors ? t : { ...t, floors: t.floor ? [t.floor] : [] })),
+    }));
+  }
   catch (e) { console.error('load failed', e); return []; }
 }
 function persistReports(reports) {
@@ -549,7 +561,18 @@ function downscaleImage(file, maxDim, quality) {
 }
 
 function newTask(order) {
-  return { id: uid(), text: '', floor: '', location: '', assignee: '', dueDate: '', groupId: null, status: 'open', order, photos: [], createdAt: Date.now() };
+  return { id: uid(), text: '', floors: [], location: '', assignee: '', dueDate: '', groupId: null, status: 'open', order, photos: [], createdAt: Date.now() };
+}
+
+function buildFloorList(report) {
+  const above = Math.max(0, Number(report.floorsAboveGround) || 0);
+  const below = Math.max(0, Number(report.floorsBelowGround) || 0);
+  if (above === 0 && below === 0) return [];
+  const list = [];
+  for (let i = below; i >= 1; i--) list.push('מרתף ' + i);
+  list.push('קומת קרקע');
+  for (let i = 1; i <= above; i++) list.push('קומה ' + i);
+  return list;
 }
 
 const STATUSES = [
@@ -579,6 +602,7 @@ function newReport() {
     id: uid(), siteName: '', inspector: '', date: todayISO(),
     reportNumber: '', participants: '', notes: '',
     groups: [], tasks: [], floors: [], assignees: [],
+    floorsAboveGround: 0, floorsBelowGround: 0,
     pdfLayout: 'cards', pdfShowLocation: true, pdfPhotoAppendix: false, pdfShowStatus: true,
     createdAt: Date.now(), updatedAt: Date.now(),
   };
@@ -614,6 +638,8 @@ function buildFollowUpReport(source) {
     siteName: source.siteName,
     inspector: source.inspector,
     reportNumber: nextReportNumber(source.reportNumber),
+    floorsAboveGround: source.floorsAboveGround || 0,
+    floorsBelowGround: source.floorsBelowGround || 0,
     groups: newGroups,
     tasks: newTasks,
     previousReportId: source.id,
@@ -896,7 +922,7 @@ function PhotoAnnotator({ photo, onCancel, onSave }) {
 }
 
 /* ============================== Task Editor ============================== */
-function TaskEditor({ task, floors, assignees, groups, onCancel, onSave, onDelete, onCreateGroup, onCreateAssignee }) {
+function TaskEditor({ task, floors, floorPlan, assignees, groups, onCancel, onSave, onDelete, onCreateGroup, onCreateAssignee }) {
   const { notify } = useDialog();
   const [draft, setDraft] = useState(() => ({ ...task, photos: task.photos.map((p) => ({ ...p })) }));
   const [annotatingPhotoId, setAnnotatingPhotoId] = useState(null);
@@ -909,6 +935,13 @@ function TaskEditor({ task, floors, assignees, groups, onCancel, onSave, onDelet
   const [newGroupName, setNewGroupName] = useState('');
   const [addingAssignee, setAddingAssignee] = useState(false);
   const [newAssigneeName, setNewAssigneeName] = useState('');
+
+  function toggleFloor(f) {
+    setDraft((d) => {
+      const cur = d.floors || [];
+      return { ...d, floors: cur.includes(f) ? cur.filter((x) => x !== f) : cur.concat([f]) };
+    });
+  }
 
   function submitNewGroup() {
     const name = newGroupName.trim();
@@ -1103,13 +1136,26 @@ function TaskEditor({ task, floors, assignees, groups, onCancel, onSave, onDelet
 
       <div className="field">
         <label className="field-label">קומה <span className="opt">(אופציונלי)</span></label>
-        <input className="field-input" placeholder="לדוגמה: קומה 3" value={draft.floor} onChange={(e) => set('floor', e.target.value)} />
-        {floors.length > 0 && (
-          <div className="chip-row">
-            {floors.map((f) => (
-              <button key={f} type="button" className={"chip" + (draft.floor === f ? " active" : "")} onClick={() => set('floor', f)}>{f}</button>
-            ))}
-          </div>
+        {floorPlan.length > 0 ? (
+          <>
+            <div className="chip-row" style={{ marginTop: 0 }}>
+              {floorPlan.map((f) => (
+                <button key={f} type="button" className={"chip" + ((draft.floors || []).includes(f) ? " active" : "")} onClick={() => toggleFloor(f)}>{f}</button>
+              ))}
+            </div>
+            <div className="field-hint">אפשר לבחור יותר מקומה אחת</div>
+          </>
+        ) : (
+          <>
+            <input className="field-input" placeholder="לדוגמה: קומה 3" value={(draft.floors && draft.floors[0]) || ''} onChange={(e) => set('floors', e.target.value ? [e.target.value] : [])} />
+            {floors.length > 0 && (
+              <div className="chip-row">
+                {floors.map((f) => (
+                  <button key={f} type="button" className={"chip" + ((draft.floors || []).includes(f) ? " active" : "")} onClick={() => set('floors', [f])}>{f}</button>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -1160,6 +1206,7 @@ function ReportMetaEditor({ report, onCancel, onSave }) {
   const [draft, setDraft] = useState({
     siteName: report.siteName, inspector: report.inspector, date: report.date,
     reportNumber: report.reportNumber || '', participants: report.participants || '', notes: report.notes || '',
+    floorsAboveGround: report.floorsAboveGround || 0, floorsBelowGround: report.floorsBelowGround || 0,
   });
   const notesRef = useRef(null);
   function wrapNotesSelection(prefix, suffix) {
@@ -1192,6 +1239,22 @@ function ReportMetaEditor({ report, onCancel, onSave }) {
       <div className="field">
         <label className="field-label">תאריך הסיור</label>
         <input type="date" className="field-input" value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} />
+      </div>
+      <div className="field">
+        <label className="field-label">מבנה קומות <span className="opt">(אופציונלי)</span></label>
+        <div className="two-col-row">
+          <div>
+            <label className="field-sublabel">קומות מעל הקרקע</label>
+            <input type="number" min="0" className="field-input" value={draft.floorsAboveGround}
+              onChange={(e) => setDraft({ ...draft, floorsAboveGround: Math.max(0, Number(e.target.value) || 0) })} />
+          </div>
+          <div>
+            <label className="field-sublabel">קומות מתחת לקרקע</label>
+            <input type="number" min="0" className="field-input" value={draft.floorsBelowGround}
+              onChange={(e) => setDraft({ ...draft, floorsBelowGround: Math.max(0, Number(e.target.value) || 0) })} />
+          </div>
+        </div>
+        <div className="field-hint">אם מוגדר, בעריכת משימה יהיה אפשר לבחור קומה (או כמה קומות) מרשימה סגורה במקום להקליד</div>
       </div>
       <div className="field">
         <label className="field-label">משתתפים בסיור <span className="opt">(אופציונלי)</span></label>
@@ -1320,7 +1383,7 @@ function OrgRow({ task, listKey, index, groups, onDragHandleDown, dragging, onOp
               <IconFollowUp />נוצרה {formatDateHeFromTs(task.createdAt)}
             </span>
           )}
-          {task.floor && <span className="meta-pill"><IconLayer />{task.floor}</span>}
+          {task.floors && task.floors.length > 0 && <span className="meta-pill"><IconLayer />{task.floors.join(', ')}</span>}
           {task.location && <span className="meta-pill"><IconMapPin />{task.location}</span>}
           {task.assignee && <span className="meta-pill"><IconUser />{task.assignee}</span>}
           {task.dueDate && <span className="meta-pill"><IconCalendar />{formatDateHe(task.dueDate)}</span>}
@@ -1734,9 +1797,9 @@ function PreviewScreen({ report, updateReport }) {
                     <td className="doc-table-desc">
                       <span className="doc-table-item-num">{taskIndex + 1}.{pad2(secIndex + 1)}</span>
                       <TaskTextBlock text={t.text} />
-                      {showLocation && (t.floor || t.location) && (
+                      {showLocation && ((t.floors && t.floors.length > 0) || t.location) && (
                         <div className="doc-table-loc">
-                          {t.floor && <span>קומה: {t.floor}</span>}
+                          {t.floors && t.floors.length > 0 && <span>קומה: {t.floors.join(', ')}</span>}
                           {t.location && <span>מיקום: {t.location}</span>}
                         </div>
                       )}
@@ -1770,7 +1833,7 @@ function PreviewScreen({ report, updateReport }) {
                       <TaskTextBlock text={t.text} />
                     </div>
                     <div className="doc-task-meta">
-                      {t.floor && <span>קומה: <b>{t.floor}</b></span>}
+                      {t.floors && t.floors.length > 0 && <span>קומה: <b>{t.floors.join(', ')}</b></span>}
                       {t.location && <span>מיקום: <b>{t.location}</b></span>}
                       {t.assignee && <span>אחראי: <b>{t.assignee}</b></span>}
                       {t.dueDate && <span>תאריך יעד: <b>{formatDateHe(t.dueDate)}</b></span>}
@@ -1801,9 +1864,9 @@ function PreviewScreen({ report, updateReport }) {
                   {pad2(secIndex + 1)}.{pad2(taskIndex + 1)} · {sec.name}
                   {showStatus && <StatusBadge status={t.status} className="status-badge-inline" style={{ marginInlineStart: 8 }} />}
                 </div>
-                {showLocation && (t.floor || t.location) && (
+                {showLocation && ((t.floors && t.floors.length > 0) || t.location) && (
                   <div className="doc-appendix-item-loc">
-                    {t.floor && <span>קומה: {t.floor}</span>}
+                    {t.floors && t.floors.length > 0 && <span>קומה: {t.floors.join(', ')}</span>}
                     {t.location && <span>מיקום: {t.location}</span>}
                   </div>
                 )}
@@ -1839,9 +1902,10 @@ function ReportWorkspace({ report, updateReport, onBack, saveState }) {
 
   const floors = useMemo(() => {
     const s = [];
-    report.tasks.forEach((t) => { if (t.floor && s.indexOf(t.floor) === -1) s.push(t.floor); });
+    report.tasks.forEach((t) => { (t.floors || []).forEach((f) => { if (s.indexOf(f) === -1) s.push(f); }); });
     return s;
   }, [report.tasks]);
+  const floorPlan = useMemo(() => buildFloorList(report), [report.floorsAboveGround, report.floorsBelowGround]);
   const assignees = useMemo(() => {
     const s = DEFAULT_ASSIGNEES.slice();
     (report.assignees || []).forEach((a) => { if (s.indexOf(a) === -1) s.push(a); });
@@ -1927,6 +1991,7 @@ function ReportWorkspace({ report, updateReport, onBack, saveState }) {
         <TaskEditor
           task={isNewTask ? newTask(report.tasks.length) : { ...editingTask, _existing: true }}
           floors={floors}
+          floorPlan={floorPlan}
           assignees={assignees}
           groups={sortedGroups}
           onCreateGroup={createGroup}
