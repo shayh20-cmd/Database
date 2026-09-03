@@ -202,6 +202,12 @@ img { max-width: 100%; display: block; }
 
 /* ───────────────────────── Form fields ───────────────────────── */
 .field { margin-bottom: 16px; }
+.field-meta-grid {
+  display: flex; flex-wrap: wrap; gap: 4px 18px;
+  margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border);
+}
+.field-meta-grid .field-compact { flex: 1 1 190px; min-width: 160px; margin-bottom: 16px; }
+.field-meta-grid .field-compact .field-label { font-size: 12px; font-weight: 600; color: var(--text-3); }
 .carried-note {
   display: flex; align-items: flex-start; gap: 8px; background: var(--accent-light); border: 1px solid var(--accent-light-2);
   border-radius: var(--radius-md); padding: 10px 12px; font-size: 12.5px; color: var(--accent-h); margin-bottom: 16px; line-height: 1.5;
@@ -224,6 +230,8 @@ img { max-width: 100%; display: block; }
 }
 .field-input:focus, .field-textarea:focus, .field-select:focus { border-color: var(--accent); background: var(--surface); }
 .field-textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+.field-textarea-main { font-size: 16.5px; border-width: 2px; border-color: var(--border-strong); }
+.field-textarea-main:focus { border-color: var(--accent); }
 .field-hint { font-size: 12px; color: var(--text-3); margin-top: 6px; }
 .floor-divider { height: 1px; background: var(--border); margin: 10px 0; }
 .two-col-row { display: flex; gap: 10px; }
@@ -1319,25 +1327,6 @@ function TaskEditor({ task, floors, floorPlan, assignees, groups, onCancel, onSa
         </div>
       )}
       <div className="field">
-        <label className="field-label">נושא <span className="opt">(אופציונלי)</span></label>
-        <select className="field-select" value={draft.groupId || ''} onChange={(e) => set('groupId', e.target.value || null)}>
-          <option value="">ללא נושא</option>
-          {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-        </select>
-        {addingGroup ? (
-          <div className="new-group-row">
-            <input className="field-input" placeholder="שם נושא חדש" value={newGroupName} autoFocus
-              onChange={(e) => setNewGroupName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') submitNewGroup(); if (e.key === 'Escape') { setAddingGroup(false); setNewGroupName(''); } }} />
-            <button type="button" className="btn btn-primary btn-sm" onClick={submitNewGroup} disabled={!newGroupName.trim()}>הוספה</button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setAddingGroup(false); setNewGroupName(''); }}>ביטול</button>
-          </div>
-        ) : (
-          <button type="button" className="new-group-link" onClick={() => setAddingGroup(true)}><IconPlus />נושא חדש</button>
-        )}
-      </div>
-
-      <div className="field">
         <div className="field-label-row">
           <label className="field-label">תיאור המשימה</label>
           <div className="text-toolbar">
@@ -1348,7 +1337,7 @@ function TaskEditor({ task, floors, floorPlan, assignees, groups, onCancel, onSa
             <button type="button" className="text-toolbar-btn" onClick={saveCurrentAsTemplate} disabled={!draft.text.trim()} aria-label="שמירה כתבנית"><IconBookmark /></button>
           </div>
         </div>
-        <textarea ref={textareaRef} className="field-textarea" placeholder="לדוגמה: יש להשלים איטום בפינת הקיר הצפונית..." value={draft.text} onChange={(e) => set('text', e.target.value)} style={{ minHeight: 120 }} autoFocus />
+        <textarea ref={textareaRef} className="field-textarea field-textarea-main" placeholder="לדוגמה: יש להשלים איטום בפינת הקיר הצפונית..." value={draft.text} onChange={(e) => set('text', e.target.value)} style={{ minHeight: 190 }} autoFocus />
         {templates.length > 0 && (
           <div className="chip-row">
             {templates.map((t) => (
@@ -1386,83 +1375,104 @@ function TaskEditor({ task, floors, floorPlan, assignees, groups, onCancel, onSa
           onChange={(e) => { handleFiles(e.target.files, false); e.target.value = ''; }} />
       </div>
 
-      <div className="field">
-        <label className="field-label">סטטוס</label>
-        <div className="chip-row" style={{ marginTop: 0 }}>
-          {STATUSES.map((s) => (
-            <button key={s.id} type="button" data-status={s.id} className={"chip status-chip" + (draft.status === s.id ? " active" : "")} onClick={() => set('status', s.id)}>{s.label}</button>
-          ))}
+      <div className="field-meta-grid">
+        <div className="field field-compact">
+          <label className="field-label">נושא <span className="opt">(אופציונלי)</span></label>
+          <select className="field-select" value={draft.groupId || ''} onChange={(e) => set('groupId', e.target.value || null)}>
+            <option value="">ללא נושא</option>
+            {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+          {addingGroup ? (
+            <div className="new-group-row">
+              <input className="field-input" placeholder="שם נושא חדש" value={newGroupName} autoFocus
+                onChange={(e) => setNewGroupName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') submitNewGroup(); if (e.key === 'Escape') { setAddingGroup(false); setNewGroupName(''); } }} />
+              <button type="button" className="btn btn-primary btn-sm" onClick={submitNewGroup} disabled={!newGroupName.trim()}>הוספה</button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setAddingGroup(false); setNewGroupName(''); }}>ביטול</button>
+            </div>
+          ) : (
+            <button type="button" className="new-group-link" onClick={() => setAddingGroup(true)}><IconPlus />נושא חדש</button>
+          )}
         </div>
-      </div>
 
-      <div className="field">
-        <label className="field-label">קומה <span className="opt">(אופציונלי)</span></label>
-        {(floorPlan.above.length > 0 || floorPlan.below.length > 0) ? (
-          <>
-            {floorPlan.above.length > 0 && (
-              <div className="chip-row" style={{ marginTop: 0 }}>
-                {floorPlan.above.map((f) => (
-                  <button key={f} type="button" className={"chip" + ((draft.floors || []).includes(f) ? " active" : "")} onClick={() => toggleFloor(f)}>{f}</button>
-                ))}
-              </div>
-            )}
-            {floorPlan.below.length > 0 && (
-              <>
-                <div className="floor-divider" />
+        <div className="field field-compact">
+          <label className="field-label">סטטוס</label>
+          <div className="chip-row" style={{ marginTop: 0 }}>
+            {STATUSES.map((s) => (
+              <button key={s.id} type="button" data-status={s.id} className={"chip status-chip" + (draft.status === s.id ? " active" : "")} onClick={() => set('status', s.id)}>{s.label}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="field field-compact">
+          <label className="field-label">קומה <span className="opt">(אופציונלי)</span></label>
+          {(floorPlan.above.length > 0 || floorPlan.below.length > 0) ? (
+            <>
+              {floorPlan.above.length > 0 && (
                 <div className="chip-row" style={{ marginTop: 0 }}>
-                  {floorPlan.below.map((f) => (
+                  {floorPlan.above.map((f) => (
                     <button key={f} type="button" className={"chip" + ((draft.floors || []).includes(f) ? " active" : "")} onClick={() => toggleFloor(f)}>{f}</button>
                   ))}
                 </div>
-              </>
-            )}
-            <div className="field-hint">אפשר לבחור יותר מקומה אחת</div>
-          </>
-        ) : (
-          <>
-            <input className="field-input" placeholder="לדוגמה: קומה 3" value={(draft.floors && draft.floors[0]) || ''} onChange={(e) => set('floors', e.target.value ? [e.target.value] : [])} />
-            {floors.length > 0 && (
-              <div className="chip-row">
-                {floors.map((f) => (
-                  <button key={f} type="button" className={"chip" + ((draft.floors || []).includes(f) ? " active" : "")} onClick={() => set('floors', [f])}>{f}</button>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </div>
+              )}
+              {floorPlan.below.length > 0 && (
+                <>
+                  <div className="floor-divider" />
+                  <div className="chip-row" style={{ marginTop: 0 }}>
+                    {floorPlan.below.map((f) => (
+                      <button key={f} type="button" className={"chip" + ((draft.floors || []).includes(f) ? " active" : "")} onClick={() => toggleFloor(f)}>{f}</button>
+                    ))}
+                  </div>
+                </>
+              )}
+              <div className="field-hint">אפשר לבחור יותר מקומה אחת</div>
+            </>
+          ) : (
+            <>
+              <input className="field-input" placeholder="לדוגמה: קומה 3" value={(draft.floors && draft.floors[0]) || ''} onChange={(e) => set('floors', e.target.value ? [e.target.value] : [])} />
+              {floors.length > 0 && (
+                <div className="chip-row">
+                  {floors.map((f) => (
+                    <button key={f} type="button" className={"chip" + ((draft.floors || []).includes(f) ? " active" : "")} onClick={() => set('floors', [f])}>{f}</button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
-      <div className="field">
-        <label className="field-label">מיקום <span className="opt">(אופציונלי)</span></label>
-        <input className="field-input" placeholder="לדוגמה: ממ״ד / חדר מדרגות" value={draft.location} onChange={(e) => set('location', e.target.value)} />
-      </div>
+        <div className="field field-compact">
+          <label className="field-label">מיקום <span className="opt">(אופציונלי)</span></label>
+          <input className="field-input" placeholder="לדוגמה: ממ״ד / חדר מדרגות" value={draft.location} onChange={(e) => set('location', e.target.value)} />
+        </div>
 
-      <div className="field">
-        <label className="field-label">אחראי <span className="opt">(אופציונלי)</span></label>
-        <input className="field-input" placeholder="שם הקבלן / בעל מקצוע" value={draft.assignee} onChange={(e) => set('assignee', e.target.value)} />
-        {assignees.length > 0 && (
-          <div className="chip-row">
-            {assignees.map((a) => (
-              <button key={a} type="button" className={"chip" + (draft.assignee === a ? " active" : "")} onClick={() => set('assignee', a)}>{a}</button>
-            ))}
-          </div>
-        )}
-        {addingAssignee ? (
-          <div className="new-group-row">
-            <input className="field-input" placeholder="שם אחראי חדש" value={newAssigneeName} autoFocus
-              onChange={(e) => setNewAssigneeName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') submitNewAssignee(); if (e.key === 'Escape') { setAddingAssignee(false); setNewAssigneeName(''); } }} />
-            <button type="button" className="btn btn-primary btn-sm" onClick={submitNewAssignee} disabled={!newAssigneeName.trim()}>הוספה</button>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setAddingAssignee(false); setNewAssigneeName(''); }}>ביטול</button>
-          </div>
-        ) : (
-          <button type="button" className="new-group-link" onClick={() => setAddingAssignee(true)}><IconPlus />הוספת אחראי</button>
-        )}
-      </div>
+        <div className="field field-compact">
+          <label className="field-label">אחראי <span className="opt">(אופציונלי)</span></label>
+          <input className="field-input" placeholder="שם הקבלן / בעל מקצוע" value={draft.assignee} onChange={(e) => set('assignee', e.target.value)} />
+          {assignees.length > 0 && (
+            <div className="chip-row">
+              {assignees.map((a) => (
+                <button key={a} type="button" className={"chip" + (draft.assignee === a ? " active" : "")} onClick={() => set('assignee', a)}>{a}</button>
+              ))}
+            </div>
+          )}
+          {addingAssignee ? (
+            <div className="new-group-row">
+              <input className="field-input" placeholder="שם אחראי חדש" value={newAssigneeName} autoFocus
+                onChange={(e) => setNewAssigneeName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') submitNewAssignee(); if (e.key === 'Escape') { setAddingAssignee(false); setNewAssigneeName(''); } }} />
+              <button type="button" className="btn btn-primary btn-sm" onClick={submitNewAssignee} disabled={!newAssigneeName.trim()}>הוספה</button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setAddingAssignee(false); setNewAssigneeName(''); }}>ביטול</button>
+            </div>
+          ) : (
+            <button type="button" className="new-group-link" onClick={() => setAddingAssignee(true)}><IconPlus />הוספת אחראי</button>
+          )}
+        </div>
 
-      <div className="field">
-        <label className="field-label">תאריך יעד <span className="opt">(אופציונלי)</span></label>
-        <input type="date" className="field-input" value={draft.dueDate} onChange={(e) => set('dueDate', e.target.value)} />
+        <div className="field field-compact">
+          <label className="field-label">תאריך יעד <span className="opt">(אופציונלי)</span></label>
+          <input type="date" className="field-input" value={draft.dueDate} onChange={(e) => set('dueDate', e.target.value)} />
+        </div>
       </div>
 
       {onDelete && (
