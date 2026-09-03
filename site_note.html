@@ -16,6 +16,7 @@
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script src="https://unpkg.com/@azure/msal-browser@3/lib/msal-browser.min.js"></script>
 <style>
 :root {
   --bg: #F2F4F7;
@@ -91,6 +92,34 @@ img { max-width: 100%; display: block; }
 }
 .brand-name { font-size: 17px; font-weight: 800; letter-spacing: -.2px; }
 .brand-name span { color: var(--accent); }
+
+.ms-signin-btn {
+  margin-inline-start: auto; display: flex; align-items: center; gap: 7px;
+  padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong);
+  background: var(--surface); font-size: 12.5px; font-weight: 600; color: var(--text-2); white-space: nowrap;
+}
+.ms-signin-btn:hover { background: var(--surface-2); }
+.account-widget { position: relative; margin-inline-start: auto; }
+.account-avatar-btn { display: flex; align-items: center; }
+.account-avatar {
+  width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; flex-shrink: 0;
+}
+.account-avatar.syncing { animation: pulse 1.2s infinite; }
+.account-menu {
+  position: absolute; inset-inline-end: 0; top: calc(100% + 8px); z-index: 20;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg); padding: 12px; min-width: 220px;
+}
+.account-menu-name { font-size: 13.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-menu-email { font-size: 11.5px; color: var(--text-3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-menu-status { font-size: 11.5px; color: var(--text-3); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.account-menu-status.error { color: var(--red); }
+.account-menu-signout {
+  margin-top: 10px; width: 100%; text-align: center; padding: 7px; border-radius: var(--radius-sm);
+  background: var(--surface-2); font-size: 12.5px; font-weight: 700; color: var(--text-2);
+}
+.account-menu-signout:hover { background: var(--accent-light); color: var(--accent); }
 
 .main-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
@@ -522,6 +551,14 @@ const IconListNumber = (p) => <Icon><path d="M9 6h11M9 12h11M9 18h11" /><text x=
 const IconBookmark = (p) => <Icon d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" {...p} />;
 const IconFollowUp = (p) => <Icon><path d="M17 2v4M7 2v4M3 10h18" /><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M9.5 17l2.5-2.5-2.5-2.5M12 14.5h4" /></Icon>;
 const IconFilePlus = (p) => <Icon><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6" /><path d="M12 12v6M9 15h6" /></Icon>;
+const IconMicrosoft = (p) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" {...p}>
+    <rect x="1" y="1" width="10" height="10" fill="#F25022" />
+    <rect x="13" y="1" width="10" height="10" fill="#7FBA00" />
+    <rect x="1" y="13" width="10" height="10" fill="#00A4EF" />
+    <rect x="13" y="13" width="10" height="10" fill="#FFB900" />
+  </svg>
+);
 
 /* ============================== Utils ============================== */
 const STORAGE_KEY = 'sitenote_reports_v1';
@@ -578,6 +615,196 @@ function downscaleImage(file, maxDim, quality) {
     };
     reader.readAsDataURL(file);
   });
+}
+
+/* ============================== OneDrive Sync (Microsoft) ============================== */
+const MSAL_CLIENT_ID = '1b603a70-33a0-4f0f-8130-3d80b3b816a1';
+const MSAL_TENANT_ID = '4dc3c008-379c-4600-a9d3-cea4feb564ad';
+const MSAL_SCOPES = ['Files.ReadWrite.AppFolder', 'User.Read'];
+const ONEDRIVE_FILE_NAME = 'sitenote-data.json';
+
+let msalReadyPromise = null;
+function getMsal() {
+  if (!msalReadyPromise) {
+    msalReadyPromise = (async () => {
+      if (!window.msal) return null;
+      const instance = new window.msal.PublicClientApplication({
+        auth: {
+          clientId: MSAL_CLIENT_ID,
+          authority: 'https://login.microsoftonline.com/' + MSAL_TENANT_ID,
+          redirectUri: window.location.origin + window.location.pathname,
+        },
+        cache: { cacheLocation: 'localStorage' },
+      });
+      await instance.initialize();
+      return instance;
+    })();
+  }
+  return msalReadyPromise;
+}
+
+async function msalGetAccount() {
+  const msal = await getMsal();
+  if (!msal) return null;
+  const accounts = msal.getAllAccounts();
+  if (accounts.length === 0) return null;
+  msal.setActiveAccount(accounts[0]);
+  return accounts[0];
+}
+
+async function msalSignIn() {
+  const msal = await getMsal();
+  if (!msal) throw new Error('ספריית ההתחברות לא נטענה');
+  const result = await msal.loginPopup({ scopes: MSAL_SCOPES });
+  msal.setActiveAccount(result.account);
+  return result.account;
+}
+
+async function msalSignOut() {
+  const msal = await getMsal();
+  if (!msal) return;
+  const account = msal.getActiveAccount();
+  if (account) await msal.logoutPopup({ account });
+}
+
+async function msalGetToken() {
+  const msal = await getMsal();
+  if (!msal) throw new Error('ספריית ההתחברות לא נטענה');
+  const account = msal.getActiveAccount() || (await msalGetAccount());
+  if (!account) throw new Error('לא מחובר');
+  try {
+    const result = await msal.acquireTokenSilent({ scopes: MSAL_SCOPES, account });
+    return result.accessToken;
+  } catch (e) {
+    const result = await msal.acquireTokenPopup({ scopes: MSAL_SCOPES, account });
+    return result.accessToken;
+  }
+}
+
+async function oneDriveUpload(data) {
+  const token = await msalGetToken();
+  const res = await fetch(
+    'https://graph.microsoft.com/v1.0/me/drive/special/approot:/' + ONEDRIVE_FILE_NAME + ':/content',
+    { method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(data) }
+  );
+  if (!res.ok) throw new Error('העלאה ל-OneDrive נכשלה: ' + res.status);
+  return res.json();
+}
+
+async function oneDriveDownload() {
+  const token = await msalGetToken();
+  const res = await fetch(
+    'https://graph.microsoft.com/v1.0/me/drive/special/approot:/' + ONEDRIVE_FILE_NAME + ':/content',
+    { headers: { Authorization: 'Bearer ' + token } }
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error('הורדה מ-OneDrive נכשלה: ' + res.status);
+  return res.json();
+}
+
+// last-write-wins merge, per report, by updatedAt
+function mergeReports(local, remote) {
+  if (!remote || !Array.isArray(remote.reports)) return local;
+  const byId = new Map(local.map((r) => [r.id, r]));
+  remote.reports.forEach((rr) => {
+    const lr = byId.get(rr.id);
+    if (!lr || (rr.updatedAt || 0) > (lr.updatedAt || 0)) byId.set(rr.id, rr);
+  });
+  return Array.from(byId.values());
+}
+
+function useOneDriveSync(reports, setReports) {
+  const [account, setAccount] = useState(null);
+  const [status, setStatus] = useState('idle'); // idle | syncing | synced | error
+  const [errorMsg, setErrorMsg] = useState('');
+  const pushTimer = useRef(null);
+
+  async function pullMerge() {
+    setStatus('syncing'); setErrorMsg('');
+    try {
+      const remote = await oneDriveDownload();
+      if (remote) setReports((prev) => mergeReports(prev, remote));
+      setStatus('synced');
+    } catch (e) {
+      console.error(e);
+      setStatus('error'); setErrorMsg('סנכרון נכשל');
+    }
+  }
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const acc = await msalGetAccount();
+        if (acc) { setAccount(acc); await pullMerge(); }
+      } catch (e) { /* not signed in yet */ }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!account) return;
+    if (pushTimer.current) clearTimeout(pushTimer.current);
+    pushTimer.current = setTimeout(async () => {
+      setStatus('syncing');
+      try {
+        await oneDriveUpload({ reports, syncedAt: Date.now() });
+        setStatus('synced');
+      } catch (e) {
+        console.error(e);
+        setStatus('error'); setErrorMsg('שמירה ל-OneDrive נכשלה');
+      }
+    }, 2000);
+    return () => clearTimeout(pushTimer.current);
+  }, [reports, account]);
+
+  async function signIn() {
+    setStatus('syncing'); setErrorMsg('');
+    try {
+      const acc = await msalSignIn();
+      setAccount(acc);
+      await pullMerge();
+    } catch (e) {
+      console.error(e);
+      setStatus('error'); setErrorMsg('ההתחברות נכשלה או בוטלה');
+    }
+  }
+
+  async function signOut() {
+    await msalSignOut();
+    setAccount(null);
+    setStatus('idle');
+  }
+
+  return { account, status, errorMsg, signIn, signOut };
+}
+
+function AccountWidget({ account, status, errorMsg, onSignIn, onSignOut }) {
+  const [open, setOpen] = useState(false);
+  if (!account) {
+    return (
+      <button type="button" className="ms-signin-btn" onClick={onSignIn}>
+        <IconMicrosoft />התחברות עם Microsoft
+      </button>
+    );
+  }
+  const displayName = account.name || account.username || '';
+  const initial = displayName.trim().charAt(0).toUpperCase() || '?';
+  return (
+    <div className="account-widget">
+      <button type="button" className="account-avatar-btn" onClick={() => setOpen((v) => !v)} title={displayName}>
+        <span className={"account-avatar" + (status === 'syncing' ? ' syncing' : '')}>{initial}</span>
+      </button>
+      {open && (
+        <div className="account-menu">
+          <div className="account-menu-name">{account.name || 'משתמש Microsoft'}</div>
+          {account.username && <div className="account-menu-email">{account.username}</div>}
+          <div className={"account-menu-status" + (status === 'error' ? ' error' : '')}>
+            {status === 'syncing' ? 'מסנכרן עם OneDrive…' : status === 'error' ? (errorMsg || 'שגיאת סנכרון') : 'מסונכרן עם OneDrive'}
+          </div>
+          <button type="button" className="account-menu-signout" onClick={() => { setOpen(false); onSignOut(); }}>התנתקות</button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function newTask(order) {
@@ -1317,7 +1544,7 @@ function ReportMetaEditor({ report, existingSiteNames, onCancel, onSave }) {
 }
 
 /* ============================== Home Screen ============================== */
-function HomeScreen({ reports, onOpen, onCreate, onDelete, onFollowUp }) {
+function HomeScreen({ reports, onOpen, onCreate, onDelete, onFollowUp, cloud }) {
   const [sortBy, setSortBy] = useState('date');
   const sorted = useMemo(() => {
     const list = reports.slice();
@@ -1336,6 +1563,7 @@ function HomeScreen({ reports, onOpen, onCreate, onDelete, onFollowUp }) {
             <div className="brand-badge"><IconClipboard /></div>
             <div className="brand-name">Site<span>Note</span></div>
           </div>
+          <AccountWidget account={cloud.account} status={cloud.status} errorMsg={cloud.errorMsg} onSignIn={cloud.signIn} onSignOut={cloud.signOut} />
         </div>
       </div>
       <div className="main-scroll">
@@ -2214,6 +2442,7 @@ function App() {
   const [openReportId, setOpenReportId] = useState(null);
   const [saveState, setSaveState] = useState('saved');
   const saveTimer = useRef(null);
+  const cloud = useOneDriveSync(reports, setReports);
 
   useEffect(() => {
     setSaveState('saving');
@@ -2275,6 +2504,7 @@ function App() {
       onCreate={createReport}
       onDelete={deleteReport}
       onFollowUp={createFollowUpReport}
+      cloud={cloud}
     />
   );
 }
