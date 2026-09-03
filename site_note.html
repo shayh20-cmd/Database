@@ -492,6 +492,20 @@ img { max-width: 100%; display: block; }
   .overlay-body { max-width: 640px; margin: 0 auto; width: 100%; }
 }
 
+/* Desktop web: contain the mobile-first shell in a centered "app card"
+   instead of stretching it edge-to-edge. Wide enough to fit a full A4
+   preview page (794px) with room to spare; narrower screens/forms keep
+   their own tighter max-widths (above) nested inside it. */
+@media (min-width: 900px) {
+  body { background: var(--border-strong); }
+  .app-shell {
+    max-width: 880px; margin: 0 auto; box-shadow: var(--shadow-lg);
+    /* contain becomes the positioning root for fixed-position children (FAB, overlays,
+       dialogs, lightbox) so they stay inside the card instead of pinning to the browser window */
+    contain: layout;
+  }
+}
+
 @media print {
   body * { visibility: hidden; }
   .doc-print-root, .doc-print-root * { visibility: visible; }
