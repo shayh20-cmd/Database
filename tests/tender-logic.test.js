@@ -46,5 +46,38 @@ eq(tenderCellStatus({ events: [
 // override wins over derivation
 eq(tenderCellStatus({ statusOverride: 'C', events: [{ status: 'comments', date: '2026-02-01' }] }), 'C', 'override wins');
 
+// ---- mirrored: keys + counts ----
+function cellKey(bId, cId, dId){ return `${bId}|${cId}|${dId}`; }
+function tenderCounts(sheet){
+  const out={ N:0, I:0, R:0, C:0, total:0 };
+  const buildings=sheet.buildings||[], consultants=sheet.consultants||[], docTypes=sheet.docTypes||[];
+  for(const b of buildings) for(const c of consultants) for(const d of docTypes){
+    const cell=(sheet.cells||{})[cellKey(b.id,c.id,d.id)];
+    if(cell&&cell.na)continue;              // "לא רלוונטי" excluded from all counts
+    out.total++;
+    out[tenderCellStatus(cell||{})]++;
+  }
+  return out;
+}
+// ---- end mirror ----
+
+const sheetA={
+  buildings:[{id:'b1',name:'מבנה'}],
+  consultants:[{id:'arch',name:'אדריכלות'},{id:'str',name:'קונסטרוקציה'}],
+  docTypes:[{id:'plans',name:'תכניות'},{id:'spec',name:'מפרט'}],
+  cells:{
+    'b1|arch|plans':{events:[{status:'approved',date:'2026-01-01'}]}, // C
+    'b1|arch|spec' :{events:[{status:'comments',date:'2026-01-01'}]}, // R
+    'b1|str|plans' :{events:[{status:'update',date:'2026-01-01'}]},   // I
+    'b1|str|spec'  :{na:true},                                        // excluded
+  },
+};
+const cnt=tenderCounts(sheetA);
+eq(cnt.total, 3, 'counts.total excludes na');
+eq(cnt.C, 1, 'counts.C');
+eq(cnt.R, 1, 'counts.R');
+eq(cnt.I, 1, 'counts.I');
+eq(cnt.N, 0, 'counts.N (missing cell would be N, but here none)');
+
 if (failures) { console.error(`\n${failures} FAILURES`); process.exit(1); }
 console.log('\nALL PASS');

@@ -777,6 +777,17 @@ const TENDER_STATUS_META={
   R:{label:'תקוע',   color:'#fff',    bg:'#F97316'},
   C:{label:'הסתיים', color:'#fff',    bg:'#10B981'},
 };
+function tenderCellKey(bId,cId,dId){ return `${bId}|${cId}|${dId}`; }
+function tenderCounts(sheet){
+  const out={N:0,I:0,R:0,C:0,total:0};
+  const bs=sheet.buildings||[], cs=sheet.consultants||[], ds=sheet.docTypes||[];
+  for(const b of bs)for(const c of cs)for(const d of ds){
+    const cell=(sheet.cells||{})[tenderCellKey(b.id,c.id,d.id)];
+    if(cell&&cell.na)continue;
+    out.total++; out[tenderCellStatus(cell||{})]++;
+  }
+  return out;
+}
 /* ═══ Default Data ═══ */function makeEmptySheet(name){return{id:uid(),name,type:'list',groups:[{id:uid(),name:'כללי',collapsed:false}],tasks:[],fields:[],hiddenCols:{},colOrder:[],views:[]};}function makeDefaultData(){return {"projectName":"אולם ספורט לוד","builtinConfig":{"__owner_status":{"delayThreshold":30}},"licensingMilestones":[],"licensingGoals":[],"fields":[],"automations":[],"automationLog":[],"sheets":[{"id":"ivae54t","name":"דאשבורד","type":"dashboard","track":"licensing","tasks":[]},{"id":"xbgf63v","name":"משימות שוטפות","type":"list","fields":[],"hiddenCols":{},"colOrder":[],"groups":[{"id":"i9p1kmr","name":"ניהול פרויקט","collapsed":false},{"id":"8agh7q8","name":"תיאום ותקשורת","collapsed":false}],"tasks":[],"track":null},{"id":"ablpu3h","name":"תיק מידע","type":"list","fields":[],"hiddenCols":{},"colOrder":[],"groups":[{"id":"hikw0io","name":"מסמכי תיק מידע","collapsed":false}],"tasks":[],"track":"licensing"},{"id":"9tg8vlt","name":"תנאים מקדימים","type":"list","groups":[{"id":"cktgal8","name":"אישורי היתר","collapsed":false},{"id":"8c7xt65","name":"ניהול ותיאום","collapsed":false}],"tasks":[],"fields":[],"hiddenCols":{},"colOrder":[],"track":"licensing"},{"id":"ncxn6wr","name":"בקרת תכן","type":"list","groups":[{"id":"vaby5zi","name":"כללי","collapsed":false}],"tasks":[],"fields":[],"hiddenCols":{},"colOrder":[],"views":[],"track":"licensing"}],"projectInfo":{"description":"","client":"","location":"","phase":"","area":""},"team":[],"goals":[],"milestones":[],"externalContacts":[],"consultants":[],"meetings":[],"staff":[],"tracks":[{"id":"ongoing","label":"מסלול תכנון","trackValue":null,"stageOrder":["xbgf63v"]},{"id":"licensing","label":"מסלול רישוי","trackValue":"licensing","stageOrder":["ablpu3h","9tg8vlt","ncxn6wr"]},{"id":"tender","label":"מסלול מכרז","trackValue":"tender","stageOrder":[]},{"id":"execution","label":"מסלול ביצוע","trackValue":"execution","stageOrder":[]}],"precondsRepaired":true,"combinedView":{"id":"__combined__","name":"מבט מאוחד","groups":[],"fields":[],"hiddenCols":{"__assignee":true,"__comment":true},"colOrder":["__name","__status","__priority","__discipline","__assignee","__dates","__owner_status","__comment"],"colWidths":{"__name":397,"__owner_status":256},"views":[{"id":"pw0zisa","name":"שי","filterState":null,"sortState":null,"groupByState":[{"field":"__track"},{"field":"discipline"}],"hiddenCols":{"__assignee":true,"__comment":true},"colOrder":["__name","__status","__priority","__discipline","__assignee","__dates","__owner_status","__comment"],"colWidths":{"__name":397,"__owner_status":256}}],"type":"list","__combined":true}};}/* ── Tracks model (v4) ──────────────────────────────────────────
    A "track" = one consultant/discipline's own lane within a task:
    its own ordered event-chain + its own open subtasks.
