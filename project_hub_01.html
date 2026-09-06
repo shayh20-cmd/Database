@@ -1574,7 +1574,9 @@ function TenderCellPanel({sheet,cellKey,save,onClose}){
   const setOverride=code=>writeCell(c=>({...c,statusOverride:code||undefined}));
   const setNa=v=>writeCell(c=>({...c,na:v||undefined}));
   const st=tenderCellStatus(cell);
-  return/*#__PURE__*/React.createElement("div",{className:"tender-cell-panel",dir:"rtl",style:{position:'fixed',insetInlineEnd:0,top:0,bottom:0,width:340,background:'var(--surface)',boxShadow:'-2px 0 12px rgba(0,0,0,.15)',padding:16,overflowY:'auto',zIndex:50}},
+  return/*#__PURE__*/React.createElement(React.Fragment,null,
+    /*#__PURE__*/React.createElement("div",{onClick:onClose,style:{position:'fixed',inset:0,zIndex:'var(--z-overlay)',background:'rgba(0,0,0,.18)'}}),
+    /*#__PURE__*/React.createElement("div",{className:"tender-cell-panel",dir:"rtl",style:{position:'fixed',insetInlineEnd:0,top:0,bottom:0,width:340,background:'var(--surface)',boxShadow:'-2px 0 12px rgba(0,0,0,.15)',padding:16,overflowY:'auto',zIndex:'var(--z-panel)'}},
     /*#__PURE__*/React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},
       /*#__PURE__*/React.createElement("b",null,"מסמך — סטטוס: ",TENDER_STATUS_META[st].label),
       /*#__PURE__*/React.createElement("button",{onClick:onClose},"✕")
@@ -1605,6 +1607,7 @@ function TenderCellPanel({sheet,cellKey,save,onClose}){
         /*#__PURE__*/React.createElement("button",{onClick:()=>delEvent(ev.id)},"מחק")
       )),
       !(cell.events||[]).length&&/*#__PURE__*/React.createElement("div",{style:{color:'#999',fontSize:12,marginTop:6}},"אין אירועים עדיין")
+    )
     )
   );
 }
