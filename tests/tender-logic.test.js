@@ -122,5 +122,37 @@ const pC=tenderPivot(sheetC);
 eq(pC.showSubs, false, 'third=docTypes has 1 item → no subs');
 eq(pC.keyOf(pC.rowItems[1], pC.colGroups[0], pC.colGroups[0].subs[0]), 'b2|arch|plans', 'multi-building keyOf');
 
+// ---- mirrored: tenderVisibleSheet ----
+function tenderVisibleSheet(sheet){
+  const f=sheet.filters||{};
+  const keep=(dim,idField)=>{
+    const ids=f[idField]||[];
+    if(!ids.length)return sheet[dim]||[];
+    return (sheet[dim]||[]).filter(x=>ids.includes(x.id));
+  };
+  return {...sheet,
+    consultants:keep('consultants','consultantIds'),
+    buildings:keep('buildings','buildingIds')};
+}
+// ---- end mirror ----
+
+const sheetD={
+  buildings:[{id:'b1',name:'A'},{id:'b2',name:'B'}],
+  consultants:[{id:'arch',name:'אדר'},{id:'str',name:'קונס'}],
+  docTypes:[{id:'plans',name:'תכ'}],
+  cells:{'b1|arch|plans':{events:[]}},
+  filters:{consultantIds:['arch'],buildingIds:[],statuses:[]},
+};
+const vD=tenderVisibleSheet(sheetD);
+eq(vD.consultants.length, 1, 'consultant filter narrows to 1');
+eq(vD.consultants[0].id, 'arch', 'consultant filter keeps the selected id');
+eq(vD.buildings.length, 2, 'empty building filter leaves buildings untouched');
+eq(vD.cells, sheetD.cells, 'cells reference is untouched by filtering');
+
+const sheetE={...sheetD, filters:{consultantIds:[],buildingIds:[],statuses:[]}};
+const vE=tenderVisibleSheet(sheetE);
+eq(vE.consultants.length, 2, 'no filters → all consultants pass through');
+eq(vE.buildings.length, 2, 'no filters → all buildings pass through');
+
 if (failures) { console.error(`\n${failures} FAILURES`); process.exit(1); }
 console.log('\nALL PASS');
