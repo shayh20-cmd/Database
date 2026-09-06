@@ -1776,6 +1776,10 @@ function TenderView({data,sheet,save}){
     showLists&&/*#__PURE__*/React.createElement(TenderListsEditor,{sheet:sheet,save:save}),
     /*#__PURE__*/React.createElement(TenderPivotBar,{sheet:sheet,save:save}),
     /*#__PURE__*/React.createElement(TenderFilters,{sheet:sheet,save:save}),
+    /* By design (not a bug): tiles narrow by consultant/building filters (via visibleSheet)
+       but deliberately ignore the status filter, so they always show a full status
+       breakdown of the currently-visible consultants/buildings — the status filter only
+       affects which matrix cells are highlighted, not what the tiles summarize. */
     /*#__PURE__*/React.createElement(TenderTiles,{sheet:visibleSheet}),
     /*#__PURE__*/React.createElement(TenderMatrix,{sheet:visibleSheet,rawSheet:sheet,onOpenCell:setOpenCellKey,statusFilter:statusFilter}),
     openCellKey&&/*#__PURE__*/React.createElement(TenderCellPanel,{sheet:sheet,cellKey:openCellKey,save:save,onClose:()=>setOpenCellKey(null)}));}/* ══════════════════════════════════════
