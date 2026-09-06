@@ -79,5 +79,48 @@ eq(cnt.R, 1, 'counts.R');
 eq(cnt.I, 1, 'counts.I');
 eq(cnt.N, 0, 'counts.N (missing cell would be N, but here none)');
 
+// ---- mirrored: pivot ----
+const DIMS=['buildings','consultants','docTypes'];
+function tenderPivot(sheet){
+  const pivot=sheet.pivot||{rows:'consultants',cols:'docTypes'};
+  const rows=pivot.rows, cols=pivot.cols;
+  const third=DIMS.find(d=>d!==rows&&d!==cols);
+  const items=dim=>sheet[dim]||[];
+  const rowItems=items(rows), colItems=items(cols), thirdItems=items(third);
+  const showSubs=thirdItems.length>1;
+  const subsList=thirdItems.length?thirdItems:[{id:'__all__',name:''}];
+  const colGroups=colItems.map(ci=>({id:ci.id,name:ci.name,subs:subsList}));
+  function keyOf(rowItem,colGroup,sub){
+    const pick={};
+    pick[rows]=rowItem.id; pick[cols]=colGroup.id; pick[third]=sub.id;
+    return tenderCellKey(pick.buildings,pick.consultants,pick.docTypes);
+  }
+  return {rowItems,colGroups,showSubs,keyOf};
+}
+function tenderCellKey(bId,cId,dId){ return `${bId}|${cId}|${dId}`; }
+// ---- end mirror ----
+
+const sheetB={
+  buildings:[{id:'b1',name:'מבנה'}],
+  consultants:[{id:'arch',name:'אדריכלות'}],
+  docTypes:[{id:'plans',name:'תכניות'},{id:'spec',name:'מפרט'}],
+  pivot:{rows:'consultants',cols:'docTypes'},
+};
+const pB=tenderPivot(sheetB);
+eq(pB.rowItems.length, 1, 'pivot rowItems=consultants');
+eq(pB.colGroups.length, 2, 'pivot colGroups=docTypes');
+eq(pB.showSubs, false, 'single building → subs collapsed');
+eq(pB.keyOf(pB.rowItems[0], pB.colGroups[0], pB.colGroups[0].subs[0]), 'b1|arch|plans', 'keyOf maps back to building|consultant|doctype');
+
+const sheetC={
+  buildings:[{id:'b1',name:'A'},{id:'b2',name:'B'}],
+  consultants:[{id:'arch',name:'אדר'}],
+  docTypes:[{id:'plans',name:'תכ'}],
+  pivot:{rows:'buildings',cols:'consultants'},
+};
+const pC=tenderPivot(sheetC);
+eq(pC.showSubs, false, 'third=docTypes has 1 item → no subs');
+eq(pC.keyOf(pC.rowItems[1], pC.colGroups[0], pC.colGroups[0].subs[0]), 'b2|arch|plans', 'multi-building keyOf');
+
 if (failures) { console.error(`\n${failures} FAILURES`); process.exit(1); }
 console.log('\nALL PASS');
