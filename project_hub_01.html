@@ -1594,18 +1594,18 @@ function TenderFilters({sheet,save}){
   );
 }
 function TenderMatrix({sheet,rawSheet,onOpenCell,statusFilter}){
-  if(!(sheet.consultants||[]).length||!(sheet.docTypes||[]).length){
+  if(!(sheet.buildings||[]).length||!(sheet.consultants||[]).length||!(sheet.docTypes||[]).length){
     /* sheet here is the filtered visibleSheet — an empty list can mean "genuinely no
        items" OR "everything is filtered out." rawSheet (the real, unfiltered sheet)
        disambiguates so we don't tell a user with real consultants to go add some. */
-    const trulyEmpty=!(rawSheet.consultants||[]).length||!(rawSheet.docTypes||[]).length;
-    return/*#__PURE__*/React.createElement("div",{style:{padding:'32px 16px',textAlign:'center',color:'var(--text-3)',fontSize:13,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10}},trulyEmpty?"הוסף יועצים/מסמכים כדי להתחיל":"אין תוצאות התואמות למסננים — נקו את הסינון");
+    const trulyEmpty=!(rawSheet.buildings||[]).length||!(rawSheet.consultants||[]).length||!(rawSheet.docTypes||[]).length;
+    return/*#__PURE__*/React.createElement("div",{style:{padding:'32px 16px',textAlign:'center',color:'var(--text-3)',fontSize:13,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10}},trulyEmpty?"הוסף מבנים/יועצים/מסמכים כדי להתחיל":"אין תוצאות התואמות למסננים — נקו את הסינון");
   }
   const {rowItems,colGroups,showSubs,keyOf}=tenderPivot(sheet);
   const cellOf=key=>(sheet.cells||{})[key];
   const renderCell=key=>{
     const cell=cellOf(key)||{};
-    if(cell.na)return/*#__PURE__*/React.createElement("td",{key:key,style:{border:'1px solid var(--border)',background:'#eee',color:'#999',textAlign:'center',fontSize:11}},"—");
+    if(cell.na)return/*#__PURE__*/React.createElement("td",{key:key,onClick:()=>onOpenCell(key),style:{border:'1px solid var(--border)',background:'#eee',color:'#999',textAlign:'center',fontSize:11,cursor:'pointer'}},"—");
     const st=tenderCellStatus(cell);
     if(statusFilter&&statusFilter.length&&!statusFilter.includes(st)){
       return/*#__PURE__*/React.createElement("td",{key:key,onClick:()=>onOpenCell(key),style:{border:'1px solid var(--border)',background:'var(--surface)',cursor:'pointer'}});
@@ -1755,6 +1755,12 @@ function TenderCellPanel({sheet,cellKey,save,onClose}){
 function TenderView({data,sheet,save}){
   const [openCellKey,setOpenCellKey]=React.useState(null);
   const [showLists,setShowLists]=React.useState(false);
+  React.useEffect(()=>{
+    if(!openCellKey)return;
+    const[bId,cId,dId]=openCellKey.split('|');
+    const valid=(sheet.buildings||[]).some(x=>x.id===bId)&&(sheet.consultants||[]).some(x=>x.id===cId)&&(sheet.docTypes||[]).some(x=>x.id===dId);
+    if(!valid)setOpenCellKey(null);
+  },[openCellKey,sheet]);
   const visibleSheet=tenderVisibleSheet(sheet);
   const statusFilter=(sheet.filters&&sheet.filters.statuses)||[];
   /* Writers (save real sheet, full-replace via saveSheet) get `sheet`: TenderPivotBar,
