@@ -155,6 +155,7 @@ eq(vE.consultants.length, 2, 'no filters → all consultants pass through');
 eq(vE.buildings.length, 2, 'no filters → all buildings pass through');
 
 // ---- mirrored: tenderRemoveDim ----
+const TENDER_FILTER_FIELD={consultants:'consultantIds',buildings:'buildingIds'};
 function tenderRemoveDim(sheet, dim, id){
   const nextList=(sheet[dim]||[]).filter(x=>x.id!==id);
   const cells={};
@@ -165,7 +166,11 @@ function tenderRemoveDim(sheet, dim, id){
     const k=cellKey(b.id,c.id,d.id);
     if((sheet.cells||{})[k])cells[k]=sheet.cells[k];
   }
-  return {...sheet,[dim]:nextList,cells};
+  const filterField=TENDER_FILTER_FIELD[dim];
+  const filters=filterField&&sheet.filters&&sheet.filters[filterField]
+    ?{...sheet.filters,[filterField]:sheet.filters[filterField].filter(x=>x!==id)}
+    :sheet.filters;
+  return {...sheet,[dim]:nextList,cells,filters};
 }
 // ---- end mirror ----
 
@@ -189,6 +194,26 @@ eq(!!rF.cells['b1|arch|spec'], true, 'removeDim keeps surviving cell b1|arch|spe
 eq(!!rF.cells['b1|str|plans'], false, 'removeDim purges b1|str|plans');
 eq(!!rF.cells['b1|str|spec'], false, 'removeDim purges b1|str|spec (na cell too)');
 eq(sheetF.consultants.length, 2, 'removeDim does not mutate the original sheet');
+
+// ---- removeDim also strips the removed id from sheet.filters (consultants/buildings only) ----
+const sheetG={
+  buildings:[{id:'b1',name:'A'},{id:'b2',name:'B'}],
+  consultants:[{id:'arch',name:'אדר'},{id:'str',name:'קונס'}],
+  docTypes:[{id:'plans',name:'תכ'}],
+  cells:{},
+  filters:{consultantIds:['arch','str'],buildingIds:['b1'],statuses:[]},
+};
+const rG=tenderRemoveDim(sheetG, 'consultants', 'str');
+eq(JSON.stringify(rG.filters.consultantIds), JSON.stringify(['arch']), 'removeDim strips removed id from filters.consultantIds');
+eq(JSON.stringify(rG.filters.buildingIds), JSON.stringify(['b1']), 'removeDim leaves unrelated filters.buildingIds untouched');
+
+const rH=tenderRemoveDim(sheetG, 'buildings', 'b1');
+eq(JSON.stringify(rH.filters.buildingIds), JSON.stringify([]), 'removeDim strips removed id from filters.buildingIds');
+eq(JSON.stringify(rH.filters.consultantIds), JSON.stringify(['arch','str']), 'removeDim leaves unrelated filters.consultantIds untouched');
+
+// docTypes has no corresponding filter array — filters object passes through unchanged
+const rI=tenderRemoveDim(sheetG, 'docTypes', 'plans');
+eq(rI.filters, sheetG.filters, 'removeDim on docTypes leaves filters reference untouched (no filter array for docTypes)');
 
 if (failures) { console.error(`\n${failures} FAILURES`); process.exit(1); }
 console.log('\nALL PASS');

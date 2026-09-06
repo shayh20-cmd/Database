@@ -824,7 +824,11 @@ function tenderVisibleSheet(sheet){
 /* Removes one item (by id) from a tender sheet's `dim` list, then rebuilds
    `cells` from scratch keeping only keys whose (building,consultant,docType)
    triple is still fully valid — any cell referencing the removed id is
-   naturally dropped since its key can no longer be constructed. */
+   naturally dropped since its key can no longer be constructed. Also strips
+   the removed id from sheet.filters, if `dim` has a corresponding filter
+   array (only consultants/buildings are filterable — docTypes has none),
+   so a stale id doesn't linger forever in persisted state. */
+const TENDER_FILTER_FIELD={consultants:'consultantIds',buildings:'buildingIds'};
 function tenderRemoveDim(sheet, dim, id){
   const nextList=(sheet[dim]||[]).filter(x=>x.id!==id);
   const cells={};
@@ -835,7 +839,11 @@ function tenderRemoveDim(sheet, dim, id){
     const k=tenderCellKey(b.id,c.id,d.id);
     if((sheet.cells||{})[k])cells[k]=sheet.cells[k];
   }
-  return {...sheet,[dim]:nextList,cells};
+  const filterField=TENDER_FILTER_FIELD[dim];
+  const filters=filterField&&sheet.filters&&sheet.filters[filterField]
+    ?{...sheet.filters,[filterField]:sheet.filters[filterField].filter(x=>x!==id)}
+    :sheet.filters;
+  return {...sheet,[dim]:nextList,cells,filters};
 }
 /* Build a fresh tender sheet. consultants seeded from the project's live disciplines. */
 function makeTenderSheet(data, name='מכרז'){
@@ -1586,6 +1594,9 @@ function TenderFilters({sheet,save}){
   );
 }
 function TenderMatrix({sheet,onOpenCell,statusFilter}){
+  if(!(sheet.consultants||[]).length||!(sheet.docTypes||[]).length){
+    return/*#__PURE__*/React.createElement("div",{style:{padding:'32px 16px',textAlign:'center',color:'var(--text-3)',fontSize:13,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10}},"הוסף יועצים/מסמכים כדי להתחיל");
+  }
   const {rowItems,colGroups,showSubs,keyOf}=tenderPivot(sheet);
   const cellOf=key=>(sheet.cells||{})[key];
   const renderCell=key=>{
@@ -1640,6 +1651,8 @@ function TenderListsEditor({sheet,save}){
   const addItem=dim=>{
     const name=(drafts[dim]||'').trim();
     if(!name)return;
+    if((sheet[dim]||[]).some(x=>x.name===name)&&
+       !window.confirm(`"${name}" כבר קיים ב${TENDER_DIM_LABEL[dim]}. להוסיף בכל זאת?`))return;
     save({...sheet,[dim]:[...(sheet[dim]||[]),{id:uid(),name}]});
     setDrafts(d=>({...d,[dim]:''}));
   };
@@ -1657,6 +1670,7 @@ function TenderListsEditor({sheet,save}){
       ?`להסיר את "${item.name}"? זהו הפריט האחרון ב${TENDER_DIM_LABEL[dim]} — הטבלה תישאר ריקה בציר זה. כל נתוני התאים המשויכים אליו יימחקו לצמיתות.`
       :`להסיר את "${item.name}"? כל נתוני התאים המשויכים אליו יימחקו לצמיתות.`;
     if(!window.confirm(msg))return;
+    if(renaming&&renaming.dim===dim&&renaming.id===item.id)setRenaming(null);
     save(tenderRemoveDim(sheet,dim,item.id));
   };
   const dimBlock=dim=>/*#__PURE__*/React.createElement("div",{key:dim,style:{minWidth:180,flex:'1 1 180px'}},
