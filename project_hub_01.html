@@ -1663,6 +1663,11 @@ function TenderView({data,sheet,save}){
   const [openCellKey,setOpenCellKey]=React.useState(null);
   const visibleSheet=tenderVisibleSheet(sheet);
   const statusFilter=(sheet.filters&&sheet.filters.statuses)||[];
+  /* Writers (save real sheet, full-replace via saveSheet) get `sheet`: TenderPivotBar,
+     TenderFilters, TenderCellPanel + any future writer added here. Read-only consumers
+     get `visibleSheet`: TenderTiles, TenderMatrix. Never save() a component given
+     visibleSheet — it's missing filtered-out consultants/buildings and would truncate
+     the persisted sheet. */
   return/*#__PURE__*/React.createElement("div",{className:"tender-view",dir:"rtl",style:{padding:16}},/*#__PURE__*/React.createElement("h2",{style:{fontSize:16,fontWeight:700}},"מסלול מכרז — ",sheet.name),/*#__PURE__*/React.createElement(TenderPivotBar,{sheet:sheet,save:save}),/*#__PURE__*/React.createElement(TenderFilters,{sheet:sheet,save:save}),/*#__PURE__*/React.createElement(TenderTiles,{sheet:visibleSheet}),/*#__PURE__*/React.createElement(TenderMatrix,{sheet:visibleSheet,onOpenCell:setOpenCellKey,statusFilter:statusFilter}),openCellKey&&/*#__PURE__*/React.createElement(TenderCellPanel,{sheet:sheet,cellKey:openCellKey,save:save,onClose:()=>setOpenCellKey(null)}));}/* ══════════════════════════════════════
    App Root
 ══════════════════════════════════════ */function App(){const[data,setData]=useState(null);const[loadError,setLoadError]=useState(false);const[saveError,setSaveError]=useState(false);const fileHandleRef=useRef(null);const[editName,setEditName]=useState(false);const[nameDraft,setNameDraft]=useState('');const MAX_HIST=30;const[pastStack,setPastStack]=useState([]);// [{snapshot, label}]
