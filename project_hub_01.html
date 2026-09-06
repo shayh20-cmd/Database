@@ -1593,9 +1593,13 @@ function TenderFilters({sheet,save}){
     !!anyActive&&/*#__PURE__*/React.createElement("button",{onClick:clearAll,style:{alignSelf:'flex-start',border:'none',background:'none',color:'var(--accent)',cursor:'pointer',fontSize:12,padding:0}},"נקה סינון")
   );
 }
-function TenderMatrix({sheet,onOpenCell,statusFilter}){
+function TenderMatrix({sheet,rawSheet,onOpenCell,statusFilter}){
   if(!(sheet.consultants||[]).length||!(sheet.docTypes||[]).length){
-    return/*#__PURE__*/React.createElement("div",{style:{padding:'32px 16px',textAlign:'center',color:'var(--text-3)',fontSize:13,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10}},"הוסף יועצים/מסמכים כדי להתחיל");
+    /* sheet here is the filtered visibleSheet — an empty list can mean "genuinely no
+       items" OR "everything is filtered out." rawSheet (the real, unfiltered sheet)
+       disambiguates so we don't tell a user with real consultants to go add some. */
+    const trulyEmpty=!(rawSheet.consultants||[]).length||!(rawSheet.docTypes||[]).length;
+    return/*#__PURE__*/React.createElement("div",{style:{padding:'32px 16px',textAlign:'center',color:'var(--text-3)',fontSize:13,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10}},trulyEmpty?"הוסף יועצים/מסמכים כדי להתחיל":"אין תוצאות התואמות למסננים — נקו את הסינון");
   }
   const {rowItems,colGroups,showSubs,keyOf}=tenderPivot(sheet);
   const cellOf=key=>(sheet.cells||{})[key];
@@ -1767,7 +1771,7 @@ function TenderView({data,sheet,save}){
     /*#__PURE__*/React.createElement(TenderPivotBar,{sheet:sheet,save:save}),
     /*#__PURE__*/React.createElement(TenderFilters,{sheet:sheet,save:save}),
     /*#__PURE__*/React.createElement(TenderTiles,{sheet:visibleSheet}),
-    /*#__PURE__*/React.createElement(TenderMatrix,{sheet:visibleSheet,onOpenCell:setOpenCellKey,statusFilter:statusFilter}),
+    /*#__PURE__*/React.createElement(TenderMatrix,{sheet:visibleSheet,rawSheet:sheet,onOpenCell:setOpenCellKey,statusFilter:statusFilter}),
     openCellKey&&/*#__PURE__*/React.createElement(TenderCellPanel,{sheet:sheet,cellKey:openCellKey,save:save,onClose:()=>setOpenCellKey(null)}));}/* ══════════════════════════════════════
    App Root
 ══════════════════════════════════════ */function App(){const[data,setData]=useState(null);const[loadError,setLoadError]=useState(false);const[saveError,setSaveError]=useState(false);const fileHandleRef=useRef(null);const[editName,setEditName]=useState(false);const[nameDraft,setNameDraft]=useState('');const MAX_HIST=30;const[pastStack,setPastStack]=useState([]);// [{snapshot, label}]
