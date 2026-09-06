@@ -154,5 +154,41 @@ const vE=tenderVisibleSheet(sheetE);
 eq(vE.consultants.length, 2, 'no filters → all consultants pass through');
 eq(vE.buildings.length, 2, 'no filters → all buildings pass through');
 
+// ---- mirrored: tenderRemoveDim ----
+function tenderRemoveDim(sheet, dim, id){
+  const nextList=(sheet[dim]||[]).filter(x=>x.id!==id);
+  const cells={};
+  const bs=dim==='buildings'?nextList:(sheet.buildings||[]);
+  const cs=dim==='consultants'?nextList:(sheet.consultants||[]);
+  const ds=dim==='docTypes'?nextList:(sheet.docTypes||[]);
+  for(const b of bs)for(const c of cs)for(const d of ds){
+    const k=cellKey(b.id,c.id,d.id);
+    if((sheet.cells||{})[k])cells[k]=sheet.cells[k];
+  }
+  return {...sheet,[dim]:nextList,cells};
+}
+// ---- end mirror ----
+
+const sheetF={
+  buildings:[{id:'b1',name:'A'}],
+  consultants:[{id:'arch',name:'אדר'},{id:'str',name:'קונס'}],
+  docTypes:[{id:'plans',name:'תכ'},{id:'spec',name:'מפ'}],
+  cells:{
+    'b1|arch|plans':{events:[{status:'approved',date:'2026-01-01'}]},
+    'b1|arch|spec' :{events:[{status:'comments',date:'2026-01-01'}]},
+    'b1|str|plans' :{events:[{status:'update',date:'2026-01-01'}]},
+    'b1|str|spec'  :{na:true},
+  },
+};
+const rF=tenderRemoveDim(sheetF, 'consultants', 'str');
+eq(rF.consultants.length, 1, 'removeDim drops the removed consultant');
+eq(rF.consultants[0].id, 'arch', 'removeDim keeps the remaining consultant');
+eq(Object.keys(rF.cells).length, 2, 'removeDim drops both cells for the removed consultant');
+eq(!!rF.cells['b1|arch|plans'], true, 'removeDim keeps surviving cell b1|arch|plans');
+eq(!!rF.cells['b1|arch|spec'], true, 'removeDim keeps surviving cell b1|arch|spec');
+eq(!!rF.cells['b1|str|plans'], false, 'removeDim purges b1|str|plans');
+eq(!!rF.cells['b1|str|spec'], false, 'removeDim purges b1|str|spec (na cell too)');
+eq(sheetF.consultants.length, 2, 'removeDim does not mutate the original sheet');
+
 if (failures) { console.error(`\n${failures} FAILURES`); process.exit(1); }
 console.log('\nALL PASS');

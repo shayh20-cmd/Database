@@ -821,6 +821,22 @@ function tenderVisibleSheet(sheet){
     consultants:keep('consultants','consultantIds'),
     buildings:keep('buildings','buildingIds')};
 }
+/* Removes one item (by id) from a tender sheet's `dim` list, then rebuilds
+   `cells` from scratch keeping only keys whose (building,consultant,docType)
+   triple is still fully valid — any cell referencing the removed id is
+   naturally dropped since its key can no longer be constructed. */
+function tenderRemoveDim(sheet, dim, id){
+  const nextList=(sheet[dim]||[]).filter(x=>x.id!==id);
+  const cells={};
+  const bs=dim==='buildings'?nextList:(sheet.buildings||[]);
+  const cs=dim==='consultants'?nextList:(sheet.consultants||[]);
+  const ds=dim==='docTypes'?nextList:(sheet.docTypes||[]);
+  for(const b of bs)for(const c of cs)for(const d of ds){
+    const k=tenderCellKey(b.id,c.id,d.id);
+    if((sheet.cells||{})[k])cells[k]=sheet.cells[k];
+  }
+  return {...sheet,[dim]:nextList,cells};
+}
 /* Build a fresh tender sheet. consultants seeded from the project's live disciplines. */
 function makeTenderSheet(data, name='מכרז'){
   const disciplines=(data&&data.disciplines)||[];
@@ -1611,6 +1627,65 @@ function TenderMatrix({sheet,onOpenCell,statusFilter}){
     )
   );
 }
+/* Lists editor — add/rename/remove buildings/consultants/docTypes (Task 11).
+   WRITER: receives the real `sheet` (never visibleSheet) and full-replace
+   saves via `save({...sheet,...})`, matching TenderPivotBar/TenderFilters/
+   TenderCellPanel. Removing an item purges its dependent cells via
+   tenderRemoveDim so no orphaned cell data lingers under an id that no
+   longer maps to any (building,consultant,docType) triple. */
+function TenderListsEditor({sheet,save}){
+  const [drafts,setDrafts]=React.useState({});// {[dim]: newNameDraft}
+  const [renaming,setRenaming]=React.useState(null);// {dim,id}
+  const [renameDraft,setRenameDraft]=React.useState('');
+  const addItem=dim=>{
+    const name=(drafts[dim]||'').trim();
+    if(!name)return;
+    save({...sheet,[dim]:[...(sheet[dim]||[]),{id:uid(),name}]});
+    setDrafts(d=>({...d,[dim]:''}));
+  };
+  const startRename=(dim,item)=>{setRenaming({dim,id:item.id});setRenameDraft(item.name);};
+  const commitRename=()=>{
+    const name=renameDraft.trim();
+    if(!name){setRenaming(null);return;}
+    const {dim,id}=renaming;
+    save({...sheet,[dim]:(sheet[dim]||[]).map(x=>x.id===id?{...x,name}:x)});
+    setRenaming(null);
+  };
+  const removeItem=(dim,item)=>{
+    const list=sheet[dim]||[];
+    const msg=list.length<=1
+      ?`להסיר את "${item.name}"? זהו הפריט האחרון ב${TENDER_DIM_LABEL[dim]} — הטבלה תישאר ריקה בציר זה. כל נתוני התאים המשויכים אליו יימחקו לצמיתות.`
+      :`להסיר את "${item.name}"? כל נתוני התאים המשויכים אליו יימחקו לצמיתות.`;
+    if(!window.confirm(msg))return;
+    save(tenderRemoveDim(sheet,dim,item.id));
+  };
+  const dimBlock=dim=>/*#__PURE__*/React.createElement("div",{key:dim,style:{minWidth:180,flex:'1 1 180px'}},
+    /*#__PURE__*/React.createElement("b",{style:{fontSize:12}},TENDER_DIM_LABEL[dim]),
+    /*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirection:'column',gap:4,margin:'6px 0'}},
+      (sheet[dim]||[]).map(item=>/*#__PURE__*/React.createElement("div",{key:item.id,style:{display:'flex',alignItems:'center',gap:6}},
+        renaming&&renaming.dim===dim&&renaming.id===item.id
+          ?/*#__PURE__*/React.createElement("input",{autoFocus:true,value:renameDraft,onChange:e=>setRenameDraft(e.target.value),
+              onBlur:commitRename,
+              onKeyDown:e=>{if(e.key==='Enter')e.target.blur();if(e.key==='Escape')setRenaming(null);},
+              style:{flex:1,fontSize:12,padding:'2px 6px',border:'1px solid var(--accent)',borderRadius:5,fontFamily:'inherit'}})
+          :/*#__PURE__*/React.createElement("span",{onClick:()=>startRename(dim,item),style:{flex:1,fontSize:12.5,cursor:'text'}},item.name),
+        /*#__PURE__*/React.createElement("button",{onClick:()=>removeItem(dim,item),title:'הסר',
+          style:{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',fontSize:12,padding:0}},"✕")
+      )),
+      !(sheet[dim]||[]).length&&/*#__PURE__*/React.createElement("div",{style:{color:'var(--text-3)',fontSize:11.5}},"רשימה ריקה")
+    ),
+    /*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:4}},
+      /*#__PURE__*/React.createElement("input",{value:drafts[dim]||'',onChange:e=>setDrafts(d=>({...d,[dim]:e.target.value})),
+        onKeyDown:e=>{if(e.key==='Enter')addItem(dim);},
+        placeholder:`הוסף ${TENDER_DIM_LABEL[dim]}...`,
+        style:{flex:1,fontSize:12,padding:'3px 6px',border:'1px solid var(--border)',borderRadius:5,fontFamily:'inherit'}}),
+      /*#__PURE__*/React.createElement("button",{onClick:()=>addItem(dim),style:{fontSize:12,cursor:'pointer',padding:'3px 8px'}},"+")
+    )
+  );
+  return/*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:20,flexWrap:'wrap',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 12px',margin:'12px 0'}},
+    TENDER_DIMS.map(dimBlock)
+  );
+}
 function TenderCellPanel({sheet,cellKey,save,onClose}){
   const cell=(sheet.cells||{})[cellKey]||{events:[]};
   const writeCell=updater=>{
@@ -1661,14 +1736,25 @@ function TenderCellPanel({sheet,cellKey,save,onClose}){
 }
 function TenderView({data,sheet,save}){
   const [openCellKey,setOpenCellKey]=React.useState(null);
+  const [showLists,setShowLists]=React.useState(false);
   const visibleSheet=tenderVisibleSheet(sheet);
   const statusFilter=(sheet.filters&&sheet.filters.statuses)||[];
   /* Writers (save real sheet, full-replace via saveSheet) get `sheet`: TenderPivotBar,
-     TenderFilters, TenderCellPanel + any future writer added here. Read-only consumers
-     get `visibleSheet`: TenderTiles, TenderMatrix. Never save() a component given
-     visibleSheet — it's missing filtered-out consultants/buildings and would truncate
-     the persisted sheet. */
-  return/*#__PURE__*/React.createElement("div",{className:"tender-view",dir:"rtl",style:{padding:16}},/*#__PURE__*/React.createElement("h2",{style:{fontSize:16,fontWeight:700}},"מסלול מכרז — ",sheet.name),/*#__PURE__*/React.createElement(TenderPivotBar,{sheet:sheet,save:save}),/*#__PURE__*/React.createElement(TenderFilters,{sheet:sheet,save:save}),/*#__PURE__*/React.createElement(TenderTiles,{sheet:visibleSheet}),/*#__PURE__*/React.createElement(TenderMatrix,{sheet:visibleSheet,onOpenCell:setOpenCellKey,statusFilter:statusFilter}),openCellKey&&/*#__PURE__*/React.createElement(TenderCellPanel,{sheet:sheet,cellKey:openCellKey,save:save,onClose:()=>setOpenCellKey(null)}));}/* ══════════════════════════════════════
+     TenderFilters, TenderCellPanel, TenderListsEditor + any future writer added here.
+     Read-only consumers get `visibleSheet`: TenderTiles, TenderMatrix. Never save() a
+     component given visibleSheet — it's missing filtered-out consultants/buildings and
+     would truncate the persisted sheet. */
+  return/*#__PURE__*/React.createElement("div",{className:"tender-view",dir:"rtl",style:{padding:16}},
+    /*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',justifyContent:'space-between'}},
+      /*#__PURE__*/React.createElement("h2",{style:{fontSize:16,fontWeight:700}},"מסלול מכרז — ",sheet.name),
+      /*#__PURE__*/React.createElement("button",{onClick:()=>setShowLists(v=>!v),style:{cursor:'pointer',fontSize:12,padding:'5px 12px',borderRadius:7,border:'1px solid var(--border)',background:showLists?'var(--accent)':'var(--surface)',color:showLists?'#fff':'var(--text-2)',fontFamily:'inherit'}},"⚙ הגדרות לוח")
+    ),
+    showLists&&/*#__PURE__*/React.createElement(TenderListsEditor,{sheet:sheet,save:save}),
+    /*#__PURE__*/React.createElement(TenderPivotBar,{sheet:sheet,save:save}),
+    /*#__PURE__*/React.createElement(TenderFilters,{sheet:sheet,save:save}),
+    /*#__PURE__*/React.createElement(TenderTiles,{sheet:visibleSheet}),
+    /*#__PURE__*/React.createElement(TenderMatrix,{sheet:visibleSheet,onOpenCell:setOpenCellKey,statusFilter:statusFilter}),
+    openCellKey&&/*#__PURE__*/React.createElement(TenderCellPanel,{sheet:sheet,cellKey:openCellKey,save:save,onClose:()=>setOpenCellKey(null)}));}/* ══════════════════════════════════════
    App Root
 ══════════════════════════════════════ */function App(){const[data,setData]=useState(null);const[loadError,setLoadError]=useState(false);const[saveError,setSaveError]=useState(false);const fileHandleRef=useRef(null);const[editName,setEditName]=useState(false);const[nameDraft,setNameDraft]=useState('');const MAX_HIST=30;const[pastStack,setPastStack]=useState([]);// [{snapshot, label}]
 const[futureStack,setFutureStack]=useState([]);// [{snapshot, label}]
