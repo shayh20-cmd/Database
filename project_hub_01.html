@@ -1644,8 +1644,14 @@ function TenderMatrix({sheet,rawSheet,onOpenCell,statusFilter}){
       )
     );
   };
+  const leafCount=colGroups.reduce((sum,g)=>sum+g.subs.length,0);
+  const ROW_LABEL_W=120;
   return/*#__PURE__*/React.createElement("div",{style:{overflowX:'auto'}},
-    /*#__PURE__*/React.createElement("table",{dir:"rtl",style:{borderCollapse:'collapse',width:'100%',background:'var(--surface)'}},
+    /*#__PURE__*/React.createElement("table",{dir:"rtl",style:{borderCollapse:'collapse',width:'100%',tableLayout:'fixed',background:'var(--surface)'}},
+      /*#__PURE__*/React.createElement("colgroup",null,
+        /*#__PURE__*/React.createElement("col",{style:{width:ROW_LABEL_W}}),
+        Array.from({length:leafCount}).map((_,i)=>/*#__PURE__*/React.createElement("col",{key:i,style:{width:`calc((100% - ${ROW_LABEL_W}px)/${leafCount})`}}))
+      ),
       /*#__PURE__*/React.createElement("thead",null,
         /*#__PURE__*/React.createElement("tr",{style:{background:'var(--bg)'}},
           /*#__PURE__*/React.createElement("th",{rowSpan:showSubs?2:1,style:{border:'1px solid var(--border)',padding:8}}),
@@ -1828,7 +1834,7 @@ function TenderCellPanel({sheet,cellKey,save,onClose}){
           const isOpen=expandedEvId===ev.id;
           return/*#__PURE__*/React.createElement("div",{key:ev.id,style:{border:`1px solid ${meta.border}`,background:isOpen?'var(--surface)':meta.bg,borderRadius:10,marginBottom:8,overflow:'hidden'}},
             /*#__PURE__*/React.createElement("div",{onClick:()=>setExpandedEvId(isOpen?null:ev.id),style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',cursor:'pointer',fontSize:12,color:meta.color,fontWeight:600}},
-              /*#__PURE__*/React.createElement("span",null,meta.symbol," ",meta.label," · ",fmtDateFull(ev.date)," · ",fmtDays(evDurationById[ev.id]||0),ev.note&&/*#__PURE__*/React.createElement("span",{title:ev.note,style:{marginInlineStart:5}},"📝")),
+              /*#__PURE__*/React.createElement("span",null,meta.symbol," ",meta.label," · ",fmtDateFull(ev.date)," · ",fmtDays(evDurationById[ev.id]||0),ev.round&&` · סבב ${ev.round}`,ev.note&&/*#__PURE__*/React.createElement("span",{title:ev.note,style:{marginInlineStart:5}},"📝")),
               /*#__PURE__*/React.createElement("button",{onClick:e=>{e.stopPropagation();delEvent(ev.id);},style:{border:'none',background:'none',cursor:'pointer',color:'inherit',fontSize:11,textDecoration:'underline'}},"מחק")
             ),
             isOpen&&/*#__PURE__*/React.createElement("div",{onClick:e=>e.stopPropagation(),style:{padding:'0 10px 10px',display:'flex',flexDirection:'column',gap:8}},
@@ -1837,7 +1843,13 @@ function TenderCellPanel({sheet,cellKey,save,onClose}){
                   style:{border:`1px solid ${s.border}`,background:s.id===ev.status?s.border:s.bg,color:s.id===ev.status?'#fff':s.color,borderRadius:7,padding:'2px 6px',cursor:'pointer',fontSize:11}},
                   s.symbol," ",s.label))
               ),
-              /*#__PURE__*/React.createElement("input",{type:'date',value:ev.date||'',onChange:e=>updateEvent(ev.id,{date:e.target.value}),style:{fontSize:12,padding:'4px 6px',border:'1px solid var(--border)',borderRadius:6,background:'var(--bg)',color:'var(--text)',fontFamily:'inherit'}}),
+              /*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}},
+                /*#__PURE__*/React.createElement("input",{type:'date',value:ev.date||'',onChange:e=>updateEvent(ev.id,{date:e.target.value}),style:{fontSize:12,padding:'4px 6px',border:'1px solid var(--border)',borderRadius:6,background:'var(--bg)',color:'var(--text)',fontFamily:'inherit'}}),
+                /*#__PURE__*/React.createElement("label",{style:{fontSize:11,color:'var(--text-2)',display:'flex',alignItems:'center',gap:4}},
+                  "סבב:",
+                  /*#__PURE__*/React.createElement("input",{type:'number',min:1,value:ev.round||'',placeholder:'—',onChange:e=>updateEvent(ev.id,{round:e.target.value?parseInt(e.target.value,10):undefined}),style:{width:52,fontSize:12,padding:'4px 6px',border:'1px solid var(--border)',borderRadius:6,background:'var(--bg)',color:'var(--text)',fontFamily:'inherit'}})
+                )
+              ),
               /*#__PURE__*/React.createElement(TenderEventNoteField,{event:ev,onCommit:note=>updateEvent(ev.id,{note})})
             )
           );
