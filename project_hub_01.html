@@ -1639,7 +1639,7 @@ function TenderMatrix({sheet,rawSheet,onOpenCell,statusFilter}){
         m.label," ",
         latest&&/*#__PURE__*/React.createElement("span",{style:{fontSize:10}},fmtDateFull(latest.date).slice(0,5)),/* matrix cells show day.month only (e.g. "07.09"); the cell panel keeps the full date */
         " ",
-        latest&&latest.round&&/*#__PURE__*/React.createElement("b",{style:{fontSize:9}},"סבב "+latest.round)/* shows the latest event's round number, not the event count */
+        latest&&latest.round&&/*#__PURE__*/React.createElement("b",{style:{fontSize:9,display:'inline-block',border:`1px solid ${m.color}`,borderRadius:4,padding:'0 4px'}},"×"+latest.round)/* shows the latest event's round number, not the event count */
       )
     );
   };
