@@ -1704,6 +1704,26 @@ function TenderListsEditor({sheet,save}){
     TENDER_DIMS.map(dimBlock)
   );
 }
+/* Free-text note for one tender event — local draft + commit-on-blur/Enter,
+   mirroring CommentCell's pattern so fast typing doesn't spam an undo entry
+   per keystroke (the app's undo stack is capped at 30 steps). */
+function TenderEventNoteField({event,onCommit}){
+  const[draft,setDraft]=React.useState(event.note||'');
+  React.useEffect(()=>setDraft(event.note||''),[event.note]);
+  const commit=()=>{if(draft!==(event.note||''))onCommit(draft);};
+  return/*#__PURE__*/React.createElement("textarea",{
+    value:draft,
+    placeholder:'הערה…',
+    rows:2,
+    onChange:e=>setDraft(e.target.value),
+    onBlur:commit,
+    onKeyDown:e=>{
+      if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();commit();e.target.blur();}
+      else if(e.key==='Escape'){setDraft(event.note||'');e.target.blur();}
+    },
+    style:{fontSize:12,padding:'4px 6px',border:'1px solid var(--border)',borderRadius:6,background:'var(--bg)',color:'var(--text)',fontFamily:'inherit',resize:'vertical',width:'100%',boxSizing:'border-box'}
+  });
+}
 /* Tender cell panel — own persisted width, separate from the task-events
    panel's pm_panel_width (kept intentionally independent per design decision). */
 const TENDER_PANEL_W_KEY='pm_tender_panel_width';
@@ -1780,7 +1800,7 @@ function TenderCellPanel({sheet,cellKey,save,onClose}){
           const isOpen=expandedEvId===ev.id;
           return/*#__PURE__*/React.createElement("div",{key:ev.id,style:{border:`1px solid ${meta.border}`,background:isOpen?'var(--surface)':meta.bg,borderRadius:10,marginBottom:8,overflow:'hidden'}},
             /*#__PURE__*/React.createElement("div",{onClick:()=>setExpandedEvId(isOpen?null:ev.id),style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',cursor:'pointer',fontSize:12,color:meta.color,fontWeight:600}},
-              /*#__PURE__*/React.createElement("span",null,meta.symbol," ",meta.label," · ",fmtDateFull(ev.date)),
+              /*#__PURE__*/React.createElement("span",null,meta.symbol," ",meta.label," · ",fmtDateFull(ev.date),ev.note&&/*#__PURE__*/React.createElement("span",{title:ev.note,style:{marginInlineStart:5}},"📝")),
               /*#__PURE__*/React.createElement("button",{onClick:e=>{e.stopPropagation();delEvent(ev.id);},style:{border:'none',background:'none',cursor:'pointer',color:'inherit',fontSize:11,textDecoration:'underline'}},"מחק")
             ),
             isOpen&&/*#__PURE__*/React.createElement("div",{onClick:e=>e.stopPropagation(),style:{padding:'0 10px 10px',display:'flex',flexDirection:'column',gap:8}},
@@ -1789,7 +1809,8 @@ function TenderCellPanel({sheet,cellKey,save,onClose}){
                   style:{border:`1px solid ${s.border}`,background:s.id===ev.status?s.border:s.bg,color:s.id===ev.status?'#fff':s.color,borderRadius:7,padding:'2px 6px',cursor:'pointer',fontSize:11}},
                   s.symbol," ",s.label))
               ),
-              /*#__PURE__*/React.createElement("input",{type:'date',value:ev.date||'',onChange:e=>updateEvent(ev.id,{date:e.target.value}),style:{fontSize:12,padding:'4px 6px',border:'1px solid var(--border)',borderRadius:6,background:'var(--bg)',color:'var(--text)',fontFamily:'inherit'}})
+              /*#__PURE__*/React.createElement("input",{type:'date',value:ev.date||'',onChange:e=>updateEvent(ev.id,{date:e.target.value}),style:{fontSize:12,padding:'4px 6px',border:'1px solid var(--border)',borderRadius:6,background:'var(--bg)',color:'var(--text)',fontFamily:'inherit'}}),
+              /*#__PURE__*/React.createElement(TenderEventNoteField,{event:ev,onCommit:note=>updateEvent(ev.id,{note})})
             )
           );
         }),
