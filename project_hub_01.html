@@ -1704,51 +1704,97 @@ function TenderListsEditor({sheet,save}){
     TENDER_DIMS.map(dimBlock)
   );
 }
+/* Tender cell panel — own persisted width, separate from the task-events
+   panel's pm_panel_width (kept intentionally independent per design decision). */
+const TENDER_PANEL_W_KEY='pm_tender_panel_width';
+const TENDER_PANEL_W_DEFAULT=()=>Math.min(400,Math.round(window.innerWidth*0.3));
 function TenderCellPanel({sheet,cellKey,save,onClose}){
   const cell=(sheet.cells||{})[cellKey]||{events:[]};
   const writeCell=updater=>{
     const cur=(sheet.cells||{})[cellKey]||{events:[]};
     save({...sheet,cells:{...sheet.cells,[cellKey]:updater(cur)}});
   };
-  const addEvent=status=>writeCell(c=>({...c,events:[...(c.events||[]),{id:uid(),status,date:todayISO()}]}));
-  const delEvent=id=>writeCell(c=>({...c,events:(c.events||[]).filter(e=>e.id!==id)}));
+  const[expandedEvId,setExpandedEvId]=React.useState(null);
+  const addEvent=status=>{
+    const id=uid();
+    writeCell(c=>({...c,events:[...(c.events||[]),{id,status,date:todayISO()}]}));
+    setExpandedEvId(id);// open immediately so the date (defaults to today) can be adjusted
+  };
+  const delEvent=id=>{
+    writeCell(c=>({...c,events:(c.events||[]).filter(e=>e.id!==id)}));
+    if(expandedEvId===id)setExpandedEvId(null);
+  };
+  const updateEvent=(id,patch)=>writeCell(c=>({...c,events:(c.events||[]).map(e=>e.id===id?{...e,...patch}:e)}));
   const setOverride=code=>writeCell(c=>({...c,statusOverride:code||undefined}));
   const setNa=v=>writeCell(c=>({...c,na:v||undefined}));
   const st=tenderCellStatus(cell);
+
+  /* ── Panel width (resizable, persisted) — same drag mechanics as ProcessTaskPanel:
+     the panel is left-anchored under RTL (insetInlineEnd:0 resolves to left:0), so
+     width tracks the mouse's clientX directly and the handle sits on its right edge. */
+  const[panelW,setPanelW]=React.useState(()=>{
+    const s=localStorage.getItem(TENDER_PANEL_W_KEY);
+    return s?parseInt(s,10):TENDER_PANEL_W_DEFAULT();
+  });
+  const startResize=e=>{
+    e.preventDefault();
+    const onMove=ev=>{const w=Math.max(300,Math.min(ev.clientX,window.innerWidth-60));setPanelW(w);};
+    const onUp=ev=>{const w=Math.max(300,Math.min(ev.clientX,window.innerWidth-60));setPanelW(w);localStorage.setItem(TENDER_PANEL_W_KEY,String(w));document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);};
+    document.addEventListener('mousemove',onMove);
+    document.addEventListener('mouseup',onUp);
+  };
+
+  const sortedEvents=(cell.events||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
   return/*#__PURE__*/React.createElement(React.Fragment,null,
     /*#__PURE__*/React.createElement("div",{onClick:onClose,style:{position:'fixed',inset:0,zIndex:'var(--z-overlay)',background:'rgba(0,0,0,.18)'}}),
-    /*#__PURE__*/React.createElement("div",{className:"tender-cell-panel",dir:"rtl",style:{position:'fixed',insetInlineEnd:0,top:0,bottom:0,width:340,background:'var(--surface)',boxShadow:'-2px 0 12px rgba(0,0,0,.15)',padding:16,overflowY:'auto',zIndex:'var(--z-panel)'}},
-    /*#__PURE__*/React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},
-      /*#__PURE__*/React.createElement("b",null,"מסמך — סטטוס: ",TENDER_STATUS_META[st].label),
-      /*#__PURE__*/React.createElement("button",{onClick:onClose},"✕")
-    ),
-    /*#__PURE__*/React.createElement("label",{style:{display:'block',margin:'10px 0'}},
-      /*#__PURE__*/React.createElement("input",{type:'checkbox',checked:!!cell.na,onChange:e=>setNa(e.target.checked)}),
-      " לא רלוונטי"
-    ),
-    /*#__PURE__*/React.createElement("div",{style:{margin:'8px 0'}},
-      "דריסת סטטוס: ",
-      /*#__PURE__*/React.createElement("select",{value:cell.statusOverride||'',onChange:e=>setOverride(e.target.value)},
-        /*#__PURE__*/React.createElement("option",{value:''},"(נגזר מאירועים)"),
-        Object.entries(TENDER_STATUS_META).map(([k,m])=>/*#__PURE__*/React.createElement("option",{key:k,value:k},m.label))
+    /*#__PURE__*/React.createElement("div",{className:"tender-cell-panel",dir:"rtl",style:{position:'fixed',insetInlineEnd:0,top:0,bottom:0,width:panelW,background:'var(--surface)',boxShadow:'-2px 0 12px rgba(0,0,0,.15)',display:'flex',flexDirection:'column',overflow:'hidden',zIndex:'var(--z-panel)'},onClick:e=>e.stopPropagation()},
+      /*#__PURE__*/React.createElement("div",{onMouseDown:startResize,style:{position:'absolute',top:0,right:0,bottom:0,width:6,cursor:'col-resize',zIndex:10,background:'transparent',transition:'background .15s'},onMouseEnter:e=>e.currentTarget.style.background='rgba(99,102,241,.28)',onMouseLeave:e=>e.currentTarget.style.background='transparent'}),
+      /*#__PURE__*/React.createElement("div",{className:"tp-hdr"},
+        /*#__PURE__*/React.createElement("span",{className:"tp-task-title"},"מסמך — סטטוס: ",TENDER_STATUS_META[st].label),
+        /*#__PURE__*/React.createElement("button",{className:"tp-close",onClick:onClose},"×")
+      ),
+      /*#__PURE__*/React.createElement("div",{style:{flex:1,overflowY:'auto',padding:'14px 20px 24px'}},
+        /*#__PURE__*/React.createElement("label",{style:{display:'block',margin:'0 0 10px'}},
+          /*#__PURE__*/React.createElement("input",{type:'checkbox',checked:!!cell.na,onChange:e=>setNa(e.target.checked)}),
+          " לא רלוונטי"
+        ),
+        /*#__PURE__*/React.createElement("div",{style:{margin:'0 0 14px'}},
+          "דריסת סטטוס: ",
+          /*#__PURE__*/React.createElement("select",{value:cell.statusOverride||'',onChange:e=>setOverride(e.target.value)},
+            /*#__PURE__*/React.createElement("option",{value:''},"(נגזר מאירועים)"),
+            Object.entries(TENDER_STATUS_META).map(([k,m])=>/*#__PURE__*/React.createElement("option",{key:k,value:k},m.label))
+          )
+        ),
+        /*#__PURE__*/React.createElement("div",{style:{margin:'0 0 14px'}},
+          /*#__PURE__*/React.createElement("div",{className:"tp-ev-title",style:{marginBottom:6}},"הוסף אירוע"),
+          /*#__PURE__*/React.createElement("div",{style:{display:'flex',flexWrap:'wrap',gap:6}},
+            Object.values(EV_STATUSES).map(ev=>/*#__PURE__*/React.createElement("button",{key:ev.id,onClick:()=>addEvent(ev.id),title:ev.label,
+              style:{border:`1px solid ${ev.border}`,background:ev.bg,color:ev.color,borderRadius:8,padding:'3px 8px',cursor:'pointer',fontSize:12}},
+              ev.symbol," ",ev.label))
+          )
+        ),
+        /*#__PURE__*/React.createElement("div",{className:"tp-ev-title",style:{marginBottom:8}},"אירועים"),
+        sortedEvents.map(ev=>{
+          const meta=EV_STATUSES[ev.status]||EV_STATUSES.missing;
+          const isOpen=expandedEvId===ev.id;
+          return/*#__PURE__*/React.createElement("div",{key:ev.id,style:{border:`1px solid ${meta.border}`,background:isOpen?'var(--surface)':meta.bg,borderRadius:10,marginBottom:8,overflow:'hidden'}},
+            /*#__PURE__*/React.createElement("div",{onClick:()=>setExpandedEvId(isOpen?null:ev.id),style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',cursor:'pointer',fontSize:12,color:meta.color,fontWeight:600}},
+              /*#__PURE__*/React.createElement("span",null,meta.symbol," ",meta.label," · ",fmtDateFull(ev.date)),
+              /*#__PURE__*/React.createElement("button",{onClick:e=>{e.stopPropagation();delEvent(ev.id);},style:{border:'none',background:'none',cursor:'pointer',color:'inherit',fontSize:11,textDecoration:'underline'}},"מחק")
+            ),
+            isOpen&&/*#__PURE__*/React.createElement("div",{onClick:e=>e.stopPropagation(),style:{padding:'0 10px 10px',display:'flex',flexDirection:'column',gap:8}},
+              /*#__PURE__*/React.createElement("div",{style:{display:'flex',flexWrap:'wrap',gap:5}},
+                Object.values(EV_STATUSES).map(s=>/*#__PURE__*/React.createElement("button",{key:s.id,onClick:()=>updateEvent(ev.id,{status:s.id}),title:s.label,
+                  style:{border:`1px solid ${s.border}`,background:s.id===ev.status?s.border:s.bg,color:s.id===ev.status?'#fff':s.color,borderRadius:7,padding:'2px 6px',cursor:'pointer',fontSize:11}},
+                  s.symbol," ",s.label))
+              ),
+              /*#__PURE__*/React.createElement("input",{type:'date',value:ev.date||'',onChange:e=>updateEvent(ev.id,{date:e.target.value}),style:{fontSize:12,padding:'4px 6px',border:'1px solid var(--border)',borderRadius:6,background:'var(--bg)',color:'var(--text)',fontFamily:'inherit'}})
+            )
+          );
+        }),
+        !sortedEvents.length&&/*#__PURE__*/React.createElement("div",{style:{color:'var(--text-3)',fontSize:12,marginTop:6}},"אין אירועים עדיין")
       )
-    ),
-    /*#__PURE__*/React.createElement("div",{style:{margin:'12px 0'}},
-      /*#__PURE__*/React.createElement("b",null,"הוסף אירוע:"),
-      /*#__PURE__*/React.createElement("div",{style:{display:'flex',flexWrap:'wrap',gap:6,marginTop:6}},
-        Object.values(EV_STATUSES).map(ev=>/*#__PURE__*/React.createElement("button",{key:ev.id,onClick:()=>addEvent(ev.id),title:ev.label,
-          style:{border:`1px solid ${ev.border}`,background:ev.bg,color:ev.color,borderRadius:8,padding:'3px 8px',cursor:'pointer',fontSize:12}},
-          ev.symbol," ",ev.label))
-      )
-    ),
-    /*#__PURE__*/React.createElement("div",null,
-      /*#__PURE__*/React.createElement("b",null,"אירועים:"),
-      (cell.events||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(ev=>/*#__PURE__*/React.createElement("div",{key:ev.id,style:{display:'flex',justifyContent:'space-between',borderBottom:'1px solid var(--border)',padding:'4px 0',fontSize:12}},
-        /*#__PURE__*/React.createElement("span",null,EV_STATUSES[ev.status]?.symbol," ",EV_STATUSES[ev.status]?.label," · ",fmtDateFull(ev.date)),
-        /*#__PURE__*/React.createElement("button",{onClick:()=>delEvent(ev.id)},"מחק")
-      )),
-      !(cell.events||[]).length&&/*#__PURE__*/React.createElement("div",{style:{color:'#999',fontSize:12,marginTop:6}},"אין אירועים עדיין")
-    )
     )
   );
 }
