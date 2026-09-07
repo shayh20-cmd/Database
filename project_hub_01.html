@@ -1683,13 +1683,23 @@ function TenderListsEditor({sheet,save}){
   const [drafts,setDrafts]=React.useState({});// {[dim]: newNameDraft}
   const [renaming,setRenaming]=React.useState(null);// {dim,id}
   const [renameDraft,setRenameDraft]=React.useState('');
+  /* In-app confirm instead of window.confirm — native confirm() is silently
+     suppressed in some browser/embedding contexts (no dialog ever appears,
+     the call just returns false), which made the ✕ button look completely
+     broken. {message, confirmLabel, onConfirm} | null. */
+  const [confirmState,setConfirmState]=React.useState(null);
   const addItem=dim=>{
     const name=(drafts[dim]||'').trim();
     if(!name)return;
-    if((sheet[dim]||[]).some(x=>x.name===name)&&
-       !window.confirm(`"${name}" כבר קיים ב${TENDER_DIM_LABEL[dim]}. להוסיף בכל זאת?`))return;
-    save({...sheet,[dim]:[...(sheet[dim]||[]),{id:uid(),name}]});
-    setDrafts(d=>({...d,[dim]:''}));
+    const doAdd=()=>{
+      save({...sheet,[dim]:[...(sheet[dim]||[]),{id:uid(),name}]});
+      setDrafts(d=>({...d,[dim]:''}));
+    };
+    if((sheet[dim]||[]).some(x=>x.name===name)){
+      setConfirmState({message:`"${name}" כבר קיים ב${TENDER_DIM_LABEL[dim]}. להוסיף בכל זאת?`,confirmLabel:'הוסף בכל זאת',onConfirm:doAdd});
+      return;
+    }
+    doAdd();
   };
   const startRename=(dim,item)=>{setRenaming({dim,id:item.id});setRenameDraft(item.name);};
   const commitRename=()=>{
@@ -1704,9 +1714,10 @@ function TenderListsEditor({sheet,save}){
     const msg=list.length<=1
       ?`להסיר את "${item.name}"? זהו הפריט האחרון ב${TENDER_DIM_LABEL[dim]} — הטבלה תישאר ריקה בציר זה. כל נתוני התאים המשויכים אליו יימחקו לצמיתות.`
       :`להסיר את "${item.name}"? כל נתוני התאים המשויכים אליו יימחקו לצמיתות.`;
-    if(!window.confirm(msg))return;
-    if(renaming&&renaming.dim===dim&&renaming.id===item.id)setRenaming(null);
-    save(tenderRemoveDim(sheet,dim,item.id));
+    setConfirmState({message:msg,confirmLabel:'הסר',onConfirm:()=>{
+      if(renaming&&renaming.dim===dim&&renaming.id===item.id)setRenaming(null);
+      save(tenderRemoveDim(sheet,dim,item.id));
+    }});
   };
   const dimBlock=dim=>/*#__PURE__*/React.createElement("div",{key:dim,style:{minWidth:180,flex:'1 1 180px'}},
     /*#__PURE__*/React.createElement("b",{style:{fontSize:12}},TENDER_DIM_LABEL[dim]),
@@ -1731,8 +1742,20 @@ function TenderListsEditor({sheet,save}){
       /*#__PURE__*/React.createElement("button",{onClick:()=>addItem(dim),style:{fontSize:12,cursor:'pointer',padding:'3px 8px'}},"+")
     )
   );
-  return/*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:20,flexWrap:'wrap',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 12px',margin:'12px 0'}},
-    TENDER_DIMS.map(dimBlock)
+  return/*#__PURE__*/React.createElement(React.Fragment,null,
+    /*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:20,flexWrap:'wrap',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'10px 12px',margin:'12px 0'}},
+      TENDER_DIMS.map(dimBlock)
+    ),
+    confirmState&&/*#__PURE__*/React.createElement(React.Fragment,null,
+      /*#__PURE__*/React.createElement("div",{onClick:()=>setConfirmState(null),style:{position:'fixed',inset:0,zIndex:'var(--z-overlay)',background:'rgba(0,0,0,.18)'}}),
+      /*#__PURE__*/React.createElement("div",{style:{position:'fixed',top:'50%',left:'50%',transform:'translate(-50%,-50%)',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:12,boxShadow:'0 8px 32px rgba(0,0,0,.2)',padding:20,width:320,zIndex:'var(--z-panel)'},dir:"rtl"},
+        /*#__PURE__*/React.createElement("div",{style:{fontSize:13,color:'var(--text)',lineHeight:1.5,marginBottom:16}},confirmState.message),
+        /*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+          /*#__PURE__*/React.createElement("button",{onClick:()=>setConfirmState(null),style:{padding:'6px 14px',borderRadius:6,border:'1px solid var(--border)',background:'var(--surface)',cursor:'pointer',fontSize:12,color:'var(--text)'}},"ביטול"),
+          /*#__PURE__*/React.createElement("button",{onClick:()=>{confirmState.onConfirm();setConfirmState(null);},style:{padding:'6px 14px',borderRadius:6,border:'none',background:'#EF4444',color:'#fff',cursor:'pointer',fontSize:12,fontWeight:600}},confirmState.confirmLabel)
+        )
+      )
+    )
   );
 }
 /* Free-text note for one tender event — local draft + commit-on-blur/Enter,
