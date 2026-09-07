@@ -1638,7 +1638,7 @@ function TenderMatrix({sheet,rawSheet,onOpenCell,statusFilter}){
     return/*#__PURE__*/React.createElement("td",{key:key,onClick:()=>onOpenCell(key),style:{border:'1px solid var(--border)',background:m.bg,color:m.color,textAlign:'center',cursor:'pointer',fontSize:12,padding:'6px 4px'}},
       st==='N'?'חסר':/*#__PURE__*/React.createElement("span",null,
         m.label," ",
-        latest&&/*#__PURE__*/React.createElement("span",{style:{fontSize:10}},fmtDateFull(latest.date)),
+        latest&&/*#__PURE__*/React.createElement("span",{style:{fontSize:10}},fmtDateFull(latest.date).slice(0,5)),/* matrix cells show day.month only (e.g. "07.09"); the cell panel keeps the full date */
         " ",
         n>1&&/*#__PURE__*/React.createElement("b",{style:{fontSize:9}},n+"×")
       )
