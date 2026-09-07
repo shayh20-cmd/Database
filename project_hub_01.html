@@ -845,6 +845,28 @@ function tenderRemoveDim(sheet, dim, id){
     :sheet.filters;
   return {...sheet,[dim]:nextList,cells,filters};
 }
+/* For each event in a cell's timeline: how many days that event's status was in
+   effect — until the next chronological event's date, or until `today` for the
+   most recent event (still ongoing), unless the timeline ends in 'approved'
+   (finished), in which case the span stops at that last event's date instead of
+   running to today. totalDays is the same first-to-last(-or-today) span, which
+   telescopes to the sum of every per-event duration. `today` is a parameter
+   (defaulting to todayISO()) so this stays testable without depending on the
+   real clock. */
+function tenderEventDurations(events,today){
+  const t=today||todayISO();
+  const chrono=[...(events||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const isFinished=chrono.length>0&&chrono[chrono.length-1].status==='approved';
+  const byId={};
+  for(let i=0;i<chrono.length;i++){
+    const cur=chrono[i];
+    const next=chrono[i+1];
+    const endDate=next?next.date:(isFinished?cur.date:t);
+    byId[cur.id]=daysBetween(cur.date,endDate);
+  }
+  const totalDays=chrono.length?daysBetween(chrono[0].date,isFinished?chrono[chrono.length-1].date:t):0;
+  return{byId,totalDays};
+}
 /* Build a fresh tender sheet. consultants seeded from the project's live disciplines. */
 function makeTenderSheet(data, name='מכרז'){
   const disciplines=(data&&data.disciplines)||[];
@@ -1765,6 +1787,8 @@ function TenderCellPanel({sheet,cellKey,save,onClose}){
   };
 
   const sortedEvents=(cell.events||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const{byId:evDurationById,totalDays}=tenderEventDurations(cell.events);
+  const fmtDays=n=>n===0?'היום':n===1?'יום אחד':`${n} ימים`;
 
   return/*#__PURE__*/React.createElement(React.Fragment,null,
     /*#__PURE__*/React.createElement("div",{onClick:onClose,style:{position:'fixed',inset:0,zIndex:'var(--z-overlay)',background:'rgba(0,0,0,.18)'}}),
@@ -1773,6 +1797,10 @@ function TenderCellPanel({sheet,cellKey,save,onClose}){
       /*#__PURE__*/React.createElement("div",{className:"tp-hdr"},
         /*#__PURE__*/React.createElement("span",{className:"tp-task-title"},"מסמך — סטטוס: ",TENDER_STATUS_META[st].label),
         /*#__PURE__*/React.createElement("button",{className:"tp-close",onClick:onClose},"×")
+      ),
+      sortedEvents.length>0&&/*#__PURE__*/React.createElement("div",{style:{padding:'10px 20px',borderBottom:'1px solid var(--border)',fontSize:12,color:'var(--text-2)',flexShrink:0}},
+        "סה״כ ימי עבודה: ",
+        /*#__PURE__*/React.createElement("b",{style:{color:'var(--text)'}},fmtDays(totalDays))
       ),
       /*#__PURE__*/React.createElement("div",{style:{flex:1,overflowY:'auto',padding:'14px 20px 24px'}},
         /*#__PURE__*/React.createElement("label",{style:{display:'block',margin:'0 0 10px'}},
@@ -1800,7 +1828,7 @@ function TenderCellPanel({sheet,cellKey,save,onClose}){
           const isOpen=expandedEvId===ev.id;
           return/*#__PURE__*/React.createElement("div",{key:ev.id,style:{border:`1px solid ${meta.border}`,background:isOpen?'var(--surface)':meta.bg,borderRadius:10,marginBottom:8,overflow:'hidden'}},
             /*#__PURE__*/React.createElement("div",{onClick:()=>setExpandedEvId(isOpen?null:ev.id),style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px',cursor:'pointer',fontSize:12,color:meta.color,fontWeight:600}},
-              /*#__PURE__*/React.createElement("span",null,meta.symbol," ",meta.label," · ",fmtDateFull(ev.date),ev.note&&/*#__PURE__*/React.createElement("span",{title:ev.note,style:{marginInlineStart:5}},"📝")),
+              /*#__PURE__*/React.createElement("span",null,meta.symbol," ",meta.label," · ",fmtDateFull(ev.date)," · ",fmtDays(evDurationById[ev.id]||0),ev.note&&/*#__PURE__*/React.createElement("span",{title:ev.note,style:{marginInlineStart:5}},"📝")),
               /*#__PURE__*/React.createElement("button",{onClick:e=>{e.stopPropagation();delEvent(ev.id);},style:{border:'none',background:'none',cursor:'pointer',color:'inherit',fontSize:11,textDecoration:'underline'}},"מחק")
             ),
             isOpen&&/*#__PURE__*/React.createElement("div",{onClick:e=>e.stopPropagation(),style:{padding:'0 10px 10px',display:'flex',flexDirection:'column',gap:8}},

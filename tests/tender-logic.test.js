@@ -215,5 +215,60 @@ eq(JSON.stringify(rH.filters.consultantIds), JSON.stringify(['arch','str']), 're
 const rI=tenderRemoveDim(sheetG, 'docTypes', 'plans');
 eq(rI.filters, sheetG.filters, 'removeDim on docTypes leaves filters reference untouched (no filter array for docTypes)');
 
+// ---- mirrored: tenderEventDurations ----
+const daysBetween=(d1,d2)=>Math.max(0,Math.round((new Date(d2)-new Date(d1))/86400000));
+function tenderEventDurations(events,today){
+  const t=today;
+  const chrono=[...(events||[])].sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const isFinished=chrono.length>0&&chrono[chrono.length-1].status==='approved';
+  const byId={};
+  for(let i=0;i<chrono.length;i++){
+    const cur=chrono[i];
+    const next=chrono[i+1];
+    const endDate=next?next.date:(isFinished?cur.date:t);
+    byId[cur.id]=daysBetween(cur.date,endDate);
+  }
+  const totalDays=chrono.length?daysBetween(chrono[0].date,isFinished?chrono[chrono.length-1].date:t):0;
+  return{byId,totalDays};
+}
+// ---- end mirror ----
+
+// two events, still open (no 'approved' at the end) — second event's span runs to `today`
+const durA=tenderEventDurations([
+  {id:'e1',date:'2026-08-27',status:'update'},
+  {id:'e2',date:'2026-09-07',status:'sent'},
+], '2026-09-15');
+eq(durA.byId.e1, 11, 'duration: e1 spans to the next event (Aug27→Sep7 = 11 days)');
+eq(durA.byId.e2, 8, 'duration: e2 (still open) spans to today (Sep7→Sep15 = 8 days)');
+eq(durA.totalDays, 19, 'duration: total spans first event to today (Aug27→Sep15 = 19 days)');
+eq(durA.byId.e1+durA.byId.e2, durA.totalDays, 'duration: per-event durations sum to the total (telescoping span)');
+
+// out-of-order input still resolves correctly (function re-sorts internally)
+const durAReordered=tenderEventDurations([
+  {id:'e2',date:'2026-09-07',status:'sent'},
+  {id:'e1',date:'2026-08-27',status:'update'},
+], '2026-09-15');
+eq(durAReordered.byId.e1, 11, 'duration: order-independent (e1)');
+eq(durAReordered.byId.e2, 8, 'duration: order-independent (e2)');
+
+// timeline ending in 'approved' stops the span at the last event, ignoring `today`
+const durB=tenderEventDurations([
+  {id:'e1',date:'2026-01-01',status:'progress'},
+  {id:'e2',date:'2026-01-10',status:'approved'},
+], '2026-06-01');
+eq(durB.byId.e1, 9, 'duration: finished timeline — e1 still spans to the next event');
+eq(durB.byId.e2, 0, "duration: finished timeline — the closing 'approved' event has 0-day span");
+eq(durB.totalDays, 9, "duration: finished timeline — total stops at 'approved', ignores today");
+
+// single approved event
+const durC=tenderEventDurations([{id:'e1',date:'2026-01-01',status:'approved'}], '2026-06-01');
+eq(durC.byId.e1, 0, 'duration: single approved event has 0-day span');
+eq(durC.totalDays, 0, 'duration: single approved event → total 0');
+
+// no events
+const durD=tenderEventDurations([], '2026-06-01');
+eq(JSON.stringify(durD.byId), '{}', 'duration: no events → empty byId');
+eq(durD.totalDays, 0, 'duration: no events → total 0');
+
 if (failures) { console.error(`\n${failures} FAILURES`); process.exit(1); }
 console.log('\nALL PASS');
