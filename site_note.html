@@ -406,6 +406,16 @@ img { max-width: 100%; display: block; }
 .org-row-list li { margin-bottom: 1px; }
 .org-row-list li:last-child { margin-bottom: 0; }
 .org-row-select { flex-shrink: 0; font-size: 12px; font-weight: 600; background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px; padding: 5px 6px; max-width: 92px; color: var(--text-2); margin-top: 2px; }
+/* On wide screens org-row-main/org-row-actions are transparent to layout — org-row itself
+   stays a single flex row exactly as before. On narrow phones they become two stacked rows
+   so the topic select + delete button drop below the text instead of squeezing it. */
+.org-row-main, .org-row-actions { display: contents; }
+@media (max-width: 480px) {
+  .org-row { flex-wrap: wrap; }
+  .org-row-main { display: flex; align-items: flex-start; gap: 8px; flex: 1 1 100%; }
+  .org-row-actions { display: flex; align-items: center; gap: 8px; flex: 1 1 100%; justify-content: flex-end; margin-top: 2px; }
+  .org-row-select { margin-top: 0; }
+}
 
 /* ───────────────────────── Preview / Print document ───────────────────────── */
 .preview-toolbar { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 16px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
@@ -1661,34 +1671,38 @@ function OrgRowText({ text }) {
 function OrgRow({ task, listKey, index, groups, onDragHandleDown, dragging, onOpen, onReassign, onDelete }) {
   return (
     <div className={"org-row" + (dragging ? " dragging" : "")} data-org-row data-list-key={listKey} data-index={index}>
-      <span
-        className="org-drag-handle"
-        onPointerDown={(e) => onDragHandleDown(e, listKey, index)}
-      ><IconGrip /></span>
-      <div className="org-row-thumb">
-        {task.photos[0] ? <img src={displaySrc(task.photos[0])} alt="" /> : <IconImage />}
-      </div>
-      <div className="org-row-body" onClick={() => onOpen(task.id)}>
-        <OrgRowText text={task.text} />
-        <div className="task-meta-row">
-          <StatusBadge status={task.status} />
-          {task.carriedFromReportTitle && (
-            <span className="meta-pill carried-pill" title={'הועברה מדוח: ' + task.carriedFromReportTitle}>
-              <IconFollowUp />נוצרה {formatDateHeFromTs(task.createdAt)}
-            </span>
-          )}
-          {task.floors && task.floors.length > 0 && <span className="meta-pill"><IconLayer />{task.floors.join(', ')}</span>}
-          {task.location && <span className="meta-pill"><IconMapPin />{task.location}</span>}
-          {task.assignee && <span className="meta-pill"><IconUser />{task.assignee}</span>}
-          {task.dueDate && <span className="meta-pill"><IconCalendar />{formatDateHe(task.dueDate)}</span>}
-          {task.photos.length > 0 && <span className="meta-pill"><IconImage />{task.photos.length}</span>}
+      <div className="org-row-main">
+        <span
+          className="org-drag-handle"
+          onPointerDown={(e) => onDragHandleDown(e, listKey, index)}
+        ><IconGrip /></span>
+        <div className="org-row-thumb">
+          {task.photos[0] ? <img src={displaySrc(task.photos[0])} alt="" /> : <IconImage />}
+        </div>
+        <div className="org-row-body" onClick={() => onOpen(task.id)}>
+          <OrgRowText text={task.text} />
+          <div className="task-meta-row">
+            <StatusBadge status={task.status} />
+            {task.carriedFromReportTitle && (
+              <span className="meta-pill carried-pill" title={'הועברה מדוח: ' + task.carriedFromReportTitle}>
+                <IconFollowUp />נוצרה {formatDateHeFromTs(task.createdAt)}
+              </span>
+            )}
+            {task.floors && task.floors.length > 0 && <span className="meta-pill"><IconLayer />{task.floors.join(', ')}</span>}
+            {task.location && <span className="meta-pill"><IconMapPin />{task.location}</span>}
+            {task.assignee && <span className="meta-pill"><IconUser />{task.assignee}</span>}
+            {task.dueDate && <span className="meta-pill"><IconCalendar />{formatDateHe(task.dueDate)}</span>}
+            {task.photos.length > 0 && <span className="meta-pill"><IconImage />{task.photos.length}</span>}
+          </div>
         </div>
       </div>
-      <select className="org-row-select" value={task.groupId || ''} onChange={(e) => onReassign(task.id, e.target.value || null)}>
-        <option value="">ללא נושא</option>
-        {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-      </select>
-      <button className="group-btn del" onClick={() => onDelete(task.id)} aria-label="מחיקה"><IconTrash /></button>
+      <div className="org-row-actions">
+        <select className="org-row-select" value={task.groupId || ''} onChange={(e) => onReassign(task.id, e.target.value || null)}>
+          <option value="">ללא נושא</option>
+          {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+        </select>
+        <button className="group-btn del" onClick={() => onDelete(task.id)} aria-label="מחיקה"><IconTrash /></button>
+      </div>
     </div>
   );
 }
