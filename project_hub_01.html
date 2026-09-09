@@ -1801,7 +1801,7 @@ function TenderMatrix({sheet,rawSheet,onOpenCell,statusFilter,officeDirectory,sa
     /* Hover tooltip: how long the cell has sat in its current status, and the running
        total across all its events — the same two figures shown in the cell panel. */
     const cellTitle=latest?`${m.label}: ${fmtDays(durById[latest.id]||0)}\nסה\"כ: ${fmtDays(totalDays)}`:undefined;
-    return/*#__PURE__*/React.createElement("td",{key:key,title:cellTitle,onClick:()=>onOpenCell(key),style:{border:'1px solid var(--border)',background:m.bg,color:m.color,textAlign:'center',cursor:'pointer',fontSize:12,padding:'6px 4px',outline:isDelayed?'2px solid #EF4444':'none',outlineOffset:'-2px'}},
+    return/*#__PURE__*/React.createElement("td",{key:key,title:cellTitle,onClick:()=>onOpenCell(key),style:{border:'1px solid var(--border)',background:m.bg,color:m.color,textAlign:'center',cursor:'pointer',fontSize:12,padding:'6px 4px',outline:isDelayed?'4px solid #EF4444':'none',outlineOffset:'-3px'}},
       st==='N'?(showStatusName?'חסר':m.icon):/*#__PURE__*/React.createElement("span",null,
         showStatusName?m.label:m.icon," ",
         latest&&/*#__PURE__*/React.createElement("span",{style:{fontSize:10}},fmtDateFull(latest.date).slice(0,5)),/* matrix cells show day.month only (e.g. "07.09"); the cell panel keeps the full date */
