@@ -1867,12 +1867,12 @@ function TenderMatrix({sheet,rawSheet,onOpenCell,statusFilter,officeDirectory,sa
         leafKeys.map(k=>/*#__PURE__*/React.createElement("col",{key:k,ref:el=>colRefs.current[k]=el,style:{width:getW(k)}}))
       ),
       /*#__PURE__*/React.createElement("thead",null,
-        /*#__PURE__*/React.createElement("tr",{style:{background:'var(--bg)'}},
-          /*#__PURE__*/React.createElement("th",{rowSpan:showSubs?2:1,style:{border:'1px solid var(--border)',padding:8,position:'relative'}},resizeHandle(ROW_LABEL_KEY)),
-          colGroups.map(g=>/*#__PURE__*/React.createElement("th",{key:g.id,colSpan:showSubs?g.subs.length:1,style:{border:'1px solid var(--border)',padding:8,position:'relative'}},g.name,!showSubs&&resizeHandle(g.id+g.subs[0].id)))
+        /*#__PURE__*/React.createElement("tr",{style:{background:'var(--border)'}},
+          /*#__PURE__*/React.createElement("th",{rowSpan:showSubs?2:1,style:{border:'1px solid var(--border-strong)',padding:8,position:'relative'}},resizeHandle(ROW_LABEL_KEY)),
+          colGroups.map(g=>/*#__PURE__*/React.createElement("th",{key:g.id,colSpan:showSubs?g.subs.length:1,style:{border:'1px solid var(--border-strong)',padding:8,position:'relative',fontWeight:700,color:'var(--text)'}},g.name,!showSubs&&resizeHandle(g.id+g.subs[0].id)))
         ),
         showSubs&&/*#__PURE__*/React.createElement("tr",{style:{background:'var(--surface-2)'}},
-          colGroups.flatMap(g=>g.subs.map(s=>/*#__PURE__*/React.createElement("th",{key:g.id+s.id,style:{border:'1px solid var(--border)',padding:4,fontSize:11,position:'relative'}},s.name,resizeHandle(g.id+s.id))))
+          colGroups.flatMap(g=>g.subs.map(s=>/*#__PURE__*/React.createElement("th",{key:g.id+s.id,style:{border:'1px solid var(--border-strong)',padding:4,fontSize:11,position:'relative',fontWeight:600,color:'var(--text-2)'}},s.name,resizeHandle(g.id+s.id))))
         )
       ),
       /*#__PURE__*/React.createElement("tbody",null,
