@@ -710,7 +710,14 @@ button:focus:not(:focus-visible),input:focus:not(:focus-visible){outline:none;}
 @media print {
   body * { visibility: hidden; }
   .meeting-doc, .meeting-doc * { visibility: visible; }
+  .tender-print-doc, .tender-print-doc * { visibility: visible; }
   .meeting-doc {
+    position: absolute; top: 0; left: 0;
+    width: 100% !important; max-width: 100% !important;
+    margin: 0 !important; padding: 24px !important;
+    overflow: visible !important;
+  }
+  .tender-print-doc {
     position: absolute; top: 0; left: 0;
     width: 100% !important; max-width: 100% !important;
     margin: 0 !important; padding: 24px !important;
@@ -2095,21 +2102,58 @@ function TenderView({data,sheet,save}){
      Read-only consumers get `visibleSheet`: TenderTiles, TenderMatrix. Never save() a
      component given visibleSheet — it's missing filtered-out consultants/buildings and
      would truncate the persisted sheet. */
+  /* Export — mirrors what's currently on screen (respects the consultant/building
+     filters baked into visibleSheet), ignoring only the status-highlight filter, since
+     an exported file should carry the full status of every visible cell. */
+  const exportCsv=()=>{
+    const{rowItems,colGroups,showSubs,keyOf}=tenderPivot(visibleSheet);
+    const csvCell=v=>{const str=String(v??'');return/["\n,]/.test(str)?'"'+str.replace(/"/g,'""')+'"':str;};
+    const headerTop=[''],headerSub=[''];
+    colGroups.forEach(g=>g.subs.forEach(s=>{headerTop.push(g.name);headerSub.push(showSubs?s.name:'');}));
+    const rows=[headerTop];
+    if(showSubs)rows.push(headerSub);
+    rowItems.forEach(ri=>{
+      const row=[ri.name];
+      colGroups.forEach(g=>g.subs.forEach(s=>{
+        const cell=(visibleSheet.cells||{})[keyOf(ri,g,s)]||{};
+        if(cell.na){row.push('לא רלוונטי');return;}
+        const st=tenderCellStatus(cell);
+        const latest=tenderLatestEvent(cell);
+        const label=TENDER_STATUS_META[st].label;
+        row.push(latest?`${label} (${fmtDateFull(latest.date)})`:label);
+      }));
+      rows.push(row);
+    });
+    const csv='\uFEFF'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n');
+    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=`מכרז - ${sheet.name||'ללא שם'}.csv`;
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
   return/*#__PURE__*/React.createElement("div",{className:"tender-view",dir:"rtl",style:{padding:16}},
     /*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',justifyContent:'space-between'}},
       /*#__PURE__*/React.createElement("h2",{style:{fontSize:16,fontWeight:700}},"מסלול מכרז — ",sheet.name),
-      /*#__PURE__*/React.createElement("button",{onClick:()=>setShowLists(v=>!v),style:{cursor:'pointer',fontSize:12,padding:'5px 12px',borderRadius:7,border:'1px solid var(--border)',background:showLists?'var(--accent)':'var(--surface)',color:showLists?'#fff':'var(--text-2)',fontFamily:'inherit'}},"⚙ הגדרות לוח")
+      /*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:8}},
+        /*#__PURE__*/React.createElement("button",{onClick:exportCsv,style:{cursor:'pointer',fontSize:12,padding:'5px 12px',borderRadius:7,border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text-2)',fontFamily:'inherit'}},"⬇ ייצוא ל-Excel"),
+        /*#__PURE__*/React.createElement("button",{onClick:()=>window.print(),style:{cursor:'pointer',fontSize:12,padding:'5px 12px',borderRadius:7,border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text-2)',fontFamily:'inherit'}},"🗘 ייצוא PDF"),
+        /*#__PURE__*/React.createElement("button",{onClick:()=>setShowLists(v=>!v),style:{cursor:'pointer',fontSize:12,padding:'5px 12px',borderRadius:7,border:'1px solid var(--border)',background:showLists?'var(--accent)':'var(--surface)',color:showLists?'#fff':'var(--text-2)',fontFamily:'inherit'}},"⚙ הגדרות לוח")
+      )
     ),
     showLists&&/*#__PURE__*/React.createElement(TenderListsEditor,{sheet:sheet,save:save}),
     /*#__PURE__*/React.createElement(TenderPivotBar,{sheet:sheet,save:save}),
     /*#__PURE__*/React.createElement(TenderFilters,{sheet:sheet,save:save}),
-    /* By design (not a bug): tiles narrow by consultant/building filters (via visibleSheet)
-       but deliberately ignore the status filter, so they always show a full status
-       breakdown of the currently-visible consultants/buildings — the status filter only
-       affects which matrix cells are highlighted, not what the tiles summarize. */
-    /*#__PURE__*/React.createElement(TenderTiles,{sheet:visibleSheet}),
-    /*#__PURE__*/React.createElement(TenderMatrix,{sheet:visibleSheet,rawSheet:sheet,onOpenCell:setOpenCellKey,statusFilter:statusFilter,officeDirectory:data.consultants||[],saveColWidths:cw=>save({...sheet,colWidths:cw})}),
-    openCellKey&&/*#__PURE__*/React.createElement(TenderCellPanel,{sheet:sheet,cellKey:openCellKey,save:save,onClose:()=>setOpenCellKey(null)}));}/* ══════════════════════════════════════
+    /*#__PURE__*/React.createElement("div",{className:"tender-print-doc"},
+      /* By design (not a bug): tiles narrow by consultant/building filters (via visibleSheet)
+         but deliberately ignore the status filter, so they always show a full status
+         breakdown of the currently-visible consultants/buildings — the status filter only
+         affects which matrix cells are highlighted, not what the tiles summarize. */
+      /*#__PURE__*/React.createElement(TenderTiles,{sheet:visibleSheet}),
+      /*#__PURE__*/React.createElement(TenderMatrix,{sheet:visibleSheet,rawSheet:sheet,onOpenCell:setOpenCellKey,statusFilter:statusFilter,officeDirectory:data.consultants||[],saveColWidths:cw=>save({...sheet,colWidths:cw})})
+    ),
+    openCellKey&&/*#__PURE__*/React.createElement(TenderCellPanel,{sheet:sheet,cellKey:openCellKey,save:save,onClose:()=>setOpenCellKey(null)}));}
+/* ══════════════════════════════════════
    App Root
 ══════════════════════════════════════ */function App(){const[data,setData]=useState(null);const[loadError,setLoadError]=useState(false);const[saveError,setSaveError]=useState(false);const fileHandleRef=useRef(null);const[editName,setEditName]=useState(false);const[nameDraft,setNameDraft]=useState('');const MAX_HIST=30;const[pastStack,setPastStack]=useState([]);// [{snapshot, label}]
 const[futureStack,setFutureStack]=useState([]);// [{snapshot, label}]
