@@ -181,6 +181,7 @@ button:focus:not(:focus-visible),input:focus:not(:focus-visible){outline:none;}
 /* Column resize handle */
 .col-rh{position:absolute;left:0;top:0;bottom:0;width:6px;cursor:col-resize;z-index:2;opacity:0;transition:opacity .15s;}
 .list-table thead th:hover .col-rh{opacity:.5;}
+.tender-matrix-table th:hover .col-rh{opacity:.5;}
 .col-rh:hover,.col-rh:active{opacity:1!important;background:var(--accent);}
 .c-name    {width:35%;min-width:300px;}
 .c-pri     {width:88px;min-width:80px;}
@@ -1758,7 +1759,7 @@ function TenderFilters({sheet,save}){
     !!anyActive&&/*#__PURE__*/React.createElement("button",{onClick:clearAll,style:{border:'none',background:'none',color:'var(--accent)',cursor:'pointer',fontSize:12,padding:0}},"נקה סינון")
   );
 }
-function TenderMatrix({sheet,rawSheet,onOpenCell,statusFilter,officeDirectory}){
+function TenderMatrix({sheet,rawSheet,onOpenCell,statusFilter,officeDirectory,saveColWidths}){
   const showStatusName=sheet.showStatusName!==false;
   const showOfficeNames=!!sheet.showOfficeNames;
   const officeNameFor=disciplineId=>{
@@ -1797,21 +1798,55 @@ function TenderMatrix({sheet,rawSheet,onOpenCell,statusFilter,officeDirectory}){
       )
     );
   };
-  const leafCount=colGroups.reduce((sum,g)=>sum+g.subs.length,0);
-  const ROW_LABEL_W=120;
+  /* ── Column widths (resizable, persisted on the real sheet via saveColWidths) ──
+     '__row__' is the row-label column; every other leaf column is keyed g.id+s.id,
+     the same key used for the header cells below and for keyOf()'s cell lookups. */
+  const ROW_LABEL_KEY='__row__';
+  const DEFAULT_ROW_LABEL_W=120,DEFAULT_LEAF_W=100,MIN_COL_W=60;
+  const colWidths=sheet.colWidths||{};
+  const getW=key=>colWidths[key]??(key===ROW_LABEL_KEY?DEFAULT_ROW_LABEL_W:DEFAULT_LEAF_W);
+  const leafKeys=colGroups.flatMap(g=>g.subs.map(s=>g.id+s.id));
+  const tableW=getW(ROW_LABEL_KEY)+leafKeys.reduce((sum,k)=>sum+getW(k),0);
+  const colRefs=React.useRef({});
+  const tableElRef=React.useRef(null);
+  /* Direct-DOM drag (mirrors the main task table's column resize): the dragged
+     <col> and the table's own width update live via refs; the actual width is
+     only persisted (via saveColWidths, which writes the real, unfiltered sheet —
+     never this component's own `sheet` prop, which is the filtered visibleSheet)
+     on mouseup. */
+  const startColResize=key=>e=>{
+    e.preventDefault();e.stopPropagation();
+    const startX=e.clientX,startW=getW(key);
+    const startTableW=tableElRef.current?tableElRef.current.offsetWidth:tableW;
+    const onMove=ev=>{
+      const newW=Math.max(MIN_COL_W,startW+(startX-ev.clientX));
+      const actualDelta=newW-startW;
+      if(colRefs.current[key])colRefs.current[key].style.width=newW+'px';
+      if(tableElRef.current)tableElRef.current.style.width=(startTableW+actualDelta)+'px';
+    };
+    const onUp=ev=>{
+      const newW=Math.max(MIN_COL_W,startW+(startX-ev.clientX));
+      saveColWidths&&saveColWidths({...colWidths,[key]:newW});
+      document.removeEventListener('mousemove',onMove);
+      document.removeEventListener('mouseup',onUp);
+    };
+    document.addEventListener('mousemove',onMove);
+    document.addEventListener('mouseup',onUp);
+  };
+  const resizeHandle=key=>/*#__PURE__*/React.createElement("div",{className:"col-rh",onMouseDown:startColResize(key),draggable:false,onClick:e=>e.stopPropagation()});
   return/*#__PURE__*/React.createElement("div",{style:{overflowX:'auto'}},
-    /*#__PURE__*/React.createElement("table",{dir:"rtl",style:{borderCollapse:'collapse',width:'100%',tableLayout:'fixed',background:'var(--surface)'}},
+    /*#__PURE__*/React.createElement("table",{ref:tableElRef,className:"tender-matrix-table",dir:"rtl",style:{borderCollapse:'collapse',width:tableW,tableLayout:'fixed',background:'var(--surface)'}},
       /*#__PURE__*/React.createElement("colgroup",null,
-        /*#__PURE__*/React.createElement("col",{style:{width:ROW_LABEL_W}}),
-        Array.from({length:leafCount}).map((_,i)=>/*#__PURE__*/React.createElement("col",{key:i,style:{width:`calc((100% - ${ROW_LABEL_W}px)/${leafCount})`}}))
+        /*#__PURE__*/React.createElement("col",{ref:el=>colRefs.current[ROW_LABEL_KEY]=el,style:{width:getW(ROW_LABEL_KEY)}}),
+        leafKeys.map(k=>/*#__PURE__*/React.createElement("col",{key:k,ref:el=>colRefs.current[k]=el,style:{width:getW(k)}}))
       ),
       /*#__PURE__*/React.createElement("thead",null,
         /*#__PURE__*/React.createElement("tr",{style:{background:'var(--bg)'}},
-          /*#__PURE__*/React.createElement("th",{rowSpan:showSubs?2:1,style:{border:'1px solid var(--border)',padding:8}}),
-          colGroups.map(g=>/*#__PURE__*/React.createElement("th",{key:g.id,colSpan:showSubs?g.subs.length:1,style:{border:'1px solid var(--border)',padding:8}},g.name))
+          /*#__PURE__*/React.createElement("th",{rowSpan:showSubs?2:1,style:{border:'1px solid var(--border)',padding:8,position:'relative'}},resizeHandle(ROW_LABEL_KEY)),
+          colGroups.map(g=>/*#__PURE__*/React.createElement("th",{key:g.id,colSpan:showSubs?g.subs.length:1,style:{border:'1px solid var(--border)',padding:8,position:'relative'}},g.name,!showSubs&&resizeHandle(g.id+g.subs[0].id)))
         ),
         showSubs&&/*#__PURE__*/React.createElement("tr",{style:{background:'var(--surface-2)'}},
-          colGroups.flatMap(g=>g.subs.map(s=>/*#__PURE__*/React.createElement("th",{key:g.id+s.id,style:{border:'1px solid var(--border)',padding:4,fontSize:11}},s.name)))
+          colGroups.flatMap(g=>g.subs.map(s=>/*#__PURE__*/React.createElement("th",{key:g.id+s.id,style:{border:'1px solid var(--border)',padding:4,fontSize:11,position:'relative'}},s.name,resizeHandle(g.id+s.id))))
         )
       ),
       /*#__PURE__*/React.createElement("tbody",null,
@@ -2068,7 +2103,7 @@ function TenderView({data,sheet,save}){
        breakdown of the currently-visible consultants/buildings — the status filter only
        affects which matrix cells are highlighted, not what the tiles summarize. */
     /*#__PURE__*/React.createElement(TenderTiles,{sheet:visibleSheet}),
-    /*#__PURE__*/React.createElement(TenderMatrix,{sheet:visibleSheet,rawSheet:sheet,onOpenCell:setOpenCellKey,statusFilter:statusFilter,officeDirectory:data.consultants||[]}),
+    /*#__PURE__*/React.createElement(TenderMatrix,{sheet:visibleSheet,rawSheet:sheet,onOpenCell:setOpenCellKey,statusFilter:statusFilter,officeDirectory:data.consultants||[],saveColWidths:cw=>save({...sheet,colWidths:cw})}),
     openCellKey&&/*#__PURE__*/React.createElement(TenderCellPanel,{sheet:sheet,cellKey:openCellKey,save:save,onClose:()=>setOpenCellKey(null)}));}/* ══════════════════════════════════════
    App Root
 ══════════════════════════════════════ */function App(){const[data,setData]=useState(null);const[loadError,setLoadError]=useState(false);const[saveError,setSaveError]=useState(false);const fileHandleRef=useRef(null);const[editName,setEditName]=useState(false);const[nameDraft,setNameDraft]=useState('');const MAX_HIST=30;const[pastStack,setPastStack]=useState([]);// [{snapshot, label}]
