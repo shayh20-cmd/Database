@@ -1826,21 +1826,35 @@ function TenderMatrix({sheet,rawSheet,onOpenCell,statusFilter,officeDirectory,sa
      only persisted (via saveColWidths, which writes the real, unfiltered sheet —
      never this component's own `sheet` prop, which is the filtered visibleSheet)
      on mouseup. */
+  const RESIZE_STEP=10;
+  const snapW=w=>Math.max(MIN_COL_W,Math.round(w/RESIZE_STEP)*RESIZE_STEP);
   const startColResize=key=>e=>{
     e.preventDefault();e.stopPropagation();
     const startX=e.clientX,startW=getW(key);
     const startTableW=tableElRef.current?tableElRef.current.offsetWidth:tableW;
+    /* Live px readout next to the cursor while dragging, so columns are easy to
+       eyeball-compare — snaps in RESIZE_STEP jumps rather than tracking the mouse
+       1:1, matching the column's own snapped width at every point in the drag. */
+    const indicator=document.createElement('div');
+    indicator.style.cssText='position:fixed;z-index:10000;pointer-events:none;background:var(--accent);color:#fff;font-size:11px;font-family:inherit;padding:2px 7px;border-radius:5px;box-shadow:0 2px 8px rgba(0,0,0,.2);transform:translate(-50%,-135%);';
+    const positionIndicator=(x,y)=>{indicator.style.left=x+'px';indicator.style.top=y+'px';};
+    indicator.textContent=snapW(startW)+'px';
+    positionIndicator(e.clientX,e.clientY);
+    document.body.appendChild(indicator);
     const onMove=ev=>{
-      const newW=Math.max(MIN_COL_W,startW+(startX-ev.clientX));
+      const newW=snapW(startW+(startX-ev.clientX));
       const actualDelta=newW-startW;
       if(colRefs.current[key])colRefs.current[key].style.width=newW+'px';
       if(tableElRef.current)tableElRef.current.style.width=(startTableW+actualDelta)+'px';
+      indicator.textContent=newW+'px';
+      positionIndicator(ev.clientX,ev.clientY);
     };
     const onUp=ev=>{
-      const newW=Math.max(MIN_COL_W,startW+(startX-ev.clientX));
+      const newW=snapW(startW+(startX-ev.clientX));
       saveColWidths&&saveColWidths({...colWidths,[key]:newW});
       document.removeEventListener('mousemove',onMove);
       document.removeEventListener('mouseup',onUp);
+      indicator.remove();
     };
     document.addEventListener('mousemove',onMove);
     document.addEventListener('mouseup',onUp);
