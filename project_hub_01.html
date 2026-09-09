@@ -2031,7 +2031,7 @@ function TenderCellPanel({sheet,cellKey,save,onClose}){
         "סה״כ ימי עבודה: ",
         /*#__PURE__*/React.createElement("b",{style:{color:'var(--text)'}},fmtDays(totalDays))
       ),
-      /*#__PURE__*/React.createElement("div",{style:{flex:1,overflowY:'auto',padding:'14px 20px 24px'}},
+      /*#__PURE__*/React.createElement("div",{style:{flex:1,overflowY:'auto',padding:'14px 20px 24px'},onClick:e=>{if(e.target===e.currentTarget)setExpandedEvId(null);}},
         /*#__PURE__*/React.createElement("label",{style:{display:'block',margin:'0 0 10px'}},
           /*#__PURE__*/React.createElement("input",{type:'checkbox',checked:!!cell.na,onChange:e=>setNa(e.target.checked)}),
           " לא רלוונטי"
