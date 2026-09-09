@@ -1,0 +1,8 @@
+{
+  "name": "knafo-klimor-funday",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test public/js/**/*.test.js"
+  }
+}

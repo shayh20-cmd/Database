@@ -1,0 +1,474 @@
+:root {
+  --knafo-black: #0b0b0a;
+  --knafo-white: #ffffff;
+  --knafo-gray: #6b6b68;
+  --knafo-gray-light: #d8d8d5;
+  --knafo-sage: #8fb874;
+  --knafo-sage-dark: #3d5c33;
+  --knafo-sage-vivid: #237a33;
+  --frame-padding: clamp(24px, 6vw, 64px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* No scroll-behavior/scroll-snap here: the page is driven by GSAP pinning now, and
+   browser-side smoothing or snapping fights it and makes the scroll feel laggy. */
+
+body {
+  margin: 0;
+  font-family: 'Assistant', system-ui, sans-serif;
+  color: var(--knafo-black);
+  background: var(--knafo-white);
+  direction: rtl;
+}
+
+.frame {
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: var(--frame-padding);
+  position: relative;
+}
+
+#frame-activities {
+  justify-content: flex-end;
+  padding-bottom: 56px;
+}
+
+/* Extra bottom padding biases the vertically-centered content upward, off dead centre. */
+#frame-hero {
+  padding-bottom: calc(var(--frame-padding) + 72px);
+}
+
+.eyebrow {
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: var(--knafo-gray);
+  text-transform: uppercase;
+  margin: 0 0 12px;
+}
+
+.frame-title {
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 500;
+  margin: 0 0 32px;
+}
+
+.rule {
+  width: 40px;
+  height: 1px;
+  background: var(--knafo-sage);
+  margin: 16px 0;
+}
+
+.rule--center {
+  margin-inline: auto;
+}
+
+.vote-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 620px;
+  text-align: right;
+}
+
+.vote-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.vote-card__title {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--knafo-gray);
+}
+
+#employee-select {
+  font-family: inherit;
+  font-size: 16px;
+  color: var(--knafo-black);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--knafo-gray-light);
+  border-radius: 0;
+  padding: 8px 0;
+  width: 100%;
+}
+
+#employee-select:focus-visible {
+  outline: none;
+  border-bottom-color: var(--knafo-sage-vivid);
+}
+
+.activity-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.activity-option {
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--knafo-black);
+  background: transparent;
+  border: 0.5px solid var(--knafo-gray-light);
+  border-radius: 8px;
+  padding: 12px 10px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.activity-option:hover {
+  border-color: var(--knafo-sage-vivid);
+}
+
+.activity-option[aria-pressed='true'] {
+  border-color: var(--knafo-sage-vivid);
+  color: var(--knafo-sage-vivid);
+  font-weight: 500;
+}
+
+#vote-submit {
+  font-family: inherit;
+  font-size: 15px;
+  letter-spacing: 1px;
+  color: var(--knafo-white);
+  background: var(--knafo-sage-vivid);
+  border: 0;
+  border-radius: 8px;
+  padding: 14px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+#vote-submit:disabled {
+  background: var(--knafo-gray-light);
+  color: var(--knafo-gray);
+  cursor: not-allowed;
+}
+
+/* Chart.js needs a sized container to lay out into: the canvas' own 300x150 default
+   would otherwise win, since maintainAspectRatio is off. */
+.chart-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+  height: clamp(220px, 34vh, 320px);
+  margin-top: 28px;
+}
+
+.leaf-burst__particle {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 0 100% 0 100%;
+  pointer-events: none;
+  z-index: 1001;
+  will-change: transform, opacity;
+}
+
+.leaf-burst__flash {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 120px;
+  height: 120px;
+  margin: -60px 0 0 -60px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(215, 250, 205, 0.95) 0%, rgba(35, 122, 51, 0.45) 45%, rgba(35, 122, 51, 0) 70%);
+  pointer-events: none;
+  z-index: 1000;
+  will-change: transform, opacity;
+}
+
+.form-message {
+  font-size: 14px;
+  margin-top: 12px;
+}
+
+.form-message--error {
+  color: #a32d2d;
+}
+
+.form-message--success {
+  color: var(--knafo-sage-dark);
+}
+
+.hero-title {
+  font-size: clamp(36px, 8vw, 64px);
+  font-weight: 500;
+  letter-spacing: 1px;
+  margin: 0;
+}
+
+.hero-title__accent {
+  color: var(--knafo-sage-vivid);
+}
+
+.hero-sub {
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--knafo-gray);
+  margin: 0 0 16px;
+}
+
+.scroll-cue {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 20px;
+  color: var(--knafo-sage);
+}
+
+.activities-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  width: 100%;
+  max-width: 1000px;
+  text-align: right;
+}
+
+/* A panel the leaf trail can light up as it passes. The green outline itself is an SVG
+   rect overlay injected by leaf-trail.js, so it can be drawn on stroke-first rather than
+   just faded in. Used by both the activity cards and the vote form's panels. */
+.lit-card {
+  border: 0.5px solid var(--knafo-gray-light);
+  border-radius: 12px;
+  padding: 20px;
+  position: relative;
+  /* Opaque so the leaf trail passing behind is hidden by the card rather than showing
+     through it. */
+  background: var(--knafo-white);
+}
+
+.lit-card__outline {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.lit-card__outline rect {
+  fill: none;
+  stroke: var(--knafo-sage-vivid);
+  stroke-width: 1.5px;
+  filter: drop-shadow(0 0 4px rgba(35, 122, 51, 0.6));
+}
+
+.activity-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.activity-card h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.activity-card__desc {
+  margin: 0;
+  color: var(--knafo-gray);
+}
+
+.activity-card__meta {
+  display: flex;
+  gap: 20px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.activity-card__meta dt {
+  color: var(--knafo-gray);
+}
+
+.activity-card__meta dd {
+  margin: 0;
+  font-weight: 500;
+}
+
+.activity-card__notes {
+  font-size: 13px;
+  color: var(--knafo-gray);
+  margin: 0;
+}
+
+.activity-card__link {
+  color: var(--knafo-sage-dark);
+  font-size: 13px;
+  text-decoration: none;
+  margin-top: auto;
+}
+
+.activity-card__link:hover {
+  text-decoration: underline;
+}
+
+/* Deliberately no z-index, so .frame does NOT open a stacking context. Its decorative
+   layers below (the blueprint grid, and #hero-rain) use z-index:-1 and need to reach the
+   root's negative band to sit behind the leaf trail. A stacking context here would trap
+   them above it instead — and since the hero rain canvas paints an opaque white sheet,
+   that hid the trail completely.
+
+   Page layers, back to front:
+     -2  leaf trail beam
+     -1  frame decorations, then the leaf marker (later in the DOM, so above them)
+      -  frame content in normal flow — text, headings and .lit-card panels
+   1000+ cursor leaves and the finale burst. */
+.frame {
+  position: relative;
+}
+
+.frame::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.15;
+  background-image:
+    repeating-linear-gradient(to bottom, var(--knafo-sage) 0, var(--knafo-sage) 0.5px, transparent 0.5px, transparent 110px),
+    repeating-linear-gradient(to right, var(--knafo-sage) 0, var(--knafo-sage) 0.5px, transparent 0.5px, transparent 160px);
+}
+
+.frame::after {
+  content: '';
+  position: absolute;
+  top: 16px;
+  inset-inline-end: 16px;
+  width: 22px;
+  height: 22px;
+  z-index: -1;
+  opacity: 0.5;
+  border-top: 1px solid var(--knafo-sage);
+  border-inline-end: 1px solid var(--knafo-sage);
+}
+
+.hero-tagline {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  color: var(--knafo-black);
+  margin: 12px 0 0;
+}
+
+.cursor-leaf {
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  border-radius: 0 100% 0 100%;
+  transform: translate(-50%, -50%) rotate(var(--leaf-rotate, -45deg));
+  pointer-events: none;
+  z-index: 999;
+}
+
+#hero-rain {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.badge-leaf {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1.5px solid var(--knafo-sage-vivid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--knafo-sage-vivid);
+  animation: leaf-glow 2.2s ease-in-out infinite;
+}
+
+.badge-leaf svg {
+  width: 24px;
+  height: 24px;
+}
+
+@keyframes leaf-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 6px 0 rgba(35, 122, 51, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 20px 8px rgba(35, 122, 51, 0.55);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge-leaf {
+    animation: none;
+    box-shadow: 0 0 6px 0 rgba(35, 122, 51, 0.35);
+  }
+}
+
+.leaf-trail {
+  position: fixed;
+  left: 50%;
+  top: 0;
+  width: 26px;
+  height: 26px;
+  margin-left: -13px;
+  border-radius: 50%;
+  border: 1.5px solid var(--knafo-sage-vivid);
+  background: radial-gradient(circle, #eafbe4 0%, var(--knafo-white) 75%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--knafo-sage-vivid);
+  box-shadow:
+    0 0 8px 2px rgba(200, 245, 190, 0.9),
+    0 0 22px 6px rgba(35, 122, 51, 0.55),
+    0 0 44px 14px rgba(35, 122, 51, 0.25);
+  /* Negative, so the trail travels behind the cards, headings and text. */
+  z-index: -1;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.leaf-trail svg {
+  width: 14px;
+  height: 14px;
+}
+
+.leaf-trail__beam {
+  position: fixed;
+  left: 50%;
+  top: 0;
+  width: 3px;
+  margin-left: -1.5px;
+  background: linear-gradient(
+    to bottom,
+    rgba(35, 122, 51, 0) 0%,
+    rgba(35, 122, 51, 0.2) 55%,
+    rgba(35, 122, 51, 0.6) 85%,
+    rgba(190, 240, 180, 0.95) 100%
+  );
+  box-shadow: 0 0 16px 4px rgba(35, 122, 51, 0.35);
+  border-radius: 2px;
+  /* Below the leaf marker it trails from, and behind the content with it. */
+  z-index: -2;
+  opacity: 0;
+  pointer-events: none;
+}

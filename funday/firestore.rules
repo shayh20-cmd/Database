@@ -1,0 +1,66 @@
+rules_version = '2';
+
+// Mirrors EMPLOYEES in public/js/data.js — keep in sync by hand, there are only 28
+// entries and no build step to generate this from the JS. Lets a write target only its
+// own employee's doc: the client can't spoof another employee's name onto its id.
+function knownEmployeeName(id) {
+  return {
+    'emp-01': 'דוד קנפו',
+    'emp-02': 'אריה חיון',
+    'emp-03': 'יונתן מאירי',
+    'emp-04': 'תמי בליזובסקי',
+    'emp-05': 'נורית לוי',
+    'emp-06': 'חנן רודיך',
+    'emp-07': 'שי הרשקוביץ',
+    'emp-08': 'נטע שוורץ',
+    'emp-09': 'אסף כוהנים',
+    'emp-10': 'דניאל פולישוק',
+    'emp-11': 'מיקה מרקוסון',
+    'emp-12': 'איילה שירן',
+    'emp-13': 'יותם שדמי',
+    'emp-14': 'אלון ניסן',
+    'emp-15': 'סמיון פישקין',
+    'emp-16': 'עדי רוזן',
+    'emp-17': 'נועה גרגיר',
+    'emp-18': 'שני בוזוקאשויל',
+    'emp-19': 'גיא שפירו',
+    'emp-20': 'שון הפוטה',
+    'emp-21': 'שיר בן שואב',
+    'emp-22': 'אוניר שטגמן',
+    'emp-23': 'דניאל שר',
+    'emp-24': 'עמית שהרבני',
+    'emp-25': 'סתיו ברקוביץ',
+    'emp-26': 'עדי מחוליה עמנואל',
+    'emp-27': 'לי גלביס',
+    'emp-28': 'תגית כלימור',
+  }[id];
+}
+
+function isKnownActivity(id) {
+  return id in ['cooking', 'print', 'tlvshow', 'molet'];
+}
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Public poll: anyone with the link can see live counts, no auth required to read.
+    match /votes/{voteId} {
+      allow read: if true;
+
+      allow write: if knownEmployeeName(voteId) != null
+        && request.resource.data.employeeName == knownEmployeeName(voteId)
+        && isKnownActivity(request.resource.data.activityId)
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.keys().hasOnly(['employeeName', 'activityId', 'updatedAt']);
+
+      // Not tamper-proof against a determined employee poking DevTools — acceptable
+      // trade-off for a low-stakes internal poll, called out explicitly in the design
+      // spec rather than left as an oversight.
+      allow delete: if false;
+    }
+
+    // Deny everything else by default (no other collections exist).
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

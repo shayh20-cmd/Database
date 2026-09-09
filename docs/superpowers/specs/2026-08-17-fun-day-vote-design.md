@@ -51,9 +51,18 @@ Two employees share the first name "עדי" (רוזן, מחוליה עמנואל
 | `tlvshow` | TLVSHOW | פעילות חברתית בעיר בשילוב חידות/משחקים — כמו אסקייפ רום | 2-2.5 שעות | תל אביב / חיפה | מומלץ מאוד ע"י חברים; אופציית תל אביב הכי פופולרית | https://tlvshow.com/ (מקושר בלי פרמטרי מעקב) |
 | `molet` | MOLET | סדנאות נגרות עם עץ ממוחזר | 3 שעות | בת ים | 4 תת-אפשרויות: אור ועץ / פריסטייל / קורה למחשבה / אימפקט | https://www.molet.org/he/workshops/heb-private/ |
 
-## Visual direction (approved)
+## Visual direction (approved, v1 — superseded by v2 below for motion/background, palette still applies)
 
 Monochrome, editorial, typography-led — matching the Knafo Klimor wordmark (black, thin rule, tracked-out caps). One restrained accent: sage green (`#8FB874` on dark, darker shade for light-background text), used sparingly for the rule under the title, active states, chart bars, and small "green building studio" type badges. No bright/playful palette, no gradients or drop shadows — flat surfaces, generous whitespace, confident large type.
+
+## Visual direction v2 — blueprint + steel + green (approved 2026-08-17, after seeing Tasks 5-6 built)
+
+After seeing the v1 hero and activities frame live, the user asked for something more creative/dynamic, referencing a high-end 3D WebGL site (liquidink.design/github_web/ — floating islands, connecting path, drifting particles). A full 3D/WebGL rebuild was judged out of scope for a one-off internal poll (that reference is weeks of dedicated 3D-artist + WebGL-dev production). Instead, the agreed direction keeps the same 2D DOM/CSS/GSAP stack (no Three.js, no WebGL, no custom 3D assets) but adds two things, applied to **all four frames**, not just the hero:
+
+1. **Blueprint background layer** — a faint (15% opacity) sage-green architectural-drawing motif behind every frame's content: horizontal/vertical grid lines, and one L-shaped corner bracket mark (like a technical-drawing crop mark) at the block-start/inline-end corner. Implemented as pure CSS (`.frame::before` for the grid, `.frame::after` for the bracket, both `z-index: -1` inside a stacking context established by `.frame { z-index: 0 }`) rather than a JS-rendered helper or real DOM nodes — simpler, zero runtime cost, and automatically consistent across all four frames from one shared selector. **Revised down from the original mockup**, which also showed a circle (compass motif) and a second corner bracket — dropped as an implementation-time simplification (avoids a data-URI SVG or extra pseudo-element budget) that the single grid + bracket already reads as "blueprint" without. The bracket lands at the RTL *inline-end* corner (visually top-left on this Hebrew page) since it uses logical CSS properties (`inset-inline-end`) consistent with the rest of the RTL layout, not a fixed physical top-right.
+2. **Construction-themed scroll transition** — replaces the plain fade-up-only reveal with a short sequence that plays the first time each frame scrolls into view, before/alongside the existing per-item fade-up stagger: a steel-toned beam slides in horizontally, a bolt/nut icon spins and "locks" at its center, then a small leaf icon briefly appears near a corner bracket as a completion accent (tying the construction motif back to the office's green-building identity) — then the frame's real content fades up as before. This is a `gsap.timeline()`, not a single tween, and still fires only once per frame (same IntersectionObserver + `unobserve` pattern already in place).
+
+Palette is unchanged (still `--knafo-black` / `--knafo-white` / `--knafo-sage` / `--knafo-sage-dark` from Task 4) — v2 is about background texture and transition choreography, not new colors. No cursor-parallax, no 3D — those were the reference site's WebGL-specific techniques and are explicitly out of scope.
 
 ## Architecture
 
