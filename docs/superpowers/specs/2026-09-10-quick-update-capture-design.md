@@ -184,6 +184,36 @@ no capture at all. Therefore they are visible, not silent:
 - **הדבק מהמייל** — pastes clipboard text into the field. A cheap bridge toward
   email ingestion without building IMAP.
 
+## Decisions taken during phase 1
+
+**The surfaces were miscounted.** This spec named three composers. A search for
+the record literal found six. `SubtaskOwnerCell` — the per-subtask twin of the
+עדכונים column — was the one that mattered: it still seeded the *current* status
+and still prepended, so "one answer to what comes next" was false until it was
+adopted too. There are now zero prepends in the file.
+
+**One click writes one record.** The full form applies `EV_AUTO_FOLLOW`
+(saving נשלח also writes בהתייחסות) behind a checkbox that defaults on. The
+strip does not. The precedent for one-click logging in this app is
+`TenderCellPanel`, which has always written exactly one record, and a visible
+single click that silently produces two entries is the opposite of the
+predictability this feature sells. The inference stays available, opt-in, in the
+form. Consequence to accept: logging נשלח from the strip leaves the task in
+נשלח rather than moving it to בהתייחסות.
+
+**Same-day updates resolve to the later one.** `latestUpdateOf`'s comparator
+returned 0 when both the date and the period/milestone class matched, and a
+stable sort then picked the first array element — the *older* update, once every
+surface appends. One-click logging makes same-day pairs routine, so this now
+carries a final index tiebreak. The two original rules are unchanged: newest
+date wins, and on a date tie a period status still beats a milestone.
+
+**Known and deferred:** `EventPopover` is a fourth composer with its own
+add-update flow and its own copy of the pill markup. It appends and its
+suggestion is equivalent by construction, so it is recorded rather than changed.
+Six copies of the latest-update sort also survive elsewhere in the file; only
+`tenderLatestEvent` and `StatusOwnerCell` delegate today.
+
 ## Risks
 
 | Risk | Mitigation |
