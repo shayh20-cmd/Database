@@ -1989,6 +1989,26 @@ function TenderEventNoteField({event,onCommit}){
    panel's pm_panel_width (kept intentionally independent per design decision). */
 const TENDER_PANEL_W_KEY='pm_tender_panel_width';
 const TENDER_PANEL_W_DEFAULT=()=>Math.min(400,Math.round(window.innerWidth*0.3));
+/* Shared one-click update strip. Clicking a pill IS the save: the caller
+   writes {id,status,date:todayISO(),assignee} and appends it via appendUpdate,
+   then opens that entry for optional refinement. The suggested next status is
+   emphasized, never the current one. */
+function QuickUpdatePills({events,onAdd,includeMissing=false,compact=false}){
+  const suggested=suggestedStatusFor(events);
+  const ids=EV_CYCLE.filter(id=>includeMissing||id!=='missing');
+  return/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexWrap:'wrap',gap:compact?4:6}},
+    ids.map(id=>{
+      const m=EV_STATUSES[id];
+      const on=id===suggested;
+      return/*#__PURE__*/React.createElement("button",{key:id,type:'button',title:m.label,
+        onClick:e=>{e.stopPropagation();onAdd(id);},
+        style:{border:`${on?2:1}px solid ${m.border}`,background:on?m.bg:'transparent',color:m.color,
+          borderRadius:999,padding:compact?'3px 8px':'4px 10px',cursor:'pointer',fontSize:compact?11:12,
+          fontWeight:on?700:500,fontFamily:'inherit',lineHeight:1.2}},
+        m.symbol," ",m.label);
+    })
+  );
+}
 function TenderCellPanel({sheet,cellKey,save,onClose}){
   const cell=(sheet.cells||{})[cellKey]||{events:[]};
   const writeCell=updater=>{
@@ -1998,7 +2018,7 @@ function TenderCellPanel({sheet,cellKey,save,onClose}){
   const[expandedEvId,setExpandedEvId]=React.useState(null);
   const addEvent=status=>{
     const id=uid();
-    writeCell(c=>({...c,events:[...(c.events||[]),{id,status,date:todayISO()}]}));
+    writeCell(c=>({...c,events:appendUpdate(c.events,{id,status,date:todayISO()})}));
     setExpandedEvId(id);// open immediately so the date (defaults to today) can be adjusted
   };
   const delEvent=id=>{
@@ -2055,11 +2075,7 @@ function TenderCellPanel({sheet,cellKey,save,onClose}){
         ),
         /*#__PURE__*/React.createElement("div",{style:{margin:'0 0 14px'}},
           /*#__PURE__*/React.createElement("div",{className:"tp-ev-title",style:{marginBottom:6}},"הוסף עדכון"),
-          /*#__PURE__*/React.createElement("div",{style:{display:'flex',flexWrap:'wrap',gap:6}},
-            Object.values(EV_STATUSES).map(ev=>/*#__PURE__*/React.createElement("button",{key:ev.id,onClick:()=>addEvent(ev.id),title:ev.label,
-              style:{border:`1px solid ${ev.border}`,background:ev.bg,color:ev.color,borderRadius:8,padding:'3px 8px',cursor:'pointer',fontSize:12}},
-              ev.symbol," ",ev.label))
-          )
+          /*#__PURE__*/React.createElement(QuickUpdatePills,{events:cell.events,onAdd:addEvent,includeMissing:true})
         ),
         /*#__PURE__*/React.createElement("div",{className:"tp-ev-title",style:{marginBottom:8}},"עדכונים"),
         sortedEvents.map(ev=>{
