@@ -17,6 +17,7 @@
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
 <script src="https://unpkg.com/@azure/msal-browser@3/lib/msal-browser.min.js"></script>
+<script src="https://unpkg.com/exceljs@4/dist/exceljs.min.js"></script>
 <style>
 :root {
   --bg: #F2F4F7;
@@ -420,6 +421,7 @@ img { max-width: 100%; display: block; }
 /* ───────────────────────── Preview / Print document ───────────────────────── */
 .preview-toolbar { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 16px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .preview-toolbar-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.preview-toolbar-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .layout-toggle { display: flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
 .layout-btn { border: none; background: transparent; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: var(--text-2); border-radius: 6px; cursor: pointer; }
 .layout-btn.active { background: var(--accent); color: #fff; }
@@ -589,6 +591,12 @@ const IconMicrosoft = (p) => (
     <rect x="13" y="1" width="10" height="10" fill="#7FBA00" />
     <rect x="1" y="13" width="10" height="10" fill="#00A4EF" />
     <rect x="13" y="13" width="10" height="10" fill="#FFB900" />
+  </svg>
+);
+const IconExcel = (p) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" {...p}>
+    <rect x="2" y="2" width="20" height="20" rx="3" fill="#16A34A" />
+    <path d="M7 7l4 5-4 5M17 7l-4 5 4 5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
   </svg>
 );
 
@@ -887,6 +895,169 @@ function newReport() {
   };
 }
 function reportTitle(r) { return r.siteName && r.siteName.trim() ? r.siteName : 'דוח ללא שם'; }
+
+const XLSX_HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
+const XLSX_BORDER = { style: 'thin', color: { argb: 'FFD8DAE0' } };
+
+// Builds an .xlsx workbook mirroring the on-screen PDF table (same columns,
+// grouping, and A4 print setup) and downloads it. `separatePhotos` mirrors
+// the existing PDF "נספח תמונות" toggle: on puts photos on their own sheet,
+// off embeds the first photo inline in the main table row.
+async function exportReportToExcel(report, sections, { showLocation, showStatus, separatePhotos }) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Site Note';
+  wb.created = new Date();
+
+  const cols = ["מס'", 'נושא', 'תיאור'];
+  if (showLocation) cols.push('מיקום/קומה');
+  cols.push('אחראי', 'תאריך יעד');
+  if (showStatus) cols.push('סטטוס');
+  if (!separatePhotos) cols.push('תמונות');
+  const numCols = cols.length;
+
+  const ws = wb.addWorksheet('דוח', {
+    views: [{ rightToLeft: true }],
+    pageSetup: {
+      paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+      margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+    },
+  });
+
+  ws.mergeCells(1, 1, 1, numCols);
+  const titleCell = ws.getCell(1, 1);
+  titleCell.value = reportTitle(report);
+  titleCell.font = { bold: true, size: 16 };
+  titleCell.alignment = { horizontal: 'right' };
+  ws.getRow(1).height = 26;
+
+  const metaParts = [];
+  if (report.reportNumber) metaParts.push("מס' דוח: " + report.reportNumber);
+  metaParts.push('תאריך סיור: ' + formatDateHe(report.date));
+  if (report.inspector) metaParts.push('אדריכל: ' + report.inspector);
+  metaParts.push('הופק: ' + formatDateHeFromTs(Date.now()));
+  ws.mergeCells(2, 1, 2, numCols);
+  const metaCell = ws.getCell(2, 1);
+  metaCell.value = metaParts.join('   ·   ');
+  metaCell.font = { size: 10, color: { argb: 'FF666666' } };
+  metaCell.alignment = { horizontal: 'right' };
+
+  ws.addRow([]);
+
+  const headerRow = ws.addRow(cols);
+  headerRow.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = XLSX_HEADER_FILL;
+    cell.alignment = { horizontal: 'right', vertical: 'middle' };
+  });
+  headerRow.height = 20;
+
+  const widths = [6, 16, 46];
+  if (showLocation) widths.push(18);
+  widths.push(16, 12);
+  if (showStatus) widths.push(10);
+  if (!separatePhotos) widths.push(14);
+  widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+
+  let c = 1;
+  const numColIdx = c++;
+  const topicColIdx = c++;
+  const descColIdx = c++;
+  const locColIdx = showLocation ? c++ : null;
+  const assigneeColIdx = c++;
+  const dueColIdx = c++;
+  const statusColIdx = showStatus ? c++ : null;
+  const photoColIdx = !separatePhotos ? c++ : null;
+
+  const photoAppendixEntries = [];
+
+  sections.forEach((sec, secIndex) => {
+    const startRow = ws.rowCount + 1;
+    sec.tasks.forEach((t, taskIndex) => {
+      const rowValues = [];
+      rowValues[numColIdx - 1] = String(secIndex + 1).padStart(2, '0');
+      rowValues[topicColIdx - 1] = sec.name;
+      rowValues[descColIdx - 1] = stripMarkup(t.text) || 'ללא תיאור';
+      if (locColIdx) {
+        const locParts = [];
+        if (t.floors && t.floors.length > 0) locParts.push('קומה: ' + t.floors.join(', '));
+        if (t.location) locParts.push('מיקום: ' + t.location);
+        rowValues[locColIdx - 1] = locParts.join(' | ');
+      }
+      rowValues[assigneeColIdx - 1] = t.assignee || '—';
+      rowValues[dueColIdx - 1] = t.dueDate ? formatDateHe(t.dueDate) : '—';
+      if (statusColIdx) rowValues[statusColIdx - 1] = statusMeta(t.status).label;
+      if (photoColIdx && t.photos.length > 1) rowValues[photoColIdx - 1] = '+' + (t.photos.length - 1) + ' נוספות';
+
+      const row = ws.addRow(rowValues);
+      row.eachCell((cell, colNum) => {
+        cell.alignment = { horizontal: colNum === numColIdx ? 'center' : 'right', vertical: 'top', wrapText: true };
+        cell.border = { top: XLSX_BORDER, bottom: XLSX_BORDER, left: XLSX_BORDER, right: XLSX_BORDER };
+      });
+      row.height = 34;
+
+      if (photoColIdx && t.photos.length > 0) {
+        const src = displaySrc(t.photos[0]);
+        if (src) {
+          try {
+            const imgId = wb.addImage({ base64: src, extension: 'jpeg' });
+            ws.addImage(imgId, { tl: { col: photoColIdx - 1 + 0.05, row: row.number - 1 + 0.05 }, ext: { width: 70, height: 48 } });
+            row.height = 42;
+          } catch (e) { /* skip a corrupt image rather than fail the whole export */ }
+        }
+      }
+      if (separatePhotos && t.photos.length > 0) photoAppendixEntries.push({ sec, secIndex, t, taskIndex });
+    });
+    const endRow = ws.rowCount;
+    if (endRow > startRow) {
+      ws.mergeCells(startRow, numColIdx, endRow, numColIdx);
+      ws.mergeCells(startRow, topicColIdx, endRow, topicColIdx);
+    }
+    const numCell = ws.getCell(startRow, numColIdx);
+    numCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    numCell.font = { bold: true, color: { argb: 'FF2563EB' } };
+    const topicCell = ws.getCell(startRow, topicColIdx);
+    topicCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    topicCell.font = { bold: true };
+  });
+
+  if (separatePhotos && photoAppendixEntries.length > 0) {
+    const ws2 = wb.addWorksheet('נספח תמונות', {
+      views: [{ rightToLeft: true }],
+      pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+    });
+    ws2.getColumn(1).width = 10;
+    ws2.getColumn(2).width = 28;
+    ws2.getColumn(3).width = 14;
+    ws2.getColumn(4).width = 14;
+    const hdr = ws2.addRow(['#', 'נושא', 'תמונה', '']);
+    hdr.eachCell((cell) => { cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }; cell.fill = XLSX_HEADER_FILL; cell.alignment = { horizontal: 'right' }; });
+    photoAppendixEntries.forEach(({ sec, secIndex, t, taskIndex }) => {
+      const label = String(taskIndex + 1).padStart(2, '0') + '.' + String(secIndex + 1).padStart(2, '0') + ' · ' + sec.name;
+      const row = ws2.addRow(['', label, '', '']);
+      row.eachCell((cell) => { cell.alignment = { horizontal: 'right', vertical: 'middle' }; });
+      row.height = 56;
+      t.photos.forEach((p, i) => {
+        const src = displaySrc(p);
+        if (!src) return;
+        try {
+          const imgId = wb.addImage({ base64: src, extension: 'jpeg' });
+          ws2.addImage(imgId, { tl: { col: 2 + i, row: row.number - 1 + 0.05 }, ext: { width: 80, height: 58 } });
+        } catch (e) { /* skip a corrupt image rather than fail the whole export */ }
+      });
+    });
+  }
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = reportTitle(report).replace(/[\\/:*?"<>|]/g, ' ') + ' - דוח.xlsx';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
 
 function nextReportNumber(prev) {
   const trimmed = (prev || '').trim();
@@ -2058,6 +2229,7 @@ function PreviewScreen({ report, updateReport }) {
   const { notify } = useDialog();
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [zoomIndex, setZoomIndex] = useState(0);
+  const [exporting, setExporting] = useState(false);
   const zoom = ZOOM_LEVELS[zoomIndex];
   function zoomOut() { setZoomIndex((i) => Math.min(ZOOM_LEVELS.length - 1, i + 1)); }
   function zoomIn() { setZoomIndex((i) => Math.max(0, i - 1)); }
@@ -2069,6 +2241,20 @@ function PreviewScreen({ report, updateReport }) {
   const showLocation = report.pdfShowLocation !== false;
   const photoAppendix = !!report.pdfPhotoAppendix;
   const showStatus = report.pdfShowStatus !== false;
+  const xlsxSeparatePhotos = report.xlsxSeparatePhotos !== false;
+
+  async function handleExportExcel() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      await exportReportToExcel(report, sections, { showLocation, showStatus, separatePhotos: xlsxSeparatePhotos });
+    } catch (e) {
+      console.error(e);
+      notify('ייצוא לאקסל נכשל. נסו שוב.');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   function resizePhoto(photoId, w, h) {
     updateReport({
@@ -2270,13 +2456,22 @@ function PreviewScreen({ report, updateReport }) {
             <input type="checkbox" checked={showStatus} onChange={(e) => updateReport({ ...report, pdfShowStatus: e.target.checked })} />
             הצג סטטוס
           </label>
+          <label className="preview-loc-toggle">
+            <input type="checkbox" checked={xlsxSeparatePhotos} onChange={(e) => updateReport({ ...report, xlsxSeparatePhotos: e.target.checked })} />
+            הפרדת תמונות באקסל
+          </label>
           <div className="zoom-controls">
             <button type="button" className="zoom-btn" onClick={zoomOut} disabled={zoomIndex === ZOOM_LEVELS.length - 1} aria-label="הקטנת תצוגה"><IconZoomOut /></button>
             <span className="zoom-level">{Math.round(zoom * 100)}%</span>
             <button type="button" className="zoom-btn" onClick={zoomIn} disabled={zoomIndex === 0} aria-label="הגדלת תצוגה"><IconZoomIn /></button>
           </div>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={handlePrint}><IconPrint />הפקת PDF</button>
+        <div className="preview-toolbar-actions">
+          <button className="btn btn-secondary btn-sm" onClick={handleExportExcel} disabled={exporting}>
+            <IconExcel />{exporting ? 'מייצא...' : 'ייצוא לאקסל'}
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={handlePrint}><IconPrint />הפקת PDF</button>
+        </div>
       </div>
       <div className="preview-scroll">
         <div className="doc-print-root" style={{ zoom }}>
