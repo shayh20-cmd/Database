@@ -476,6 +476,22 @@ Expected: `writtenToday: 0`, `inbox: 0`, and `principles` back to its pre-verifi
 
 ## Known issues to carry
 
-- **Whole-document writes.** Both the app and the capture window `GET`, mutate, and `POST` the entire JSON. A stale app tab can overwrite a capture made while it sat open. Task 5 Step 4 measures whether this bites in practice.
+- **Whole-document writes lose captures — CONFIRMED, not theoretical.** Reproduced on 2026-09-11:
+  open the app in a tab, capture a new task from the capture window (task count 15 → 16),
+  then edit anything in the app tab without reloading it. The app POSTs the document it
+  loaded before the capture existed, and the captured task is gone (16 → 15), silently.
+  Both surfaces read-modify-write the whole JSON, and the app holds its copy for as long
+  as the tab stays open.
+
+  This is data loss on the feature's main path — leaving the app open in a tab is normal.
+
+  The fix is contained but not trivial. The app has exactly one write path,
+  `postServerData(d)` called from `persist`, so re-fetching and merging before the POST is
+  a few lines. But a naive "keep whatever the server has that `d` lacks" merge makes
+  deletion impossible: every task deleted in the app comes straight back. Doing it right
+  means tracking the record ids the app knew at load and at last save, so that
+  missing-and-known reads as deleted while missing-and-unknown reads as externally added.
+  That is its own change with its own tests, and bolting it onto this one would be worse
+  than scheduling it.
 - **`EV_STATUSES` is mirrored into `capture.html`.** Statuses are not user-editable so this is safe today, but it is a second copy that can drift.
 - **Dictation quality** is whatever Chrome/Edge gives for `he-IL`. It fills an editable field and is never saved unreviewed.

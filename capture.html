@@ -407,6 +407,7 @@ async function doSave(){
     if (!res.ok) throw new Error('HTTP '+res.status);
     var d = await res.json();
     d = applyCapture(d, route);
+    d._ts = Date.now();   // lets an open app tab notice this write
     var put = await fetch(API, {
       method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)
     });
