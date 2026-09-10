@@ -976,13 +976,13 @@ const[addDisc,setAddDisc]=useState('');const[addStatus,setAddStatus]=useState('p
 const discId=isProcess?getProcessResponsible(task):task.responsible||'';const disc=disciplines.find(d=>d.id===discId);// Latest event (process tasks only)
 const procEvents=isProcess?getTaskProcessEvents(task):[];const latest=latestUpdateOf(procEvents);const st=latest?EV_STATUSES[latest.status]||EV_STATUSES.missing:null;const days=latest?.date?daysBetween(latest.date,todayISO()):null;const delayed=st&&days!==null&&threshold!==null&&days>threshold;useEffect(()=>{if(!open&&!panel)return;const h=e=>{if(ref.current&&!ref.current.contains(e.target)){setOpen(false);setPanel(null);}};document.addEventListener('mousedown',h);return()=>document.removeEventListener('mousedown',h);},[open,panel]);// Owner status is derived from process events — show nothing for non-process tasks
 if(!isProcess){return/*#__PURE__*/React.createElement("td",{ref:ref,style:{position:'relative',padding:'0 10px',verticalAlign:'middle',background:'inherit'}},
-/*#__PURE__*/React.createElement("button",{type:'button',title:"הוסף עדכון",
+/*#__PURE__*/React.createElement("button",{type:'button',title:"הוסף עדכון",'aria-label':"הוסף עדכון",
 onClick:e=>{e.stopPropagation();setPanel(p=>p?null:'add');},
-style:{width:19,height:19,borderRadius:5,border:'1px dashed var(--border-strong)',background:'transparent',color:'var(--text-3)',fontSize:12,lineHeight:1,cursor:'pointer',padding:0,opacity:.65}},"+"),
+style:{width:22,height:22,borderRadius:5,border:'1.5px dashed var(--border-strong)',background:'transparent',color:'var(--text-3)',fontSize:12,lineHeight:1,cursor:'pointer',padding:0}},"+"),
 panel==='add'&&/*#__PURE__*/React.createElement("div",{className:"dp",onClick:e=>e.stopPropagation(),style:{minWidth:200,padding:'10px'}},
 /*#__PURE__*/React.createElement("div",{className:"dp-title",style:{marginBottom:8}},"עדכון ראשון"),
-/*#__PURE__*/React.createElement(QuickUpdatePills,{events:[],compact:true,onAdd:status=>{
-onUpdate({...task,events:appendUpdate(task.events,{id:uid(),status,assignee:task.discipline||'',date:todayISO(),title:'',note:''})});
+/*#__PURE__*/React.createElement(QuickUpdatePills,{events:task.events,compact:true,onAdd:status=>{
+onUpdate({...task,events:appendUpdate(task.events,{id:uid(),status,assignee:discId||task.discipline||'',date:todayISO(),title:'',note:''})});
 setPanel(null);}})));}if(!disc&&!st){return/*#__PURE__*/React.createElement("td",{style:{padding:'0 10px',verticalAlign:'middle',textAlign:'center',color:'var(--text-3)',fontSize:13}},"—");}// ── Unified chip — solid fill matching the discipline pill in 'תחום' column ──
 const chipColor=disc?disc.color:st?.color||'#6B7280';const chipBorder=delayed?'2px solid #EF4444':'none';const chipShadow=delayed?'0 0 0 2px rgba(239,68,68,.28)':'none';const chipAnim=delayed?'pulse-delay 2s infinite':'none';const title=[disc?.label,st?`${st.label}${days!==null?` · ${days} ימים`:''}`:null].filter(Boolean).join(' — ');// Fixed total chip width, split evenly between the two halves — keeps both
 // pills a constant size regardless of how many letters/digits they contain.
