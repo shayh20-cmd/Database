@@ -794,14 +794,7 @@ const TENDER_DOCTYPES_DEFAULT = [
   { id: 'spec',  name: 'מפרט' },
   { id: 'boq',   name: 'כתב כמויות' },
 ];
-function tenderLatestEvent(cell){
-  const evs=(cell&&cell.events)||[];
-  if(!evs.length)return null;
-  return [...evs].sort((a,b)=>{
-    if(a.date!==b.date)return(b.date||'').localeCompare(a.date||'');
-    return(EV_PERIOD.has(a.status)?0:1)-(EV_PERIOD.has(b.status)?0:1);
-  })[0];
-}
+function tenderLatestEvent(cell){return latestUpdateOf((cell&&cell.events)||[]);}
 /* Single source of truth for a tender cell's status. Unlike getMostRecentEventStatus,
    'update' maps to 'I' (בעבודה) instead of being ignored. */
 function tenderCellStatus(cell){
@@ -1002,7 +995,10 @@ return/*#__PURE__*/React.createElement("td",{ref:ref,style:{position:'relative',
    TaskRow
 ══════════════════════════════════════ *//* ══════════════════════════════════════
    Process Task Panel
-══════════════════════════════════════ *//* Auto-follow: milestone statuses auto-create their follow-up period status */const PANEL_W_KEY='pm_panel_width';const PANEL_W_DEFAULT=()=>Math.min(780,Math.round(window.innerWidth*0.78));const TDS_PANEL_W_KEY='pm_tds_panel_width';const TDS_PANEL_ZOOM=0.9;const TDS_PANEL_W_DEFAULT=()=>Math.min(560,Math.round(window.innerWidth*0.42));const EV_AUTO_FOLLOW={sent:'response',comments:'progress'};function getNextSuggestedStatus(lastStatus){if(!lastStatus)return'progress';const map={missing:'progress',progress:'sent',sent:'response',response:'sent',comments:'progress',approved:'progress'};return map[lastStatus]||'progress';}/* Single-timeline process panel:
+══════════════════════════════════════ *//* Auto-follow: milestone statuses auto-create their follow-up period status */const PANEL_W_KEY='pm_panel_width';const PANEL_W_DEFAULT=()=>Math.min(780,Math.round(window.innerWidth*0.78));const TDS_PANEL_W_KEY='pm_tds_panel_width';const TDS_PANEL_ZOOM=0.9;const TDS_PANEL_W_DEFAULT=()=>Math.min(560,Math.round(window.innerWidth*0.42));const EV_AUTO_FOLLOW={sent:'response',comments:'progress'};function latestUpdateOf(events){const evs=events||[];if(!evs.length)return null;return[...evs].sort((a,b)=>{if(a.date!==b.date)return(b.date||'').localeCompare(a.date||'');return(EV_PERIOD.has(a.status)?0:1)-(EV_PERIOD.has(b.status)?0:1);})[0];}
+function suggestedStatusFor(events){return getNextSuggestedStatus(latestUpdateOf(events)?.status);}
+function appendUpdate(events,rec){return[...(events||[]),rec];}
+function getNextSuggestedStatus(lastStatus){if(!lastStatus)return'progress';const map={missing:'progress',progress:'sent',sent:'response',response:'sent',comments:'progress',approved:'progress'};return map[lastStatus]||'progress';}/* Single-timeline process panel:
    ONE chronological event chain (each event carries its own assignee = who holds the
    ball at that step). The "current responsible" is the latest event's assignee.
    Subtasks live per-event (inside the event they were born from) AND as general
