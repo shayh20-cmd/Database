@@ -1049,14 +1049,8 @@ async function exportReportToExcel(report, sections, { showLocation, showStatus,
 
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = reportTitle(report).replace(/[\\/:*?"<>|]/g, ' ') + ' - דוח.xlsx';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 3000);
+  const filename = reportTitle(report).replace(/[\\/:*?"<>|]/g, ' ') + ' - דוח.xlsx';
+  await downloadFile(filename, blob);
 }
 
 function nextReportNumber(prev) {
@@ -1097,6 +1091,32 @@ function buildFollowUpReport(source) {
 }
 
 function displaySrc(photo) { return (photo && (photo.annotatedSrc || photo.src)) || ''; }
+
+// Saves a generated file for the viewer. On the real deployed site
+// window.claude doesn't exist, so this always falls through to a plain
+// <a download> blob link. Inside the sandboxed Claude Artifact preview,
+// that plain link is inert — so when the `downloads` capability is
+// available we use it instead, which is the only way a generated file
+// can actually reach the viewer there.
+async function downloadFile(filename, blob) {
+  try {
+    if (window.claude && typeof window.claude.use === 'function') {
+      const downloads = await window.claude.use('downloads');
+      if (downloads) {
+        await downloads.save({ filename, data: blob });
+        return;
+      }
+    }
+  } catch (e) { /* fall through to the plain browser download below */ }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
 
 /* Reorder helper: move item at `from` to `to` within array copy */
 function moveItem(arr, from, to) {
