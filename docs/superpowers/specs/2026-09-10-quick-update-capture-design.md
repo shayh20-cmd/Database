@@ -53,16 +53,26 @@ only document work that was already logged by hand.
 The update record is unchanged: entries in `task.events[]` / `cell.events[]` keep
 the shape `{id, status, date, assignee, title?, note?, round?, countFromHere?}`.
 
-Two additions, both introduced in phase 2:
+One addition, introduced in phase 2:
 
 ```js
 data.inbox = [{ id, date, text, kind:'update'|'task', projectId, discipline, status? }]
-data.journal = [{ id, date, text, projectId, discipline, author }]
 ```
 
-`inbox` holds captures that were saved without a precise target. `journal` holds
-"הערה" captures, which are neither a task nor a status and have no home today.
-Both default to `[]` in `migrateData`.
+`inbox` holds captures that were saved without a precise target. It defaults to
+`[]` in `migrateData`.
+
+A captured **decision** needs no new structure: it is a planning principle, and
+`data.standalonePrinciples` already exists for exactly this
+(see `2026-06-22-planning-principles-design.md`) with the shape
+`{id, description, discipline, createdAt}` — which a capture fills directly:
+`description` = the captured text, `discipline` = the guessed discipline,
+`createdAt` = today. It is already surfaced in the עקרונות תכנון page and
+embedded in מבט על, so a captured decision is visible the moment it is saved.
+
+Note that the architecture constraint recorded in that spec — task-editing
+components see only their own sheet, never the root `data` — does not apply to
+the capture window, which writes the whole data object through the API.
 
 ## Phase 1 — one-click updating inside the app
 
@@ -142,7 +152,7 @@ One rule, no separate mode selector:
 |---|---|
 | a status pill | an **update** |
 | no status | a **new task** |
-| "הערה" | a **journal entry** — neither task nor status |
+| "עקרון תכנון" | a standalone entry in `data.standalonePrinciples` |
 
 The inferred kind is shown as a pressed chip at the bottom of the window and can
 be overridden with one click, so the inference is always visible and correctable.
@@ -190,9 +200,10 @@ no capture at all. Therefore they are visible, not silent:
   from a tender cell; confirm all three write the same record shape and appear in
   the Gantt.
 - Confirm day-counts and delay outlines are unchanged for existing data.
-- Phase 2: capture an update, a task and a note; confirm each lands where the
-  spec says, and that an unassigned capture appears in the inbox and can be
-  assigned.
+- Phase 2: capture an update, a task and a principle; confirm each lands where
+  the spec says — in particular that a captured principle appears in the
+  עקרונות תכנון page and in מבט על — and that an unassigned capture appears in
+  the inbox and can be assigned.
 
 ## Mockups
 
