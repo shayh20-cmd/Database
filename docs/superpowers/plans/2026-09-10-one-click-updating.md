@@ -341,15 +341,13 @@ Three behavior changes land here: the write **appends** (was prepend), the assig
 
 Do not touch the `+` button's visibility. `.add-ev-inline` is already `opacity:0` until the row is hovered, which is exactly the behavior the spec calls for on rows that already show a chip.
 
-- [ ] **Step 2: Point "פרטים" at the task panel**
+- [ ] **Step 2: Keep the detailed form as the popover's second state**
 
-`setPanel('full')` has no handler yet. Rather than build a second full form inside a table cell, it opens the task's own detail panel, which already has one. Find how the row opens that panel — search for the options-menu entry:
+`setPanel('full')` needs a destination. Do **not** plumb a new "open the task detail panel" callback through `TaskRow`/`ListView` — `StatusOwnerCell` only receives `{task,onUpdate,onChangeResponsible,threshold}`, and widening that contract for one link is more scope than this buys.
 
-```bash
-node -e "const s=require('fs').readFileSync('C:/Users/Omega/Database/project_hub_01.html','utf8');const i=s.indexOf('פרטי משימה');console.log(JSON.stringify(s.slice(i-300,i+120)))"
-```
+Instead, keep the existing discipline-pills + status-pills + ביטול/✓ הוסף UI exactly as it is today and render it under `panel==='full'`. The popover then has two states: `'add'` (the strip, the default) and `'full'` (what the popover shows today). Nothing is deleted and no capability is lost — the detailed path simply stops being the first thing you meet.
 
-Wire `setPanel('full')` to the same callback that entry uses, passing it through `StatusOwnerCell`'s props if it is not already in scope. If the callback is not reachable from this component, leave the link opening the existing `panel==='add'` full form instead — but do not duplicate the six-field form here.
+Concretely: the block currently rendered under `panel==='add'` moves to `panel==='full'` unchanged, and the new strip from Step 1 takes over `panel==='add'`.
 
 - [ ] **Step 3: Verify syntax**
 
