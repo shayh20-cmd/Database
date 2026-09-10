@@ -2100,9 +2100,146 @@ function TenderCellPanel({sheet,cellKey,save,onClose}){
     )
   );
 }
+/* ── Tender Gantt ────────────────────────────────────────────────────────────
+   Timeline view over the same cells the matrix shows: one row per
+   (building × docType) that has updates, grouped by consultant. Mirrors the
+   planning_dashboard MainGanttView logic — a bar spanning first update →
+   last one (or → today while the cell is still in an open/period status),
+   milestone updates as diamonds on top, and an optional per-status segment
+   breakdown. Percentage-based positioning, so it always fits its container.
+
+   Laid out direction:'ltr' (labels left, time flowing rightward) to match
+   NihulGanttView, with the Hebrew label text flipped back to rtl. All date
+   math is UTC, which is what keeps month columns from skipping. */
+function TenderGanttView({sheet,onOpenCell,officeDirectory}){
+  const today=todayISO();
+  const [showSegments,setShowSegments]=React.useState(false);
+  const LABEL_W=200,ROW_H=34,GROUP_H=28,HDR_H=44;
+  const parseD=iso=>{const[y,m,d]=iso.split('-').map(Number);return new Date(Date.UTC(y,m-1,d));};
+  const fmtD=d=>`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+  const dBetween=(a,b)=>Math.round((parseD(b)-parseD(a))/86400000);
+
+  /* Collect every cell that has updates, grouped by consultant. */
+  const buildings=sheet.buildings||[],consultants=sheet.consultants||[],docTypes=sheet.docTypes||[];
+  const multiBuilding=buildings.length>1;
+  const groups=[];
+  let globalMin=null,globalMax=null;
+  for(const c of consultants){
+    const rows=[];
+    for(const b of buildings)for(const d of docTypes){
+      const key=tenderCellKey(b.id,c.id,d.id);
+      const cell=(sheet.cells||{})[key];
+      if(!cell||cell.na||!(cell.events||[]).length)continue;
+      const evts=[...cell.events].sort((x,y)=>(x.date||'').localeCompare(y.date||''));
+      const first=evts[0].date,last=evts[evts.length-1].date;
+      if(!first)continue;
+      if(!globalMin||first<globalMin)globalMin=first;
+      if(!globalMax||last>globalMax)globalMax=last;
+      rows.push({key,buildingName:b.name,docName:d.name,firstDate:first,lastDate:last,evts,
+        totalDays:tenderEventDurations(cell.events).totalDays});
+    }
+    if(rows.length)groups.push({id:c.id,label:c.name,firm:(officeDirectory||[]).find(x=>x.discCode===c.disciplineId)?.firm||null,rows});
+  }
+  if(!globalMin)return/*#__PURE__*/React.createElement("div",{style:{padding:'32px 16px',textAlign:'center',color:'var(--text-3)',fontSize:13,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10}},"אין עדכונים עדיין — הוסף עדכונים לתאים כדי לראות אותם בגאנט");
+
+  /* X axis: month-aligned range with a margin on each side. */
+  const d0=parseD(globalMin);d0.setUTCDate(d0.getUTCDate()-21);d0.setUTCDate(1);
+  const d1=parseD(globalMax<today?today:globalMax);d1.setUTCDate(d1.getUTCDate()+21);
+  const rangeStart=fmtD(d0),rangeEnd=fmtD(d1);
+  const totalDays=Math.max(dBetween(rangeStart,rangeEnd),1);
+  const pct=iso=>Math.max(0,Math.min(100,dBetween(rangeStart,iso)/totalDays*100));
+  const months=[];{const cur=new Date(d0);while(fmtD(cur)<=rangeEnd){months.push(fmtD(cur));cur.setUTCMonth(cur.getUTCMonth()+1);}}
+  const todayPct=pct(today);
+  const gridLines=months.map(m=>/*#__PURE__*/React.createElement("div",{key:m,style:{position:'absolute',left:`${pct(m)}%`,top:0,bottom:0,width:1,background:'var(--border)'}}));
+  const todayLine=/*#__PURE__*/React.createElement("div",{style:{position:'absolute',left:`${todayPct}%`,top:0,bottom:0,width:2,background:'#EF4444',opacity:.75,zIndex:3,pointerEvents:'none'}});
+  const labelCell=(extra,children)=>/*#__PURE__*/React.createElement("div",{style:{width:LABEL_W,flexShrink:0,borderRight:'1px solid var(--border)',padding:'0 12px',direction:'rtl',display:'flex',alignItems:'center',...extra}},children);
+
+  const rowLabel=row=>multiBuilding?`${row.buildingName} · ${row.docName}`:row.docName;
+  const renderRow=row=>{
+    const lastEvt=row.evts[row.evts.length-1];
+    const lastMeta=EV_STATUSES[lastEvt.status]||EV_STATUSES.missing;
+    /* A finished (milestone) update ends the bar; an open one keeps running to today. */
+    const barEndDate=EV_MILESTONE.has(lastEvt.status)?row.lastDate:(row.lastDate<today?today:row.lastDate);
+    const barL=pct(row.firstDate),barW=Math.max(.7,pct(barEndDate)-barL);
+    const narrow=barW<8;
+    const maxRound=Math.max(0,...row.evts.map(e=>e.round||0));
+    const daysOpen=daysBetween(lastEvt.date,today);
+    const isDelayed=!!(sheet.showDelays&&sheet.delayThreshold&&EV_PERIOD.has(lastEvt.status)&&daysOpen>sheet.delayThreshold);
+    const title=`${rowLabel(row)}\n${lastMeta.label} · ${fmtDateFull(row.firstDate)} – ${fmtDateFull(barEndDate)}\nסה״כ: ${row.totalDays} ימים`;
+    const barInner=showSegments
+      ?(()=>{/* one colored segment per update, each running until the next one */
+        const span=Math.max(dBetween(row.firstDate,barEndDate),1);
+        return row.evts.map((ev,i)=>{
+          const segEnd=row.evts[i+1]?.date||barEndDate;
+          const dur=dBetween(ev.date,segEnd);
+          if(dur<=0)return null;
+          const m=EV_STATUSES[ev.status]||EV_STATUSES.missing;
+          return/*#__PURE__*/React.createElement("div",{key:ev.id||i,title:`${m.label} · ${fmtDateFull(ev.date)} · ${dur} ימים`,
+            style:{position:'absolute',left:`${dBetween(row.firstDate,ev.date)/span*100}%`,width:`${Math.max(.6,dur/span*100)}%`,top:0,bottom:0,background:m.bg,borderRight:`1px solid ${m.border}`}});
+        }).filter(Boolean);
+      })()
+      :[/*#__PURE__*/React.createElement("span",{key:"lbl",style:{fontSize:10,fontWeight:600,color:lastMeta.color,direction:'rtl',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',padding:narrow?'0 3px':'0 7px'}},narrow?lastMeta.symbol:`${lastMeta.symbol} ${lastMeta.label}`)];
+    return/*#__PURE__*/React.createElement("div",{key:row.key,style:{display:'flex',height:ROW_H,borderBottom:'1px solid var(--border)'}},
+      labelCell({justifyContent:'space-between',gap:6,fontSize:11,color:'var(--text-2)'},[
+        /*#__PURE__*/React.createElement("span",{key:"n",style:{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},rowLabel(row)),
+        /*#__PURE__*/React.createElement("span",{key:"d",style:{flexShrink:0,fontSize:10,color:'var(--text-3)'}},row.totalDays," ימים")
+      ]),
+      /*#__PURE__*/React.createElement("div",{style:{flex:1,position:'relative',cursor:'pointer',overflow:'hidden'},onClick:()=>onOpenCell(row.key)},
+        gridLines,todayLine,
+        /*#__PURE__*/React.createElement("div",{title:title,
+          style:{position:'absolute',left:`${barL}%`,width:`${barW}%`,top:5,bottom:5,background:showSegments?'transparent':lastMeta.bg,
+            border:`2px solid ${isDelayed?'#EF4444':lastMeta.border}`,borderRadius:4,overflow:'hidden',display:'flex',alignItems:'center',zIndex:1,transition:'filter .12s'},
+          onMouseEnter:e=>e.currentTarget.style.filter='brightness(.94)',
+          onMouseLeave:e=>e.currentTarget.style.filter=''},
+          barInner,
+          /* round count rides inside the bar's end, so it can never widen the grid */
+          maxRound>1&&!narrow&&/*#__PURE__*/React.createElement("span",{key:"rnd",style:{position:'absolute',right:3,top:'50%',transform:'translateY(-50%)',fontSize:9,fontWeight:700,lineHeight:1,padding:'2px 4px',borderRadius:3,background:'rgba(0,0,0,.14)',color:lastMeta.color,zIndex:3}},"×",maxRound)
+        ),
+        /* milestone updates ride on top of the bar as diamonds */
+        row.evts.filter(ev=>EV_MILESTONE.has(ev.status)).map((ev,i)=>{
+          const m=EV_STATUSES[ev.status];
+          return/*#__PURE__*/React.createElement("div",{key:ev.id||('m'+i),title:`${m.label} · ${fmtDateFull(ev.date)}${ev.round?` · סבב ${ev.round}`:''}`,
+            style:{position:'absolute',left:`${pct(ev.date)}%`,top:'50%',width:11,height:11,marginTop:-5.5,marginLeft:-5.5,background:m.border,border:'1.5px solid var(--surface)',transform:'rotate(45deg)',zIndex:2}});
+        })
+      )
+    );
+  };
+
+  return/*#__PURE__*/React.createElement("div",{style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,overflow:'hidden',direction:'ltr'}},
+    /*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',gap:14,padding:'8px 12px',borderBottom:'1px solid var(--border)',fontSize:12,color:'var(--text-2)',direction:'rtl'}},
+      /*#__PURE__*/React.createElement("label",{style:{display:'flex',alignItems:'center',gap:5,cursor:'pointer'}},
+        /*#__PURE__*/React.createElement("input",{type:'checkbox',checked:showSegments,onChange:e=>setShowSegments(e.target.checked)}),"פירוט לפי סטטוס"),
+      /*#__PURE__*/React.createElement("span",{style:{marginInlineStart:'auto',fontSize:11,color:'var(--text-3)'}},"◆ אבן דרך · הקו האדום — היום")
+    ),
+    /*#__PURE__*/React.createElement("div",{style:{display:'flex',borderBottom:'2px solid var(--border)',background:'var(--border)'}},
+      labelCell({height:HDR_H,borderRight:'1px solid var(--border-strong)',fontSize:11,fontWeight:700,color:'var(--text)'},"יועץ / מסמך"),
+      /*#__PURE__*/React.createElement("div",{style:{flex:1,position:'relative',height:HDR_H,overflow:'hidden'}},
+        months.map((m,i)=>{
+          const[y,mo]=m.split('-');
+          const left=pct(m),next=months[i+1]?pct(months[i+1]):100;
+          return/*#__PURE__*/React.createElement("div",{key:m,style:{position:'absolute',left:`${left}%`,width:`${next-left}%`,top:0,bottom:0,borderLeft:'1px solid var(--border-strong)',paddingLeft:5,display:'flex',flexDirection:'column',justifyContent:'center',fontSize:10,color:'var(--text-2)',whiteSpace:'nowrap',overflow:'hidden'}},
+            /*#__PURE__*/React.createElement("b",null,HE_MONTHS[parseInt(mo,10)-1]),
+            /*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:'var(--text-3)'}},y));
+        }),
+        todayLine
+      )
+    ),
+    groups.map(g=>/*#__PURE__*/React.createElement(React.Fragment,{key:g.id},
+      /*#__PURE__*/React.createElement("div",{style:{display:'flex',height:GROUP_H,background:'var(--surface-2)',borderBottom:'1px solid var(--border)'}},
+        labelCell({gap:6,fontSize:11,fontWeight:700,color:'var(--text)'},[
+          /*#__PURE__*/React.createElement("span",{key:"l"},g.label),
+          g.firm&&/*#__PURE__*/React.createElement("span",{key:"f",style:{fontWeight:400,fontSize:10,color:'var(--text-3)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},g.firm)
+        ]),
+        /*#__PURE__*/React.createElement("div",{style:{flex:1,position:'relative',overflow:'hidden'}},gridLines,todayLine)
+      ),
+      g.rows.map(renderRow)
+    ))
+  );
+}
 function TenderView({data,sheet,save}){
   const [openCellKey,setOpenCellKey]=React.useState(null);
   const [showLists,setShowLists]=React.useState(false);
+  const [boardView,setBoardView]=React.useState('matrix');
   React.useEffect(()=>{
     if(!openCellKey)return;
     const[bId,cId,dId]=openCellKey.split('|');
@@ -2156,7 +2293,12 @@ function TenderView({data,sheet,save}){
       )
     ),
     showLists&&/*#__PURE__*/React.createElement(TenderListsEditor,{sheet:sheet,save:save}),
-    /*#__PURE__*/React.createElement(TenderPivotBar,{sheet:sheet,save:save}),
+    /*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:2,margin:'12px 0 0'}},
+      [['matrix','▦ מטריצה'],['gantt','▬ גאנט']].map(([id,label])=>/*#__PURE__*/React.createElement("button",{key:id,onClick:()=>setBoardView(id),
+        style:{padding:'6px 14px',fontSize:12,fontFamily:'inherit',border:'1px solid var(--border)',borderBottom:'none',cursor:'pointer',borderRadius:'7px 7px 0 0',
+          background:boardView===id?'var(--surface)':'transparent',fontWeight:boardView===id?700:400,color:boardView===id?'var(--text)':'var(--text-2)'}},label))
+    ),
+    boardView==='matrix'&&/*#__PURE__*/React.createElement(TenderPivotBar,{sheet:sheet,save:save}),
     /*#__PURE__*/React.createElement(TenderFilters,{sheet:sheet,save:save}),
     /*#__PURE__*/React.createElement("div",{className:"tender-print-doc"},
       /* By design (not a bug): tiles narrow by consultant/building filters (via visibleSheet)
@@ -2164,7 +2306,9 @@ function TenderView({data,sheet,save}){
          breakdown of the currently-visible consultants/buildings — the status filter only
          affects which matrix cells are highlighted, not what the tiles summarize. */
       /*#__PURE__*/React.createElement(TenderTiles,{sheet:visibleSheet}),
-      /*#__PURE__*/React.createElement(TenderMatrix,{sheet:visibleSheet,rawSheet:sheet,onOpenCell:setOpenCellKey,statusFilter:statusFilter,officeDirectory:data.consultants||[],saveColWidths:cw=>save({...sheet,colWidths:cw})})
+      boardView==='matrix'
+        ?/*#__PURE__*/React.createElement(TenderMatrix,{sheet:visibleSheet,rawSheet:sheet,onOpenCell:setOpenCellKey,statusFilter:statusFilter,officeDirectory:data.consultants||[],saveColWidths:cw=>save({...sheet,colWidths:cw})})
+        :/*#__PURE__*/React.createElement(TenderGanttView,{sheet:visibleSheet,onOpenCell:setOpenCellKey,officeDirectory:data.consultants||[]})
     ),
     openCellKey&&/*#__PURE__*/React.createElement(TenderCellPanel,{sheet:sheet,cellKey:openCellKey,save:save,onClose:()=>setOpenCellKey(null)}));}
 /* ══════════════════════════════════════
