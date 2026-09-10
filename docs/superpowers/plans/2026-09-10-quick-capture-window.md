@@ -493,5 +493,12 @@ Expected: `writtenToday: 0`, `inbox: 0`, and `principles` back to its pre-verifi
   missing-and-known reads as deleted while missing-and-unknown reads as externally added.
   That is its own change with its own tests, and bolting it onto this one would be worse
   than scheduling it.
+  **Mitigated, not fixed.** The capture window now stamps `_ts` on every write, and the app
+  compares the server's `_ts` against the last one it persisted whenever the window regains
+  focus. An outside write raises an orange banner — "נוספו עדכונים מחוץ לחלון הזה — שמירה
+  מכאן תמחק אותם" — with a רענן button. Silent loss becomes a visible prompt, but a user
+  who ignores the banner and keeps editing still overwrites the capture. The merge is
+  still owed.
+
 - **`EV_STATUSES` is mirrored into `capture.html`.** Statuses are not user-editable so this is safe today, but it is a second copy that can drift.
 - **Dictation quality** is whatever Chrome/Edge gives for `he-IL`. It fills an editable field and is never saved unreviewed.
