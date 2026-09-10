@@ -11,10 +11,12 @@ function getNextSuggestedStatus(lastStatus){
 function latestUpdateOf(events){
   const evs = events || [];
   if(!evs.length) return null;
-  return [...evs].sort((a,b)=>{
-    if(a.date !== b.date) return (b.date||'').localeCompare(a.date||'');
-    return (EV_PERIOD.has(a.status)?0:1) - (EV_PERIOD.has(b.status)?0:1);
-  })[0];
+  return evs.map((e,i)=>({e,i})).sort((a,b)=>{
+    if(a.e.date !== b.e.date) return (b.e.date||'').localeCompare(a.e.date||'');
+    const cls = (EV_PERIOD.has(a.e.status)?0:1) - (EV_PERIOD.has(b.e.status)?0:1);
+    if(cls) return cls;
+    return b.i - a.i;
+  })[0].e;
 }
 function suggestedStatusFor(events){
   return getNextSuggestedStatus(latestUpdateOf(events)?.status);
@@ -42,6 +44,21 @@ eq(latestUpdateOf([
   {id:'a',status:'sent',date:'2026-03-01'},
   {id:'b',status:'progress',date:'2026-03-01'},
 ]).id, 'b', 'latest: same date → period status outranks milestone');
+
+// same date + same class → the later-appended one wins (append is now the universal insertion order)
+eq(latestUpdateOf([
+  {id:'a',status:'progress',date:'2026-03-01'},
+  {id:'b',status:'response',date:'2026-03-01'},
+]).id, 'b', 'latest: same date, both period → later-appended wins');
+eq(latestUpdateOf([
+  {id:'a',status:'sent',date:'2026-03-01'},
+  {id:'b',status:'approved',date:'2026-03-01'},
+]).id, 'b', 'latest: same date, both milestone → later-appended wins');
+eq(latestUpdateOf([
+  {id:'a',status:'sent',date:'2026-03-01'},
+  {id:'b',status:'progress',date:'2026-03-01'},
+  {id:'c',status:'approved',date:'2026-03-01'},
+]).id, 'b', 'latest: same date → period still beats milestone regardless of position');
 
 // suggestedStatusFor — the NEXT step, never a repeat of the current one
 eq(suggestedStatusFor([]), 'progress', 'suggest: no events → progress');
