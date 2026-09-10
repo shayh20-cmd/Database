@@ -2001,6 +2001,8 @@ function QuickUpdatePills({events,onAdd,includeMissing=false,compact=false}){
       const m=EV_STATUSES[id];
       const on=id===suggested;
       return/*#__PURE__*/React.createElement("button",{key:id,type:'button',title:m.label,
+        'aria-label':on?`${m.label} — מוצע`:m.label,
+        // stopPropagation is redundant here (tender panel already stops it at its root) but needed by upcoming callers: a cell popover and the task detail panel
         onClick:e=>{e.stopPropagation();onAdd(id);},
         style:{border:`${on?2:1}px solid ${m.border}`,background:on?m.bg:'transparent',color:m.color,
           borderRadius:999,padding:compact?'3px 8px':'4px 10px',cursor:'pointer',fontSize:compact?11:12,
