@@ -65,6 +65,39 @@ function routeCapture({status, taskId, kind}){
   if (!status) return 'task';
   return taskId ? 'update' : 'inbox';
 }
+/* A sheet belongs to a track when its `track` equals the track's `trackValue`;
+   both are null for the ongoing track. stageOrder is used only for ordering
+   because it is incomplete in the real data — the tender track lists one sheet
+   but owns two. */
+function sameTrack(a, b){ return (a == null ? null : a) === (b == null ? null : b); }
+function listSheetsOfTrack(doc, trackId){
+  const t = ((doc||{}).tracks||[]).find(x => x.id === trackId);
+  if (!t) return [];
+  const order = t.stageOrder || [];
+  const rank = id => { const i = order.indexOf(id); return i < 0 ? 999 : i; };
+  return ((doc||{}).sheets||[])
+    .filter(s => s.type === 'list' && sameTrack(s.track, t.trackValue))
+    .sort((a,b) => rank(a.id) - rank(b.id));
+}
+function defaultLocation(doc){
+  // a loose task belongs in the no-track list sheet — "משימות שוטפות"
+  const sheet = ((doc||{}).sheets||[]).find(s => s.type === 'list' && sameTrack(s.track, null));
+  const tracks = (doc||{}).tracks || [];
+  const track = tracks.find(t => sameTrack(t.trackValue, null)) || tracks[0];
+  return { trackId: track ? track.id : null, stageId: sheet ? sheet.id : null };
+}
+function locateTask(doc, taskId){
+  if (!taskId) return null;
+  const sheets = (doc||{}).sheets || [];
+  for (const s of sheets) {
+    if ((s.tasks||[]).some(t => t.id === taskId)) {
+      const track = ((doc||{}).tracks||[]).find(t => sameTrack(t.trackValue, s.track));
+      return { trackId: track ? track.id : null, stageId: s.id,
+               stageName: s.name || '', trackLabel: track ? (track.label||'') : '' };
+    }
+  }
+  return null;
+}
 // ---- end mirrored logic ----
 
 let failures = 0;
@@ -130,6 +163,48 @@ eq(routeCapture({status:null, taskId:null}), 'task', 'route: no status → new t
 eq(routeCapture({status:null, taskId:'1'}), 'task', 'route: no status still means a new task');
 eq(routeCapture({status:'sent', taskId:'1', kind:'principle'}), 'principle', 'route: explicit kind wins');
 eq(routeCapture({status:null, taskId:null, kind:'update'}), 'inbox', 'route: forced update without a task → inbox');
+
+
+// ---- location helpers ----
+// mirrors the real shape: ongoing carries trackValue null and owns the no-track sheet
+const DOC = {
+  tracks: [
+    {id:'ongoing',   trackValue:null,        label:'מסלול תכנון', stageOrder:['s1']},
+    {id:'licensing', trackValue:'licensing', label:'מסלול רישוי', stageOrder:['s3','s2']},
+    {id:'tender',    trackValue:'tender',    label:'מסלול מכרז',  stageOrder:[]},
+    {id:'execution', trackValue:'execution', label:'מסלול ביצוע', stageOrder:[]},
+  ],
+  sheets: [
+    {id:'s0', type:'dashboard', track:'licensing', name:'דאשבורד'},
+    {id:'s1', type:'list', track:null,        name:'משימות שוטפות', tasks:[{id:'t1',title:'א'}]},
+    {id:'s2', type:'list', track:'licensing',  name:'תיק מידע',     tasks:[{id:'t2',title:'ב'}]},
+    {id:'s3', type:'list', track:'licensing',  name:'תנאים מקדימים',tasks:[]},
+    {id:'s4', type:'tender', track:'tender',   name:'מכרז'},
+    {id:'s5', type:'list', track:'tender',     name:'משימות',       tasks:[{id:'t3',title:'ג'}]},
+  ],
+};
+
+eq(listSheetsOfTrack(DOC,'ongoing').length, 1, 'stages: ongoing has one list sheet');
+eq(listSheetsOfTrack(DOC,'ongoing')[0].id, 's1', 'stages: the no-track sheet belongs to ongoing');
+eq(listSheetsOfTrack(DOC,'licensing').map(s=>s.id).join(','), 's3,s2', 'stages: stageOrder decides order');
+// the tender track lists no stageOrder but owns a list sheet — it must still be offered
+eq(listSheetsOfTrack(DOC,'tender').map(s=>s.id).join(','), 's5', 'stages: found by track, not by stageOrder');
+eq(listSheetsOfTrack(DOC,'tender').length, 1, 'stages: the tender-type sheet is not a task list');
+eq(listSheetsOfTrack(DOC,'execution').length, 0, 'stages: a track with no list sheet has none');
+eq(listSheetsOfTrack(DOC,'nope').length, 0, 'stages: unknown track → none');
+eq(listSheetsOfTrack({},'ongoing').length, 0, 'stages: empty doc → none');
+
+eq(defaultLocation(DOC).trackId, 'ongoing', 'default: lands on the ongoing track');
+eq(defaultLocation(DOC).stageId, 's1', 'default: lands on משימות שוטפות');
+eq(defaultLocation({}).stageId, null, 'default: empty doc → nothing');
+
+eq((locateTask(DOC,'t2')||{}).stageId, 's2', 'locate: finds the task’s sheet');
+eq((locateTask(DOC,'t2')||{}).trackId, 'licensing', 'locate: reports its track');
+eq((locateTask(DOC,'t2')||{}).stageName, 'תיק מידע', 'locate: reports the stage name');
+eq((locateTask(DOC,'t1')||{}).trackId, 'ongoing', 'locate: null track resolves to ongoing');
+eq((locateTask(DOC,'t3')||{}).stageId, 's5', 'locate: finds a task in the tender track');
+eq(locateTask(DOC,'nope'), null, 'locate: unknown task → null');
+eq(locateTask(DOC,null), null, 'locate: no task → null');
 
 if (failures) { console.error(`\n${failures} FAILURES`); process.exit(1); }
 console.log('\nALL PASS');

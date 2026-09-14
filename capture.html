@@ -67,11 +67,14 @@ button{font-family:inherit; cursor:pointer}
 }
 .task[aria-pressed="true"]{border-color:var(--blue); background:#EEF0FF; color:var(--blue); font-weight:600}
 
-#where{font-size:12px; color:var(--text-2)}
-#discSel{
+#where{font-size:11px; color:var(--text-3)}
+#where:empty{display:none}
+.sel{
   font-family:inherit; font-size:12px; padding:3px 7px; border-radius:6px;
   border:1px solid var(--border-strong); background:var(--surface); color:var(--text);
+  max-width:100%; min-width:0;
 }
+.sel:disabled{color:var(--text-3); background:var(--bg)}
 
 footer{
   display:flex; align-items:center; justify-content:space-between; gap:10px;
@@ -116,9 +119,12 @@ footer .keys{font-size:11px; color:var(--text-3)}
     <div class="section">
       <div class="label">לאן</div>
       <div class="row">
-        <span id="where">—</span>
-        <select id="discSel" aria-label="תחום"></select>
+        <select class="sel" id="projSel" aria-label="פרויקט"></select>
+        <select class="sel" id="trackSel" aria-label="מסלול"></select>
+        <select class="sel" id="stageSel" aria-label="שלב"></select>
+        <select class="sel" id="discSel" aria-label="תחום"></select>
       </div>
+      <span id="where"></span>
     </div>
 
     <div class="section" id="matchSec" hidden>
@@ -153,7 +159,7 @@ footer .keys{font-size:11px; color:var(--text-3)}
 
 <script>
 'use strict';
-var API = '/api/project-hub-01';
+/* the project is chosen at runtime — see apiFor() */
 
 /* ---- mirrored logic (copy in tests/capture-logic.test.js) ---- */
 /* Hints are matched against whole words, never raw substrings: "אש" sits inside
@@ -219,6 +225,40 @@ function routeCapture({status, taskId, kind}){
   if (!status) return 'task';
   return taskId ? 'update' : 'inbox';
 }
+
+/* A sheet belongs to a track when its `track` equals the track's `trackValue`;
+   both are null for the ongoing track. stageOrder is used only for ordering
+   because it is incomplete in the real data — the tender track lists one sheet
+   but owns two. */
+function sameTrack(a, b){ return (a == null ? null : a) === (b == null ? null : b); }
+function listSheetsOfTrack(doc, trackId){
+  const t = ((doc||{}).tracks||[]).find(x => x.id === trackId);
+  if (!t) return [];
+  const order = t.stageOrder || [];
+  const rank = id => { const i = order.indexOf(id); return i < 0 ? 999 : i; };
+  return ((doc||{}).sheets||[])
+    .filter(s => s.type === 'list' && sameTrack(s.track, t.trackValue))
+    .sort((a,b) => rank(a.id) - rank(b.id));
+}
+function defaultLocation(doc){
+  // a loose task belongs in the no-track list sheet — "משימות שוטפות"
+  const sheet = ((doc||{}).sheets||[]).find(s => s.type === 'list' && sameTrack(s.track, null));
+  const tracks = (doc||{}).tracks || [];
+  const track = tracks.find(t => sameTrack(t.trackValue, null)) || tracks[0];
+  return { trackId: track ? track.id : null, stageId: sheet ? sheet.id : null };
+}
+function locateTask(doc, taskId){
+  if (!taskId) return null;
+  const sheets = (doc||{}).sheets || [];
+  for (const s of sheets) {
+    if ((s.tasks||[]).some(t => t.id === taskId)) {
+      const track = ((doc||{}).tracks||[]).find(t => sameTrack(t.trackValue, s.track));
+      return { trackId: track ? track.id : null, stageId: s.id,
+               stageName: s.name || '', trackLabel: track ? (track.label||'') : '' };
+    }
+  }
+  return null;
+}
 /* ---- end mirrored logic ---- */
 
 /* Matches the app: uid() and todayISO() in project_hub_01.html.
@@ -242,33 +282,82 @@ var KINDS = [
   {id:'principle', label:'עקרון תכנון'},
 ];
 
-var state = { text:'', disc:'', discTouched:false, taskId:null, status:null, kind:null, matches:[] };
-var ctx = { projectName:'', disciplines:[], tasks:[], ready:false };
+/* Mirrors DISCIPLINES in both app files, which read `data.disciplines||DISCIPLINES`. */
+var DISCIPLINES_FALLBACK = ['ARCH','ENVI','LAND','TRAF','PM','SAFE','STRC','HVAC',
+                            'ELEC','PLUM','HYDR','ACSS','GR','LIFT','TNDR','AGRO']
+                           .map(function(id){ return {id:id, label:id}; });
+
+var state = { text:'', disc:'', discTouched:false, taskId:null, status:null, kind:null, matches:[],
+              projectId:null, trackId:null, stageId:null };
+var ctx = { projects:[], doc:null, projectName:'', disciplines:[], tasks:[], ready:false };
+
+function apiFor(projectId){ return '/api/' + projectId; }
 
 var $ = function(id){ return document.getElementById(id); };
 function showMsg(t){ var m=$('msg'); if(!t){ m.hidden=true; m.textContent=''; return; } m.textContent=t; m.hidden=false; }
 
 /* ---------- load ---------- */
 async function load(){
-  var d;
   try {
-    var res = await fetch(API);
+    var res = await fetch('/api/projects');
     if (!res.ok) throw new Error('HTTP '+res.status);
-    d = await res.json();
+    ctx.projects = await res.json();
   } catch (e) {
     showMsg('השרת לא פעיל — אפשר לכתוב, השמירה תנסה שוב.');
     $('proj').textContent = 'אין חיבור';
     return;
   }
+  if (!ctx.projects.length) { showMsg('לא נמצאו פרויקטים'); return; }
+  fillSelect($('projSel'), ctx.projects.map(function(p){ return [p.id, p.name]; }));
+  await loadProject(ctx.projects[0].id);
+}
+
+async function loadProject(projectId){
+  var d;
+  try {
+    var res = await fetch(apiFor(projectId));
+    if (!res.ok) throw new Error('HTTP '+res.status);
+    d = await res.json();
+  } catch (e) {
+    showMsg('לא ניתן לטעון את הפרויקט');
+    return;
+  }
+  ctx.doc = d;
   ctx.projectName = d.projectName || '';
-  ctx.disciplines = d.disciplines || [];
-  var sheet = (d.sheets||[]).find(function(s){ return s.type==='list' && s.track==null; });
-  ctx.tasks = ((sheet||{}).tasks||[]).filter(function(t){ return !t.done && t.statusId!=='C'; });
+  // both apps read `data.disciplines||DISCIPLINES`, and ספריית לוד defines none,
+  // so the window has to fall back the same way or it would offer nothing there
+  ctx.disciplines = (d.disciplines && d.disciplines.length) ? d.disciplines : DISCIPLINES_FALLBACK;
+  // every open task in the project, not just the default sheet — you should be able
+  // to attach an update to a task wherever it lives
+  ctx.tasks = (d.sheets||[])
+    .filter(function(s){ return s.type === 'list'; })
+    .reduce(function(acc, s){
+      return acc.concat(((s.tasks||[]).filter(function(t){ return !t.done && t.statusId !== 'C'; })));
+    }, []);
   ctx.ready = true;
+
+  state.projectId = projectId;
+  var loc = defaultLocation(d);
+  state.trackId = loc.trackId;
+  state.stageId = loc.stageId;
+  state.taskId = null;
+  state.discTouched = false;
+  state.disc = guessDiscipline(state.text, ctx.disciplines);
+
   $('proj').textContent = ctx.projectName;
-  state.disc = guessDiscipline('', ctx.disciplines);
+  $('projSel').value = projectId;
   renderDisc();
   render();
+}
+
+function fillSelect(sel, pairs){
+  sel.innerHTML = '';
+  pairs.forEach(function(p){
+    var o = document.createElement('option');
+    o.value = p[0]; o.textContent = p[1];
+    sel.appendChild(o);
+  });
+  sel.disabled = pairs.length === 0;
 }
 
 function discLabel(id){
@@ -277,25 +366,29 @@ function discLabel(id){
 }
 
 function renderDisc(){
-  var sel = $('discSel');
-  sel.innerHTML = '';
-  ctx.disciplines.forEach(function(d){
-    var o = document.createElement('option');
-    o.value = d.id;                     // store the id
-    o.textContent = d.label || d.id;    // show the label — they differ for some
-    sel.appendChild(o);
-  });
-  sel.value = state.disc;
+  // value is the id, text is the label — they differ for some (66m6g68 shows as SUST)
+  fillSelect($('discSel'), ctx.disciplines.map(function(d){ return [d.id, d.label || d.id]; }));
+  $('discSel').value = state.disc || '';
 }
 
 /* ---------- render ---------- */
 function render(){
   var route = routeCapture(state);
 
-  $('where').textContent = ctx.projectName
-    ? ctx.projectName + (route==='inbox' ? ' · ממתין לשיוך' : '')
-    : '—';
-  $('discSel').value = state.disc;
+  // track / stage pickers
+  fillSelect($('trackSel'), ((ctx.doc||{}).tracks||[]).map(function(t){ return [t.id, t.label||t.id]; }));
+  $('trackSel').value = state.trackId || '';
+  var stages = listSheetsOfTrack(ctx.doc, state.trackId);
+  fillSelect($('stageSel'), stages.map(function(s){ return [s.id, s.name||'(ללא שם)']; }));
+  if (!stages.some(function(s){ return s.id === state.stageId; })) {
+    state.stageId = stages.length ? stages[0].id : null;
+  }
+  $('stageSel').value = state.stageId || '';
+  // a track with no list sheet cannot receive a new task
+  var canPlace = stages.length > 0;
+  $('stageSel').disabled = !canPlace;
+
+  $('discSel').value = state.disc || '';
 
   // matching tasks
   state.matches = matchTasks(state.text, ctx.tasks);
@@ -313,12 +406,24 @@ function render(){
     b.setAttribute('aria-pressed', String(state.taskId === t.id));
     b.textContent = t.title || '(ללא כותרת)';
     b.onclick = function(){
-      if (state.taskId === t.id) { state.taskId = null; }
-      else { state.taskId = t.id; if (t.discipline) { state.disc = t.discipline; state.discTouched = true; } }
+      if (state.taskId === t.id) {
+        state.taskId = null;
+        var back = defaultLocation(ctx.doc);
+        state.trackId = back.trackId; state.stageId = back.stageId;
+      } else {
+        state.taskId = t.id;
+        if (t.discipline) { state.disc = t.discipline; state.discTouched = true; }
+        // the task's own location wins — this is how you see where it sits
+        var loc = locateTask(ctx.doc, t.id);
+        if (loc) { state.trackId = loc.trackId; state.stageId = loc.stageId; }
+      }
       render();
     };
     box.appendChild(b);
   });
+  // with a task chosen, the location is the task's, not a free choice
+  $('trackSel').disabled = !!state.taskId;
+  $('stageSel').disabled = !!state.taskId || !canPlace;
 
   // status pills
   var pills = $('pills');
@@ -349,7 +454,22 @@ function render(){
     kinds.appendChild(b);
   });
 
-  $('save').disabled = !state.text.trim();
+  // say plainly where this is going to land
+  var stageName = (stages.find(function(s){ return s.id === state.stageId; })||{}).name || '';
+  var trackLabel = (((ctx.doc||{}).tracks||[]).find(function(t){ return t.id === state.trackId; })||{}).label || '';
+  var at = [trackLabel, stageName].filter(Boolean).join(' · ');
+  var where = '';
+  if (route === 'update')         where = at ? 'עדכון למשימה ב־' + at : 'עדכון למשימה';
+  else if (route === 'task')      where = !canPlace ? 'אין שלב במסלול הזה — בחר מסלול אחר'
+                                          // a chosen task with no status still creates a new task —
+                                          // say so, or the selection looks like it did something else
+                                          : state.taskId ? 'משימה חדשה ב־' + at + ' — בחר סטטוס כדי לעדכן את המשימה'
+                                          : 'משימה חדשה ב־' + at;
+  else if (route === 'principle') where = at ? 'עקרון תכנון, משויך ל־' + at : 'עקרון תכנון';
+  else                            where = 'ממתין לשיוך — יופיע במסך מבט על';
+  $('where').textContent = where;
+
+  $('save').disabled = !state.text.trim() || (route === 'task' && !canPlace);
 }
 
 /* ---------- save ---------- */
@@ -376,8 +496,8 @@ function applyCapture(d, route){
       })});
     });
   } else if (route === 'task') {
-    var target = (d.sheets||[]).find(function(s){ return s.type==='list' && s.track==null; });
-    if (!target) throw new Error('לא נמצאה רשימת משימות שוטפות');
+    var target = (d.sheets||[]).find(function(s){ return s.id === state.stageId; });
+    if (!target) throw new Error('לא נמצא השלב שנבחר');
     var groupId = ((target.groups||[])[0]||{}).id || '';
     target.tasks = (target.tasks||[]).concat([{
       id:uid(), groupId:groupId, title:text, statusId:'N', priority:'',
@@ -385,13 +505,16 @@ function applyCapture(d, route){
       done:false, subtasks:[], fieldValues:{}, events:[], tracks:[], assigneeId:''
     }]);
   } else if (route === 'principle') {
+    // stageSheetId is how the app already ties a principle to a stage
     d.standalonePrinciples = (d.standalonePrinciples||[]).concat([{
-      id:uid(), description:text, discipline:state.disc||'', createdAt:todayISO()
+      id:uid(), description:text, discipline:state.disc||'', createdAt:todayISO(),
+      stageSheetId:state.stageId || undefined
     }]);
   } else {
     d.inbox = (d.inbox||[]).concat([{
       id:uid(), date:todayISO(), text:text, kind:'update',
-      status:state.status||null, discipline:state.disc||''
+      status:state.status||null, discipline:state.disc||'',
+      stageSheetId:state.stageId || undefined
     }]);
   }
   return d;
@@ -403,12 +526,13 @@ async function doSave(){
   saving = true; showMsg('');
   var route = routeCapture(state);
   try {
-    var res = await fetch(API);
+    var api = apiFor(state.projectId);
+    var res = await fetch(api);
     if (!res.ok) throw new Error('HTTP '+res.status);
     var d = await res.json();
     d = applyCapture(d, route);
     d._ts = Date.now();   // lets an open app tab notice this write
-    var put = await fetch(API, {
+    var put = await fetch(api, {
       method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d)
     });
     if (!put.ok) throw new Error('HTTP '+put.status);
@@ -447,6 +571,17 @@ $('text').addEventListener('keydown', function(e){
 });
 $('discSel').addEventListener('change', function(e){
   state.disc = e.target.value; state.discTouched = true; render();
+});
+$('projSel').addEventListener('change', function(e){
+  loadProject(e.target.value);   // a different project means different tasks and stages
+});
+$('trackSel').addEventListener('change', function(e){
+  state.trackId = e.target.value;
+  state.stageId = null;          // render() falls back to the track's first stage
+  render();
+});
+$('stageSel').addEventListener('change', function(e){
+  state.stageId = e.target.value; render();
 });
 $('save').addEventListener('click', doSave);
 document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeWindow(); });

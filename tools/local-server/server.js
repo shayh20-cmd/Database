@@ -95,8 +95,27 @@ async function handleApi(req, res, appName) {
 
 const API_ROUTE = new RegExp('^/api/(' + Object.keys(APPS).join('|') + ')$');
 
+// Apps that hold a project the capture window may write into. Listed rather than
+// hardcoded in capture.html so a new project appears without editing that page.
+const PROJECT_APPS = ['project-hub-01', 'project-hub'];
+
+function handleProjectList(res) {
+  const list = PROJECT_APPS
+    .map(id => {
+      const d = readJson(APPS[id]);
+      if (!d || !d.projectName) return null;
+      return { id, name: d.projectName };
+    })
+    .filter(Boolean);
+  sendJson(res, 200, list);
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
+  if (url.pathname === '/api/projects' && req.method === 'GET') {
+    handleProjectList(res);
+    return;
+  }
   const apiMatch = url.pathname.match(API_ROUTE);
   if (apiMatch) {
     handleApi(req, res, apiMatch[1]).catch(e => sendJson(res, 500, { error: e.message }));
