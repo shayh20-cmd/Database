@@ -75,6 +75,7 @@ button{font-family:inherit; cursor:pointer}
 #mailChip .m b{font-weight:600; max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 #mailChip .m span{cursor:pointer; color:var(--text-3)}
 body.drop{outline:3px dashed var(--blue); outline-offset:-6px}
+.thumb{max-height:90px; max-width:100%; border-radius:7px; border:1px solid var(--border-strong)}
 .sel{
   font-family:inherit; font-size:12px; padding:3px 7px; border-radius:6px;
   border:1px solid var(--border-strong); background:var(--surface); color:var(--text);
@@ -140,6 +141,11 @@ footer .keys{font-size:11px; color:var(--text-3)}
         <button class="tool" id="mailFile" type="button">📎 קובץ הודעה</button>
       </div>
       <span id="mailChip"></span>
+    </div>
+
+    <div class="section" id="shotSec" hidden>
+      <div class="label">צילום מסך</div>
+      <div class="row" id="shotBox"></div>
     </div>
 
     <div class="section" id="matchSec" hidden>
@@ -302,7 +308,7 @@ var DISCIPLINES_FALLBACK = ['ARCH','ENVI','LAND','TRAF','PM','SAFE','STRC','HVAC
                             'ELEC','PLUM','HYDR','ACSS','GR','LIFT','TNDR','AGRO']
                            .map(function(id){ return {id:id, label:id}; });
 
-var state = { text:'', disc:'', discTouched:false, taskId:null, status:null, kind:null, matches:[],
+var state = { text:'', disc:'', discTouched:false, taskId:null, status:null, kind:null, matches:[], shot:null,
               projectId:null, trackId:null, stageId:null, mail:null };
 var ctx = { projects:[], doc:null, projectName:'', disciplines:[], tasks:[], ready:false };
 
@@ -500,6 +506,10 @@ function summary(route){
 
 function applyCapture(d, route){
   var text = state.text.trim();
+  var shot = state.shot ? {url:state.shot.url} : undefined;
+  /* the image belongs in the owning task description - that is where it is looked at */
+  var addShotTo = function(t){ return !shot ? t : Object.assign({}, t, {
+    description: (t.description||'') + imgHtml(shot.url) }); };
   var mail = mailIsEmpty(state.mail) ? undefined : {
     url: state.mail.url || undefined,
     id: state.mail.id || undefined,
@@ -513,7 +523,7 @@ function applyCapture(d, route){
         if (t.id !== state.taskId) return t;
         var rec = { id:uid(), status:state.status||'progress', assignee:state.disc||'',
                     date:todayISO(), title:'', note:text, mail:mail };
-        return Object.assign({}, t, { events: (t.events||[]).concat([rec]) });
+        return addShotTo(Object.assign({}, t, { events: (t.events||[]).concat([rec]) }));
       })});
     });
   } else if (route === 'task') {
@@ -523,19 +533,20 @@ function applyCapture(d, route){
     target.tasks = (target.tasks||[]).concat([{
       id:uid(), groupId:groupId, title:text, statusId:'N', priority:'',
       discipline:state.disc||'', startDate:'', dueDate:'', comment:'',
+      description: shot ? imgHtml(shot.url) : '',
       done:false, subtasks:[], fieldValues:{}, events:[], tracks:[], assigneeId:'', mail:mail
     }]);
   } else if (route === 'principle') {
     // stageSheetId is how the app already ties a principle to a stage
     d.standalonePrinciples = (d.standalonePrinciples||[]).concat([{
       id:uid(), description:text, discipline:state.disc||'', createdAt:todayISO(),
-      stageSheetId:state.stageId || undefined, mail:mail
+      stageSheetId:state.stageId || undefined, mail:mail, shot:shot
     }]);
   } else {
     d.inbox = (d.inbox||[]).concat([{
       id:uid(), date:todayISO(), text:text, kind:'update',
       status:state.status||null, discipline:state.disc||'',
-      stageSheetId:state.stageId || undefined, mail:mail
+      stageSheetId:state.stageId || undefined, mail:mail, shot:shot
     }]);
   }
   return d;
@@ -607,6 +618,56 @@ $('stageSel').addEventListener('change', function(e){
 $('save').addEventListener('click', doSave);
 document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeWindow(); });
 
+
+
+/* ---------- screenshot ---------- */
+/* Win+Shift+S then Ctrl+V. The image is uploaded straight away so the capture
+   carries a path, never base64 — same store the task description uses. */
+function imgHtml(url){
+  return '<div class="tds-img-wrap" style="width: 100%;"><img src="' + url +
+         '" style="max-width: 100%; width: 100%; height: auto;"></div>';
+}
+async function uploadShot(blob){
+  const res = await fetch('/api/upload/' + state.projectId,
+                          {method:'POST', headers:{'Content-Type':blob.type||'image/png'}, body:blob});
+  if (!res.ok) throw new Error('HTTP '+res.status);
+  const j = await res.json();
+  if (!j || !j.url) throw new Error('no url');
+  return j.url;
+}
+function renderShot(){
+  const box = $('shotBox');
+  box.innerHTML = '';
+  if (!state.shot) { $('shotSec').hidden = true; return; }
+  $('shotSec').hidden = false;
+  const img = document.createElement('img');
+  img.src = state.shot.url; img.className = 'thumb';
+  const x = document.createElement('button');
+  x.type = 'button'; x.className = 'tool'; x.textContent = 'הסר';
+  x.onclick = () => { state.shot = null; renderShot(); render(); };
+  box.appendChild(img); box.appendChild(x);
+}
+async function takeShot(blob){
+  showMsg('');
+  try {
+    const url = await uploadShot(blob);
+    state.shot = { url: url };
+    renderShot(); render();
+  } catch (e) {
+    showMsg('הצילום לא נשמר: ' + (e.message||e));
+  }
+}
+/* listens on the document so it works wherever the caret is */
+document.addEventListener('paste', function(e){
+  const items = (e.clipboardData && e.clipboardData.items) || [];
+  for (const it of items) {
+    if (it.type && it.type.indexOf('image/') === 0) {
+      e.preventDefault();
+      takeShot(it.getAsFile());
+      return;
+    }
+  }
+});
 
 /* ---------- linking a mail ---------- */
 /* Two sources, because Outlook is used both ways: a permalink copied from Outlook
