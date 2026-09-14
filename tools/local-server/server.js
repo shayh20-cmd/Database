@@ -54,8 +54,9 @@ function sendJson(res, status, body) {
   res.end(json);
 }
 
-function readRequestBody(req) {
-  const MAX_BYTES = 20 * 1024 * 1024;
+const MAX_BYTES = 20 * 1024 * 1024;
+
+function readRequestBuffer(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
@@ -68,9 +69,41 @@ function readRequestBody(req) {
       }
       chunks.push(chunk);
     });
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
+}
+
+async function readRequestBody(req) {
+  return (await readRequestBuffer(req)).toString('utf8');
+}
+
+// Images pasted into a task description are stored as files, not inlined as base64
+// data URLs — the whole document is rewritten on every save, so one screenshot
+// inlined would dwarf the project data.
+const ATTACH_DIR = path.join(DATA_DIR, 'attachments');
+const IMAGE_EXT = {
+  'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif',
+  'image/webp': 'webp', 'image/svg+xml': 'svg'
+};
+
+async function handleUpload(req, res, appName) {
+  if (req.method !== 'POST') { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+  const type = (req.headers['content-type'] || '').split(';')[0].trim();
+  const ext = IMAGE_EXT[type];
+  if (!ext) { sendJson(res, 415, { error: 'Unsupported image type: ' + type }); return; }
+  try {
+    const buf = await readRequestBuffer(req);
+    if (!buf.length) { sendJson(res, 400, { error: 'Empty body' }); return; }
+    const dir = path.join(ATTACH_DIR, appName);
+    fs.mkdirSync(dir, { recursive: true });
+    const name = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8) + '.' + ext;
+    fs.writeFileSync(path.join(dir, name), buf);
+    // served by the static handler, since DATA_DIR sits under STATIC_ROOT
+    sendJson(res, 200, { ok: true, url: '/data/attachments/' + appName + '/' + name, bytes: buf.length });
+  } catch (e) {
+    sendJson(res, 500, { ok: false, error: e.message });
+  }
 }
 
 async function handleApi(req, res, appName) {
@@ -94,6 +127,7 @@ async function handleApi(req, res, appName) {
 }
 
 const API_ROUTE = new RegExp('^/api/(' + Object.keys(APPS).join('|') + ')$');
+const UPLOAD_ROUTE = new RegExp('^/api/upload/(' + Object.keys(APPS).join('|') + ')$');
 
 // Apps that hold a project the capture window may write into. Listed rather than
 // hardcoded in capture.html so a new project appears without editing that page.
@@ -114,6 +148,11 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   if (url.pathname === '/api/projects' && req.method === 'GET') {
     handleProjectList(res);
+    return;
+  }
+  const upMatch = url.pathname.match(UPLOAD_ROUTE);
+  if (upMatch) {
+    handleUpload(req, res, upMatch[1]).catch(e => sendJson(res, 500, { error: e.message }));
     return;
   }
   const apiMatch = url.pathname.match(API_ROUTE);
