@@ -84,7 +84,13 @@ body.drop{outline:3px dashed var(--blue); outline-offset:-6px}
 .ann-btn{border:1px solid var(--border-strong); background:var(--surface); color:var(--text-2); border-radius:6px; padding:3px 9px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit}
 .ann-btn.active{border-color:var(--blue); color:var(--blue); background:#EEF0FF}
 .ann-size{font-family:inherit; font-size:11px; padding:2px 4px; border-radius:5px; border:1px solid var(--border-strong); background:var(--surface); color:var(--text)}
-.ann-canvas-wrap{position:relative; display:inline-block; max-width:100%; line-height:0; flex-basis:100%}
+/* No flex-basis here on purpose: the wrap must size to the <img> it contains, never
+   wider. Forcing it to stretch (as it once did) let the absolutely-positioned canvas —
+   width:100% of the wrap — balloon past the visible picture whenever the image was
+   narrower than the row, so mouse coordinates (measured against the canvas box) no
+   longer matched the bitmap they were drawn onto: a real, confirmed offset bug.
+   .ann-bar's own flex-basis:100% already pushes this onto its own line. */
+.ann-canvas-wrap{position:relative; display:inline-block; max-width:100%; line-height:0}
 .ann-canvas-wrap img{max-width:100%; display:block; border-radius:7px}
 .ann-canvas-wrap canvas{position:absolute; inset:0; width:100%; height:100%; cursor:crosshair}
 .sel{
@@ -769,8 +775,15 @@ function renderAnnEditor(box){
   if (img.complete) sizeCanvas(); else img.onload = sizeCanvas;
 
   const posFor = e => {
+    // Scaled by the real ratio between the canvas's drawing resolution (canvas.width)
+    // and its rendered CSS size, rather than assuming the two coincide — a layout bug
+    // once stretched the rendered box past the bitmap and every mark landed offset
+    // from the cursor. This keeps mouse position and pixel position correct even if
+    // that ever happens again.
     const r = canvas.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
+    const sx = r.width ? canvas.width / r.width : 1;
+    const sy = r.height ? canvas.height / r.height : 1;
+    return { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy };
   };
   canvas.addEventListener('mousedown', function(e){
     if (annMode !== 'draw' && annMode !== 'highlight') return;
