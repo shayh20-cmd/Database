@@ -121,6 +121,7 @@ footer .keys{font-size:11px; color:var(--text-3)}
     <div class="row">
       <button class="tool" id="dictate" type="button">🎙 הכתבה</button>
       <button class="tool" id="paste" type="button">📋 הדבק מהמייל</button>
+      <button class="tool" id="snip" type="button">📷 צלם אזור</button>
     </div>
 
     <div class="section">
@@ -668,6 +669,59 @@ document.addEventListener('paste', function(e){
     }
   }
 });
+
+
+/* The Windows region snip — the same one Win+Shift+S opens. It leaves the image on
+   the clipboard, so the picture is collected when this window gets focus back. */
+var awaitingSnip = false;
+async function clipboardImage(){
+  try {
+    const items = await navigator.clipboard.read();
+    for (const it of items) {
+      const type = (it.types||[]).find(t => t.indexOf('image/') === 0);
+      if (type) return await it.getType(type);
+    }
+  } catch (e) {}
+  return null;
+}
+$('snip').addEventListener('click', async function(){
+  showMsg('');
+  try {
+    const res = await fetch('/api/snip', {method:'POST'});
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    awaitingSnip = true;
+  } catch (e) {
+    showMsg('לא ניתן לפתוח את הגזירה — אפשר Win+Shift+S ואז Ctrl+V');
+  }
+});
+window.addEventListener('focus', async function(){
+  if (!awaitingSnip) return;
+  awaitingSnip = false;
+  await new Promise(r => setTimeout(r, 300));   // let Windows finish writing the clipboard
+  const blob = await clipboardImage();
+  if (blob) { takeShot(blob); return; }
+  /* Reading the clipboard outside a click is often refused, so offer a button —
+     a click counts as the gesture the browser wants. */
+  offerCollect();
+});
+function offerCollect(){
+  showMsg('');
+  const box = $('shotBox');
+  $('shotSec').hidden = false;
+  box.innerHTML = '';
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'tool';
+  b.textContent = '📥 הוסף את הצילום שגזרת';
+  b.onclick = async () => {
+    const blob = await clipboardImage();
+    if (blob) takeShot(blob);
+    else { showMsg('הלוח ריק — אפשר להדביק עם Ctrl+V'); renderShot(); }
+  };
+  const hint = document.createElement('span');
+  hint.style.cssText = 'font-size:11px;color:var(--text-3)';
+  hint.textContent = 'או Ctrl+V';
+  box.appendChild(b); box.appendChild(hint);
+}
 
 /* ---------- linking a mail ---------- */
 /* Two sources, because Outlook is used both ways: a permalink copied from Outlook

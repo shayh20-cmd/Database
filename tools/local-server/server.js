@@ -154,8 +154,22 @@ function handleProjectList(res) {
   sendJson(res, 200, list);
 }
 
+/* A web page cannot start the Windows region snip, so the button asks the server to.
+   The launched string is a fixed protocol with nothing from the request in it. */
+function handleSnip(req, res) {
+  if (req.method !== 'POST') { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+  if (process.platform !== 'win32') { sendJson(res, 501, { ok: false, error: 'Windows only' }); return; }
+  try {
+    require('child_process').spawn('cmd', ['/c', 'start', '', 'ms-screenclip:'], { detached: true, stdio: 'ignore' }).unref();
+    sendJson(res, 200, { ok: true });
+  } catch (e) {
+    sendJson(res, 500, { ok: false, error: e.message });
+  }
+}
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
+  if (url.pathname === '/api/snip') { handleSnip(req, res); return; }
   if (url.pathname === '/api/projects' && req.method === 'GET') {
     handleProjectList(res);
     return;
