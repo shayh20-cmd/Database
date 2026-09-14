@@ -502,6 +502,7 @@ function applyCapture(d, route){
   var text = state.text.trim();
   var mail = mailIsEmpty(state.mail) ? undefined : {
     url: state.mail.url || undefined,
+    id: state.mail.id || undefined,
     path: state.mail.path || undefined,
     name: state.mail.name || undefined
   };
@@ -671,12 +672,19 @@ function firstUrl(str){
   const m = String(str).match(/https?:\/\/[^\s"'<>\)]+/);
   return m ? m[0] : '';
 }
-function digForUrl(dump){
+/* Outlook Web's documented deep link for an Exchange item id. The in-app route
+   (/mail/id/<id>) is not a real entry point — it silently lands on the mailbox
+   instead of the message, which is what a first guess here produced. */
+function owaLinkFor(id){
+  return 'https://outlook.office.com/owa/?ItemID=' + encodeURIComponent(id) +
+         '&exvsurl=1&viewmodel=ReadMessageItem';
+}
+function digMail(dump){
+  // a real link in the payload always beats one we assemble — Graph calls it webLink
   for (const k of Object.keys(dump)) {
     const direct = firstUrl(dump[k]);
-    if (direct) return direct;
+    if (direct) return { url: direct };
   }
-  // an Outlook item id with no URL around it can still be turned into a deep link
   for (const k of Object.keys(dump)) {
     const raw = dump[k];
     if (!raw) continue;
@@ -699,13 +707,16 @@ function digForUrl(dump){
       const m = String(raw).match(/A[QA][A-Za-z0-9+/=_-]{40,}/);
       if (m) id = m[0];
     }
-    if (id) return 'https://outlook.office.com/mail/id/' + encodeURIComponent(id);
+    /* the id is kept as well as the link: if this link shape turns out wrong for
+       the tenant, the link can be rebuilt without dragging the message again */
+    if (id) return { url: owaLinkFor(id), id: id };
   }
-  return '';
+  return null;
 }
-function setMailUrl(u){
+function setMailUrl(u, id){
   $('mailUrl').value = u;
   $('mailUrl').dispatchEvent(new Event('input'));
+  if (id) state.mail = {...(state.mail||{}), id:id};
   showMsg('');
 }
 
@@ -722,11 +733,11 @@ document.addEventListener('drop', async function(e){
   for (const t of Array.from((dt && dt.types) || [])) {
     try { dump[t] = dt.getData(t); } catch (err) { dump[t] = '(unreadable)'; }
   }
-  const found = digForUrl(dump);
-  if (found) { setMailUrl(found); return; }
+  const found = digMail(dump);
+  if (found) { setMailUrl(found.url, found.id); return; }
 
   // Nothing usable. Hand the raw payloads over instead of a shrug, so the format
-  // can be taught to digForUrl.
+  // can be taught to digMail.
   const report = Object.keys(dump).map(k => k + ' = ' + JSON.stringify((dump[k] || '').slice(0, 400))).join('\n');
   let copied = false;
   try { await navigator.clipboard.writeText(report || '(no data)'); copied = true; } catch (err) {}
