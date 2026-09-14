@@ -663,25 +663,75 @@ $('mailFile').addEventListener('click', function(){
   inp.onchange = e => attachMailFile(e.target.files[0]);
   inp.click();
 });
-/* Dropping a message straight out of Outlook desktop may hand over nothing a browser
-   can read — it offers a virtual file rather than a real one. The handler reports what
-   it actually received instead of failing silently. */
+/* What a drag from Outlook actually carries varies by version. A real file is best;
+   failing that we dig through every payload for a message URL, because Outlook on the
+   web hands over its own format (maillistrow) rather than text/uri-list. */
+function firstUrl(str){
+  if (!str) return '';
+  const m = String(str).match(/https?:\/\/[^\s"'<>\)]+/);
+  return m ? m[0] : '';
+}
+function digForUrl(dump){
+  for (const k of Object.keys(dump)) {
+    const direct = firstUrl(dump[k]);
+    if (direct) return direct;
+  }
+  // an Outlook item id with no URL around it can still be turned into a deep link
+  for (const k of Object.keys(dump)) {
+    const raw = dump[k];
+    if (!raw) continue;
+    let id = '';
+    try {
+      const j = JSON.parse(raw);
+      const walk = o => {
+        if (!o || id) return;
+        if (typeof o === 'string') { if (/^A[QA][A-Za-z0-9+/=_-]{40,}$/.test(o)) id = o; return; }
+        if (typeof o !== 'object') return;
+        for (const key of Object.keys(o)) {
+          if (id) return;
+          if (/^(itemId|immutableId|id|messageId|entryId)$/i.test(key) && typeof o[key] === 'string'
+              && o[key].length > 30) { id = o[key]; return; }
+          walk(o[key]);
+        }
+      };
+      walk(j);
+    } catch (e) {
+      const m = String(raw).match(/A[QA][A-Za-z0-9+/=_-]{40,}/);
+      if (m) id = m[0];
+    }
+    if (id) return 'https://outlook.office.com/mail/id/' + encodeURIComponent(id);
+  }
+  return '';
+}
+function setMailUrl(u){
+  $('mailUrl').value = u;
+  $('mailUrl').dispatchEvent(new Event('input'));
+  showMsg('');
+}
+
 document.addEventListener('dragover', function(e){ e.preventDefault(); document.body.classList.add('drop'); });
 document.addEventListener('dragleave', function(e){ if (e.relatedTarget === null) document.body.classList.remove('drop'); });
-document.addEventListener('drop', function(e){
+document.addEventListener('drop', async function(e){
   e.preventDefault();
   document.body.classList.remove('drop');
   const dt = e.dataTransfer;
   const f = dt && dt.files && dt.files[0];
   if (f) { attachMailFile(f); return; }
-  const uri = dt && (dt.getData('text/uri-list') || dt.getData('text/plain'));
-  if (uri && /^https?:/i.test(uri.trim())) {
-    $('mailUrl').value = uri.trim();
-    $('mailUrl').dispatchEvent(new Event('input'));
-    return;
+
+  const dump = {};
+  for (const t of Array.from((dt && dt.types) || [])) {
+    try { dump[t] = dt.getData(t); } catch (err) { dump[t] = '(unreadable)'; }
   }
-  const kinds = dt ? Array.from(dt.types || []).join(', ') : '(none)';
-  showMsg('הגרירה לא הביאה קובץ. מה שהתקבל: ' + (kinds || 'כלום') + ' — שמור את ההודעה כקובץ וגרור אותו.');
+  const found = digForUrl(dump);
+  if (found) { setMailUrl(found); return; }
+
+  // Nothing usable. Hand the raw payloads over instead of a shrug, so the format
+  // can be taught to digForUrl.
+  const report = Object.keys(dump).map(k => k + ' = ' + JSON.stringify((dump[k] || '').slice(0, 400))).join('\n');
+  let copied = false;
+  try { await navigator.clipboard.writeText(report || '(no data)'); copied = true; } catch (err) {}
+  showMsg('הגרירה לא הביאה קישור. סוגים: ' + (Object.keys(dump).join(', ') || 'כלום') +
+          (copied ? ' — הפרטים הועתקו ללוח, אפשר להדביק אותם.' : ' — שמור את ההודעה כקובץ וגרור אותו.'));
 });
 
 $('paste').addEventListener('click', async function(){
