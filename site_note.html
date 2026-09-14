@@ -896,6 +896,21 @@ function newReport() {
 }
 function reportTitle(r) { return r.siteName && r.siteName.trim() ? r.siteName : 'דוח ללא שם'; }
 
+// Whether a report is untouched from its just-created default state — used
+// to silently discard a brand-new report if the user backs out without
+// entering anything, instead of leaving a "דוח ללא שם" ghost on the list.
+function isEmptyReport(r) {
+  return !(r.siteName && r.siteName.trim())
+    && r.tasks.length === 0
+    && r.groups.length === 0
+    && !(r.notes && r.notes.trim())
+    && !(r.participants && r.participants.trim())
+    && !(r.inspector && r.inspector.trim())
+    && !(r.reportNumber && r.reportNumber.trim())
+    && !r.floorsAboveGround
+    && !r.floorsBelowGround;
+}
+
 const XLSX_HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
 const XLSX_BORDER = { style: 'thin', color: { argb: 'FFD8DAE0' } };
 
@@ -1145,6 +1160,8 @@ function DialogProvider({ children }) {
     setDialog(null);
   }
 
+  useBackClose(!!dialog, () => close(dialog && dialog.mode === 'confirm' ? false : undefined));
+
   return (
     <DialogContext.Provider value={{ confirm, notify }}>
       {children}
@@ -1169,6 +1186,56 @@ function DialogProvider({ children }) {
   );
 }
 function useDialog() { return useContext(DialogContext); }
+
+// Makes the phone's/browser's physical back button close whichever
+// overlay/screen is currently on top, instead of leaving the app. Every
+// open "layer" (a report, a full-screen editor, a lightbox, a dialog)
+// calls this with its own isOpen/onClose; layers nest correctly because
+// only the topmost one can ever be visible/reachable at once, so a
+// single back-press always unwinds exactly one level.
+const __backStack = [];
+// Incremented right before a programmatic history.back() call below, so the
+// popstate it triggers is not *also* treated as a real back-button press
+// (we already accounted for it ourselves at the call site).
+let __suppressPopstateCount = 0;
+window.addEventListener('popstate', () => {
+  if (__suppressPopstateCount > 0) { __suppressPopstateCount--; return; }
+  const top = __backStack.pop();
+  if (top) top.onClose();
+});
+function useBackClose(isOpen, onClose) {
+  const entryRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (isOpen && !entryRef.current) {
+      const entry = { onClose: () => onCloseRef.current() };
+      entryRef.current = entry;
+      __backStack.push(entry);
+      window.history.pushState({ __overlay: true }, '');
+    } else if (!isOpen && entryRef.current) {
+      const myEntry = entryRef.current;
+      entryRef.current = null;
+      const idx = __backStack.indexOf(myEntry);
+      if (idx === -1) {
+        // already popped by the back-button handler above — nothing to do
+      } else if (idx === __backStack.length - 1) {
+        // still on top: safe to consume the matching history entry
+        __backStack.pop();
+        __suppressPopstateCount++;
+        window.history.back();
+      } else {
+        // something else was pushed after ours in the same batched React
+        // commit (e.g. a confirm() dialog closing while it opens the next
+        // screen) — removing it from the stack without navigating avoids
+        // popping the wrong (newer) entry; costs one harmless orphaned
+        // history entry rather than risking corrupting the real one
+        __backStack.splice(idx, 1);
+      }
+    }
+  }, [isOpen]);
+}
 
 /* ============================== Bottom sheet-ish full overlay wrapper ============================== */
 function Overlay({ title, onClose, onSave, saveLabel, saveDisabled, children, noPad, rightExtra }) {
@@ -1510,6 +1577,7 @@ function TaskEditor({ task, floors, floorPlan, assignees, groups, onCancel, onSa
   }
 
   const annotatingPhoto = draft.photos.find((p) => p.id === annotatingPhotoId);
+  useBackClose(!!annotatingPhoto, () => setAnnotatingPhotoId(null));
   if (annotatingPhoto) {
     return <PhotoAnnotator photo={annotatingPhoto} onCancel={() => setAnnotatingPhotoId(null)} onSave={savePhotoAnnotation} />;
   }
@@ -2250,6 +2318,7 @@ function PreviewScreen({ report, updateReport }) {
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [zoomIndex, setZoomIndex] = useState(0);
   const [exporting, setExporting] = useState(false);
+  useBackClose(!!lightboxSrc, () => setLightboxSrc(null));
   const zoom = ZOOM_LEVELS[zoomIndex];
   function zoomOut() { setZoomIndex((i) => Math.min(ZOOM_LEVELS.length - 1, i + 1)); }
   function zoomIn() { setZoomIndex((i) => Math.max(0, i - 1)); }
@@ -2572,7 +2641,15 @@ function PreviewScreen({ report, updateReport }) {
 function ReportWorkspace({ report, updateReport, existingSiteNames, onBack, saveState }) {
   const [tab, setTab] = useState('tasks');
   const [taskOverlay, setTaskOverlay] = useState(null); // 'new' | taskId | null
-  const [metaOpen, setMetaOpen] = useState(() => !report.siteName.trim());
+  // Starts false and opens itself a tick after mount (rather than as the initial
+  // state) so its back-button history entry is always pushed in a separate
+  // commit *after* the report's own — otherwise, for a brand-new report,
+  // React's child-before-parent effect order would push them in reverse and
+  // one back-press would close the whole report instead of just this editor.
+  const [metaOpen, setMetaOpen] = useState(false);
+  useEffect(() => { if (!report.siteName.trim()) setMetaOpen(true); }, []);
+  useBackClose(!!taskOverlay, () => setTaskOverlay(null));
+  useBackClose(metaOpen, () => setMetaOpen(false));
 
   const floors = useMemo(() => {
     const s = [];
@@ -2693,6 +2770,7 @@ function App() {
   const { confirm } = useDialog();
   const [reports, setReports] = useState(() => loadReports());
   const [openReportId, setOpenReportId] = useState(null);
+  const [justCreatedId, setJustCreatedId] = useState(null);
   const [saveState, setSaveState] = useState('saved');
   const saveTimer = useRef(null);
   const cloud = useOneDriveSync(reports, setReports);
@@ -2710,6 +2788,14 @@ function App() {
     const r = newReport();
     setReports((prev) => prev.concat([r]));
     setOpenReportId(r.id);
+    setJustCreatedId(r.id);
+  }
+  function backFromReport() {
+    if (openReport && openReport.id === justCreatedId && isEmptyReport(openReport)) {
+      setReports((prev) => prev.filter((r) => r.id !== openReport.id));
+    }
+    setJustCreatedId(null);
+    setOpenReportId(null);
   }
   async function deleteReport(id) {
     if (!(await confirm('למחוק את הדוח לצמיתות?'))) return;
@@ -2732,6 +2818,7 @@ function App() {
   }
 
   const openReport = reports.find((r) => r.id === openReportId);
+  useBackClose(!!openReport, backFromReport);
   const existingSiteNames = useMemo(() => {
     const s = [];
     reports.forEach((r) => { if (r.siteName && r.siteName.trim() && s.indexOf(r.siteName) === -1) s.push(r.siteName); });
@@ -2744,7 +2831,7 @@ function App() {
         report={openReport}
         updateReport={updateReport}
         existingSiteNames={existingSiteNames}
-        onBack={() => setOpenReportId(null)}
+        onBack={backFromReport}
         saveState={saveState}
       />
     );
