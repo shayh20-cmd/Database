@@ -75,7 +75,18 @@ button{font-family:inherit; cursor:pointer}
 #mailChip .m b{font-weight:600; max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 #mailChip .m span{cursor:pointer; color:var(--text-3)}
 body.drop{outline:3px dashed var(--blue); outline-offset:-6px}
-.thumb{max-height:90px; max-width:100%; border-radius:7px; border:1px solid var(--border-strong)}
+.thumb{max-height:90px; max-width:100%; border-radius:7px; border:1px solid var(--border-strong); cursor:pointer}
+.ann-bar{display:flex; flex-wrap:wrap; align-items:center; gap:3px; padding:5px 7px; border:1px solid var(--border-strong); border-radius:8px; background:var(--surface); margin-bottom:6px; flex-basis:100%; width:100%}
+.ann-label{font-size:10px; color:var(--text-3); margin-inline-end:2px}
+.ann-swatch{width:16px; height:16px; border-radius:50%; border:2px solid transparent; cursor:pointer; flex-shrink:0}
+.ann-swatch.active{border-color:var(--text)}
+.ann-sep{width:1px; align-self:stretch; background:var(--border); margin:0 3px}
+.ann-btn{border:1px solid var(--border-strong); background:var(--surface); color:var(--text-2); border-radius:6px; padding:3px 9px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit}
+.ann-btn.active{border-color:var(--blue); color:var(--blue); background:#EEF0FF}
+.ann-size{font-family:inherit; font-size:11px; padding:2px 4px; border-radius:5px; border:1px solid var(--border-strong); background:var(--surface); color:var(--text)}
+.ann-canvas-wrap{position:relative; display:inline-block; max-width:100%; line-height:0; flex-basis:100%}
+.ann-canvas-wrap img{max-width:100%; display:block; border-radius:7px}
+.ann-canvas-wrap canvas{position:absolute; inset:0; width:100%; height:100%; cursor:crosshair}
 .sel{
   font-family:inherit; font-size:12px; padding:3px 7px; border-radius:6px;
   border:1px solid var(--border-strong); background:var(--surface); color:var(--text);
@@ -636,23 +647,198 @@ async function uploadShot(blob){
   if (!j || !j.url) throw new Error('no url');
   return j.url;
 }
+
+/* ---- screenshot annotation: draw, highlight, text — baked into one flat file ---- */
+var annEditing = false;
+var annMode = null;      // 'draw' | 'highlight' | 'text' | null
+var annColor = '#ef4444';
+var annHlColor = '#fde68a';
+var annSize = 3;
+var annDrawing = false;
+var annLast = null;
+var annDirty = false;    // true once a stroke or text has been added this editing session
+
+var DRAW_COLORS = ['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#a855f7','#000000'];
+var HL_COLORS = ['#fde68a','#bbf7d0','#bfdbfe','#fecaca','#e9d5ff'];
+
 function renderShot(){
   const box = $('shotBox');
   box.innerHTML = '';
-  if (!state.shot) { $('shotSec').hidden = true; return; }
+  if (!state.shot) { $('shotSec').hidden = true; annEditing = false; return; }
   $('shotSec').hidden = false;
+
+  if (annEditing) { renderAnnEditor(box); return; }
+
   const img = document.createElement('img');
   img.src = state.shot.url; img.className = 'thumb';
+  img.title = 'לחץ לעריכה';
+  img.onclick = () => { annEditing = true; annMode = null; annDirty = false; renderShot(); };
+  const edit = document.createElement('button');
+  edit.type = 'button'; edit.className = 'tool'; edit.textContent = '✏ ערוך';
+  edit.onclick = () => { annEditing = true; annMode = null; annDirty = false; renderShot(); };
   const x = document.createElement('button');
   x.type = 'button'; x.className = 'tool'; x.textContent = 'הסר';
   x.onclick = () => { state.shot = null; renderShot(); render(); };
-  box.appendChild(img); box.appendChild(x);
+  box.appendChild(img); box.appendChild(edit); box.appendChild(x);
 }
+
+/* The canvas holds strokes and text nobody has committed yet. Any function that
+   rebuilds it — like a full renderShot() — would silently discard them, so once the
+   editor is open, only buildAnnBar() re-runs for toolbar clicks; the canvas is
+   built exactly once per editing session and never touched again until commit. */
+var annCanvasEl = null;
+var annImgEl = null;
+
+function buildAnnBar(){
+  const bar = document.createElement('div');
+  bar.className = 'ann-bar';
+
+  const addLabel = t => { const s=document.createElement('span'); s.className='ann-label'; s.textContent=t; bar.appendChild(s); };
+  const addSwatches = (colors, mode, getVal, setVal) => {
+    colors.forEach(c => {
+      const sw = document.createElement('div');
+      sw.className = 'ann-swatch' + (annMode===mode && getVal()===c ? ' active' : '');
+      sw.style.background = c; sw.title = c;
+      sw.onclick = () => { setVal(c); annMode = (annMode===mode && getVal()===c) ? null : mode; refreshAnnBar(); };
+      bar.appendChild(sw);
+    });
+  };
+
+  addLabel('סמן');
+  addSwatches(DRAW_COLORS, 'draw', () => annColor, c => { annColor = c; });
+  const sep1 = document.createElement('div'); sep1.className = 'ann-sep'; bar.appendChild(sep1);
+  addLabel('הדגש');
+  addSwatches(HL_COLORS, 'highlight', () => annHlColor, c => { annHlColor = c; });
+  const sep2 = document.createElement('div'); sep2.className = 'ann-sep'; bar.appendChild(sep2);
+
+  const tBtn = document.createElement('button');
+  tBtn.type = 'button'; tBtn.className = 'ann-btn' + (annMode==='text' ? ' active' : '');
+  tBtn.textContent = 'T'; tBtn.title = 'הוסף טקסט';
+  tBtn.onclick = () => { annMode = annMode==='text' ? null : 'text'; refreshAnnBar(); };
+  bar.appendChild(tBtn);
+
+  const sizeSel = document.createElement('select');
+  sizeSel.className = 'ann-size';
+  [[2,'דק'],[3,'רגיל'],[5,'עבה'],[8,'עבה מאוד']].forEach(function(pair){
+    const v=pair[0], l=pair[1];
+    const o = document.createElement('option'); o.value=v; o.textContent=l; if(+v===annSize) o.selected=true;
+    sizeSel.appendChild(o);
+  });
+  sizeSel.onchange = e => { annSize = +e.target.value; };
+  bar.appendChild(sizeSel);
+
+  const sep3 = document.createElement('div'); sep3.className = 'ann-sep'; bar.appendChild(sep3);
+  const doneBtn = document.createElement('button');
+  doneBtn.type = 'button'; doneBtn.className = 'ann-btn'; doneBtn.textContent = '✓ סיום';
+  doneBtn.style.color = 'var(--blue)'; doneBtn.style.borderColor = 'var(--blue)';
+  doneBtn.onclick = () => commitAnnotations();
+  bar.appendChild(doneBtn);
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button'; cancelBtn.className = 'ann-btn'; cancelBtn.textContent = 'ביטול';
+  cancelBtn.onclick = () => { annEditing = false; annMode = null; renderShot(); };
+  bar.appendChild(cancelBtn);
+
+  return bar;
+}
+
+/* Swaps only the toolbar in place, for a mode/colour/size change — leaves the
+   canvas and image nodes, and whatever is drawn on them, exactly as they were. */
+function refreshAnnBar(){
+  const old = document.querySelector('.ann-bar');
+  if (!old || !old.parentNode) return;
+  old.parentNode.replaceChild(buildAnnBar(), old);
+}
+
+function renderAnnEditor(box){
+  box.appendChild(buildAnnBar());
+
+  const wrap = document.createElement('div');
+  wrap.className = 'ann-canvas-wrap';
+  const img = document.createElement('img');
+  img.src = state.shot.url;
+  const canvas = document.createElement('canvas');
+  wrap.appendChild(img); wrap.appendChild(canvas);
+  box.appendChild(wrap);
+  annImgEl = img; annCanvasEl = canvas;
+
+  const sizeCanvas = () => {
+    const r = img.getBoundingClientRect();
+    canvas.width = Math.round(r.width);
+    canvas.height = Math.round(r.height);
+  };
+  if (img.complete) sizeCanvas(); else img.onload = sizeCanvas;
+
+  const posFor = e => {
+    const r = canvas.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  canvas.addEventListener('mousedown', function(e){
+    if (annMode !== 'draw' && annMode !== 'highlight') return;
+    annDrawing = true; annLast = posFor(e);
+  });
+  canvas.addEventListener('mousemove', function(e){
+    if (!annDrawing || !annLast) return;
+    const p = posFor(e);
+    const ctx = canvas.getContext('2d');
+    ctx.strokeStyle = annMode==='highlight' ? annHlColor+'aa' : annColor;
+    ctx.lineWidth = annMode==='highlight' ? annSize*6 : annSize;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.globalAlpha = annMode==='highlight' ? 0.5 : 1;
+    ctx.beginPath(); ctx.moveTo(annLast.x, annLast.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+    annLast = p; annDirty = true;
+  });
+  window.addEventListener('mouseup', function(){ annDrawing = false; annLast = null; });
+  canvas.addEventListener('click', function(e){
+    if (annMode !== 'text') return;
+    const p = posFor(e);
+    const txt = prompt('טקסט לסימון:');
+    if (!txt) return;
+    const ctx = canvas.getContext('2d');
+    const fontSize = 10 + annSize*3;
+    ctx.font = 'bold ' + fontSize + 'px Heebo, sans-serif';
+    ctx.fillStyle = annColor;
+    ctx.textBaseline = 'top';
+    const w = ctx.measureText(txt).width;
+    ctx.fillStyle = annColor + '22';
+    ctx.fillRect(p.x-4, p.y-2, w+8, fontSize+6);
+    ctx.strokeStyle = annColor; ctx.lineWidth = 1.5;
+    ctx.strokeRect(p.x-4, p.y-2, w+8, fontSize+6);
+    ctx.fillStyle = annColor;
+    ctx.fillText(txt, p.x, p.y);
+    annDirty = true; annMode = null; refreshAnnBar();
+  });
+}
+
+async function commitAnnotations(){
+  if (!annDirty) { annEditing = false; renderShot(); return; }
+  const img = annImgEl, canvas = annCanvasEl;
+  if (!img || !canvas) { annEditing = false; renderShot(); return; }
+  showMsg('');
+  try {
+    const w = img.naturalWidth || canvas.width, h = img.naturalHeight || canvas.height;
+    const out = document.createElement('canvas');
+    out.width = w; out.height = h;
+    const octx = out.getContext('2d');
+    octx.drawImage(img, 0, 0, w, h);
+    octx.drawImage(canvas, 0, 0, w, h);
+    const blob = await new Promise(r => out.toBlob(r, 'image/png'));
+    if (!blob) throw new Error('render failed');
+    const url = await uploadShot(blob);
+    state.shot = { url: url };
+    annEditing = false; annMode = null; annDirty = false;
+    annImgEl = null; annCanvasEl = null;
+    renderShot(); render();
+  } catch (e) {
+    showMsg('העריכה לא נשמרה: ' + (e.message||e));
+  }
+}
+
 async function takeShot(blob){
   showMsg('');
   try {
     const url = await uploadShot(blob);
     state.shot = { url: url };
+    annEditing = false;
     renderShot(); render();
   } catch (e) {
     showMsg('הצילום לא נשמר: ' + (e.message||e));
