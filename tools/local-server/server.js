@@ -86,12 +86,22 @@ const IMAGE_EXT = {
   'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif',
   'image/webp': 'webp', 'image/svg+xml': 'svg'
 };
+// A saved Outlook message. Outlook hands a dragged .msg over as octet-stream, so the
+// extension comes from ?name= rather than from the content type.
+const FILE_EXT = new Set(['msg', 'eml', 'pdf']);
 
-async function handleUpload(req, res, appName) {
-  if (req.method !== 'POST') { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+function extFor(req, url) {
   const type = (req.headers['content-type'] || '').split(';')[0].trim();
-  const ext = IMAGE_EXT[type];
-  if (!ext) { sendJson(res, 415, { error: 'Unsupported image type: ' + type }); return; }
+  if (IMAGE_EXT[type]) return IMAGE_EXT[type];
+  const given = (url.searchParams.get('name') || '').toLowerCase();
+  const ext = given.includes('.') ? given.split('.').pop().replace(/[^a-z0-9]/g, '') : '';
+  return FILE_EXT.has(ext) ? ext : null;
+}
+
+async function handleUpload(req, res, appName, url) {
+  if (req.method !== 'POST') { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+  const ext = extFor(req, url);
+  if (!ext) { sendJson(res, 415, { error: 'Unsupported file type' }); return; }
   try {
     const buf = await readRequestBuffer(req);
     if (!buf.length) { sendJson(res, 400, { error: 'Empty body' }); return; }
@@ -152,7 +162,7 @@ const server = http.createServer((req, res) => {
   }
   const upMatch = url.pathname.match(UPLOAD_ROUTE);
   if (upMatch) {
-    handleUpload(req, res, upMatch[1]).catch(e => sendJson(res, 500, { error: e.message }));
+    handleUpload(req, res, upMatch[1], url).catch(e => sendJson(res, 500, { error: e.message }));
     return;
   }
   const apiMatch = url.pathname.match(API_ROUTE);

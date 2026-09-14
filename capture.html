@@ -69,6 +69,12 @@ button{font-family:inherit; cursor:pointer}
 
 #where{font-size:11px; color:var(--text-3)}
 #where:empty{display:none}
+#mailChip{font-size:11px; color:var(--text-2); margin-top:5px; display:flex; flex-wrap:wrap; gap:6px}
+#mailChip:empty{display:none}
+#mailChip .m{background:var(--bg); border:1px solid var(--border-strong); border-radius:999px; padding:2px 9px; display:inline-flex; gap:6px; align-items:center}
+#mailChip .m b{font-weight:600; max-width:190px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+#mailChip .m span{cursor:pointer; color:var(--text-3)}
+body.drop{outline:3px dashed var(--blue); outline-offset:-6px}
 .sel{
   font-family:inherit; font-size:12px; padding:3px 7px; border-radius:6px;
   border:1px solid var(--border-strong); background:var(--surface); color:var(--text);
@@ -125,6 +131,15 @@ footer .keys{font-size:11px; color:var(--text-3)}
         <select class="sel" id="discSel" aria-label="תחום"></select>
       </div>
       <span id="where"></span>
+    </div>
+
+    <div class="section">
+      <div class="label">מייל</div>
+      <div class="row">
+        <input class="sel" id="mailUrl" type="text" placeholder="הדבק קישור להודעה" style="flex:1 1 150px">
+        <button class="tool" id="mailFile" type="button">📎 קובץ הודעה</button>
+      </div>
+      <span id="mailChip"></span>
     </div>
 
     <div class="section" id="matchSec" hidden>
@@ -288,7 +303,7 @@ var DISCIPLINES_FALLBACK = ['ARCH','ENVI','LAND','TRAF','PM','SAFE','STRC','HVAC
                            .map(function(id){ return {id:id, label:id}; });
 
 var state = { text:'', disc:'', discTouched:false, taskId:null, status:null, kind:null, matches:[],
-              projectId:null, trackId:null, stageId:null };
+              projectId:null, trackId:null, stageId:null, mail:null };
 var ctx = { projects:[], doc:null, projectName:'', disciplines:[], tasks:[], ready:false };
 
 function apiFor(projectId){ return '/api/' + projectId; }
@@ -485,13 +500,18 @@ function summary(route){
 
 function applyCapture(d, route){
   var text = state.text.trim();
+  var mail = mailIsEmpty(state.mail) ? undefined : {
+    url: state.mail.url || undefined,
+    path: state.mail.path || undefined,
+    name: state.mail.name || undefined
+  };
   if (route === 'update') {
     d.sheets = (d.sheets||[]).map(function(sh){
       if (sh.type !== 'list') return sh;
       return Object.assign({}, sh, { tasks: (sh.tasks||[]).map(function(t){
         if (t.id !== state.taskId) return t;
         var rec = { id:uid(), status:state.status||'progress', assignee:state.disc||'',
-                    date:todayISO(), title:'', note:text };
+                    date:todayISO(), title:'', note:text, mail:mail };
         return Object.assign({}, t, { events: (t.events||[]).concat([rec]) });
       })});
     });
@@ -502,19 +522,19 @@ function applyCapture(d, route){
     target.tasks = (target.tasks||[]).concat([{
       id:uid(), groupId:groupId, title:text, statusId:'N', priority:'',
       discipline:state.disc||'', startDate:'', dueDate:'', comment:'',
-      done:false, subtasks:[], fieldValues:{}, events:[], tracks:[], assigneeId:''
+      done:false, subtasks:[], fieldValues:{}, events:[], tracks:[], assigneeId:'', mail:mail
     }]);
   } else if (route === 'principle') {
     // stageSheetId is how the app already ties a principle to a stage
     d.standalonePrinciples = (d.standalonePrinciples||[]).concat([{
       id:uid(), description:text, discipline:state.disc||'', createdAt:todayISO(),
-      stageSheetId:state.stageId || undefined
+      stageSheetId:state.stageId || undefined, mail:mail
     }]);
   } else {
     d.inbox = (d.inbox||[]).concat([{
       id:uid(), date:todayISO(), text:text, kind:'update',
       status:state.status||null, discipline:state.disc||'',
-      stageSheetId:state.stageId || undefined
+      stageSheetId:state.stageId || undefined, mail:mail
     }]);
   }
   return d;
@@ -585,6 +605,84 @@ $('stageSel').addEventListener('change', function(e){
 });
 $('save').addEventListener('click', doSave);
 document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeWindow(); });
+
+
+/* ---------- linking a mail ---------- */
+/* Two sources, because Outlook is used both ways: a permalink copied from Outlook
+   on the web, and a saved .msg from the desktop client. Either may be set, or both. */
+function mailIsEmpty(m){ return !m || (!m.url && !m.path); }
+function hostOf(u){ try{ return new URL(u).hostname.replace(/^www\./,''); }catch(e){ return u.slice(0,40); } }
+
+function renderMail(){
+  const box = $('mailChip');
+  box.innerHTML = '';
+  const m = state.mail;
+  if (mailIsEmpty(m)) return;
+  const add = (label, title, clear) => {
+    const el = document.createElement('span');
+    el.className = 'm';
+    el.title = title;
+    const b = document.createElement('b'); b.textContent = label;
+    const x = document.createElement('span'); x.textContent = '✕'; x.title = 'הסר';
+    x.onclick = clear;
+    el.appendChild(document.createTextNode('✉'));
+    el.appendChild(b); el.appendChild(x);
+    box.appendChild(el);
+  };
+  if (m.url)  add(hostOf(m.url), m.url, () => { state.mail = {...state.mail, url:''}; $('mailUrl').value=''; normaliseMail(); renderMail(); });
+  if (m.path) add(m.name || 'הודעה', m.name || m.path, () => { state.mail = {...state.mail, path:'', name:''}; normaliseMail(); renderMail(); });
+}
+function normaliseMail(){ if (mailIsEmpty(state.mail)) state.mail = null; }
+
+async function attachMailFile(file){
+  if (!file) return;
+  const ok = /\.(msg|eml)$/i.test(file.name || '');
+  if (!ok) { showMsg('אפשר לצרף קובץ הודעה בלבד (.msg או .eml)'); return; }
+  showMsg('');
+  try {
+    const res = await fetch(apiFor(state.projectId).replace('/api/','/api/upload/') + '?name=' + encodeURIComponent(file.name),
+                            {method:'POST', headers:{'Content-Type':'application/octet-stream'}, body:file});
+    if (!res.ok) throw new Error('HTTP '+res.status);
+    const j = await res.json();
+    state.mail = {...(state.mail||{}), path:j.url, name:file.name};
+    renderMail();
+  } catch (e) {
+    showMsg('לא ניתן לצרף את ההודעה: ' + (e.message||e));
+  }
+}
+
+$('mailUrl').addEventListener('input', function(e){
+  const v = e.target.value.trim();
+  state.mail = {...(state.mail||{}), url:v};
+  normaliseMail();
+  renderMail();
+});
+$('mailFile').addEventListener('click', function(){
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.msg,.eml';
+  inp.onchange = e => attachMailFile(e.target.files[0]);
+  inp.click();
+});
+/* Dropping a message straight out of Outlook desktop may hand over nothing a browser
+   can read — it offers a virtual file rather than a real one. The handler reports what
+   it actually received instead of failing silently. */
+document.addEventListener('dragover', function(e){ e.preventDefault(); document.body.classList.add('drop'); });
+document.addEventListener('dragleave', function(e){ if (e.relatedTarget === null) document.body.classList.remove('drop'); });
+document.addEventListener('drop', function(e){
+  e.preventDefault();
+  document.body.classList.remove('drop');
+  const dt = e.dataTransfer;
+  const f = dt && dt.files && dt.files[0];
+  if (f) { attachMailFile(f); return; }
+  const uri = dt && (dt.getData('text/uri-list') || dt.getData('text/plain'));
+  if (uri && /^https?:/i.test(uri.trim())) {
+    $('mailUrl').value = uri.trim();
+    $('mailUrl').dispatchEvent(new Event('input'));
+    return;
+  }
+  const kinds = dt ? Array.from(dt.types || []).join(', ') : '(none)';
+  showMsg('הגרירה לא הביאה קובץ. מה שהתקבל: ' + (kinds || 'כלום') + ' — שמור את ההודעה כקובץ וגרור אותו.');
+});
 
 $('paste').addEventListener('click', async function(){
   try {
