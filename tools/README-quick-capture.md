@@ -43,7 +43,7 @@ node "C:\Users\Omega\Database\tools\local-server\server.js" "C:\Users\Omega\Data
 | המקש | השורה `^+Space::` בתוך `quick-capture.ahk` — `^`=Ctrl, `+`=Shift, `#`=Win |
 | הדפדפן | `BROWSER := "msedge.exe"` → אפשר `chrome.exe` |
 | הפורט | `CAPTURE_URL` בסקריפט, וגם `--port` בקיצור של השרת — שניהם יחד |
-| גודל החלון | `--window-size=470,620` |
+| גודל החלון | `--window-size=235,310` |
 
 ## אם משהו לא עובד
 

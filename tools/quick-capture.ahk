@@ -12,7 +12,7 @@ BROWSER     := "msedge.exe"          ; ships with Windows 11; chrome.exe works t
         return
     }
     ; --app= gives a chromeless window instead of a browser tab
-    Run BROWSER ' --app=' CAPTURE_URL ' --window-size=470,620'
+    Run BROWSER ' --app=' CAPTURE_URL ' --window-size=235,310'
     if WinWait(WIN_TITLE, , 4)
         WinActivate(WIN_TITLE)
     else
