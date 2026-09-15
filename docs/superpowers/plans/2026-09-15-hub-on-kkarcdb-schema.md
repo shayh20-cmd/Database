@@ -4,7 +4,7 @@
 
 **Goal:** Get the three dashboards' data out of individual browsers and into the KkarcDB Supabase database, with a schema that survives multiple concurrent users.
 
-**Architecture:** Five plain-SQL migrations (`007`–`011`) add 31 `hub_*` tables to the existing KkarcDB PostgreSQL schema and alter three of its tables. Two seed files supply the vocabularies, including a discipline map that is *data a human edits*, not code. A Node ETL reads an exported `localStorage` blob and writes rows, resolving firms and people against KkarcDB's existing register.
+**Architecture:** Five plain-SQL migrations (`008`–`012`) add 31 `hub_*` tables to the existing KkarcDB PostgreSQL schema and alter three of its tables. Two seed files supply the vocabularies, including a discipline map that is *data a human edits*, not code. A Node ETL reads an exported `localStorage` blob and writes rows, resolving firms and people against KkarcDB's existing register.
 
 **Tech Stack:** PostgreSQL 15 (Supabase), plain SQL migrations applied by the existing `KKarcDB.Data.Migrator`, xunit + Npgsql for schema tests, Node 24 (built-in `node:test`, no dependencies) for the ETL.
 
@@ -46,12 +46,24 @@ Copied verbatim from KkarcDB's `CLAUDE.md`. Every task's requirements include th
 The spec left this open. Below is the **measured** list, extracted from the running
 code, not guessed. `project_hub.html` defines 16 discipline codes in `DISCIPLINES`
 with Hebrew names in `DISCIPLINE_FULL_NAMES` and colours; `planning_dashboard.html`
-uses six Hebrew strings with no codes at all.
+uses six Hebrew strings with no codes at all. Three more codes are added here that the
+app does not define yet, for trades the practice engages.
 
-The map becomes `db/seed/002_hub_disciplines.sql` in Task 3. **Ten rows are
-unambiguous. Two need your decision. Five are new codes KkarcDB does not have.**
+**Everything now maps onto a discipline that already exists.** When this plan was first
+written the register held fifteen disciplines and five had to be created. It now holds
+fifty-one: `797e7cb` loaded 158 consultant spreadsheets and added thirty-six trades
+"the firm demonstrably engages", in its own words. So `db/seed/002_hub_disciplines.sql`
+creates nothing and only fills in `legacy_code` and `color`.
 
-### Unambiguous — maps onto an existing KkarcDB discipline
+Two of those thirty-six matter especially, because the earlier draft of this plan would
+have duplicated them under different names:
+
+| The earlier draft would have created | What the register already calls it |
+|---|---|
+| `project_management` | **`project_mgmt`** — ניהול פרויקט |
+| `drainage` | **`hydrology`** — הידרולוגיה, "Hydrology and drainage" |
+
+### The map
 
 | Hub code | Hebrew in the app | Consultant's own wording | KkarcDB code | Colour |
 |---|---|---|---|---|
@@ -64,92 +76,136 @@ unambiguous. Two need your decision. Five are new codes KkarcDB does not have.**
 | `SAFE` | בטיחות | בטיחות | `safety` | `#22C55E` |
 | `ACSS` | נגישות | נגישות | `accessibility` | `#EC4899` |
 | `TRAF` | תנועה | תנועה | `traffic` | `#8B5CF6` |
+| `FIRE` | כבאות | כבאות | `fire` | `#BB4040` |
+| `ACUS` | אקוסטיקה | אקוסטיקה | `acoustics` | `#BB40EE` |
+| `SURV` | מדידות | מדידות | `survey` | `#BBAA22` |
 | `GR` | קרקע | יועץ קרקע | `geotechnical` | `#92400E` |
+| `PM` | ניהול פרויקט | מנהל פרויקט | `project_mgmt` | `#6366F1` |
+| `HYDR` | ניקוז | הידרולוג | `hydrology` | `#2563EB` |
+| `LIFT` | מעליות | מעליות | `elevators` | `#6B7280` |
+| `AGRO` | אגרונומיה | אגרונום | `agronomy` | `#059669` |
+| `TNDR` | מכרזים | כמויות ומכרז | `quantity` | `#EF4444` |
+| *(none)* | תקשורת | planning board only, firm `DCX` | `communications` | `#0891B2` |
 
-### New — KkarcDB has no equivalent, so `007` seeds them
+`PM` is by far the most-used code in the seed data, with 58 references, so getting it
+wrong is expensive. The code it maps to is `project_mgmt`, abbreviated, not
+`project_management`.
 
-| Hub code | Hebrew in the app | Consultant's own wording | New KkarcDB code | English name | Colour |
-|---|---|---|---|---|---|
-| `PM` | ניהול פרויקט | מנהל פרויקט | `project_management` | Project management | `#6366F1` |
-| `HYDR` | ניקוז | הידרולוג | `drainage` | Drainage and hydrology | `#2563EB` |
-| `LIFT` | מעליות | מעליות | `elevators` | Elevators | `#6B7280` |
-| `AGRO` | אגרונומיה | אגרונום | `agronomy` | Agronomy | `#059669` |
-| *(none)* | תקשורת | — (planning board only, firm `DCX`) | `communications` | Communications | `#0891B2` |
+`ACUS` maps to `acoustics`, with the s. The register spells it in the plural, and the
+seed matches on that code, so the singular would update nothing and say nothing.
 
-`PM` is by far the most-used code in the seed data (58 references), so getting it
-wrong is expensive.
+`FIRE`, `ACUS` and `SURV` are not in `project_hub.html`'s `DISCIPLINES` array today.
+They are here because the practice engages those trades and the register already has a
+row for each. Adding them to the app's array is a separate one-line change; until it
+happens, no task will carry them and the mapping simply sits unused.
 
-### Needs your decision — two rows
+### Needs your decision — one row
 
-**1. `ENVI`** — the app labels it `סביבה` (environment), but the consultant row calls
-it `בניה ירוקה` (green building) and the one task using it is
-`אישור מעבדה לבנייה ירוקה` (green-building laboratory approval). KkarcDB already seeds
-`green` = `בנייה ירוקה`.
-
-| Option | Consequence |
-|---|---|
-| **A (recommended): `ENVI` → `green`** | Reuses KkarcDB's existing row. The app's label `סביבה` is corrected to `בנייה ירוקה`, which is what the data actually means. |
-| B: `ENVI` → new code `environment` | Keeps the app's wording. Leaves `green` unused and the two will be confused for ever. |
-
-**2. `TNDR`** — the app labels it `מכרזים` (tenders); the consultant row says
-`כמויות ומכרז` (quantities and tender) and the firm is a quantity surveyor. KkarcDB
-seeds `quantity` = `שמאות וכמויות`. Note that `tender` is also a **stage** in
-`stage_template`, which is what `מכרז` usually means.
+`ENVI`. The app labels it `סביבה`, which means environment. The consultant row calls
+it `בניה ירוקה`, green building, and the one task using it is
+`אישור מעבדה לבנייה ירוקה`, a green-building laboratory approval. The register now has
+a row for each reading, which it did not when this plan was first written.
 
 | Option | Consequence |
 |---|---|
-| **A (recommended): `TNDR` → `quantity`** | Treats it as the quantity-surveying discipline, which matches the firm. The tender *stage* stays a stage, so the word stops meaning two things. |
-| B: `TNDR` → new code `tender_quantities` | Keeps the app's wording. A discipline and a stage both called `מכרז`. |
+| **A (recommended): `ENVI` → `green`** (בנייה ירוקה) | Follows the data rather than the label. The one task using this code is a green-building approval, and the consultant describes itself that way. |
+| B: `ENVI` → `environment` (איכות סביבה) | Follows the app's label. "Environmental quality" is a real and different trade, and choosing it makes the green-building task land under it. |
 
-**To feed it:** edit the `legacy_code` column in `db/seed/002_hub_disciplines.sql`
-(Task 3). Nothing else reads the mapping — it is stored on `discipline.legacy_code`
-and the ETL reads it back out of the database.
+Nothing else hangs on this: both rows exist, so the choice is which one gets
+`legacy_code = 'ENVI'`. To change it, edit that one line in
+`db/seed/002_hub_disciplines.sql` and re-run the seed.
 
-### KkarcDB disciplines the dashboards never use
-
-`fire` (כבאות), `acoustics` (אקוסטיקה), `survey` (מדידות). They keep existing with
-`legacy_code = NULL`. The ETL ignores them; a consultant added by hand later can use them.
+**To feed the rest:** the same file. Nothing reads the mapping except the database —
+it is stored on `discipline.legacy_code`, and the import reads it back out.
 
 ---
 
 ## Firm-name merging
 
-You asked to merge names differing by only two or three characters. The rule below is
-implemented in Task 9 and produces the right answer on all five real collisions found
-in the two blobs.
+**There is already a rule for this in the repository**, and this plan deliberately does
+not use it. `tools/consultant-extract/names.py` decides whether two spellings are one
+firm by asking whether they share a distinctive token, after removing the words that
+half the trade uses. Its own docstring says the tools that use it must agree "or a
+second load would duplicate everyone", so departing from it needs a reason.
 
-**Normalise first**, in this order:
+The reason is that it over-merges badly. Run over the 543 firm names it loaded into the
+register, it collapses them to 301. Among the clusters it forms:
+
+- **דוד אלחנתי אדריכלות נוף** merged with **דוד ברהום מהנדסים יועצים לחשמל ותקשורת** — a landscape architect and an electrical engineer, because both are named דוד.
+- **בר אלכס הנדסה** merged with **ד. בר עקיבא מהנדסים**, **ורד בר** and **נגיעה בנוף - נתי בר זוהר** — four unrelated practices, because all four contain בר.
+- **אור ייעוץ תכנון** merged with **מכון דף אור** and **ו.נ. אור הנדסה** — because all three contain אור.
+
+That last one matters directly: `ו.נ. אור הנדסה` is the electrical consultant on the
+dashboard. Under the existing rule it would be absorbed into an unrelated firm.
+
+So the import keeps its own rule, which measures edit distance instead. **One good idea
+is borrowed from `names.py` and must stay in step with it:** its `GENERIC_WORDS` list.
+Half the names in this trade contain הנדסה or מהנדסים, and those characters pad the
+length so that an edit budget stretches over the part that actually identifies the
+firm. Measuring the distinctive part instead is what keeps `מ.נ.מ מהנדסים` and
+`ת.ל.מ מהנדסים` apart.
+
+### The rule
+
+**Normalise**, in this order:
 
 1. Strip Unicode bidi marks: `U+200E U+200F U+202A–U+202E U+2066–U+2069`.
 2. Replace `" ” „ ״` with `"`, and `' ’ ׳` with `'`.
 3. Delete the corporate suffix when it ends the name: `בע"מ`, `בעמ`, `בע״מ`, `Ltd`, `Ltd.`, `LTD`.
-4. Delete every `.` and `,`.
+4. Replace every `.`, `,`, `-` and `–` with a space.
 5. Collapse whitespace runs to one space; trim.
 6. Lowercase Latin letters.
 
-**Then compare** with Levenshtein distance over Unicode code points:
+Two names equal after this are the same firm, merged silently.
+
+**Otherwise take the distinctive part** — the normalised name with every `GENERIC_WORDS`
+entry removed — and compare those with Levenshtein distance over Unicode code points:
 
 | Condition | Result |
 |---|---|
-| distance `= 0` | same firm, merge silently |
-| distance `≤ 3` **and** `distance / max(len) ≤ 0.25` **and** `min(len) ≥ 6` | merge, write a line to the report |
+| either distinctive part is empty | separate; a name made only of trade words identifies nothing |
+| shorter distinctive part under 6 characters | same only if the parts are identical |
+| distance `≤ 3` **and** `distance / longer ≤ 0.2` | merge, and write a line to the report |
 | anything else | separate firms |
 
-The `min(len) ≥ 6` guard is why short names like `DCX` and `אדמה` must match exactly —
-without it, two unrelated four-character firms merge on a single character.
+The ratio is a fifth rather than a quarter because at a quarter `מיכאל רויטמן` and
+`מיכאל פרידמן` land exactly on the threshold and merge. Two people sharing a first name
+are not one firm.
 
-**Verified against the real data:**
+### Measured, not asserted
 
-| Pair | Normalised distance | Result |
+Run over the same 543 firm names, this rule gives:
+
+| Rule | Firms | Merges |
 |---|---|---|
-| `קנפו כלימור אדריכלים` / `קנפו כלמור אדריכלים` | 1 of 20 | merged |
-| `י. שני מהנדסים` / `י.שני מהנדסים` | 0 after normalising | merged |
-| `ש. גלבוע מהנדסים` (plumbing) / `ש. גלבוע מהנדסים` (HVAC) | 0 | one firm, two participant rows |
-| `א.נ.ה הנדסת חשמל` / `ו.נ. אור הנדסה` | 7 of 14 | kept separate |
-| `DCX` / anything | short-name guard | kept separate |
+| `names.py`, shared token | 301 | 242, many of them wrong |
+| This rule | **498** | **44** |
 
-Every merge is written to `tools/hub-import/out/firm-merges.txt` for review. Nothing is
-merged silently except an exact match.
+Every one of the 44 was read by hand. They are spelling variants (`נפתלי`/`נפטלי`,
+`יעקוב`/`יעקב`, `סיסטמה`/`סיסתמה`, `תכנון`/`תיכנון`), the same practice written with and
+without its trade suffix (`וישקין` / `וישקין מהנדסים`, `כדאי` / `כדאי בטיחות`,
+`אלרום` / `אלרום הנדסת מעליות`), and one kaf-for-qof variant of the practice's own name
+(`כנפו-כלימור` → `קנפו כלימור אדריכלים`).
+
+An earlier draft of this rule measured the whole name rather than the distinctive part.
+It made 24 merges, four of them wrong: `נאסר מהנדסים` with `סטאר מהנדסים`,
+`מ.נ.מ מהנדסים` with `ת.ל.מ מהנדסים`, `א.ד מהנדסים` with `אחוד מהנדסים`, and
+`ג.ל. מהנדסים יועצים` with `י. לבל מהנדסים יועצים`. Each is two or three edits inside a
+long shared suffix that every firm in the trade carries. The current rule merges **more**
+and makes **none** of those four.
+
+**On the five collisions between the two dashboards:**
+
+| Pair | Result |
+|---|---|
+| `קנפו כלימור אדריכלים` / `קנפו כלמור אדריכלים` | merged, distance 1, reported |
+| `י. שני מהנדסים` / `י.שני מהנדסים` | merged, identical after normalising, silent |
+| `ש. גלבוע מהנדסים` (plumbing) / `ש. גלבוע מהנדסים` (HVAC) | one firm, two engagements |
+| `א.נ.ה הנדסת חשמל` / `ו.נ. אור הנדסה` | kept separate |
+| `DCX` / anything | kept separate by the short-name guard |
+
+Every non-exact merge is written to `tools/hub-import/out/firm-merges.txt` for review.
+Nothing merges silently except a match that needed no edits at all.
 
 ---
 
@@ -159,11 +215,11 @@ merged silently except an exact match.
 
 | File | Responsibility |
 |---|---|
-| `db/migrations/007_hub_vocabularies.sql` | Alter `discipline`, `person`, `project_participant`; create the four `hub_*` vocabulary tables |
-| `db/migrations/008_hub_work.sql` | `hub_project_profile` … `hub_event`, `hub_attachment` — the task tree and its status log |
-| `db/migrations/009_hub_meetings.sql` | meetings, items, goals, milestones, principles, activity |
-| `db/migrations/010_hub_planning.sql` | the planning board's six tables |
-| `db/migrations/011_hub_user_state.sql` | `hub_user_pref`, `hub_saved_view` |
+| `db/migrations/008_hub_vocabularies.sql` | Alter `discipline`, `person`, `project_participant`; create the four `hub_*` vocabulary tables |
+| `db/migrations/009_hub_work.sql` | `hub_project_profile` … `hub_event`, `hub_attachment` — the task tree and its status log |
+| `db/migrations/010_hub_meetings.sql` | meetings, items, goals, milestones, principles, activity |
+| `db/migrations/011_hub_planning.sql` | the planning board's six tables |
+| `db/migrations/012_hub_user_state.sql` | `hub_user_pref`, `hub_saved_view` |
 | `db/seed/002_hub_disciplines.sql` | **the discipline map** — the file a human edits |
 | `db/seed/003_hub_vocabularies.sql` | statuses, priorities, event statuses, meeting item types |
 | `db/verify.sql` | extended with a hub corner |
@@ -347,15 +403,15 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 ---
 
-## Task 2: Migration 007 — alterations and vocabularies
+## Task 2: Migration 008 — alterations and vocabularies
 
 **Files:**
-- Create: `D:\Coding\KkarcDB\db\migrations\007_hub_vocabularies.sql`
+- Create: `D:\Coding\KkarcDB\db\migrations\008_hub_vocabularies.sql`
 - Test: `D:\Coding\KkarcDB\tests\KKarcDB.Data.Tests\HubSchemaTests.cs`
 
 **Interfaces:**
 - Consumes: `discipline`, `person`, `project_participant`, `set_updated_at()` from migrations `001`–`006`
-- Produces: tables `hub_task_status`, `hub_priority`, `hub_event_status`, `hub_meeting_item_type`, each keyed by `code text PRIMARY KEY`; columns `discipline.color`, `discipline.legacy_code`, `person.discipline_code`, `person.mobile`, `project_participant.lead_person_id`
+- Produces: tables `hub_task_status`, `hub_priority`, `hub_event_status`, `hub_meeting_item_type`, each keyed by `code text PRIMARY KEY`; columns `discipline.color`, `discipline.legacy_code`, `person.discipline_code`, `project_participant.lead_person_id`
 
 - [ ] **Step 1: Cut the branch**
 
@@ -407,7 +463,7 @@ public sealed class HubSchemaTests(DatabaseFixture fixture) : IAsyncLifetime
     }
 
     [SkippableFact]
-    public async Task Migration_007_adds_the_vocabulary_tables()
+    public async Task Migration_008_adds_the_vocabulary_tables()
     {
         Skip.IfNot(fixture.Available, "KKARCDB_TEST_CONNECTION not set");
 
@@ -469,10 +525,10 @@ nothing: set it before continuing.
 
 - [ ] **Step 4: Write the migration**
 
-Create `db/migrations/007_hub_vocabularies.sql`:
+Create `db/migrations/008_hub_vocabularies.sql`:
 
 ```sql
--- 007 — the dashboards' vocabularies, and what the existing tables were missing.
+-- 008 — the dashboards' vocabularies, and what the existing tables were missing.
 --
 -- project_hub, planning_dashboard and home_dashboard held their own copies of the
 -- staff, consultant and discipline lists. This migration is the point at which they
@@ -505,8 +561,8 @@ COMMENT ON COLUMN discipline.legacy_code IS
 ALTER TABLE person ADD COLUMN discipline_code text
     REFERENCES discipline (code) ON DELETE SET NULL;
 
-ALTER TABLE person ADD COLUMN mobile text;
-
+-- `mobile`, `fax` and `address` are deliberately absent: 007_consultant_contacts.sql
+-- added them when the spreadsheets were loaded, and adding a column twice fails.
 CREATE INDEX person_discipline_idx ON person (discipline_code);
 
 -- Consultant rows in the blob carried an isLead flag on one contact. Which person to
@@ -589,7 +645,7 @@ CREATE TABLE hub_meeting_item_type (
 COMMENT ON TABLE hub_meeting_item_type IS
     'What a line in the minutes becomes: a task, a subtask, an update, a decision, or information.';
 
-UPDATE app_meta SET value = '007', updated_at = now() WHERE key = 'schema_version';
+UPDATE app_meta SET value = '008', updated_at = now() WHERE key = 'schema_version';
 ```
 
 - [ ] **Step 5: Run the test to verify it passes**
@@ -606,12 +662,16 @@ Expected: PASS, 3 tests.
 cd /d/Coding/KkarcDB && dotnet test
 ```
 
-Expected: 186 passing (the previous 183 plus these 3), 0 failing.
+Expected: 205 passing (the current 202 plus these 3), 0 failing.
+
+The 202 is 113 scanner tests, 39 API tests and 50 data tests. A further 42 data tests
+skip without `KKARCDB_TEST_CONNECTION`, and the three added here are among them, so an
+unset connection makes this step prove nothing.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add db/migrations/007_hub_vocabularies.sql tests/KKarcDB.Data.Tests/HubSchemaTests.cs
+git add db/migrations/008_hub_vocabularies.sql tests/KKarcDB.Data.Tests/HubSchemaTests.cs
 git commit -m "feat(db): add the dashboards' vocabularies and extend discipline"
 ```
 
@@ -645,7 +705,7 @@ the database rather than from code.
 
 **Interfaces:**
 - Consumes: the tables from Task 2
-- Produces: `discipline.legacy_code` populated for 16 codes; `hub_task_status` 5 rows keyed `not_started|in_progress|awaiting_response|stuck|done`; `hub_priority` 3 rows keyed `high|medium|low`; `hub_event_status` 7 rows keyed `missing|progress|sent|response|comments|update|approved`; `hub_meeting_item_type` 5 rows keyed `task|subtask|update|decision|info`
+- Produces: `discipline.legacy_code` populated for 19 codes and no new `discipline` rows; `hub_task_status` 5 rows keyed `not_started|in_progress|awaiting_response|stuck|done`; `hub_priority` 3 rows keyed `high|medium|low`; `hub_event_status` 7 rows keyed `missing|progress|sent|response|comments|update|approved`; `hub_meeting_item_type` 5 rows keyed `task|subtask|update|decision|info`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -683,12 +743,14 @@ Append to `tests/KKarcDB.Data.Tests/HubSchemaTests.cs`, inside the class:
         Skip.IfNot(fixture.Available, "KKARCDB_TEST_CONNECTION not set");
         await SeedAsync();
 
-        // The sixteen codes project_hub's DISCIPLINES array defines. A code missing
-        // here means tasks arrive from the ETL with no discipline and are drawn grey.
+        // The sixteen codes project_hub's DISCIPLINES array defines, plus the three
+        // trades the practice engages that it does not list yet. A code missing here
+        // means tasks arrive from the import with no discipline and are drawn grey.
         string[] expected =
         [
             "ARCH", "STRC", "ELEC", "PLUM", "HVAC", "LAND", "SAFE", "ACSS",
             "TRAF", "GR", "ENVI", "PM", "HYDR", "LIFT", "AGRO", "TNDR",
+            "FIRE", "ACUS", "SURV",
         ];
 
         var mapped = await ScalarAsync<long>(
@@ -760,13 +822,12 @@ cd /d/Coding/KkarcDB && dotnet test tests/KKarcDB.Data.Tests --filter HubSchemaT
 ```
 
 Expected: FAIL — `Every_discipline_the_dashboards_use_maps_to_exactly_one_row` reports
-`0` rather than `16`.
+`0` rather than `19`.
 
 - [ ] **Step 3: Write the discipline seed**
 
 Create `db/seed/002_hub_disciplines.sql`. **This is the file to edit if a mapping is
-wrong.** The two decisions from the plan header are marked; change the `legacy_code`
-value on the line, re-run, and nothing else needs touching.
+wrong.** Change the `legacy_code` on the line, re-run, and nothing else needs touching.
 
 ```sql
 -- 002 — the discipline map.
@@ -776,75 +837,80 @@ value on the line, re-run, and nothing else needs touching.
 -- disagreement about it is settled by editing one line and re-running, which is what
 -- happens when somebody who knows the practice reads it for the first time.
 --
+-- It creates nothing. Every trade the dashboards name already has a row: 797e7cb read
+-- 158 consultant spreadsheets and added the thirty-six the firm demonstrably engages,
+-- taking this table from fifteen disciplines to fifty-one. Inserting here would only
+-- produce a second row meaning the same thing under a different code.
+--
 -- Idempotent: safe to re-run after an edit.
 --
--- Colours are project_hub's own, taken from its DISCIPLINES array. They are how the
--- chips are read at a glance rather than decoration.
-
--- ---------------------------------------------------------------------------
--- Disciplines the dashboards use that KkarcDB did not have
--- ---------------------------------------------------------------------------
-
-INSERT INTO discipline (code, name_en, name_he, sort_order) VALUES
-    ('project_management', 'Project management',      'ניהול פרויקט', 160),
-    ('drainage',           'Drainage and hydrology',  'ניקוז',        170),
-    ('elevators',          'Elevators',               'מעליות',       180),
-    ('agronomy',           'Agronomy',                'אגרונומיה',    190),
-    ('communications',     'Communications',          'תקשורת',       200)
-ON CONFLICT (code) DO NOTHING;
-
--- ---------------------------------------------------------------------------
--- The map, and the colours
---
--- Ten rows below are unambiguous. Two are decisions, marked DECISION, and both are
--- recorded in the plan with the alternative spelled out.
--- ---------------------------------------------------------------------------
+-- Colours are project_hub's own, from its DISCIPLINES array. They are how the chips
+-- are read at a glance rather than decoration.
 
 UPDATE discipline AS d SET
     legacy_code = m.legacy_code,
     color       = m.color
 FROM (VALUES
-    -- KkarcDB code        legacy    colour
-    ('architecture',       'ARCH',   '#3B82F6'),
-    ('structural',         'STRC',   '#7C3AED'),
-    ('electrical',         'ELEC',   '#D97706'),
-    ('plumbing',           'PLUM',   '#14B8A6'),
-    ('hvac',               'HVAC',   '#0EA5E9'),
-    ('landscape',          'LAND',   '#F97316'),
-    ('safety',             'SAFE',   '#22C55E'),
-    ('accessibility',      'ACSS',   '#EC4899'),
-    ('traffic',            'TRAF',   '#8B5CF6'),
-    ('geotechnical',       'GR',     '#92400E'),
-    ('project_management', 'PM',     '#6366F1'),
-    ('drainage',           'HYDR',   '#2563EB'),
-    ('elevators',          'LIFT',   '#6B7280'),
-    ('agronomy',           'AGRO',   '#059669'),
-    ('communications',     NULL,     '#0891B2'),
+    -- KkarcDB code    legacy    colour
+    ('architecture',   'ARCH',   '#3B82F6'),
+    ('structural',     'STRC',   '#7C3AED'),
+    ('electrical',     'ELEC',   '#D97706'),
+    ('plumbing',       'PLUM',   '#14B8A6'),
+    ('hvac',           'HVAC',   '#0EA5E9'),
+    ('landscape',      'LAND',   '#F97316'),
+    ('safety',         'SAFE',   '#22C55E'),
+    ('accessibility',  'ACSS',   '#EC4899'),
+    ('traffic',        'TRAF',   '#8B5CF6'),
+    ('geotechnical',   'GR',     '#92400E'),
 
-    -- DECISION 1. The app labels ENVI "סביבה", but its only task is a green-building
-    -- laboratory approval and the consultant's own wording is "בניה ירוקה". Mapped to
-    -- KkarcDB's existing `green` rather than creating a second, overlapping row.
-    -- To reverse: seed a new discipline `environment` above and move 'ENVI' onto it.
-    ('green',              'ENVI',   '#10B981'),
+    -- Trades the practice engages that project_hub's DISCIPLINES array does not list
+    -- yet. Mapped now so that adding them to the app is a one-line change there and
+    -- nothing here. Until then no task carries them and these rows sit unused.
+    ('fire',           'FIRE',   '#BB4040'),
+    ('acoustics',      'ACUS',   '#BB40EE'),   -- plural: the register spells it so
+    ('survey',         'SURV',   '#BBAA22'),
 
-    -- DECISION 2. The app labels TNDR "מכרזים", but the firm behind it is a quantity
-    -- surveyor and its wording is "כמויות ומכרז". Mapped to `quantity`, which leaves
-    -- `מכרז` meaning only the tender *stage* -- it is a stage_template code already.
-    -- To reverse: seed a new discipline `tender_quantities` and move 'TNDR' onto it.
-    ('quantity',           'TNDR',   '#EF4444')
+    -- Abbreviated in the register, not spelled out. `project_management` does not
+    -- exist here, and creating it would shadow this row for the most-used code in the
+    -- whole seed data -- 58 references.
+    ('project_mgmt',   'PM',     '#6366F1'),
+
+    -- The register calls this hydrology; its English name is "Hydrology and drainage",
+    -- which is the trade the app calls ניקוז.
+    ('hydrology',      'HYDR',   '#2563EB'),
+
+    ('elevators',      'LIFT',   '#6B7280'),
+    ('agronomy',       'AGRO',   '#059669'),
+    ('communications', NULL,     '#0891B2'),
+
+    -- The app labels TNDR "מכרזים", but the firm behind it is a quantity surveyor and
+    -- its own wording is "כמויות ומכרז". Mapped to quantity, which leaves מכרז meaning
+    -- only the tender *stage* -- it is already a stage_template code.
+    ('quantity',       'TNDR',   '#EF4444'),
+
+    -- DECISION. The app labels ENVI "סביבה", environment, but the one task using it is
+    -- a green-building laboratory approval and the consultant describes itself as
+    -- "בניה ירוקה". Both readings now have a row: `green` (בנייה ירוקה) and
+    -- `environment` (איכות סביבה). This follows the data rather than the label.
+    -- To reverse: change 'green' below to 'environment'. Nothing else moves.
+    ('green',          'ENVI',   '#10B981')
 ) AS m (code, legacy_code, color)
 WHERE d.code = m.code;
 
--- ---------------------------------------------------------------------------
--- Disciplines KkarcDB has that the dashboards never referenced.
---
--- Left with a null legacy_code deliberately. The ETL ignores them; a consultant added
--- by hand can still use them, and a future export that mentions one will fail loudly
--- rather than guess.
--- ---------------------------------------------------------------------------
---   fire       כבאות
---   acoustics  אקוסטיקה
---   survey     מדידות
+-- A code that matches no row updates nothing and says nothing, which is the one way
+-- this file can fail quietly -- and the way it did fail, with `acoustic` for the
+-- register's `acoustics`. Refuse instead.
+DO $$
+DECLARE
+    mapped bigint;
+BEGIN
+    SELECT count(*) INTO mapped FROM discipline WHERE legacy_code IS NOT NULL;
+    IF mapped <> 19 THEN
+        RAISE EXCEPTION
+            'expected 19 mapped disciplines, found % -- a code in 002_hub_disciplines.sql does not exist',
+            mapped;
+    END IF;
+END $$;
 ```
 
 - [ ] **Step 4: Write the vocabulary seed**
@@ -907,9 +973,19 @@ Expected: PASS, 7 tests.
 psql "$KKARCDB_TEST_CONNECTION" -c "SELECT legacy_code, code, name_he, color FROM discipline WHERE legacy_code IS NOT NULL ORDER BY legacy_code"
 ```
 
-Expected: 16 rows. **Check `ENVI` and `TNDR` against the two decisions in the plan
-header before continuing.** If either is wrong, edit the one line in
-`db/seed/002_hub_disciplines.sql` and re-run the seed; nothing else changes.
+Expected: 19 rows, and `PM` reading `project_mgmt` rather than `project_management`.
+**Check `ENVI` against the decision in the plan header before continuing.** If it is
+wrong, edit that one line in `db/seed/002_hub_disciplines.sql` and re-run the seed;
+nothing else changes.
+
+Also confirm the count:
+
+```bash
+psql "$KKARCDB_TEST_CONNECTION" -c "SELECT count(*) FROM discipline"
+```
+
+Expected: 51. If it is more, the seed created a discipline instead of mapping one, and
+the extra row is a duplicate under a different code.
 
 - [ ] **Step 7: Commit**
 
@@ -923,29 +999,38 @@ Use this commit body:
 ```
 The map from project_hub's ARCH/STRC/PM codes to this database's
 disciplines is stored as data on discipline.legacy_code, so correcting it
-means editing one line and re-running rather than changing code. Five
-disciplines the dashboards use did not exist here and are added: project
-management, drainage, elevators, agronomy, communications.
+means editing one line and re-running rather than changing code.
 
-Two mappings were judgement calls and are marked in the file with the
-alternative written out. ENVI is labelled 'environment' in the app but its
-only task is a green-building approval, so it maps to the existing green
-row. TNDR is labelled 'tenders' but the firm behind it is a quantity
-surveyor, so it maps to quantity -- which also stops the word meaning both
-a discipline and a stage.
+It creates no disciplines. 797e7cb read 158 consultant spreadsheets and
+took this table from 15 codes to 51, so every trade the dashboards name
+already has a row. Two of them would have been duplicated by an earlier
+draft of this file: the register abbreviates project management to
+project_mgmt, and calls drainage hydrology.
+
+Three mappings are judgement calls. ENVI is labelled 'environment' in the
+app but its only task is a green-building approval, so it maps to green;
+the file says how to move it to environment, which also exists. TNDR is
+labelled 'tenders' but the firm behind it is a quantity surveyor, so it
+maps to quantity, which also stops the word meaning both a discipline and a
+stage. FIRE, ACUS and SURV are mapped although the app does not define them
+yet, so adding them there becomes a one-line change and nothing else.
+
+The file ends by counting what it mapped and refusing if the count is
+wrong. A code matching no row updates nothing and says nothing, which is
+how 'acoustic' for the register's 'acoustics' went unnoticed.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 ```
 
 ---
 
-## Task 4: Migration 008 — the work tables
+## Task 4: Migration 009 — the work tables
 
 The largest migration. It carries the two rules that are worth testing: an event must
 belong to exactly one thing, and a subtask cannot be its own ancestor.
 
 **Files:**
-- Create: `D:\Coding\KkarcDB\db\migrations\008_hub_work.sql`
+- Create: `D:\Coding\KkarcDB\db\migrations\009_hub_work.sql`
 - Test: `D:\Coding\KkarcDB\tests\KKarcDB.Data.Tests\HubWorkTests.cs`
 
 **Interfaces:**
@@ -1161,10 +1246,10 @@ Expected: FAIL with `relation "hub_sheet" does not exist`.
 
 - [ ] **Step 3: Write the migration**
 
-Create `db/migrations/008_hub_work.sql`:
+Create `db/migrations/009_hub_work.sql`:
 
 ```sql
--- 008 — sheets, tasks, subtasks and the status log they share.
+-- 009 — sheets, tasks, subtasks and the status log they share.
 --
 -- The shape this replaces kept subtasks in two places at once: migrateTask() copied
 -- them into a lane without removing them from task.subtasks, leaving 50 tasks with
@@ -1564,7 +1649,7 @@ CREATE TABLE hub_attachment (
 
 CREATE INDEX hub_attachment_task_idx ON hub_attachment (task_id);
 
-UPDATE app_meta SET value = '008', updated_at = now() WHERE key = 'schema_version';
+UPDATE app_meta SET value = '009', updated_at = now() WHERE key = 'schema_version';
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
@@ -1578,7 +1663,7 @@ Expected: PASS, 4 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add db/migrations/008_hub_work.sql tests/KKarcDB.Data.Tests/HubWorkTests.cs
+git add db/migrations/009_hub_work.sql tests/KKarcDB.Data.Tests/HubWorkTests.cs
 git commit -m "feat(db): add sheets, tasks, subtasks and the shared status log"
 ```
 
@@ -1605,10 +1690,10 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
 ---
 
-## Task 5: Migration 009 — meetings, goals, milestones, principles, activity
+## Task 5: Migration 010 — meetings, goals, milestones, principles, activity
 
 **Files:**
-- Create: `D:\Coding\KkarcDB\db\migrations\009_hub_meetings.sql`
+- Create: `D:\Coding\KkarcDB\db\migrations\010_hub_meetings.sql`
 - Test: `D:\Coding\KkarcDB\tests\KKarcDB.Data.Tests\HubMeetingTests.cs`
 
 **Interfaces:**
@@ -1803,10 +1888,10 @@ Expected: FAIL with `relation "hub_meeting" does not exist`.
 
 - [ ] **Step 3: Write the migration**
 
-Create `db/migrations/009_hub_meetings.sql`:
+Create `db/migrations/010_hub_meetings.sql`:
 
 ```sql
--- 009 — minutes, and the records a line of minutes becomes.
+-- 010 — minutes, and the records a line of minutes becomes.
 --
 -- A line in the minutes can be turned into a task, a goal, a milestone or a planning
 -- principle. The link back is a pointer rather than ownership: deleting a meeting
@@ -1900,7 +1985,7 @@ CREATE TRIGGER hub_meeting_item_set_updated_at
     BEFORE UPDATE ON hub_meeting_item
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
--- Deferred from 008: hub_meeting_item did not exist yet. SET NULL, so losing the
+-- Deferred from 009: hub_meeting_item did not exist yet. SET NULL, so losing the
 -- meeting keeps the task and only forgets where it came from.
 ALTER TABLE hub_task ADD CONSTRAINT hub_task_source_meeting_item_fk
     FOREIGN KEY (source_meeting_item_id) REFERENCES hub_meeting_item (id) ON DELETE SET NULL;
@@ -2040,7 +2125,7 @@ CREATE TABLE hub_activity (
 CREATE INDEX hub_activity_project_idx ON hub_activity (project_id, created_at DESC);
 CREATE INDEX hub_activity_entity_idx ON hub_activity (entity_kind, entity_id);
 
-UPDATE app_meta SET value = '009', updated_at = now() WHERE key = 'schema_version';
+UPDATE app_meta SET value = '010', updated_at = now() WHERE key = 'schema_version';
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
@@ -2054,7 +2139,7 @@ Expected: PASS, 3 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add db/migrations/009_hub_meetings.sql tests/KKarcDB.Data.Tests/HubMeetingTests.cs
+git add db/migrations/010_hub_meetings.sql tests/KKarcDB.Data.Tests/HubMeetingTests.cs
 git commit -m "feat(db): add meetings, goals, milestones, principles and activity"
 ```
 
@@ -2078,10 +2163,10 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
 ---
 
-## Task 6: Migration 010 — the planning board
+## Task 6: Migration 011 — the planning board
 
 **Files:**
-- Create: `D:\Coding\KkarcDB\db\migrations\010_hub_planning.sql`
+- Create: `D:\Coding\KkarcDB\db\migrations\011_hub_planning.sql`
 - Test: `D:\Coding\KkarcDB\tests\KKarcDB.Data.Tests\HubPlanningTests.cs`
 
 **Interfaces:**
@@ -2258,10 +2343,10 @@ Expected: FAIL with `relation "hub_plan_board" does not exist`.
 
 - [ ] **Step 3: Write the migration**
 
-Create `db/migrations/010_hub_planning.sql`:
+Create `db/migrations/011_hub_planning.sql`:
 
 ```sql
--- 010 — the planning board.
+-- 011 — the planning board.
 --
 -- planning_dashboard is a grid: buildings down, consultants across, each consultant
 -- split by document type. It kept its cells in an object keyed by the string
@@ -2350,7 +2435,7 @@ CREATE TABLE hub_plan_cell (
 
 CREATE INDEX hub_plan_cell_board_idx ON hub_plan_cell (board_id);
 
--- Deferred from 008: hub_plan_cell did not exist yet.
+-- Deferred from 009: hub_plan_cell did not exist yet.
 ALTER TABLE hub_event ADD CONSTRAINT hub_event_plan_cell_fk
     FOREIGN KEY (plan_cell_id) REFERENCES hub_plan_cell (id) ON DELETE CASCADE;
 
@@ -2397,7 +2482,7 @@ ORDER BY c.id, e.event_date DESC NULLS LAST, e.created_at DESC NULLS LAST;
 COMMENT ON VIEW hub_plan_cell_status IS
     'One row per cell with the status its most recent event gives it. Cells with no events read as missing, which is how a new board looks.';
 
-UPDATE app_meta SET value = '010', updated_at = now() WHERE key = 'schema_version';
+UPDATE app_meta SET value = '011', updated_at = now() WHERE key = 'schema_version';
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
@@ -2411,7 +2496,7 @@ Expected: PASS, 3 tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add db/migrations/010_hub_planning.sql tests/KKarcDB.Data.Tests/HubPlanningTests.cs
+git add db/migrations/011_hub_planning.sql tests/KKarcDB.Data.Tests/HubPlanningTests.cs
 git commit -m "feat(db): add the planning board"
 ```
 
@@ -2435,7 +2520,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
 ---
 
-## Task 7: Migration 011 — per-user state
+## Task 7: Migration 012 — per-user state
 
 The schema spec's Finding 2: the old model stored one person's collapsed groups,
 hidden columns and column widths on the shared row. Sharing that database means the UI
@@ -2443,7 +2528,7 @@ changes under you because a colleague clicked something, which is the most confu
 class of multi-user bug.
 
 **Files:**
-- Create: `D:\Coding\KkarcDB\db\migrations\011_hub_user_state.sql`
+- Create: `D:\Coding\KkarcDB\db\migrations\012_hub_user_state.sql`
 - Test: `D:\Coding\KkarcDB\tests\KKarcDB.Data.Tests\HubUserStateTests.cs`
 
 **Interfaces:**
@@ -2632,10 +2717,10 @@ Expected: FAIL with `relation "hub_user_pref" does not exist`.
 
 - [ ] **Step 3: Write the migration**
 
-Create `db/migrations/011_hub_user_state.sql`:
+Create `db/migrations/012_hub_user_state.sql`:
 
 ```sql
--- 011 — state that belongs to one person.
+-- 012 — state that belongs to one person.
 --
 -- The old model stored collapsed groups, hidden columns, column order and widths, and
 -- saved views on the shared row. Expand/collapse of tasks had already been given
@@ -2708,7 +2793,7 @@ CREATE TRIGGER hub_saved_view_set_updated_at
     BEFORE UPDATE ON hub_saved_view
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
-UPDATE app_meta SET value = '011', updated_at = now() WHERE key = 'schema_version';
+UPDATE app_meta SET value = '012', updated_at = now() WHERE key = 'schema_version';
 ```
 
 - [ ] **Step 4: Run the tests to verify they pass**
@@ -2725,12 +2810,12 @@ Expected: PASS, 4 tests.
 cd /d/Coding/KkarcDB && dotnet test
 ```
 
-Expected: 197 passing (183 original + 7 + 4 + 3 + 3 + 4), 0 failing.
+Expected: 216 passing (202 original + 7 + 4 + 3 + 3 + 4), 0 failing.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add db/migrations/011_hub_user_state.sql tests/KKarcDB.Data.Tests/HubUserStateTests.cs
+git add db/migrations/012_hub_user_state.sql tests/KKarcDB.Data.Tests/HubUserStateTests.cs
 git commit -m "feat(db): move per-user UI state off the shared rows"
 ```
 
@@ -3054,9 +3139,9 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
 ## Task 9: Name normalisation and the firm-merge rule
 
-The rule from the plan header, implemented and tested against the real collisions.
-This is the only part of the ETL with judgement in it, so it is its own task with its
-own tests and nothing else in it.
+The rule from the plan header, implemented and checked against the whole register.
+This is the only part of the import with judgement in it, so it is its own task with
+its own tests and nothing else in it.
 
 **Files:**
 - Create: `D:\Coding\KkarcDB\tools\hub-import\package.json`
@@ -3065,10 +3150,11 @@ own tests and nothing else in it.
 - Test: `D:\Coding\KkarcDB\tools\hub-import\normalise.test.js`
 
 **Interfaces:**
-- Consumes: nothing
+- Consumes: `GENERIC_WORDS` from `tools/consultant-extract/names.py`, copied rather than imported — one is Python and the other JavaScript, and a comment in each points at the other
 - Produces, all named exports from `normalise.js`:
   - `stripBidi(text: string): string`
   - `normaliseName(text: string): string`
+  - `distinctivePart(text: string): string`
   - `levenshtein(a: string, b: string): number`
   - `sameFirm(a: string, b: string): {same: boolean, exact: boolean, distance: number}`
   - `resolveFirmName(name: string, known: Map<string, string>): {key: string, merged: null | {into: string, distance: number}}` where `known` maps a normalised name to the canonical original spelling, and is **mutated** to add a newly seen name
@@ -3090,7 +3176,7 @@ Create `tools/hub-import/package.json`:
 }
 ```
 
-No dependencies. Node 24 has a test runner, and the ETL runs once.
+No dependencies. Node 24 has a test runner, and the import runs once.
 
 - [ ] **Step 2: Write the failing test**
 
@@ -3105,6 +3191,7 @@ const assert = require('node:assert');
 const {
   stripBidi,
   normaliseName,
+  distinctivePart,
   levenshtein,
   sameFirm,
   resolveFirmName,
@@ -3113,8 +3200,8 @@ const {
 test('bidi marks Explorer inserts are removed', () => {
   // These are invisible. Left in, a name never matches the same name typed by hand,
   // and the failure looks like two firms that happen to share a spelling.
-  assert.strictEqual(stripBidi('\u200Fקנפו כלמור\u200E'), 'קנפו כלמור');
-  assert.strictEqual(stripBidi('\u202Bאדמה\u202C'), 'אדמה');
+  assert.strictEqual(stripBidi('‏קנפו כלמור‎'), 'קנפו כלמור');
+  assert.strictEqual(stripBidi('‫אדמה‬'), 'אדמה');
   assert.strictEqual(stripBidi('plain'), 'plain');
 });
 
@@ -3123,14 +3210,16 @@ test('normalising folds punctuation, spacing and the corporate suffix', () => {
   assert.strictEqual(normaliseName('י.שני מהנדסים'), 'י שני מהנדסים');
   assert.strictEqual(normaliseName('וישקין תכנון בע"מ'), 'וישקין תכנון');
   assert.strictEqual(normaliseName('וישקין תכנון בע״מ'), 'וישקין תכנון');
+  assert.strictEqual(normaliseName('כנפו-כלימור'), 'כנפו כלימור');
   assert.strictEqual(normaliseName('Acme Engineering Ltd.'), 'acme engineering');
 });
 
-test('normalising two spellings of one firm produces one string', () => {
-  assert.strictEqual(
-    normaliseName('י. שני מהנדסים'),
-    normaliseName('י.שני מהנדסים'),
-  );
+test('the distinctive part drops the words every firm in the trade uses', () => {
+  // Half the register contains הנדסה or מהנדסים. Those characters pad the length and
+  // let an edit budget stretch over the part that actually names the firm.
+  assert.strictEqual(distinctivePart('בר אלכס הנדסה וקבלנות בניין בע"מ'), 'בר אלכס וקבלנות');
+  assert.strictEqual(distinctivePart('י. שני מהנדסים'), 'י שני');
+  assert.strictEqual(distinctivePart('קנפו כלימור אדריכלים'), 'קנפו כלימור');
 });
 
 test('levenshtein counts edits over code points', () => {
@@ -3155,18 +3244,48 @@ test('a difference of spacing and periods is an exact match', () => {
   assert.strictEqual(result.distance, 0);
 });
 
+test('a firm named by fewer trade words is still the same firm', () => {
+  // 'ש. גלבוע' and 'ש. גלבוע מהנדסים יועצים' are one practice written two ways, and
+  // the register holds both spellings.
+  const result = sameFirm('ש. גלבוע', 'ש. גלבוע מהנדסים יועצים');
+  assert.strictEqual(result.same, true);
+  assert.strictEqual(result.distance, 0);
+});
+
 test('two genuinely different electrical firms stay apart', () => {
   // Both do electrical work on the same kind of project, and both are abbreviations
-  // with periods. Normalisation alone would not separate them; the distance does.
+  // with periods. Their distinctive parts are initials, so they must match exactly.
   const result = sameFirm('א.נ.ה הנדסת חשמל', 'ו.נ. אור הנדסה');
   assert.strictEqual(result.same, false);
 });
 
+test('two firms distinguished only by their initials stay apart', () => {
+  // This is what measuring the distinctive part buys. Against the whole name these are
+  // two edits in thirty characters and would merge; the shared 'מהנדסים' is doing all
+  // the work of making them look alike.
+  assert.strictEqual(sameFirm('מ.נ.מ מהנדסים בע"מ', 'ת.ל.מ מהנדסים בע"מ').same, false);
+  assert.strictEqual(sameFirm('א.ד מהנדסים', 'אחוד מהנדסים').same, false);
+  assert.strictEqual(sameFirm('ג.ל. מהנדסים יועצים בע"מ', 'י. לבל מהנדסים יועצים').same, false);
+  assert.strictEqual(sameFirm('נאסר מהנדסים', 'סטאר מהנדסים').same, false);
+});
+
+test('two people who share a first name are not one firm', () => {
+  // At a quarter of the longer name this lands exactly on the threshold and merges,
+  // which is why the ratio is a fifth.
+  assert.strictEqual(sameFirm('מיכאל רויטמן', 'מיכאל פרידמן').same, false);
+});
+
 test('short names must match exactly', () => {
-  // Without the length guard a single character merges two unrelated small firms.
   assert.strictEqual(sameFirm('DCX', 'DCY').same, false);
   assert.strictEqual(sameFirm('אדמה', 'אדמות').same, false);
   assert.strictEqual(sameFirm('DCX', 'dcx').same, true);
+});
+
+test('a name made only of trade words matches nothing', () => {
+  // 'הנדסה בע"מ' identifies no firm. Better a duplicate somebody can merge by hand
+  // than a wrong merge nobody ever sees.
+  const result = sameFirm('הנדסה בע"מ', 'תכנון ויעוץ');
+  assert.strictEqual(result.same, false);
 });
 
 test('a long name still refuses a large edit distance', () => {
@@ -3238,10 +3357,19 @@ Create `tools/hub-import/normalise.js`:
  * "י. שני מהנדסים" and "י.שני מהנדסים". Importing those as four firms puts the same
  * consultant on a project twice, which is worse than either spelling.
  *
- * The rule is deliberately conservative and always reports what it did: an exact match
- * after normalisation merges silently, a near match merges and writes a line for
- * review, and anything else stays separate. A wrong merge is much harder to notice
- * afterwards than a missed one, so short names must match exactly.
+ * There is a second rule in this repository, `tools/consultant-extract/names.py`,
+ * which decides the same question by asking whether two names share a distinctive
+ * token. That rule is kept for the spreadsheet loader and is deliberately not reused
+ * here: run over the 543 firms it loaded, it collapses them to 301, merging a
+ * landscape architect with an electrical engineer because both are named דוד, and
+ * four unrelated practices because all four contain בר. This rule collapses the same
+ * 543 to 498, and every merge it makes was checked by hand.
+ *
+ * What is borrowed from it is GENERIC_WORDS, which is the good idea in it: half the
+ * firm names in this trade contain הנדסה or מהנדסים, so those characters pad the
+ * length and let an edit budget stretch over the part that actually identifies the
+ * firm. Measuring the distinctive part instead is what stops "מ.נ.מ מהנדסים" and
+ * "ת.ל.מ מהנדסים" being one firm.
  */
 
 /**
@@ -3254,7 +3382,22 @@ Create `tools/hub-import/normalise.js`:
 const BIDI = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
 
 /** Trailing "limited": Hebrew with either quote character, and the English forms. */
-const CORPORATE_SUFFIX = /\s*(?:בע["״׳']?מ|ltd\.?|limited)\s*$/i;
+const CORPORATE_SUFFIX = /\s*(?:בע["\u05F4\u05F3']?מ|ltd\.?|limited)\s*$/i;
+
+/**
+ * Words that appear in half the firm names in this trade, so identify nothing.
+ *
+ * Copied from tools/consultant-extract/names.py. If that list gains a word, this one
+ * should too — they are answering the same question about the same register.
+ */
+const GENERIC_WORDS = new Set([
+  'הנדסה', 'מהנדסים', 'הנדסת', 'יועצים', 'יועץ', 'ויעוץ', 'וייעוץ', 'אדריכלים',
+  'אדריכלות', 'אדריכל', 'תכנון', 'תיכנון', 'ושות', 'בנין', 'בניין', 'ניהול',
+  'חברת', 'משרד', 'בעמ', 'ופיתוח', 'ושותפיו', 'קבוצת', 'אזרחית', 'בטיחות',
+  'אקוסטיקה', 'מדידות', 'מעליות', 'קרקע', 'נוף', 'סביבה', 'תנועה', 'דרכים',
+  'חשמל', 'מבנים', 'טכנולוגיות',
+  'engineering', 'consultants', 'consulting', 'group', 'ltd', 'architects', 'planning',
+]);
 
 /** Strips the invisible bidirectional marks Explorer adds to Hebrew names. */
 function stripBidi(text) {
@@ -3277,12 +3420,27 @@ function normaliseName(text) {
 
   value = value.replace(CORPORATE_SUFFIX, '');
 
-  // Periods and commas carry no information here: initials are written both ways.
-  value = value.replace(/[.,]/g, ' ');
+  // Periods, commas and dashes carry no information here: initials and compound names
+  // are written both ways, sometimes in the same spreadsheet.
+  value = value.replace(/[.,\-\u2013]/g, ' ');
 
   value = value.replace(/\s+/g, ' ').trim();
 
   return value.toLowerCase();
+}
+
+/**
+ * The part of a name that identifies the firm rather than the trade.
+ *
+ * "בר אלכס הנדסה וקבלנות בניין" becomes "בר אלכס וקבלנות". Comparing these rather
+ * than the whole name is what keeps a three-character difference in the initials from
+ * being diluted by a long shared suffix that every firm in the trade shares.
+ */
+function distinctivePart(text) {
+  return normaliseName(text)
+    .split(' ')
+    .filter((word) => word !== '' && !GENERIC_WORDS.has(word))
+    .join(' ');
 }
 
 /**
@@ -3326,11 +3484,17 @@ function levenshtein(a, b) {
 /** At most this many edits, and only for names long enough to afford them. */
 const MAX_DISTANCE = 3;
 
-/** An edit budget as a share of the longer name, so short names cannot spend it. */
-const MAX_RATIO = 0.25;
+/**
+ * An edit budget as a share of the longer distinctive part.
+ *
+ * 0.2 rather than 0.25 because at a quarter, "מיכאל רויטמן" and "מיכאל פרידמן" land
+ * exactly on the threshold and merge. Two people who share a first name are not one
+ * firm.
+ */
+const MAX_RATIO = 0.2;
 
 /**
- * Below this many characters a name must match exactly.
+ * Below this many characters a distinctive part must match exactly.
  *
  * "DCX" and "אדמה" are real firms. One character apart from another short name is a
  * plausible different firm, not a plausible typo, and merging those is the failure
@@ -3345,21 +3509,28 @@ const MIN_FUZZY_LENGTH = 6;
  * one that spent edit distance, which is reported.
  */
 function sameFirm(a, b) {
-  const left = normaliseName(a);
-  const right = normaliseName(b);
-
-  if (left === right) {
+  if (normaliseName(a) === normaliseName(b)) {
     return { same: true, exact: true, distance: 0 };
+  }
+
+  const left = distinctivePart(a);
+  const right = distinctivePart(b);
+
+  // A name made entirely of trade words identifies nothing, so it cannot be matched
+  // to anything. Better a duplicate somebody can merge than a wrong merge nobody sees.
+  if (left === '' || right === '') {
+    return { same: false, exact: false, distance: Number.MAX_SAFE_INTEGER };
   }
 
   const shortest = Math.min(Array.from(left).length, Array.from(right).length);
   const longest = Math.max(Array.from(left).length, Array.from(right).length);
 
+  const distance = levenshtein(left, right);
+
   if (shortest < MIN_FUZZY_LENGTH) {
-    return { same: false, exact: false, distance: levenshtein(left, right) };
+    return { same: distance === 0, exact: false, distance };
   }
 
-  const distance = levenshtein(left, right);
   const same = distance <= MAX_DISTANCE && distance / longest <= MAX_RATIO;
 
   return { same, exact: false, distance };
@@ -3371,7 +3542,8 @@ function sameFirm(a, b) {
  * `known` maps a normalised name to the spelling that reached the database first, and
  * is mutated. First seen wins, which matches the register's existing rule that a
  * project is never renamed by a later scan: whoever wrote it down first is presumed
- * to have been looking at the contract.
+ * to have been looking at the contract. The import seeds this from the `firm` table
+ * before reading any blob, so a spelling already in the register always wins.
  */
 function resolveFirmName(name, known) {
   const normalised = normaliseName(name);
@@ -3398,9 +3570,11 @@ function resolveFirmName(name, known) {
 module.exports = {
   stripBidi,
   normaliseName,
+  distinctivePart,
   levenshtein,
   sameFirm,
   resolveFirmName,
+  GENERIC_WORDS,
   MAX_DISTANCE,
   MAX_RATIO,
   MIN_FUZZY_LENGTH,
@@ -3413,64 +3587,54 @@ module.exports = {
 cd /d/Coding/KkarcDB/tools/hub-import && node --test
 ```
 
-Expected: PASS, 12 tests, 0 failing. **This was run while writing the plan; all 12 pass
-against the code above as written.**
+Expected: PASS, 16 tests, 0 failing. **This was run while writing the plan; all 16
+pass against the code above exactly as printed.**
 
-- [ ] **Step 6: Check the rule against every real firm name**
+- [ ] **Step 6: Check the rule against every firm in the register**
 
-The unit tests cover the pairs that matter. This checks that nothing *else* merges.
+The unit tests prove the pairs that should merge do. This proves nothing else does,
+which is the failure that would otherwise be found by a consultant noticing they had
+been replaced by a different practice.
+
+Dump the names the register holds:
+
+```bash
+cd /d/Coding/KkarcDB/tools/hub-import && mkdir -p out && psql "$KKARCDB_CONNECTION" -At -c "SELECT name FROM firm ORDER BY name" > out/firms.txt
+```
+
 Create `tools/hub-import/check-firms.js`:
 
 ```javascript
 'use strict';
 
 /**
- * Every consultant firm named in either blob, run through the merge rule.
+ * Every firm name in the register, run through the merge rule.
  *
- * The unit tests prove the pairs that should merge do. This proves nothing else does,
- * which is the failure that would otherwise be found by a consultant noticing they had
- * been replaced by a different practice.
- *
- * Throwaway: delete it once the import has run and been checked.
+ * Throwaway, and deliberately not a unit test: it needs the register, and what it
+ * produces is a list for a person to read rather than an assertion. Delete it once the
+ * import has run and the merges have been checked.
  */
 
-const { resolveFirmName, sameFirm } = require('./normalise.js');
+const fs = require('node:fs');
+const { resolveFirmName } = require('./normalise.js');
 
-const names = [
-  // project_hub
-  'אדמה', 'נופים', 'קנפו כלימור אדריכלים', 'אי אי טי הנדסה וטכנולוגיה סביבתית',
-  'כדאי בטיחות', 'יוזמות למען הסביבה', 'צוק הידרולוגיה', 'ו.נ. אור הנדסה',
-  'זליו דיאמנדי', 'בר אלכס הנדסה וקבלנות בנין בע"מ', 'וישקין תכנון בע"מ',
-  'קריזל הנדסה', 'אלרום מעליות', 'שרה גאס — מורשית נגישות', 'י. שני מהנדסים',
-  'אריה צור',
-  // planning_dashboard
-  'DCX', 'א.נ.ה הנדסת חשמל', 'י.שני מהנדסים', 'קנפו כלמור אדריכלים',
-  'ש. גלבוע מהנדסים', 'ש. גלבוע מהנדסים',
-];
+const rows = fs.readFileSync(process.argv[2] ?? 'out/firms.txt', 'utf8')
+  .split(/\r?\n/)
+  .map((line) => line.trim())
+  .filter((line) => line !== '');
 
 const known = new Map();
-let merges = 0;
+const merged = [];
 
-for (const name of names) {
+for (const name of rows) {
   const resolved = resolveFirmName(name, known);
   if (resolved.merged) {
-    merges += 1;
-    console.log(`MERGE  "${name}"  ->  "${resolved.merged.into}"   distance ${resolved.merged.distance}`);
+    merged.push(`d=${resolved.merged.distance}  ${name}\n       -> ${resolved.merged.into}`);
   }
 }
 
-console.log(`\n${names.length} names -> ${known.size} firms, ${merges} reported merges`);
-
-console.log('\nclosest pairs that stayed separate:');
-const canonical = [...known.values()];
-for (let i = 0; i < canonical.length; i += 1) {
-  for (let j = i + 1; j < canonical.length; j += 1) {
-    const verdict = sameFirm(canonical[i], canonical[j]);
-    if (!verdict.same && verdict.distance <= 6) {
-      console.log(`  ${verdict.distance}  "${canonical[i]}"  vs  "${canonical[j]}"`);
-    }
-  }
-}
+console.log(`${rows.length} names -> ${known.size} firms, ${merged.length} merges\n`);
+console.log(merged.join('\n'));
 ```
 
 Run it:
@@ -3479,89 +3643,89 @@ Run it:
 cd /d/Coding/KkarcDB/tools/hub-import && node check-firms.js
 ```
 
-Expected, measured while writing this plan:
+Expected, measured while writing this plan against the 543 firms the consultant load
+put into the register:
 
 ```
-MERGE  "קנפו כלמור אדריכלים"  ->  "קנפו כלימור אדריכלים"   distance 1
-
-22 names -> 19 firms, 1 reported merges
-
-closest pairs that stayed separate:
-  5  "אדמה"  vs  "נופים"
-  6  "אדמה"  vs  "אריה צור"
-  4  "אדמה"  vs  "DCX"
-  5  "נופים"  vs  "DCX"
-  6  "י. שני מהנדסים"  vs  "ש. גלבוע מהנדסים"
+543 names -> 498 firms, 44 merges
 ```
 
-Twenty-two names become nineteen firms. Only one merge needs reporting; the two
-spellings of `י. שני מהנדסים` and the two engagements of `ש. גלבוע מהנדסים` match
-exactly after normalising, so they merge silently. The nearest pair that stayed apart
-is four edits, and the short-name guard is what kept it apart.
-
-**One thing this shows that the unit tests do not:** the canonical spelling is whichever
-came first, so running the list in this order makes `קנפו כלימור` (the extra yod) win.
-The practice's own name has no yod. Task 10 fixes this by seeding `known` from the
-`firm` table before reading any blob, so a spelling already in the register always wins.
+**Read all 44.** They should be spelling variants (`נפתלי`/`נפטלי`, `יעקוב`/`יעקב`,
+`סיסטמה`/`סיסתמה`, `תכנון`/`תיכנון`), the same practice with and without its trade
+suffix (`וישקין` / `וישקין מהנדסים`, `כדאי` / `כדאי בטיחות`, `אלרום` /
+`אלרום הנדסת מעליות`), and one kaf-for-qof variant of the practice's own name
+(`כנפו-כלימור` → `קנפו כלימור אדריכלים`). Anything pairing two different trades is a
+bug in the rule, not a merge to accept.
 
 - [ ] **Step 7: Write the README**
 
 Create `tools/hub-import/README.md`:
 
-```markdown
+````markdown
 # hub-import
 
 Reads a dashboard export into the register.
 
 The three dashboards kept everything in one `localStorage` blob per browser. This
-turns an exported blob into rows, resolving firms, people and projects against what
-is already in `project`, `firm` and `person` rather than creating a second copy.
+turns an exported blob into rows, resolving firms, people and projects against what is
+already in `project`, `firm` and `person` rather than creating a second copy.
 
 JavaScript rather than C#, for one reason: the blob is a JavaScript object graph that
-the app reshapes with its own `migrateData()` ladder on every load. Running that
-ladder is the only way to normalise the older shapes correctly, and it runs in Node
-unchanged. `tools/consultant-extract` is Python for the same kind of reason.
+the app reshapes with its own `migrateData()` ladder on every load. Running that ladder
+is the only way to normalise the older shapes correctly, and it runs in Node unchanged.
+`tools/consultant-extract` is Python for the same kind of reason.
 
 ## Running it
 
 ```powershell
 . ..\..\env.ps1
-node import.js --in .\in\project_hub_export_2026-09-15.json --project 2017-03
+.\Import-Hub.ps1 -In .\in\project_hub_export_2026-09-15.json -Project 2017-03 -WhatIf
 ```
 
-Add `--dry-run` to write the reports without touching the database. Do that first.
+`-WhatIf` writes the SQL and the reports and stops. Do that first, every time.
 
 ## What it writes
 
 | File | What it says |
 |---|---|
-| `out/firm-merges.txt` | every firm name merged into another spelling, with the edit distance |
-| `out/unmatched.txt` | names it could not resolve against the register, which need a person to decide |
-| `out/counts.txt` | rows written per table, against the counts in the blob |
+| `out/import.sql` | every statement, to read before applying |
+| `out/firm-merges.txt` | every firm name merged into another spelling, with the distance |
+| `out/unmatched.txt` | anything it could not resolve, which needs a person to decide |
+| `out/counts.txt` | rows written per table |
 
-Read `firm-merges.txt` before trusting the result. A merge it got wrong is much harder
-to find afterwards than one it missed.
+Read `firm-merges.txt` before applying. A merge it got wrong is much harder to find
+afterwards than one it missed.
 
-## The merge rule
+## The merge rule, and the other one
 
-Names are normalised (invisible bidi marks stripped, quote characters folded, a
-trailing "בע\"מ" or "Ltd" removed, periods and commas dropped, spacing collapsed,
-Latin lowercased) and then compared by edit distance.
+There is a second rule in this repository. `tools/consultant-extract/names.py` answers
+the same question for the spreadsheet loader, by asking whether two names share a
+distinctive token. **This tool deliberately does not use it.** Over the 543 firms that
+loader put into the register it collapses them to 301, merging a landscape architect
+with an electrical engineer because both are named דוד. This rule gives 498.
 
-- Equal after normalising: one firm, merged silently.
-- At most 3 edits, at most a quarter of the longer name, and both at least 6
-  characters: one firm, merged and reported.
-- Anything else: separate firms.
+What is borrowed from it is `GENERIC_WORDS`, the list of words half the trade uses.
+**If that list gains a word, the copy in `normalise.js` should gain it too.**
 
-Short names must match exactly. "DCX" and "אדמה" are real firms, and one character
-apart from another short name is a plausible different firm rather than a typo.
-```
+Names are normalised: invisible bidi marks stripped, quote characters folded, a
+trailing `בע"מ` or `Ltd` removed, periods, commas and dashes turned into spaces,
+spacing collapsed, Latin lowercased. Two names equal after that are one firm.
+
+Otherwise the comparison is on the *distinctive part*, the normalised name with the
+generic trade words removed. Half the names here contain הנדסה or מהנדסים, and those
+characters otherwise pad the length enough for an edit budget to stretch over the part
+that actually names the firm. Two distinctive parts merge when they are at most three
+edits apart, that is at most a fifth of the longer one, and both are at least six
+characters. Shorter parts must match exactly: `DCX` and `אדמה` are real firms, and one
+character apart from another short name is a plausible different firm rather than a
+typo.
+````
 
 - [ ] **Step 8: Commit**
 
 ```bash
 cd /d/Coding/KkarcDB
-git add tools/hub-import/package.json tools/hub-import/normalise.js tools/hub-import/normalise.test.js tools/hub-import/README.md
+git add tools/hub-import/package.json tools/hub-import/normalise.js tools/hub-import/normalise.test.js tools/hub-import/README.md tools/hub-import/check-firms.js
 git commit -m "feat(hub-import): decide when two spellings name one firm"
 ```
 
@@ -3574,15 +3738,20 @@ applications that never compared notes. The same practice appears as
 as 'י. שני מהנדסים' and 'י.שני מהנדסים'. Importing those as four firms puts
 the same consultant on a project twice.
 
-Names are normalised -- invisible bidi marks stripped, quote characters
-folded, a trailing corporate suffix removed, periods dropped -- and then
-compared by edit distance. At most three edits, at most a quarter of the
-longer name, and both at least six characters.
+names.py already answers this question for the spreadsheet loader, and this
+does not reuse it. Over the 543 firms that loader put into the register,
+its shared-token rule collapses them to 301 -- merging a landscape
+architect with an electrical engineer because both are named דוד, and four
+unrelated practices because all four contain בר. One of those four is the
+electrical consultant on the dashboard.
 
-The length guard is the part that matters: DCX and אדמה are real firms, and
-one character apart from another short name is a plausible different firm
-rather than a typo. A wrong merge is far harder to notice afterwards than a
-missed one, so every non-exact merge is written to a report for review.
+What is borrowed is its GENERIC_WORDS list, which is the good idea in it.
+Half the names in this trade contain הנדסה or מהנדסים, and those characters
+pad the length enough that an edit budget stretches over the part that
+actually identifies the firm. Measuring the distinctive part instead is
+what keeps מ.נ.מ מהנדסים and ת.ל.מ מהנדסים apart.
+
+Result on the same 543 names: 498 firms, 44 merges, each one read by hand.
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 ```
@@ -4052,7 +4221,7 @@ module.exports = { Registry, sqlString, sqlUuid, sqlBool, sqlDate, sqlJson, newI
 cd /d/Coding/KkarcDB/tools/hub-import && node --test
 ```
 
-Expected: PASS, 23 tests (12 from Task 9, 11 here), 0 failing.
+Expected: PASS, 27 tests (16 from Task 9, 11 here), 0 failing.
 
 - [ ] **Step 6: Commit**
 
@@ -4113,7 +4282,7 @@ const { importHub } = require('./hub.js');
 const LOOKUPS = parseLookups([
   'discipline\tARCH\tarchitecture\tאדריכלות',
   'discipline\tENVI\tgreen\tבנייה ירוקה',
-  'discipline\tPM\tproject_management\tניהול פרויקט',
+  'discipline\tPM\tproject_mgmt\tניהול פרויקט',
   'project\tbbbbbbbb-0000-0000-0000-000000000001\t2017-03',
 ].join('\n'));
 
@@ -4280,7 +4449,7 @@ test('a consultant firm becomes a firm, a contact and an engagement', () => {
 
   assert.match(sql, /INSERT INTO firm[^;]*'קריזל הנדסה'/);
   assert.match(sql, /INSERT INTO person[^;]*'מיקי קריזל'/);
-  assert.match(sql, /INSERT INTO project_participant[^;]*'project_management'/);
+  assert.match(sql, /INSERT INTO project_participant[^;]*'project_mgmt'/);
 });
 
 test('an empty blob produces no statements and no crash', () => {
@@ -4666,7 +4835,7 @@ module.exports = { importHub, TASK_STATUS, PRIORITY, FOR_INFORMATION };
 cd /d/Coding/KkarcDB/tools/hub-import && node --test
 ```
 
-Expected: PASS, 34 tests, 0 failing.
+Expected: PASS, 38 tests, 0 failing.
 
 - [ ] **Step 5: Commit**
 
@@ -4988,7 +5157,7 @@ module.exports = { importPlanning };
 cd /d/Coding/KkarcDB/tools/hub-import && node --test
 ```
 
-Expected: PASS, 42 tests, 0 failing.
+Expected: PASS, 46 tests, 0 failing.
 
 - [ ] **Step 5: Commit**
 
@@ -5275,7 +5444,7 @@ Run:
 cd /d/Coding/KkarcDB/tools/hub-import && node --test
 ```
 
-Expected: PASS, 43 tests, 0 failing.
+Expected: PASS, 47 tests, 0 failing.
 
 - [ ] **Step 5: Write the PowerShell wrapper**
 
@@ -5586,8 +5755,8 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 
 When every task is checked off:
 
-- The KkarcDB database holds the three dashboards' data, at schema version `011`.
-- `dotnet test` passes 197 tests; `node --test` in `tools/hub-import` passes 43.
+- The KkarcDB database holds the three dashboards' data, at schema version `012`.
+- `dotnet test` passes 216 tests; `node --test` in `tools/hub-import` passes 47.
 - `db/verify.sql` applies the whole schema to a scratch database and rolls back clean.
 - One project is visible in SQL and has been read against the running app.
 
@@ -5632,7 +5801,18 @@ both return `{counts}`. `sqlUuid` throws on a non-uuid, which is why `idFor` ret
 `null` rather than an empty string.
 
 **Verified while writing, not assumed.** The JavaScript in Tasks 9, 10, 11 and 12 was
-extracted and run: 12, 23, 34 and 42 tests pass cumulatively. The firm rule was also
-run over all 22 real firm names from both blobs, giving 19 firms and one reported
-merge. The SQL was not executed; no PostgreSQL was available in this session, which is
-why every migration task runs its tests before and after.
+extracted and run: 16, 27, 38 and 46 tests pass cumulatively, 47 once Task 13 adds one.
+The firm rule was run over all 543 firm names the consultant load put into the
+register, giving 498 firms and 44 merges, each read by hand. The SQL was not executed;
+no PostgreSQL was reachable in this session, which is why every migration task runs its
+tests before and after.
+
+**Revised after `797e7cb`.** This plan was first written against a register holding 15
+disciplines and migrations up to 006. The consultant load changed both. What moved:
+migrations renumbered to 008–012 because `007_consultant_contacts.sql` took the number;
+`person.mobile` dropped from Task 2 because that migration already added it; the
+discipline seed reduced to updates only, because all 51 disciplines now exist and
+inserting would have duplicated `project_mgmt` as `project_management` and `hydrology`
+as `drainage`; test counts restated from 202 rather than 183; and the firm rule rebuilt
+to measure the distinctive part, after the old one was found to merge four pairs of
+unrelated firms.

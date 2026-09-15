@@ -12,7 +12,7 @@ HTML) still stand and are not repeated here.
 
 | Decision | Choice | Why |
 |---|---|---|
-| Database | **The existing KkarcDB Supabase project**, migrations `007+` | Same firm, same maintainer, same people and projects. Two registers of the same staff and consultants would drift. |
+| Database | **The existing KkarcDB Supabase project**, migrations `008+` | Same firm, same maintainer, same people and projects. Two registers of the same staff and consultants would drift. |
 | Scope | `project_hub`, `planning_dashboard`, `home_dashboard` | `protein_explorer` is a proteomics CSV viewer with no persistent state. |
 | API | **Extend `KKarcDB.Api`** with `/api/hub/*` endpoints | Browser never holds the database password; rules live in one tested C# project. No Supabase auto-REST, no RLS — the API is the gate, exactly as KkarcDB already does. |
 | Hosting | The three HTML pages are served from `KKarcDB.Api`'s `wwwroot` on the existing Azure App Service | One origin, one deploy script (`Deploy-Azure.ps1`), no CORS. |
@@ -39,12 +39,12 @@ table and one event table, not two.
 
 ### Reused from KkarcDB (no change unless noted)
 
-| Table | Used as | Change in `007` |
+| Table | Used as | Change in `008` |
 |---|---|---|
 | `project` | The project. `project_hub` becomes multi-project by `project_id`; the home page lists these rows | — |
-| `person` | Staff (`team[]`) **and** consultant/client contacts (`consultants[].contacts[]`) | add `discipline_code` (staff discipline, nullable), `mobile` |
+| `person` | Staff (`team[]`) **and** consultant/client contacts (`consultants[].contacts[]`) | add `discipline_code` (staff discipline, nullable). `mobile`, `fax` and `address` already exist, added by `007_consultant_contacts.sql` |
 | `firm` | Consultant firms (`kind = 'consultant'`), clients, authorities | — |
-| `discipline` | `ARCH`, `STRC`, `ELEC` … | add `color text`; seed the codes the dashboards use that KkarcDB lacks: `environment`, `project_management`, `communications`, `interior` |
+| `discipline` | `ARCH`, `STRC`, `ELEC` … | add `color text` and `legacy_code text`. **No new disciplines:** `797e7cb` loaded 158 consultant spreadsheets and took this table from 15 codes to 51, so every trade the dashboards name already has a row |
 | `project_participant` | A consultant firm on a project, per discipline (`consultants[]`) | add `lead_person_id` (the `isLead` contact) |
 | `project_assignment` | Staff on a project with a role (`team[].projectRole`) | — |
 | `stage` / `stage_template` | `PORTFOLIO_DATA[].phases[]` (`תכנון ראשוני`, `היתר`, `מכרז`, `ביצוע` → `preliminary`, `permit`, `tender`, `construction`) | — (`plannedMonths` becomes `planned_start`/`planned_end`; `blocker` moves to `hub_project_blocker`) |
@@ -119,7 +119,7 @@ table and one event table, not two.
 - `uuid` primary keys with `gen_random_uuid()`; stable `code` columns where the front end used semantic keys.
 - `created_at`/`updated_at timestamptz` with the existing `set_updated_at()` trigger.
 - `ON DELETE CASCADE` down the ownership tree (`project → sheet → task → subtask → event`); `SET NULL` on references that are pointers, not ownership (`source_meeting_item_id`, `stage_id`, `lane_id`).
-- Plain SQL migrations, no `BEGIN/COMMIT`, no vendor features, applied by the existing `Migrator`; `app_meta.schema_version` bumps to `007`, `008` …
+- Plain SQL migrations, no `BEGIN/COMMIT`, no vendor features, applied by the existing `Migrator`; `app_meta.schema_version` bumps to `008`, `009` … (`007` is `consultant_contacts`)
 - Seeds in `db/seed/`, idempotent with `ON CONFLICT DO NOTHING`.
 - `db/verify.sql` extended with the new tables.
 
@@ -152,5 +152,5 @@ per row, and a `409` when `updated_at` no longer matches what the client last sa
 
 ## Open questions
 
-- **Discipline code mapping.** The dashboards use `ARCH/STRC/ELEC/ENVI/TRAF/LAND/PM/…`; KkarcDB seeds `architecture/structural/…`. The ETL needs a one-time map, and `ENVI`, `PM`, `COMM`, `INT` need new seed rows. The map is written in the plan, not guessed here.
-- **Firm-name matching** in step 2 above needs a human in the loop the first time.
+- **Discipline code mapping.** Answered in the plan and stored on `discipline.legacy_code`: 19 of the dashboards' codes map onto disciplines that already exist, and none has to be created. One row is still a judgement call, `ENVI`, which can mean either `green` or `environment` — both now exist.
+- **Firm-name matching** is answered in the plan, and deliberately does not reuse `tools/consultant-extract/names.py`: that rule merges a landscape architect with an electrical engineer. Every non-exact merge is still reported for a human to read the first time.
