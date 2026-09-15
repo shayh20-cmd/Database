@@ -152,5 +152,5 @@ per row, and a `409` when `updated_at` no longer matches what the client last sa
 
 ## Open questions
 
-- **Discipline code mapping.** Answered in the plan and stored on `discipline.legacy_code`: 19 of the dashboards' codes map onto disciplines that already exist, and none has to be created. One row is still a judgement call, `ENVI`, which can mean either `green` or `environment` — both now exist.
+- **Discipline code mapping.** Answered in the plan and stored on `discipline.legacy_code`: 19 of the dashboards' codes map onto disciplines that already exist, and none has to be created. `ENVI` was the one judgement call and is settled as `green`, green building, rather than `environment` — the consultant and the only task using the code both mean green building, whatever the app's label says.
 - **Firm-name matching** is answered in the plan, and deliberately does not reuse `tools/consultant-extract/names.py`: that rule merges a landscape architect with an electrical engineer. Every non-exact merge is still reported for a human to read the first time.

@@ -99,21 +99,25 @@ They are here because the practice engages those trades and the register already
 row for each. Adding them to the app's array is a separate one-line change; until it
 happens, no task will carry them and the mapping simply sits unused.
 
-### Needs your decision — one row
+### The one judgement call, and how it was settled
 
-`ENVI`. The app labels it `סביבה`, which means environment. The consultant row calls
-it `בניה ירוקה`, green building, and the one task using it is
-`אישור מעבדה לבנייה ירוקה`, a green-building laboratory approval. The register now has
-a row for each reading, which it did not when this plan was first written.
+`ENVI` was the only row that could reasonably have gone two ways, and it is **decided:
+`ENVI` → `green`** (בנייה ירוקה). The table above reflects that.
 
-| Option | Consequence |
-|---|---|
-| **A (recommended): `ENVI` → `green`** (בנייה ירוקה) | Follows the data rather than the label. The one task using this code is a green-building approval, and the consultant describes itself that way. |
-| B: `ENVI` → `environment` (איכות סביבה) | Follows the app's label. "Environmental quality" is a real and different trade, and choosing it makes the green-building task land under it. |
+The app labels the code `סביבה`, which means environment, and the register has a row
+for that reading too — `environment`, איכות סביבה, environmental quality. But the label
+is the only thing pointing that way. The consultant carrying this code describes itself
+as `בניה ירוקה`, and the single task using it is `אישור מעבדה לבנייה ירוקה`, a
+green-building laboratory approval. The mapping follows what the data is rather than
+what the column was called.
 
-Nothing else hangs on this: both rows exist, so the choice is which one gets
-`legacy_code = 'ENVI'`. To change it, edit that one line in
-`db/seed/002_hub_disciplines.sql` and re-run the seed.
+The consequence worth knowing: environmental quality is a real and separate trade, and
+a consultant engaged for it later needs the `environment` code rather than this one.
+Nothing in the import will stop somebody filing them together.
+
+To reverse it, change `'green'` to `'environment'` on that one line in
+`db/seed/002_hub_disciplines.sql` and re-run the seed. Both rows exist, so nothing else
+moves.
 
 **To feed the rest:** the same file. Nothing reads the mapping except the database —
 it is stored on `discipline.legacy_code`, and the import reads it back out.
@@ -888,11 +892,15 @@ FROM (VALUES
     -- only the tender *stage* -- it is already a stage_template code.
     ('quantity',       'TNDR',   '#EF4444'),
 
-    -- DECISION. The app labels ENVI "סביבה", environment, but the one task using it is
-    -- a green-building laboratory approval and the consultant describes itself as
-    -- "בניה ירוקה". Both readings now have a row: `green` (בנייה ירוקה) and
-    -- `environment` (איכות סביבה). This follows the data rather than the label.
-    -- To reverse: change 'green' below to 'environment'. Nothing else moves.
+    -- Settled: green building, not environmental quality. The app labels ENVI
+    -- "סביבה", and the register has a row for that reading too -- `environment`,
+    -- איכות סביבה. But the label is the only thing pointing there: the consultant
+    -- carrying this code calls itself "בניה ירוקה", and the one task using it is a
+    -- green-building laboratory approval. The mapping follows the data.
+    --
+    -- Environmental quality is a separate trade. A consultant engaged for it later
+    -- wants `environment`, and nothing here will stop them being filed together.
+    -- To reverse: change 'green' to 'environment'. Nothing else moves.
     ('green',          'ENVI',   '#10B981')
 ) AS m (code, legacy_code, color)
 WHERE d.code = m.code;
@@ -973,10 +981,9 @@ Expected: PASS, 7 tests.
 psql "$KKARCDB_TEST_CONNECTION" -c "SELECT legacy_code, code, name_he, color FROM discipline WHERE legacy_code IS NOT NULL ORDER BY legacy_code"
 ```
 
-Expected: 19 rows, and `PM` reading `project_mgmt` rather than `project_management`.
-**Check `ENVI` against the decision in the plan header before continuing.** If it is
-wrong, edit that one line in `db/seed/002_hub_disciplines.sql` and re-run the seed;
-nothing else changes.
+Expected: 19 rows, `PM` reading `project_mgmt` rather than `project_management`, and
+`ENVI` reading `green` rather than `environment`. Both of those are the ones that would
+otherwise look plausible and be wrong, so read them rather than scanning the count.
 
 Also confirm the count:
 
@@ -1007,13 +1014,15 @@ already has a row. Two of them would have been duplicated by an earlier
 draft of this file: the register abbreviates project management to
 project_mgmt, and calls drainage hydrology.
 
-Three mappings are judgement calls. ENVI is labelled 'environment' in the
-app but its only task is a green-building approval, so it maps to green;
-the file says how to move it to environment, which also exists. TNDR is
-labelled 'tenders' but the firm behind it is a quantity surveyor, so it
-maps to quantity, which also stops the word meaning both a discipline and a
-stage. FIRE, ACUS and SURV are mapped although the app does not define them
-yet, so adding them there becomes a one-line change and nothing else.
+Three mappings needed a decision. ENVI is labelled 'environment' in the
+app, and the register has a row for that reading, but the consultant calls
+itself green building and the one task using the code is a green-building
+approval -- so it maps to green, following the data rather than the label.
+TNDR is labelled 'tenders' but the firm behind it is a quantity surveyor,
+so it maps to quantity, which also stops the word meaning both a discipline
+and a stage. FIRE, ACUS and SURV are mapped although the app does not
+define them yet, so adding them there becomes a one-line change and nothing
+else.
 
 The file ends by counting what it mapped and refusing if the count is
 wrong. A code matching no row updates nothing and says nothing, which is
