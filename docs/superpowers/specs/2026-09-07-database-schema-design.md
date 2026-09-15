@@ -2,7 +2,7 @@
 
 **Branch:** `db-schema` (cut from `master`)
 **Date:** 2026-09-07
-**Status:** design — blocks the translation spec. Independent of the restructure spec.
+**Status:** superseded by [2026-09-15-hub-on-kkarcdb-schema-design.md](2026-09-15-hub-on-kkarcdb-schema-design.md) — the findings below still apply; the table map does not.
 
 ## Problem
 
