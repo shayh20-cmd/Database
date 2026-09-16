@@ -1478,7 +1478,8 @@ Object.assign(HE_EN, {
 "שה": "SH",
 "שי": "Shai",
 "של": "of",
-"שם": "Name"
+"שם": "Name",
+  "מ- ": "from "
 });
 
 window.I18N_HE_EN = HE_EN;
