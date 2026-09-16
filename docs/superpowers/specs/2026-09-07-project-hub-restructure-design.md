@@ -2,7 +2,25 @@
 
 **Branch:** `restructure/project-hub` (cut from `master`)
 **Date:** 2026-09-07
-**Status:** design — independent of the schema spec, but should land first
+**Status:** ⛔ **SUPERSEDED** on 2026-09-16 by
+[2026-09-16-hub-frontend-roadmap.md](2026-09-16-hub-frontend-roadmap.md). **Do not
+implement this document.**
+
+> This design exists to solve one problem: changes to `project_hub.html` cannot be
+> reviewed, because adding a badge produced a 250,053-character diff. The roadmap's
+> decision 1 rebuilds the site fresh in `KkarcDB/web` instead, with this prototype as a
+> reference rather than a source — so that file is never changed again and the problem
+> does not arise.
+>
+> **What is still true and worth reading:** the measurement of the problem, the proof
+> that the Babel output is losslessly reversible, the traps found while proving it, and
+> the churn analysis of which files are hot. A throwaway decompile remains the cheapest
+> way to *read* the prototype while rebuilding — 36,000 lines of formatted JSX beats
+> 1,218 lines of minified `createElement`. Run it into a scratch folder, keep no harness,
+> commit nothing.
+>
+> **What is retired:** the `apps/` monorepo layout, the equivalence harness as a gate,
+> the characterisation and smoke suites, and the stage-5 decomposition.
 
 ## Problem
 
