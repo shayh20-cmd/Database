@@ -2,9 +2,10 @@
 
 **Branch:** `restructure/project-hub` (cut from `master`)
 **Date:** 2026-09-07
-**Status:** ⛔ **SUPERSEDED** on 2026-09-16 by
-[2026-09-16-hub-frontend-roadmap.md](2026-09-16-hub-frontend-roadmap.md). **Do not
-implement this document.**
+**Status:** ⛔ **SUPERSEDED** on 2026-09-16 by the web-app roadmap, which lives in the
+KkarcDB repository at `docs/specs/2026-09-16-web-app-roadmap.md` (branch `web-app`).
+**Do not implement this document.** See [../README.md](../README.md) for what moved
+where.
 
 > This design exists to solve one problem: changes to `project_hub.html` cannot be
 > reviewed, because adding a badge produced a 250,053-character diff. The roadmap's
