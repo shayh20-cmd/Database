@@ -3,7 +3,7 @@
 **Date:** 2026-09-17
 **Apps:** `project_hub_01.html`, `capture.html`, `planning_dashboard.html`, `tools/local-server/server.js`
 **Branch:** `feat/azure-deployment` (from `origin/master` at `d5d777e`)
-**Status:** design approved section by section, awaiting review of this document
+**Status:** approved. On 2026-09-17 the first deployment was cut down to the least that shows sign-in and shared data — see `docs/azure.md`: documents under `/home/data` rather than Blob Storage, a client secret rather than a managed identity, `RedirectToLoginPage`, no `index.html`, no versions or `If-Match`, one project. The rest of this design stays the target.
 
 ## Goal
 
