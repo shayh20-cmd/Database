@@ -136,13 +136,22 @@ test('cloud mode: sign-in gate, allowlist, redirect from /', async (t) => {
   assert.strictEqual(snip.status, 404, 'no snipping in the cloud');
 });
 
-test('cloud mode refuses to start without WEBSITE_AUTH_ENABLED', async () => {
+test('cloud mode without WEBSITE_AUTH_ENABLED serves only a failing /health, and stays up', async (t) => {
+  const port = 3993;
   const root = makeSite();
-  const code = await new Promise(resolve => {
-    const proc = spawn('node', [SERVER, root, '--port', '3993'], { stdio: 'ignore',
-      env: Object.assign({}, process.env, { SITE_MODE: 'cloud', WEBSITE_AUTH_ENABLED: '' }) });
-    proc.on('exit', resolve);
-    setTimeout(() => { proc.kill(); resolve('timeout'); }, 3000);
-  });
-  assert.strictEqual(code, 1);
+  const proc = start(t, { port, root, env: { DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'hub-data-')), SITE_MODE: 'cloud', WEBSITE_AUTH_ENABLED: '' } });
+  await wait(700);
+  assert.strictEqual(proc.exitCode, null, 'the process must not exit — a restart loop disables the free-tier site');
+
+  const health = await req('GET', '/health', { port });
+  assert.strictEqual(health.status, 503);
+  assert.strictEqual(health.body.ok, false);
+  assert.strictEqual(health.body.authEnabled, false);
+  assert.strictEqual(health.body.error, 'authentication not confirmed');
+
+  const hdr = { 'x-ms-client-principal': principal({ name: 'x', preferred_username: 'x@example.com' }) };
+  for (const p of ['/api/me', '/api/project-hub-01', '/project_hub_01', '/']) {
+    const r = await req('GET', p, { port, headers: hdr });
+    assert.strictEqual(r.status, 503, p + ' must not be served without confirmed authentication');
+  }
 });

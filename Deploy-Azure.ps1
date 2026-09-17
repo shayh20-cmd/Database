@@ -338,7 +338,7 @@ try {
 
     $startup = Invoke-AzWithRetry {
         az webapp config set --name $Name --resource-group $ResourceGroup `
-            --startup-file "node tools/local-server/server.js" --output none
+            --startup-file "node /home/site/wwwroot/tools/local-server/server.js" --output none
     }
     if (-not $startup.Success) { Fail "Could not set the startup command.`n`n$($startup.Output | Out-String)" }
 
@@ -362,19 +362,23 @@ finally {
 Step "Waiting for it to answer..."
 $deadline = (Get-Date).AddMinutes(4)
 $health = $null
+$lastAnswer = "(no answer)"
 while ((Get-Date) -lt $deadline) {
     try {
         $response = Invoke-WebRequest -Uri "$url/health" -TimeoutSec 20 -SkipHttpErrorCheck -MaximumRedirection 0
+        $lastAnswer = "$($response.StatusCode) $($response.Content)"
         if ($response.StatusCode -eq 200) { $health = $response.Content | ConvertFrom-Json; break }
     }
-    catch { }
+    catch { $lastAnswer = $_.Exception.Message }
     Start-Sleep -Seconds 10
 }
 if (-not $health -or $health.mode -ne "cloud") {
     Fail @"
-Deployed, but $url/health is not answering as expected.
+Deployed, but $url/health is not answering as expected. Last answer:
 
-What the app says for itself:
+    $lastAnswer
+
+A 503 with a JSON body is the app itself saying what is wrong. Anything else:
 
     az webapp log tail --name $Name --resource-group $ResourceGroup
 "@

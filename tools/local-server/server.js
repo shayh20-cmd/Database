@@ -2,7 +2,15 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const serveHandler = require('serve-handler');
+
+/* Nothing here may exit or crash the process. On the free tier a process that exits is
+   restarted until a restart quota disables the whole site — deployment endpoint and
+   logs included — so a startup problem must stay visible on /health instead. */
+let serveHandler = null;
+let bootError = null;
+try { serveHandler = require('serve-handler'); } catch (e) { bootError = e; }
+process.on('uncaughtException', e => { console.error('uncaught exception (kept running):', e); });
+process.on('unhandledRejection', e => { console.error('unhandled rejection (kept running):', e); });
 
 function parseArgs(argv) {
   let port = null;
@@ -31,11 +39,11 @@ const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : pat
 const LOCAL_USER_NAME = process.env.LOCAL_USER_NAME || 'שי הרשקוביץ';
 
 /* App Service strips incoming X-MS-* headers only while authentication is on. Without
-   this check any caller could claim to be anyone, so cloud mode does not start. */
-if (SITE_MODE === 'cloud' && process.env.WEBSITE_AUTH_ENABLED !== 'true') {
-  console.error('SITE_MODE=cloud requires App Service authentication (WEBSITE_AUTH_ENABLED=true). Refusing to start.');
-  process.exit(1);
-}
+   that assurance any caller could claim to be anyone, so cloud mode serves nothing but
+   /health — which says why — until it is confirmed. */
+const AUTH_CONFIRMED = SITE_MODE !== 'cloud' || process.env.WEBSITE_AUTH_ENABLED === 'true';
+if (!AUTH_CONFIRMED) console.error('SITE_MODE=cloud but WEBSITE_AUTH_ENABLED is not "true": serving /health only.');
+if (bootError) console.error('startup failed, serving /health only:', bootError);
 
 const APPS = {
   'project-hub': path.join(DATA_DIR, 'project_hub.json'),
@@ -237,7 +245,16 @@ const CLOUD_PAGE = /^\/[A-Za-z0-9_-]+(\.html)?$/;
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
-  if (url.pathname === '/health') { sendJson(res, 200, { ok: true, mode: SITE_MODE }); return; }
+  const healthy = AUTH_CONFIRMED && !bootError;
+  if (url.pathname === '/health') {
+    sendJson(res, healthy ? 200 : 503, {
+      ok: healthy, mode: SITE_MODE, node: process.version,
+      authEnabled: process.env.WEBSITE_AUTH_ENABLED === 'true',
+      error: bootError ? bootError.message : (AUTH_CONFIRMED ? null : 'authentication not confirmed')
+    });
+    return;
+  }
+  if (!healthy) { sendJson(res, 503, { error: 'Not serving; see /health' }); return; }
 
   const user = principalFrom(req);
   if (!user) {
