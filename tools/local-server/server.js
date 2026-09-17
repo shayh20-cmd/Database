@@ -41,7 +41,9 @@ const LOCAL_USER_NAME = process.env.LOCAL_USER_NAME || 'שי הרשקוביץ';
 /* App Service strips incoming X-MS-* headers only while authentication is on. Without
    that assurance any caller could claim to be anyone, so cloud mode serves nothing but
    /health — which says why — until it is confirmed. */
-const AUTH_CONFIRMED = SITE_MODE !== 'cloud' || process.env.WEBSITE_AUTH_ENABLED === 'true';
+// App Service injects it as "True" on Linux; the docs say "true". Accept either.
+const AUTH_ENABLED = /^true$/i.test(process.env.WEBSITE_AUTH_ENABLED || '');
+const AUTH_CONFIRMED = SITE_MODE !== 'cloud' || AUTH_ENABLED;
 if (!AUTH_CONFIRMED) console.error('SITE_MODE=cloud but WEBSITE_AUTH_ENABLED is not "true": serving /health only.');
 if (bootError) console.error('startup failed, serving /health only:', bootError);
 
@@ -247,11 +249,18 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const healthy = AUTH_CONFIRMED && !bootError;
   if (url.pathname === '/health') {
-    sendJson(res, healthy ? 200 : 503, {
+    const body = {
       ok: healthy, mode: SITE_MODE, node: process.version,
-      authEnabled: process.env.WEBSITE_AUTH_ENABLED === 'true',
+      authEnabled: AUTH_ENABLED,
       error: bootError ? bootError.message : (AUTH_CONFIRMED ? null : 'authentication not confirmed')
-    });
+    };
+    // While unhealthy, show what the platform actually injected, so a misread flag is
+    // diagnosable without container logs (unreachable once the free tier disables a site).
+    if (!healthy) {
+      body.authEnabledRaw = process.env.WEBSITE_AUTH_ENABLED === undefined ? null : process.env.WEBSITE_AUTH_ENABLED;
+      body.authEnv = Object.keys(process.env).filter(k => /AUTH/i.test(k)).sort();
+    }
+    sendJson(res, healthy ? 200 : 503, body);
     return;
   }
   if (!healthy) { sendJson(res, 503, { error: 'Not serving; see /health' }); return; }

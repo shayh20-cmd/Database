@@ -93,7 +93,8 @@ test('cloud mode: sign-in gate, allowlist, redirect from /', async (t) => {
   const port = 3992;
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-data-'));
   const root = makeSite();
-  start(t, { port, root, env: { DATA_DIR: data, SITE_MODE: 'cloud', WEBSITE_AUTH_ENABLED: 'true' } });
+  // App Service injects the flag as "True" (capital T) on Linux.
+  start(t, { port, root, env: { DATA_DIR: data, SITE_MODE: 'cloud', WEBSITE_AUTH_ENABLED: 'True' } });
   await wait(700);
 
   const health = await req('GET', '/health', { port });

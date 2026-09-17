@@ -35,6 +35,10 @@ quiet spell). B1 removes both limits.
 A project_hub_01.json to upload as the shared project document, for example the one in
 data\ on the machine that has the demo project. Overwrites whatever is on the site.
 
+.PARAMETER CodeOnly
+Only package and deploy the code, then check the site. Skips creating and configuring
+resources; use it for a page or server change once the site exists.
+
 .EXAMPLE
 .\Deploy-Azure.ps1 -Name kkarc-hub
 
@@ -51,7 +55,8 @@ param(
     [string]$Location = "israelcentral",
     [ValidateSet("F1", "B1", "B2", "S1")]
     [string]$Sku = "F1",
-    [string]$Seed
+    [string]$Seed,
+    [switch]$CodeOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -136,8 +141,10 @@ Write-Host "  subscription: $($account.name)  tenant: $($account.tenantDefaultDo
 Write-Host ""
 
 # ---------------------------------------------------------------------------
-# Resources, created only when missing
+# Resources, created only when missing. -CodeOnly skips all of it: every configuration
+# write restarts the app, and the free tier allows 15 restarts an hour.
 # ---------------------------------------------------------------------------
+if (-not $CodeOnly) {
 $existingGroup = az group show --name $ResourceGroup 2>$null
 if (-not $existingGroup) {
     Step "Resource group '$ResourceGroup'..."
@@ -312,6 +319,7 @@ try {
 finally {
     if (Test-Path $authFile) { Remove-Item $authFile -Force }
 }
+} # end of -not $CodeOnly
 
 # ---------------------------------------------------------------------------
 # Code: the page, the server and its installed dependencies. Nothing else.
