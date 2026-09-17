@@ -20,7 +20,22 @@ function parseArgs(argv) {
 const { root, port: portArg } = parseArgs(process.argv.slice(2));
 const STATIC_ROOT = root || path.resolve(__dirname, '..', '..');
 const PORT = Number(portArg || process.env.PORT || 3000);
-const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
+
+/* One server, two modes. `local` is today's dev server: every file under the root is
+   served, the JSON documents live in data/, and the user is whoever sits at the machine.
+   `cloud` is the same server on Azure App Service behind Easy Auth: only the pages are
+   served, the documents live outside the deployed folder (DATA_DIR, so a redeploy does
+   not wipe them), and the user is whoever Easy Auth signed in. */
+const SITE_MODE = process.env.SITE_MODE === 'cloud' ? 'cloud' : 'local';
+const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.resolve(__dirname, '..', '..', 'data');
+const LOCAL_USER_NAME = process.env.LOCAL_USER_NAME || 'שי הרשקוביץ';
+
+/* App Service strips incoming X-MS-* headers only while authentication is on. Without
+   this check any caller could claim to be anyone, so cloud mode does not start. */
+if (SITE_MODE === 'cloud' && process.env.WEBSITE_AUTH_ENABLED !== 'true') {
+  console.error('SITE_MODE=cloud requires App Service authentication (WEBSITE_AUTH_ENABLED=true). Refusing to start.');
+  process.exit(1);
+}
 
 const APPS = {
   'project-hub': path.join(DATA_DIR, 'project_hub.json'),
@@ -52,6 +67,11 @@ function sendJson(res, status, body) {
     'Content-Length': Buffer.byteLength(json)
   });
   res.end(json);
+}
+
+function redirect(res, location) {
+  res.writeHead(302, { Location: location, 'Cache-Control': 'no-store' });
+  res.end();
 }
 
 const MAX_BYTES = 20 * 1024 * 1024;
@@ -89,6 +109,10 @@ const IMAGE_EXT = {
 // A saved Outlook message. Outlook hands a dragged .msg over as octet-stream, so the
 // extension comes from ?name= rather than from the content type.
 const FILE_EXT = new Set(['msg', 'eml', 'pdf']);
+const ATTACH_MIME = {
+  png: 'image/png', jpg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+  pdf: 'application/pdf', msg: 'application/vnd.ms-outlook', eml: 'message/rfc822'
+};
 
 function extFor(req, url) {
   const type = (req.headers['content-type'] || '').split(';')[0].trim();
@@ -109,11 +133,32 @@ async function handleUpload(req, res, appName, url) {
     fs.mkdirSync(dir, { recursive: true });
     const name = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8) + '.' + ext;
     fs.writeFileSync(path.join(dir, name), buf);
-    // served by the static handler, since DATA_DIR sits under STATIC_ROOT
     sendJson(res, 200, { ok: true, url: '/data/attachments/' + appName + '/' + name, bytes: buf.length });
   } catch (e) {
     sendJson(res, 500, { ok: false, error: e.message });
   }
+}
+
+/* Attachments are served here rather than by the static handler, because in cloud mode
+   DATA_DIR sits outside the deployed folder. The route only accepts the names the
+   upload above generates, so nothing else under DATA_DIR is reachable. */
+const ATTACH_ROUTE = /^\/data\/attachments\/([a-z0-9-]+)\/([a-z0-9-]+\.([a-z0-9]+))$/;
+
+function handleAttachment(res, appName, fileName, ext) {
+  const filePath = path.join(ATTACH_DIR, appName, fileName);
+  fs.stat(filePath, (err, st) => {
+    if (err || !st.isFile()) { sendJson(res, 404, { error: 'Not found' }); return; }
+    const headers = {
+      'Content-Type': ATTACH_MIME[ext] || 'application/octet-stream',
+      'Content-Length': st.size,
+      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'no-cache'
+    };
+    // An uploaded SVG must not run script on this origin.
+    if (ext === 'svg') headers['Content-Security-Policy'] = 'sandbox';
+    res.writeHead(200, headers);
+    fs.createReadStream(filePath).pipe(res);
+  });
 }
 
 async function handleApi(req, res, appName) {
@@ -167,9 +212,42 @@ function handleSnip(req, res) {
   }
 }
 
+/* Who is asking. Locally it is the person at the machine. In the cloud, Easy Auth puts
+   the signed-in user's claims in X-MS-CLIENT-PRINCIPAL (base64 JSON); no header means
+   no session. */
+function principalFrom(req) {
+  if (SITE_MODE !== 'cloud') return { name: LOCAL_USER_NAME, email: null };
+  const raw = req.headers['x-ms-client-principal'];
+  if (!raw) return null;
+  try {
+    const p = JSON.parse(Buffer.from(String(raw), 'base64').toString('utf8'));
+    const claim = typ => { const c = (p.claims || []).find(x => x.typ === typ); return c ? c.val : null; };
+    const login = req.headers['x-ms-client-principal-name'] || null;
+    const email = claim('preferred_username') || claim('email') || login;
+    const name = claim('name') || login || email;
+    return name ? { name, email } : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// In cloud mode only the pages are served: never the server source, package files or data/.
+// serve-handler answers /page.html with a redirect to /page (cleanUrls), so both forms pass.
+const CLOUD_PAGE = /^\/[A-Za-z0-9_-]+(\.html)?$/;
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
-  if (url.pathname === '/api/snip') { handleSnip(req, res); return; }
+  if (url.pathname === '/health') { sendJson(res, 200, { ok: true, mode: SITE_MODE }); return; }
+
+  const user = principalFrom(req);
+  if (!user) {
+    if (url.pathname.startsWith('/api/')) { sendJson(res, 401, { error: 'Sign in required' }); return; }
+    redirect(res, '/.auth/login/aad?post_login_redirect_uri=' + encodeURIComponent(url.pathname + url.search));
+    return;
+  }
+
+  if (url.pathname === '/api/me') { sendJson(res, 200, { name: user.name, email: user.email, mode: SITE_MODE }); return; }
+  if (url.pathname === '/api/snip' && SITE_MODE === 'local') { handleSnip(req, res); return; }
   if (url.pathname === '/api/projects' && req.method === 'GET') {
     handleProjectList(res);
     return;
@@ -184,14 +262,22 @@ const server = http.createServer((req, res) => {
     handleApi(req, res, apiMatch[1]).catch(e => sendJson(res, 500, { error: e.message }));
     return;
   }
+  const attMatch = url.pathname.match(ATTACH_ROUTE);
+  if (attMatch) { handleAttachment(res, attMatch[1], attMatch[2], attMatch[3]); return; }
+
+  if (SITE_MODE === 'cloud') {
+    if (url.pathname === '/') { redirect(res, '/project_hub_01'); return; }
+    if (!CLOUD_PAGE.test(url.pathname)) { sendJson(res, 404, { error: 'Not found' }); return; }
+  }
   // Local dev server: tell browsers to always revalidate so edited HTML/JS/CSS never
   // get served stale from the heuristic cache (serve-handler sends no cache headers).
   serveHandler(req, res, {
     public: STATIC_ROOT,
+    directoryListing: SITE_MODE === 'local',
     headers: [{ source: '**', headers: [{ key: 'Cache-Control', value: 'no-cache' }] }]
   });
 });
 
 server.listen(PORT, () => {
-  console.log(`Local server running at http://localhost:${PORT} (serving ${STATIC_ROOT})`);
+  console.log('Local server running at http://localhost:' + PORT + ' (serving ' + STATIC_ROOT + ', ' + SITE_MODE + ' mode, data in ' + DATA_DIR + ')');
 });
