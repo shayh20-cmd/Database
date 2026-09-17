@@ -33,6 +33,13 @@
       "runtimeArgs": ["C:\\Users\\Omega\\Database\\tools\\local-server\\server.js", "C:\\Users\\Omega\\Database\\.claude\\worktrees\\fun-day-vote\\funday\\public", "--port", "3410"],
       "port": 3410,
       "autoPort": true
+    },
+    {
+      "name": "drawing-app",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:\\Users\\Omega\\Database\\tools\\local-server\\server.js", "C:\\Users\\Omega\\Claude Projects\\drawing-app", "--port", "3411"],
+      "port": 3411,
+      "autoPort": true
     }
   ]
 }
