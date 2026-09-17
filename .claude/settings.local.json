@@ -73,7 +73,8 @@
       "PowerShell(npm list -g @anthropic-ai/claude-code 2>$null)",
       "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"User\"\\); claude --version)",
       "Bash(gh api *)",
-      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); [print\\(t['path'], t.get\\('type',''\\)\\) for t in data['tree']]\")"
+      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); [print\\(t['path'], t.get\\('type',''\\)\\) for t in data['tree']]\")",
+      "PowerShell(git log --oneline -5 -- i18n.js; echo \"---i18n tracked?---\"; git ls-files i18n.js; echo \"---line count i18n---\"; \\(Get-Content i18n.js | Measure-Object -Line\\).Lines; echo \"---dict entry count---\"; \\(Select-String -Path i18n.js -Pattern '^\"' -AllMatches\\).Count)"
     ]
   }
 }
