@@ -192,16 +192,37 @@ $(($appResult | Out-String).Trim())
     }
 }
 
+else {
+    # The free tier allows 15 worker restarts an hour. Past that, Azure disables the site
+    # — and its deployment endpoint — until the hour turns, and every step below fails
+    # with "Site Disabled". Say so up front rather than after five minutes of retries.
+    $usage = ($existingApp | ConvertFrom-Json).usageState
+    if ($usage -eq "Exceeded") {
+        $resetAt = az rest --method get --url "https://management.azure.com/subscriptions/$subscription/resourceGroups/$ResourceGroup/providers/Microsoft.Web/sites/$Name/usages?api-version=2022-03-01" `
+            --query "value[?name.value=='WPStopRequests'].nextResetTime | [0]" -o tsv 2>$null
+        Fail @"
+'$Name' is disabled by Azure: a free-tier quota was exceeded (usually the 15 worker
+restarts an hour, after a crash loop). It comes back at $resetAt UTC.
+
+Either wait and run this again, or move off the free tier now:
+
+    .\Deploy-Azure.ps1 -Name $Name -Sku B1
+"@
+    }
+}
+
 $hardened = Invoke-AzWithRetry {
     az webapp update --name $Name --resource-group $ResourceGroup --https-only true --output none
 }
 if (-not $hardened.Success) { Fail "Could not require HTTPS on '$Name'.`n`n$($hardened.Output | Out-String)" }
 
-$configured = Invoke-AzWithRetry {
-    az webapp config set --name $Name --resource-group $ResourceGroup `
-        --ftps-state Disabled --startup-file "node tools/local-server/server.js" --output none
+# The startup command is set only after the code is deployed (below): set earlier, the
+# container starts, finds nothing to run, and restarts until the free tier's restart
+# quota disables the whole site.
+$ftps = Invoke-AzWithRetry {
+    az webapp config set --name $Name --resource-group $ResourceGroup --ftps-state Disabled --output none
 }
-if (-not $configured.Success) { Fail "Could not set the startup command.`n`n$($configured.Output | Out-String)" }
+if (-not $ftps.Success) { Fail "Could not disable FTP on '$Name'.`n`n$($ftps.Output | Out-String)" }
 
 # ---------------------------------------------------------------------------
 # Sign-in: an app registration in the firm's directory, single tenant
@@ -314,6 +335,12 @@ try {
         az webapp deploy --name $Name --resource-group $ResourceGroup --src-path $zip --type zip --async false --output none
     }
     if (-not $deployed.Success) { Fail "The deployment failed.`n`n$($deployed.Output | Out-String)" }
+
+    $startup = Invoke-AzWithRetry {
+        az webapp config set --name $Name --resource-group $ResourceGroup `
+            --startup-file "node tools/local-server/server.js" --output none
+    }
+    if (-not $startup.Success) { Fail "Could not set the startup command.`n`n$($startup.Output | Out-String)" }
 
     if ($Seed) {
         Step "Uploading the seed document..."
