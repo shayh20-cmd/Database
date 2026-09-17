@@ -392,10 +392,20 @@ A 503 with a JSON body is the app itself saying what is wrong. Anything else:
 "@
 }
 
-$gate = Invoke-WebRequest -Uri $url -TimeoutSec 20 -SkipHttpErrorCheck -MaximumRedirection 0
+# Asked the way a browser asks (Accept: text/html) — App Service authentication answers
+# 401 to anything else. HttpClient rather than Invoke-WebRequest, which throws on a
+# redirect it is told not to follow.
+$handler = [System.Net.Http.HttpClientHandler]::new()
+$handler.AllowAutoRedirect = $false
+$client = [System.Net.Http.HttpClient]::new($handler)
+$client.DefaultRequestHeaders.Accept.ParseAdd("text/html")
+$client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0")
+$gate = $client.GetAsync($url).GetAwaiter().GetResult()
+$status = [int]$gate.StatusCode
 $location = [string]$gate.Headers.Location
-if ($gate.StatusCode -notin 301, 302 -or $location -notmatch "login\.microsoftonline\.com") {
-    Fail "The site answers, but $url did not redirect to Microsoft sign-in (got $($gate.StatusCode) $location). Sign-in is NOT enforced; do not share the address."
+$client.Dispose()
+if ($status -notin 301, 302 -or $location -notmatch "login\.microsoftonline\.com") {
+    Fail "The site answers, but $url did not redirect to Microsoft sign-in (got $status $location). Sign-in is NOT enforced; do not share the address."
 }
 
 Write-Host ""

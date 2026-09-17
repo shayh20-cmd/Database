@@ -60,7 +60,10 @@ Attachments (pasted screenshots, Outlook messages) are not carried over by the s
 ## Redeploying
 
 Run the same command again. Everything that exists is reused; only the code is
-redeployed. Documents under `/home/data` are untouched.
+redeployed. Documents under `/home/data` are untouched. For a page or server change
+once the site exists, `-CodeOnly` skips the resource steps: every configuration write
+restarts the app, and the free tier allows 15 restarts an hour — past that, Azure
+disables the site (and its logs) until the hour turns.
 
 ## Where things are, when something is wrong
 
