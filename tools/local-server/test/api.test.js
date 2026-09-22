@@ -38,7 +38,7 @@ test('spec-projects route round-trips JSON', async (t) => {
 
   const payload = { _ts: 1, items: [{ id: 'p1', name: 'בדיקה' }] };
   const post = await req('POST', '/api/spec-projects', payload);
-  assert.deepStrictEqual(post.body, { ok: true });
+  assert.strictEqual(post.body.ok, true);
 
   const back = await req('GET', '/api/spec-projects');
   assert.strictEqual(back.body.items[0].name, 'בדיקה');

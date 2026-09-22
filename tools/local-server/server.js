@@ -171,18 +171,41 @@ function handleAttachment(res, appName, fileName, ext) {
   });
 }
 
+/* A document's version is the hash of its bytes. A save that names the version it
+   started from (If-Match) is refused with 412 when the file has moved on, so two
+   people saving at once cannot overwrite each other; the page then re-reads, merges
+   and retries. A save without If-Match overwrites, as the older pages expect. The
+   compare and the write below share one synchronous stretch, so one process cannot
+   interleave two saves. */
+function versionOf(filePath) {
+  try {
+    return '"' + require('crypto').createHash('sha1').update(fs.readFileSync(filePath)).digest('hex') + '"';
+  } catch (e) {
+    return '"none"';
+  }
+}
+
 async function handleApi(req, res, appName) {
   const filePath = APPS[appName];
   if (req.method === 'GET') {
-    sendJson(res, 200, readJson(filePath));
+    const version = versionOf(filePath);
+    if (req.headers['if-none-match'] === version) { res.writeHead(304, { ETag: version }); res.end(); return; }
+    const json = JSON.stringify(readJson(filePath));
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(json), ETag: version, 'Cache-Control': 'no-cache' });
+    res.end(json);
     return;
   }
   if (req.method === 'POST') {
     try {
       const raw = await readRequestBody(req);
       const data = raw ? JSON.parse(raw) : {};
+      const ifMatch = req.headers['if-match'];
+      const current = versionOf(filePath);
+      if (ifMatch && ifMatch !== current) { sendJson(res, 412, { ok: false, error: 'stale', version: current }); return; }
       writeJsonAtomic(filePath, data);
-      sendJson(res, 200, { ok: true });
+      const version = versionOf(filePath);
+      res.setHeader('ETag', version);
+      sendJson(res, 200, { ok: true, version });
     } catch (e) {
       sendJson(res, 400, { ok: false, error: e.message });
     }

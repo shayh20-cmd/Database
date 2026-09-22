@@ -68,7 +68,7 @@ test('local mode: DATA_DIR override, /api/me, /health and the attachments route'
   assert.strictEqual(health.body.ok, true);
 
   const post = await req('POST', '/api/spec-projects', { port, body: { items: [1] } });
-  assert.deepStrictEqual(post.body, { ok: true });
+  assert.strictEqual(post.body.ok, true);
   assert.ok(fs.existsSync(path.join(data, 'spec_projects.json')), 'document written under DATA_DIR');
 
   fs.mkdirSync(path.join(data, 'attachments', 'project-hub-01'), { recursive: true });
@@ -129,12 +129,41 @@ test('cloud mode: sign-in gate, allowlist, redirect from /', async (t) => {
   }
 
   const post = await req('POST', '/api/project-hub-01', { port, headers: hdr, body: { projectName: 'בדיקה', _ts: 1 } });
-  assert.deepStrictEqual(post.body, { ok: true });
+  assert.strictEqual(post.body.ok, true);
   const back = await req('GET', '/api/project-hub-01', { port, headers: hdr });
   assert.strictEqual(back.body.projectName, 'בדיקה');
 
   const snip = await req('POST', '/api/snip', { port, headers: hdr });
   assert.strictEqual(snip.status, 404, 'no snipping in the cloud');
+});
+
+test('versioned saves: If-Match refuses a stale write, If-None-Match answers 304', async (t) => {
+  const port = 3994;
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-data-'));
+  start(t, { port, root: makeSite(), env: { DATA_DIR: data, SITE_MODE: '', WEBSITE_AUTH_ENABLED: '' } });
+  await wait(700);
+
+  const first = await req('POST', '/api/project-hub-01', { port, body: { projectName: 'א', _ts: 1 } });
+  assert.strictEqual(first.status, 200, 'no If-Match: overwrite, as the legacy pages do');
+  const v1 = first.body.version;
+  assert.ok(v1 && first.headers.etag === v1);
+
+  const get = await req('GET', '/api/project-hub-01', { port });
+  assert.strictEqual(get.headers.etag, v1);
+  const same = await req('GET', '/api/project-hub-01', { port, headers: { 'If-None-Match': v1 } });
+  assert.strictEqual(same.status, 304);
+
+  // Two tabs loaded v1. The first saves; the second's save must be refused.
+  const tabA = await req('POST', '/api/project-hub-01', { port, headers: { 'If-Match': v1 }, body: { projectName: 'ב', _ts: 2 } });
+  assert.strictEqual(tabA.status, 200);
+  const tabB = await req('POST', '/api/project-hub-01', { port, headers: { 'If-Match': v1 }, body: { projectName: 'ג', _ts: 3 } });
+  assert.strictEqual(tabB.status, 412);
+  assert.strictEqual(tabB.body.version, tabA.body.version, '412 names the current version');
+  const back = await req('GET', '/api/project-hub-01', { port });
+  assert.strictEqual(back.body.projectName, 'ב', 'the stale save changed nothing');
+
+  const retry = await req('POST', '/api/project-hub-01', { port, headers: { 'If-Match': tabA.body.version }, body: { projectName: 'ג', _ts: 3 } });
+  assert.strictEqual(retry.status, 200, 'saving from the current version succeeds');
 });
 
 test('cloud mode without WEBSITE_AUTH_ENABLED serves only a failing /health, and stays up', async (t) => {

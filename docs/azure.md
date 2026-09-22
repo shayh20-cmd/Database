@@ -28,9 +28,12 @@ refuses to start in cloud mode unless App Service reports authentication on.
 
 ## Seeing each other's changes
 
-Saves already merge three ways against what the server holds, so two people editing
-different things both keep their changes. A tab checks the server every 30 seconds and
-on focus; when someone else has saved, a blue bar says so and offers a refresh.
+Every save names the version it started from (`If-Match`); the server refuses a stale
+one with 412, and the page re-reads, merges three ways and retries — so two people
+saving at once both keep their changes. A tab also checks the server every 30 seconds
+and on focus; when someone else has saved, their version is merged into the screen and
+a blue bar says who saved. Undo is cleared at that point, since it restores whole
+snapshots and would quietly remove a colleague's change.
 
 ## First deployment
 
@@ -82,5 +85,5 @@ disables the site (and its logs) until the hour turns.
 ## Not in this deployment
 
 The capture window, the planning dashboard, the spec creator and the home view's
-portfolio cards. Several projects side by side. Versioned saves (a stale tab still
-merges on save rather than being refused). Restoring an earlier version of a project.
+portfolio cards. Several projects side by side. Restoring an earlier version of a
+project.
