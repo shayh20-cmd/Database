@@ -333,7 +333,9 @@ $zip = "$stage.zip"
 try {
     Step "Packaging..."
     New-Item -ItemType Directory -Path (Join-Path $stage "tools/local-server") -Force | Out-Null
-    Copy-Item (Join-Path $root "project_hub_01.html") $stage
+    foreach ($f in "project_hub_01.html", "i18n.js", "i18n-dict.js") {
+        Copy-Item (Join-Path $root $f) $stage
+    }
     foreach ($f in "server.js", "package.json", "package-lock.json") {
         Copy-Item (Join-Path $root "tools/local-server/$f") (Join-Path $stage "tools/local-server")
     }

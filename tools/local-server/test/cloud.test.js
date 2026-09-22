@@ -35,6 +35,9 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 function makeSite() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-site-'));
   fs.writeFileSync(path.join(root, 'project_hub_01.html'), '<!doctype html><title>hub</title>');
+  fs.writeFileSync(path.join(root, 'i18n.js'), '// engine');
+  fs.writeFileSync(path.join(root, 'i18n-dict.js'), '// dictionary');
+  fs.writeFileSync(path.join(root, 'other.js'), '// not a page, not allowed');
   fs.writeFileSync(path.join(root, 'package.json'), '{}');
   fs.mkdirSync(path.join(root, 'tools', 'local-server'), { recursive: true });
   fs.writeFileSync(path.join(root, 'tools', 'local-server', 'server.js'), '// secret');
@@ -123,7 +126,12 @@ test('cloud mode: sign-in gate, allowlist, redirect from /', async (t) => {
   const pageHtml = await req('GET', '/project_hub_01.html', { port, headers: hdr });
   assert.strictEqual(pageHtml.status, 301, 'the .html form redirects to the clean URL as it does locally');
 
-  for (const p of ['/tools/local-server/server.js', '/package.json', '/data/spec_projects.json', '/tools/', '/tools', '/package']) {
+  for (const p of ['/i18n.js', '/i18n-dict.js']) {
+    const r = await req('GET', p, { port, headers: hdr });
+    assert.strictEqual(r.status, 200, p + ' is a page asset and must be served in cloud mode');
+  }
+
+  for (const p of ['/tools/local-server/server.js', '/package.json', '/data/spec_projects.json', '/tools/', '/tools', '/package', '/other.js']) {
     const r = await req('GET', p, { port, headers: hdr });
     assert.strictEqual(r.status, 404, p + ' must not be served in cloud mode');
   }

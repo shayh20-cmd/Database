@@ -276,7 +276,9 @@ function principalFrom(req) {
 
 // In cloud mode only the pages are served: never the server source, package files or data/.
 // serve-handler answers /page.html with a redirect to /page (cleanUrls), so both forms pass.
+// The two translation files the pages load are allowed by exact name; no other script is.
 const CLOUD_PAGE = /^\/[A-Za-z0-9_-]+(\.html)?$/;
+const CLOUD_ASSETS = new Set(['/i18n.js', '/i18n-dict.js']);
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
@@ -331,7 +333,7 @@ const server = http.createServer((req, res) => {
 
   if (SITE_MODE === 'cloud') {
     if (url.pathname === '/') { redirect(res, '/project_hub_01'); return; }
-    if (!CLOUD_PAGE.test(url.pathname)) { sendJson(res, 404, { error: 'Not found' }); return; }
+    if (!CLOUD_PAGE.test(url.pathname) && !CLOUD_ASSETS.has(url.pathname)) { sendJson(res, 404, { error: 'Not found' }); return; }
   }
   // Local dev server: tell browsers to always revalidate so edited HTML/JS/CSS never
   // get served stale from the heuristic cache (serve-handler sends no cache headers).
