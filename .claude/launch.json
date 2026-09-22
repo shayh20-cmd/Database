@@ -41,6 +41,12 @@
       "port": 3412
     },
     {
+      "name": "project-hub-pristine",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["D:\\Projects\\@Delta Office\\New folder\\Database\\.worktrees\\azure-deployment\\tools\\local-server\\server.js", "C:\\Users\\danie\\AppData\\Local\\Temp\\claude\\D--Projects--Delta-Office-New-folder-Database--worktrees-azure-deployment\\93f746d4-0232-4a88-9306-1dbfc0258924\\scratchpad\\pristine", "--port", "3413"],
+      "port": 3413
+    },
+    {
       "name": "drawing-app",
       "runtimeExecutable": "node",
       "runtimeArgs": ["C:\\Users\\Omega\\Database\\tools\\local-server\\server.js", "C:\\Users\\Omega\\Claude Projects\\drawing-app", "--port", "3411"],
