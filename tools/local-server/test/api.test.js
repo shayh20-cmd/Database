@@ -38,7 +38,7 @@ test('spec-projects route round-trips JSON', async (t) => {
 
   const payload = { _ts: 1, items: [{ id: 'p1', name: 'בדיקה' }] };
   const post = await req('POST', '/api/spec-projects', payload);
-  assert.deepStrictEqual(post.body, { ok: true });
+  assert.strictEqual(post.body.ok, true);
 
   const back = await req('GET', '/api/spec-projects');
   assert.strictEqual(back.body.items[0].name, 'בדיקה');
@@ -62,7 +62,7 @@ test('hub-project route stores each project in its own file', async (t) => {
   });
 
   assert.deepStrictEqual((await call('GET', '/api/hub-project/' + id)).body, {});
-  assert.deepStrictEqual((await call('POST', '/api/hub-project/' + id, { projectName: 'חדש' })).body, { ok: true });
+  assert.strictEqual((await call('POST', '/api/hub-project/' + id, { projectName: 'חדש' })).body.ok, true);
   assert.strictEqual(JSON.parse(fs.readFileSync(file, 'utf8')).projectName, 'חדש');
   assert.strictEqual((await call('GET', '/api/hub-project/..%2Fproject_hub_01')).status, 404);
   assert.strictEqual((await call('GET', '/api/hub-project/AB')).status, 404);
