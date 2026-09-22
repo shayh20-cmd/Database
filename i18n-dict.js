@@ -1929,7 +1929,14 @@ Object.assign(HE_EN, {
 "סה״כ ימי עבודה:": "Total working days:",
 "צור פרויקט": "Create project",
 "יעדים הושלמו": "goals completed",
-"שינוי שם שלב:": "Rename stage:"
+"שינוי שם שלב:": "Rename stage:",
+"שפה": "Language",
+"מראה": "Appearance",
+"בהיר": "Light",
+"כהה": "Dark",
+"החלף שפה": "Switch language",
+"מצב כהה": "Dark mode",
+"מצב בהיר": "Light mode"
 });
 
 window.I18N_HE_EN = HE_EN;
