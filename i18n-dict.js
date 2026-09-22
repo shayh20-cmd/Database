@@ -1481,5 +1481,31 @@ Object.assign(HE_EN, {
 "שם": "Name"
 });
 
+/* ── Text the pages generate at runtime rather than write in source ──
+   Dates are composed from day/month arrays with prefixes ("יום שלישי, 22 בספטמבר"),
+   so the extractor never sees these forms. Longest match wins, so "יום שלישי" beats
+   the bare "יום" → "days" entry above. */
+Object.assign(HE_EN, {
+"יום ראשון": "Sunday",
+"יום שני": "Monday",
+"יום שלישי": "Tuesday",
+"יום רביעי": "Wednesday",
+"יום חמישי": "Thursday",
+"יום שישי": "Friday",
+"יום שבת": "Saturday",
+"בינואר": "January",
+"בפברואר": "February",
+"במרץ": "March",
+"באפריל": "April",
+"במאי": "May",
+"ביוני": "June",
+"ביולי": "July",
+"באוגוסט": "August",
+"בספטמבר": "September",
+"באוקטובר": "October",
+"בנובמבר": "November",
+"בדצמבר": "December"
+});
+
 window.I18N_HE_EN = HE_EN;
 })();
