@@ -43,3 +43,27 @@ test('spec-projects route round-trips JSON', async (t) => {
   const back = await req('GET', '/api/spec-projects');
   assert.strictEqual(back.body.items[0].name, 'בדיקה');
 });
+
+test('hub-project route stores each project in its own file', async (t) => {
+  const id = 'zztest' + Date.now().toString(36);
+  const file = path.join(ROOT, 'data', 'projects', id + '.json');
+  t.after(() => { if (fs.existsSync(file)) fs.unlinkSync(file); });
+  const proc = spawn('node', [SERVER, ROOT, '--port', String(PORT + 1)], { stdio: 'ignore' });
+  t.after(() => proc.kill());
+  await wait(700);
+  const call = (m, p, b) => new Promise((resolve, reject) => {
+    const data = b ? JSON.stringify(b) : null;
+    const r = http.request({ host: '127.0.0.1', port: PORT + 1, path: p, method: m,
+      headers: data ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } : {} },
+      res => { let s = ''; res.on('data', c => s += c); res.on('end', () => { let body = null; try { body = s ? JSON.parse(s) : null; } catch { body = s; } resolve({ status: res.statusCode, body }); }); });
+    r.on('error', reject);
+    if (data) r.write(data);
+    r.end();
+  });
+
+  assert.deepStrictEqual((await call('GET', '/api/hub-project/' + id)).body, {});
+  assert.deepStrictEqual((await call('POST', '/api/hub-project/' + id, { projectName: 'חדש' })).body, { ok: true });
+  assert.strictEqual(JSON.parse(fs.readFileSync(file, 'utf8')).projectName, 'חדש');
+  assert.strictEqual((await call('GET', '/api/hub-project/..%2Fproject_hub_01')).status, 404);
+  assert.strictEqual((await call('GET', '/api/hub-project/AB')).status, 404);
+});

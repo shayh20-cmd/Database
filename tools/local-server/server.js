@@ -27,8 +27,15 @@ const APPS = {
   'project-hub-01': path.join(DATA_DIR, 'project_hub_01.json'),
   'planning-dashboard': path.join(DATA_DIR, 'planning_dashboard.json'),
   'spec-library': path.join(DATA_DIR, 'spec_library.json'),
-  'spec-projects': path.join(DATA_DIR, 'spec_projects.json')
+  'spec-projects': path.join(DATA_DIR, 'spec_projects.json'),
+  // registry of Project Hub projects created from the "צור חדש" flow
+  'hub-projects': path.join(DATA_DIR, 'hub_projects.json')
 };
+
+// Each project created in Project Hub gets its own document. The id is generated
+// client-side; the pattern keeps it from escaping PROJECTS_DIR.
+const PROJECTS_DIR = path.join(DATA_DIR, 'projects');
+const PROJECT_ROUTE = /^\/api\/hub-project\/([a-z0-9]{4,24})$/;
 
 function readJson(filePath) {
   try {
@@ -39,7 +46,7 @@ function readJson(filePath) {
 }
 
 function writeJsonAtomic(filePath, data) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const tmpPath = filePath + '.tmp';
   fs.writeFileSync(tmpPath, JSON.stringify(data));
   fs.renameSync(tmpPath, filePath);
@@ -117,7 +124,10 @@ async function handleUpload(req, res, appName, url) {
 }
 
 async function handleApi(req, res, appName) {
-  const filePath = APPS[appName];
+  return handleJsonFile(req, res, APPS[appName]);
+}
+
+async function handleJsonFile(req, res, filePath) {
   if (req.method === 'GET') {
     sendJson(res, 200, readJson(filePath));
     return;
@@ -177,6 +187,11 @@ const server = http.createServer((req, res) => {
   const upMatch = url.pathname.match(UPLOAD_ROUTE);
   if (upMatch) {
     handleUpload(req, res, upMatch[1], url).catch(e => sendJson(res, 500, { error: e.message }));
+    return;
+  }
+  const projMatch = url.pathname.match(PROJECT_ROUTE);
+  if (projMatch) {
+    handleJsonFile(req, res, path.join(PROJECTS_DIR, projMatch[1] + '.json')).catch(e => sendJson(res, 500, { error: e.message }));
     return;
   }
   const apiMatch = url.pathname.match(API_ROUTE);
