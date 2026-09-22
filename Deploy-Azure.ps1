@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Deploys the project hub — project_hub_01.html and its server — to Azure App Service
 behind Microsoft (Entra) sign-in, so the firm works on one shared copy.
@@ -80,6 +80,10 @@ function Step($message) { Write-Host $message -ForegroundColor Cyan }
 # taken, or a region refusing the subscription, is a real answer.
 function Invoke-AzWithRetry {
     param([Parameter(Mandatory)][scriptblock]$Action, [int]$Attempts = 6)
+    # az writes routine notes to stderr (e.g. the SCM_DO_BUILD_DURING_DEPLOYMENT warning);
+    # with the script's $ErrorActionPreference = "Stop", merging that into the error stream
+    # via 2>&1 would turn a harmless note into a terminating exception. Local override only.
+    $ErrorActionPreference = "Continue"
     $output = $null
     foreach ($attempt in 1..$Attempts) {
         $output = & $Action 2>&1
@@ -334,9 +338,21 @@ try {
         Copy-Item (Join-Path $root "tools/local-server/$f") (Join-Path $stage "tools/local-server")
     }
     Copy-Item (Join-Path $root "tools/local-server/node_modules") (Join-Path $stage "tools/local-server/node_modules") -Recurse
-    # .NET's zip writes forward slashes, which Linux needs; Compress-Archive has not always.
+    # ZipFile.CreateFromDirectory writes entry names with the OS path separator under
+    # Windows PowerShell 5.1's .NET Framework — backslashes on Windows — which Kudu's
+    # Linux-side rsync then treats as literal characters in a single filename ("failed to
+    # stat ...\local-server..."), so every file fails to land. Build entries by hand with
+    # forward-slash names instead, which Linux needs.
+    Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
-    [System.IO.Compression.ZipFile]::CreateFromDirectory($stage, $zip)
+    $zipArchive = [System.IO.Compression.ZipFile]::Open($zip, [System.IO.Compression.ZipArchiveMode]::Create)
+    try {
+        Get-ChildItem -Path $stage -Recurse -File | ForEach-Object {
+            $relative = $_.FullName.Substring($stage.Length + 1) -replace '\\', '/'
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zipArchive, $_.FullName, $relative) | Out-Null
+        }
+    }
+    finally { $zipArchive.Dispose() }
 
     Step "Deploying (a minute or two)..."
     $deployed = Invoke-AzWithRetry {
@@ -368,14 +384,24 @@ finally {
 # Confirm it answers: /health proves the app runs, / proves sign-in is enforced.
 # ---------------------------------------------------------------------------
 Step "Waiting for it to answer..."
+# Invoke-WebRequest's -SkipHttpErrorCheck is PowerShell 7+ only; under Windows PowerShell
+# 5.1 that parameter does not exist, so the call fails before ever reaching the network —
+# every poll "fails" and the loop only ever times out, even once the site is healthy.
+# HttpClient works the same on both and does not throw on a non-2xx status.
+Add-Type -AssemblyName System.Net.Http
 $deadline = (Get-Date).AddMinutes(4)
 $health = $null
 $lastAnswer = "(no answer)"
 while ((Get-Date) -lt $deadline) {
     try {
-        $response = Invoke-WebRequest -Uri "$url/health" -TimeoutSec 20 -SkipHttpErrorCheck -MaximumRedirection 0
-        $lastAnswer = "$($response.StatusCode) $($response.Content)"
-        if ($response.StatusCode -eq 200) { $health = $response.Content | ConvertFrom-Json; break }
+        $healthClient = [System.Net.Http.HttpClient]::new()
+        $healthClient.Timeout = [TimeSpan]::FromSeconds(20)
+        $response = $healthClient.GetAsync("$url/health").GetAwaiter().GetResult()
+        $body = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+        $statusCode = [int]$response.StatusCode
+        $healthClient.Dispose()
+        $lastAnswer = "$statusCode $body"
+        if ($statusCode -eq 200) { $health = $body | ConvertFrom-Json; break }
     }
     catch { $lastAnswer = $_.Exception.Message }
     Start-Sleep -Seconds 10
