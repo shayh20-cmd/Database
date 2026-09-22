@@ -35,6 +35,12 @@
       "autoPort": true
     },
     {
+      "name": "project-hub-azure",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["D:\\Projects\\@Delta Office\\New folder\\Database\\.worktrees\\azure-deployment\\tools\\local-server\\server.js", "D:\\Projects\\@Delta Office\\New folder\\Database\\.worktrees\\azure-deployment", "--port", "3412"],
+      "port": 3412
+    },
+    {
       "name": "drawing-app",
       "runtimeExecutable": "node",
       "runtimeArgs": ["C:\\Users\\Omega\\Database\\tools\\local-server\\server.js", "C:\\Users\\Omega\\Claude Projects\\drawing-app", "--port", "3411"],

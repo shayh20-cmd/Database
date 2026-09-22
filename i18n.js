@@ -119,9 +119,12 @@ function applyTitle() {
   }
 }
 
-/* ── Toggle button ── */
+/* ── Toggle button ──
+   A page that renders its own control (the project hub puts one in its sidebar)
+   sets data-i18n-no-button on <html> and drives the engine through window.I18N. */
 var btn = null;
 function makeButton() {
+  if (document.documentElement.hasAttribute('data-i18n-no-button')) return;
   var css = document.createElement('style');
   css.textContent =
     '#lang-toggle{position:fixed;top:var(--lang-toggle-top,12px);inset-inline-end:var(--lang-toggle-end,16px);' +
@@ -158,7 +161,16 @@ function setLang(l) {
   applyTitle();
   paintButton();
   walk(document.body);
+  try { window.dispatchEvent(new CustomEvent('i18n:change', { detail: { lang: lang } })); } catch (e) {}
 }
+
+/* Public API for pages that render their own control. `i18n:change` fires on
+   window after every switch so a React component can re-read get(). */
+window.I18N = {
+  get: function () { return lang; },
+  set: setLang,
+  toggle: function () { setLang(lang === 'en' ? 'he' : 'en'); }
+};
 
 /* ── Observer ── */
 function startObserver() {
