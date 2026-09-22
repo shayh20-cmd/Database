@@ -1,9 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ניהול סטטוס תכנון</title>
+<script>try{if(localStorage.getItem('appLang')==='en'){document.documentElement.dir='ltr';document.documentElement.lang='en';}}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -75,11 +76,11 @@
   .label { display: block; font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.06em; }
 
   /* ── Status Cells ── */
-  .cell-status { text-align: center; cursor: pointer; padding: 5px 3px; border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); transition: all 0.15s ease; position: relative; min-width: 62px; }
+  .cell-status { text-align: center; cursor: pointer; padding: 5px 3px; border-inline-end: 1px solid var(--border); border-bottom: 1px solid var(--border); transition: all 0.15s ease; position: relative; min-width: 62px; }
   .cell-status:hover { filter: brightness(0.9); transform: scale(1.05); z-index: 2; box-shadow: 0 3px 12px rgba(0,0,0,0.15); border-radius: 4px; }
   .cell-status .symbol { font-weight: 700; font-size: 13px; line-height: 1; }
   .cell-status .date { font-size: 9px; opacity: 0.75; margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
-  .cell-status .round-badge { position: absolute; top: 2px; right: 3px; font-size: 8px; font-family: 'JetBrains Mono', monospace; font-weight: 700; background: rgba(0,0,0,0.1); border-radius: 3px; padding: 0 3px; line-height: 14px; }
+  .cell-status .round-badge { position: absolute; top: 2px; inset-inline-start: 3px; font-size: 8px; font-family: 'JetBrains Mono', monospace; font-weight: 700; background: rgba(0,0,0,0.1); border-radius: 3px; padding: 0 3px; line-height: 14px; }
 
   /* ── Scrollbar ── */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -103,8 +104,8 @@
   .kpi-card:hover { box-shadow: 0 6px 24px rgba(0,0,0,0.1); transform: translateY(-3px); }
   .kpi-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.7; }
   .kpi-value { font-size: 28px; font-weight: 800; margin-top: 4px; font-family: 'JetBrains Mono', monospace; line-height: 1.1; letter-spacing: -0.5px; }
-  .kpi-pct { font-size: 12px; margin-right: 5px; font-family: 'JetBrains Mono', monospace; font-weight: 400; }
-  .kpi-delete { position: absolute; top: 8px; left: 8px; padding: 4px 5px; opacity: 0; transition: opacity 0.15s; background: rgba(0,0,0,0.07); border: none; cursor: pointer; color: var(--text-tertiary); border-radius: 6px; }
+  .kpi-pct { font-size: 12px; margin-inline-start: 5px; font-family: 'JetBrains Mono', monospace; font-weight: 400; }
+  .kpi-delete { position: absolute; top: 8px; inset-inline-end: 8px; padding: 4px 5px; opacity: 0; transition: opacity 0.15s; background: rgba(0,0,0,0.07); border: none; cursor: pointer; color: var(--text-tertiary); border-radius: 6px; }
   .kpi-delete:hover { background: rgba(194,39,75,0.12); color: #C2274B; }
   .kpi-card:hover .kpi-delete { opacity: 1; }
 
@@ -113,20 +114,20 @@
   @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 18px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
   /* ── Timeline ── */
-  .timeline { position: relative; padding-right: 28px; }
-  .timeline-line { position: absolute; right: 9px; top: 6px; bottom: 6px; width: 2px; background: var(--border); border-radius: 2px; }
+  .timeline { position: relative; padding-inline-start: 28px; }
+  .timeline-line { position: absolute; inset-inline-start: 9px; top: 6px; bottom: 6px; width: 2px; background: var(--border); border-radius: 2px; }
   .timeline-event { position: relative; padding-bottom: 8px; }
   .timeline-event:last-child { padding-bottom: 0; }
-  .timeline-dot { position: absolute; right: -23px; top: 4px; width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--surface); box-shadow: 0 0 0 2px var(--border-strong); }
+  .timeline-dot { position: absolute; inset-inline-start: -23px; top: 4px; width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--surface); box-shadow: 0 0 0 2px var(--border-strong); }
 
   /* ── Main Table ── */
   .main-table { border-collapse: separate; border-spacing: 0; }
-  .main-table th, .main-table td { border-bottom: 1px solid var(--border); border-left: 1px solid var(--border); }
-  .main-table th:last-child, .main-table td:last-child { border-left: none; }
+  .main-table th, .main-table td { border-bottom: 1px solid var(--border); border-inline-end: 1px solid var(--border); }
+  .main-table th:last-child, .main-table td:last-child { border-inline-end: none; }
   .main-table thead th { background: var(--surface-2); font-weight: 700; color: var(--text-secondary); font-size: 11px; padding: 8px 4px; position: sticky; top: 0; z-index: 2; letter-spacing: 0.03em; }
   .main-table tbody tr { transition: background 0.1s; }
   .main-table tbody tr:hover td { background-color: #EEF3FF; }
-  .main-table tbody td.row-label { background: var(--surface-2); font-weight: 600; padding: 10px 12px; font-size: 12px; position: sticky; right: 0; z-index: 1; border-right: 3px solid var(--accent); }
+  .main-table tbody td.row-label { background: var(--surface-2); font-weight: 600; padding: 10px 12px; font-size: 12px; position: sticky; inset-inline-start: 0; z-index: 1; border-inline-start: 3px solid var(--accent); }
   .main-table tbody tr:hover td.row-label { background: #E8EFFF; }
   .main-table .group-header { font-size: 11px; font-weight: 700; padding: 8px 8px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); background: var(--bg); border-bottom: 2px solid var(--border); }
 
@@ -148,20 +149,22 @@
 
   /* ── Sidebar Panel ── */
   .sidebar-overlay { position: fixed; inset: 0; z-index: 50; animation: fadeIn 0.18s ease-out; pointer-events: none; }
-  .sidebar-panel { position: fixed; top: 0; left: 0; bottom: 0; width: 480px; max-width: 92vw; background: var(--surface); box-shadow: 8px 0 48px rgba(0,0,0,0.18); display: flex; flex-direction: column; overflow: hidden; animation: slideInSidebar 0.28s cubic-bezier(0.34,1.08,0.64,1); pointer-events: all; border-left: none; border-right: 1px solid var(--border); transition: width 0.1s ease-out; }
-  .sidebar-resize-handle { position: absolute; top: 0; right: 0; bottom: 0; width: 6px; cursor: ew-resize; background: transparent; z-index: 100; transition: background 0.15s; }
+  .sidebar-panel { position: fixed; top: 0; inset-inline-end: 0; bottom: 0; width: 480px; max-width: 92vw; background: var(--surface); box-shadow: 8px 0 48px rgba(0,0,0,0.18); display: flex; flex-direction: column; overflow: hidden; animation: slideInSidebar 0.28s cubic-bezier(0.34,1.08,0.64,1); pointer-events: all; border-inline-end: none; border-inline-start: 1px solid var(--border); transition: width 0.1s ease-out; }
+  .sidebar-resize-handle { position: absolute; top: 0; inset-inline-start: 0; bottom: 0; width: 6px; cursor: ew-resize; background: transparent; z-index: 100; transition: background 0.15s; }
   .sidebar-resize-handle:hover { background: var(--accent); }
   @keyframes slideInSidebar { from { transform: translateX(-100%); opacity: 0.6; } to { transform: translateX(0); opacity: 1; } }
+  [dir="ltr"] .sidebar-panel { animation-name: slideInSidebarLtr; box-shadow: -8px 0 48px rgba(0,0,0,0.18); }
+  @keyframes slideInSidebarLtr { from { transform: translateX(100%); opacity: 0.6; } to { transform: translateX(0); opacity: 1; } }
   .sidebar-header { padding: 18px 20px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--surface); }
   .sidebar-body { flex: 1; overflow-y: auto; padding: 18px 20px; }
   .sidebar-context-tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 20px; font-size: 11px; color: var(--text-secondary); font-weight: 500; }
-  .timeline-gap { display: flex; align-items: center; gap: 8px; margin: 4px 0; color: var(--text-tertiary); font-size: 11px; font-family: 'JetBrains Mono', monospace; padding-right: 0; }
+  .timeline-gap { display: flex; align-items: center; gap: 8px; margin: 4px 0; color: var(--text-tertiary); font-size: 11px; font-family: 'JetBrains Mono', monospace; padding-inline-start: 0; }
   .timeline-gap::before, .timeline-gap::after { content: ''; flex: 1; height: 1px; background: var(--border); }
   .timeline-event-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
   .timeline-event-card:hover { border-color: var(--accent); box-shadow: 0 2px 10px rgba(0,115,234,0.12); }
 
   /* ── Timeline Arrow ── */
-  .timeline-arrow { display: flex; align-items: center; justify-content: center; height: 16px; margin: -8px 0 0 0; position: relative; right: 11px; }
+  .timeline-arrow { display: flex; align-items: center; justify-content: center; height: 16px; margin: -8px 0 0 0; position: relative; inset-inline-start: 11px; }
   .timeline-arrow svg { width: 14px; height: 14px; color: var(--border-strong); }
 
   /* ── GANTT View ── */
@@ -174,12 +177,12 @@
   .gantt-wrapper { position: relative; display: flex; flex-direction: column; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; overflow-x: auto; }
   .gantt-grid { display: grid; gap: 0; position: relative; min-width: max-content; }
   .gantt-header-row { display: contents; }
-  .gantt-column { background: var(--surface-2); border-right: 1px solid var(--border); padding: 8px 4px; text-align: center; font-size: 10px; font-weight: 600; color: var(--text-secondary); min-width: 20px; }
-  .gantt-column:last-child { border-right: none; }
+  .gantt-column { background: var(--surface-2); border-inline-start: 1px solid var(--border); padding: 8px 4px; text-align: center; font-size: 10px; font-weight: 600; color: var(--text-secondary); min-width: 20px; }
+  .gantt-column:last-child { border-inline-start: none; }
 
   .gantt-event-row { display: contents; }
-  .gantt-cell { position: relative; min-height: 32px; border-right: 1px solid var(--border); padding: 4px; }
-  .gantt-cell:last-child { border-right: none; }
+  .gantt-cell { position: relative; min-height: 32px; border-inline-start: 1px solid var(--border); padding: 4px; }
+  .gantt-cell:last-child { border-inline-start: none; }
 
   .gantt-event-bar { position: absolute; height: 26px; border-radius: 6px; cursor: pointer; transition: box-shadow 0.15s; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 500; color: white; text-overflow: ellipsis; white-space: nowrap; overflow: visible; top: 3px; }
   .gantt-event-bar:hover { filter: brightness(1.1); box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
@@ -189,6 +192,11 @@
   .gantt-bar-edge:hover { background: rgba(255,255,255,0.4); }
 
   .gantt-no-events { padding: 32px 12px; text-align: center; color: var(--text-secondary); font-size: 13px; }
+
+  /* ── Language toggle / LTR support ── */
+  :root { --lang-toggle-top: 14px; --lang-toggle-end: 20px; }
+  .app-header { padding-inline-end: 150px; }
+  [dir="ltr"] .select { padding-left: 12px; padding-right: 32px; background-position: right 10px center; }
 </style>
 </head>
 <body>
@@ -1249,7 +1257,7 @@ function MainGanttView({
     style: {
       width: LABEL_W,
       flexShrink: 0,
-      borderLeft: '1px solid var(--border)',
+      borderInlineEnd: '1px solid var(--border)',
       padding: '4px 14px',
       height: HDR_H,
       display: 'flex',
@@ -1374,7 +1382,7 @@ function MainGanttView({
         position: 'absolute',
         left: `${left}%`,
         width: `${width}%`,
-        borderLeft: i > 0 ? '1px solid var(--border)' : 'none',
+        borderInlineEnd: i > 0 ? '1px solid var(--border)' : 'none',
         height: '100%',
         display: 'flex',
         alignItems: 'center',
@@ -1676,7 +1684,7 @@ function MainGanttView({
           top: 0,
           bottom: 0,
           background: ss.bg,
-          borderRight: `1px solid ${ss.border}`,
+          borderInlineStart: `1px solid ${ss.border}`,
           cursor: 'pointer'
         },
         onClick: e => {
@@ -1840,7 +1848,7 @@ function MainGanttView({
   }, hoveredMil.symbol, " ", hoveredMil.label), /*#__PURE__*/React.createElement("span", {
     style: {
       color: 'var(--text-secondary)',
-      marginRight: 8
+      marginInlineStart: 8
     }
   }, hoveredMil.date))));
 }
@@ -2781,7 +2789,7 @@ function ViewControls({
       height: 22,
       width: 1,
       background: 'var(--border)',
-      marginRight: 4
+      marginInlineStart: 4
     }
   }), /*#__PURE__*/React.createElement("label", {
     style: {
@@ -2890,7 +2898,7 @@ function Legend() {
     }, s.symbol), s.label);
   }), /*#__PURE__*/React.createElement("span", {
     style: {
-      marginRight: 'auto',
+      marginInlineStart: 'auto',
       display: 'flex',
       alignItems: 'center',
       gap: 4
@@ -3039,7 +3047,7 @@ function StatusTable({
     rowSpan: 2,
     style: {
       minWidth: 110,
-      textAlign: 'right',
+      textAlign: 'start',
       padding: '8px 10px'
     }
   }, view.rows === 'buildings' ? 'מבנה' : 'יועץ'), colGroups.map(g => /*#__PURE__*/React.createElement("th", {
@@ -3063,7 +3071,7 @@ function StatusTable({
   }, /*#__PURE__*/React.createElement("td", {
     className: "row-label",
     style: {
-      textAlign: 'right'
+      textAlign: 'start'
     }
   }, /*#__PURE__*/React.createElement("div", null, row.label), row.sublabel && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3441,7 +3449,7 @@ function GanttView({
       fontSize: 12,
       fontWeight: 700,
       color: 'var(--text)',
-      borderLeft: idx > 0 ? '1px solid var(--border-strong)' : 'none',
+      borderInlineEnd: idx > 0 ? '1px solid var(--border-strong)' : 'none',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -3468,7 +3476,7 @@ function GanttView({
     key: idx,
     style: {
       flex: col.daysInMonth,
-      borderLeft: idx > 0 ? '1px solid var(--border-strong)' : 'none'
+      borderInlineEnd: idx > 0 ? '1px solid var(--border-strong)' : 'none'
     }
   }))), chronoEvents.map((evt, i) => {
     const s = STATUSES[evt.status];
@@ -3555,7 +3563,7 @@ function GanttView({
         fontWeight: 700,
         flexShrink: 0,
         pointerEvents: 'none',
-        marginLeft: 4,
+        marginInlineEnd: 4,
         opacity: 0.75,
         fontFamily: "'JetBrains Mono', monospace"
       }
@@ -4381,7 +4389,7 @@ function CellDetailModal({
     value: formatDateLong(formDate),
     style: {
       cursor: 'pointer',
-      paddingLeft: 28
+      paddingInlineEnd: 28
     },
     onClick: e => e.currentTarget.nextSibling.showPicker?.() || e.currentTarget.nextSibling.click()
   }), /*#__PURE__*/React.createElement("input", {
@@ -4835,7 +4843,7 @@ function CellDetailModal({
       style: {
         fontSize: 12,
         color: 'var(--text-secondary)',
-        marginRight: 'auto'
+        marginInlineStart: 'auto'
       }
     }, evt.note)))), showGap && /*#__PURE__*/React.createElement("div", {
       style: {
@@ -5818,5 +5826,6 @@ function KpiAddModal({
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(/*#__PURE__*/React.createElement(App, null));
 </script>
+<script src="i18n-dict.js"></script><script src="i18n.js"></script>
 </body>
 </html>

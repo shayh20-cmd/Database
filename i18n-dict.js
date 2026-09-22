@@ -1936,7 +1936,8 @@ Object.assign(HE_EN, {
 "כהה": "Dark",
 "החלף שפה": "Switch language",
 "מצב כהה": "Dark mode",
-"מצב בהיר": "Light mode"
+"מצב בהיר": "Light mode",
+"מ- ": "from "
 });
 
 window.I18N_HE_EN = HE_EN;
