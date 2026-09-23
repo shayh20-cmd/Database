@@ -1,0 +1,2862 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover"/>
+<title>Site Note</title>
+<link rel="manifest" href="./manifest.json"/>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%20width%3D%22512%22%20height%3D%22512%22%3E%3Crect%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%232563EB%22/%3E%3Cg%20transform%3D%22translate%2812%2C12%29%20scale%280.8%29%20translate%28-12%2C-12%29%22%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%228%22%20y%3D%222%22%20width%3D%228%22%20height%3D%224%22%20rx%3D%221%22/%3E%3Cpath%20d%3D%22M9%204H6a2%202%200%200%200-2%202v14a2%202%200%200%200%202%202h12a2%202%200%200%200%202-2V6a2%202%200%200%200-2-2h-3%22/%3E%3Cpath%20d%3D%22M9%2012h6M9%2016h6%22/%3E%3C/g%3E%3C/svg%3E"/>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%20width%3D%22512%22%20height%3D%22512%22%3E%3Crect%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%232563EB%22/%3E%3Cg%20transform%3D%22translate%2812%2C12%29%20scale%280.8%29%20translate%28-12%2C-12%29%22%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%228%22%20y%3D%222%22%20width%3D%228%22%20height%3D%224%22%20rx%3D%221%22/%3E%3Cpath%20d%3D%22M9%204H6a2%202%200%200%200-2%202v14a2%202%200%200%200%202%202h12a2%202%200%200%200%202-2V6a2%202%200%200%200-2-2h-3%22/%3E%3Cpath%20d%3D%22M9%2012h6M9%2016h6%22/%3E%3C/g%3E%3C/svg%3E"/>
+<meta name="theme-color" content="#2563EB"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Site Note"/>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script src="https://unpkg.com/@azure/msal-browser@3/lib/msal-browser.min.js"></script>
+<script src="https://unpkg.com/exceljs@4/dist/exceljs.min.js"></script>
+<style>
+:root {
+  --bg: #F2F4F7;
+  --surface: #FFFFFF;
+  --surface-2: #FAFBFC;
+  --border: #E4E6EA;
+  --border-strong: #D3D6DC;
+  --text: #16181C;
+  --text-2: #5B5E66;
+  --text-3: #9599A2;
+  --accent: #2563EB;
+  --accent-h: #1D4ED8;
+  --accent-light: rgba(37,99,235,.08);
+  --accent-light-2: rgba(37,99,235,.14);
+  --green: #16A34A;
+  --green-light: rgba(22,163,74,.1);
+  --orange: #EA580C;
+  --orange-light: rgba(234,88,12,.1);
+  --red: #DC2626;
+  --red-light: rgba(220,38,38,.1);
+  --amber: #D97706;
+  --amber-light: rgba(217,119,6,.1);
+  --shadow-sm: 0 1px 3px rgba(20,20,30,.07), 0 1px 2px rgba(20,20,30,.04);
+  --shadow-md: 0 4px 14px rgba(20,20,30,.09), 0 1px 4px rgba(20,20,30,.05);
+  --shadow-lg: 0 10px 32px rgba(20,20,30,.14), 0 2px 8px rgba(20,20,30,.06);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --nav-h: 62px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; background: var(--bg); }
+body { font-family: 'Heebo', system-ui, sans-serif; color: var(--text); font-size: 15px; -webkit-font-smoothing: antialiased; overscroll-behavior-y: none; }
+button, input, textarea, select { font-family: inherit; font-size: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: none; }
+img { max-width: 100%; display: block; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+#root { height: 100%; }
+
+/* ───────────────────────── Shell ───────────────────────── */
+.app-shell { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; background: var(--bg); }
+
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding-top: var(--safe-t);
+  box-shadow: var(--shadow-sm);
+}
+.topbar-row { display: flex; align-items: center; gap: 10px; padding: 12px 14px; min-height: 56px; }
+.topbar-icon-btn {
+  width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  color: var(--text-2); flex-shrink: 0; transition: background .15s;
+}
+.topbar-icon-btn:hover { background: var(--surface-2); }
+.topbar-titles { flex: 1; min-width: 0; }
+.topbar-title { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-subtitle { font-size: 12.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; }
+.save-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+.save-dot.saving { background: var(--amber); animation: pulse 1s infinite; }
+.save-dot.error { background: var(--red); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+.brand-mark { display: flex; align-items: center; gap: 9px; }
+.brand-badge {
+  width: 34px; height: 34px; border-radius: 9px; background: var(--accent);
+  display: flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0;
+}
+.brand-name { font-size: 17px; font-weight: 800; letter-spacing: -.2px; }
+.brand-name span { color: var(--accent); }
+
+.ms-signin-btn {
+  margin-inline-start: auto; display: flex; align-items: center; gap: 7px;
+  padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong);
+  background: var(--surface); font-size: 12.5px; font-weight: 600; color: var(--text-2); white-space: nowrap;
+}
+.ms-signin-btn:hover { background: var(--surface-2); }
+.account-widget { position: relative; margin-inline-start: auto; }
+.account-avatar-btn { display: flex; align-items: center; }
+.account-avatar {
+  width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; flex-shrink: 0;
+}
+.account-avatar.syncing { animation: pulse 1.2s infinite; }
+.account-menu {
+  position: absolute; inset-inline-end: 0; top: calc(100% + 8px); z-index: 20;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg); padding: 12px; min-width: 220px;
+}
+.account-menu-name { font-size: 13.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-menu-email { font-size: 11.5px; color: var(--text-3); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-menu-status { font-size: 11.5px; color: var(--text-3); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.account-menu-status.error { color: var(--red); }
+.account-menu-signout {
+  margin-top: 10px; width: 100%; text-align: center; padding: 7px; border-radius: var(--radius-sm);
+  background: var(--surface-2); font-size: 12.5px; font-weight: 700; color: var(--text-2);
+}
+.account-menu-signout:hover { background: var(--accent-light); color: var(--accent); }
+
+.main-scroll { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+/* ───────────────────────── Bottom nav ───────────────────────── */
+.bottom-nav {
+  position: sticky; bottom: 0; z-index: 20;
+  background: var(--surface); border-top: 1px solid var(--border);
+  display: flex; padding-bottom: var(--safe-b); box-shadow: 0 -2px 10px rgba(20,20,30,.05);
+}
+.bottom-nav-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 9px 4px 8px; color: var(--text-3); font-size: 11.5px; font-weight: 600; min-height: 52px;
+  transition: color .15s;
+}
+.bottom-nav-item.active { color: var(--accent); }
+.bottom-nav-item svg { width: 22px; height: 22px; }
+
+/* ───────────────────────── Buttons ───────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 11px 18px; border-radius: var(--radius-md); font-size: 14.5px; font-weight: 700;
+  transition: all .15s; white-space: nowrap; border: 1px solid transparent;
+}
+.btn svg { width: 17px; height: 17px; flex-shrink: 0; }
+.btn-primary { background: var(--accent); color: #fff; box-shadow: var(--shadow-sm); }
+.btn-primary:hover { background: var(--accent-h); }
+.btn-primary:disabled { background: var(--border-strong); color: var(--text-3); cursor: default; box-shadow: none; }
+.btn-secondary { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
+.btn-secondary:hover { background: var(--surface-2); }
+.btn-ghost { background: transparent; color: var(--text-2); }
+.btn-ghost:hover { background: var(--surface-2); }
+.btn-danger { background: var(--red-light); color: var(--red); }
+.btn-danger:hover { background: rgba(220,38,38,.18); }
+.btn-block { width: 100%; }
+.btn-sm { padding: 7px 12px; font-size: 13px; border-radius: var(--radius-sm); }
+.btn-icon-only { padding: 9px; }
+
+.fab {
+  position: fixed; left: 18px; bottom: calc(var(--nav-h) + var(--safe-b) + 18px); z-index: 25;
+  width: 58px; height: 58px; border-radius: 50%; background: var(--accent); color: #fff;
+  display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-lg);
+  transition: transform .15s;
+}
+.fab:active { transform: scale(.93); }
+.fab svg { width: 26px; height: 26px; }
+
+/* ───────────────────────── Home screen ───────────────────────── */
+.home-hero { padding: 22px 18px 6px; }
+.home-hero h1 { font-size: 22px; font-weight: 800; letter-spacing: -.3px; }
+.home-hero p { color: var(--text-2); font-size: 13.5px; margin-top: 3px; }
+.home-list { padding: 14px 18px 90px; display: flex; flex-direction: column; gap: 10px; }
+.report-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 14px 14px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow-sm);
+  transition: transform .12s, box-shadow .12s;
+}
+.report-card:active { transform: scale(.99); }
+.report-card-icon {
+  width: 44px; height: 44px; border-radius: var(--radius-md); background: var(--accent-light);
+  display: flex; align-items: center; justify-content: center; color: var(--accent); flex-shrink: 0;
+}
+.report-card-icon svg { width: 22px; height: 22px; }
+.report-card-body { flex: 1; min-width: 0; text-align: right; }
+.report-card-title { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.report-card-meta { font-size: 12.5px; color: var(--text-3); margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap; }
+.report-card-del, .report-card-followup {
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-3); width: 36px; height: 36px; padding: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.report-card-del svg, .report-card-followup svg { width: 20px; height: 20px; }
+.report-card-del:hover { color: var(--red); background: var(--red-light); }
+.report-card-followup:hover { color: var(--accent); background: var(--accent-light); }
+.empty-state { text-align: center; padding: 60px 24px; color: var(--text-3); }
+.empty-state svg { width: 52px; height: 52px; margin: 0 auto 14px; opacity: .5; }
+.empty-state h3 { color: var(--text-2); font-size: 15.5px; font-weight: 700; margin-bottom: 5px; }
+.empty-state p { font-size: 13px; line-height: 1.5; }
+.home-new-btn-wrap { padding: 4px 18px 10px; }
+.home-sort-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding: 0 18px 10px; }
+.home-sort-label { font-size: 12.5px; color: var(--text-3); }
+
+/* ───────────────────────── Form fields ───────────────────────── */
+.field { margin-bottom: 16px; }
+.field-meta-grid {
+  display: flex; flex-wrap: wrap; gap: 4px 18px;
+  margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border);
+}
+.field-meta-grid .field-compact { flex: 1 1 190px; min-width: 160px; margin-bottom: 16px; }
+.field-meta-grid .field-compact .field-label { font-size: 12px; font-weight: 600; color: var(--text-3); }
+.carried-note {
+  display: flex; align-items: flex-start; gap: 8px; background: var(--accent-light); border: 1px solid var(--accent-light-2);
+  border-radius: var(--radius-md); padding: 10px 12px; font-size: 12.5px; color: var(--accent-h); margin-bottom: 16px; line-height: 1.5;
+}
+.carried-note svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
+.field-label { display: block; font-size: 13px; font-weight: 700; color: var(--text-2); margin-bottom: 7px; }
+.field-label .opt { font-weight: 400; color: var(--text-3); }
+.field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+.field-label-row .field-label { margin-bottom: 0; }
+.text-toolbar { display: flex; gap: 4px; }
+.text-toolbar-btn {
+  width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); font-size: 13px;
+}
+.text-toolbar-btn svg { width: 15px; height: 15px; }
+.text-toolbar-btn:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent-light-2); }
+.field-input, .field-textarea, .field-select {
+  width: 100%; background: var(--surface-2); border: 1.5px solid var(--border); border-radius: var(--radius-md);
+  padding: 12px 13px; font-size: 15px; color: var(--text); transition: border-color .15s, background .15s;
+}
+.field-input:focus, .field-textarea:focus, .field-select:focus { border-color: var(--accent); background: var(--surface); }
+.field-textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+.field-textarea-main { font-size: 16.5px; border-width: 2px; border-color: var(--border-strong); }
+.field-textarea-main:focus { border-color: var(--accent); }
+.field-hint { font-size: 12px; color: var(--text-3); margin-top: 6px; }
+.floor-divider { height: 1px; background: var(--border); margin: 10px 0; }
+.two-col-row { display: flex; gap: 10px; }
+.two-col-row > div { flex: 1; min-width: 0; }
+.field-sublabel { display: block; font-size: 12px; color: var(--text-3); margin-bottom: 5px; }
+
+.new-group-link {
+  display: inline-flex; align-items: center; gap: 4px; margin-top: 8px;
+  font-size: 12.5px; font-weight: 600; color: var(--accent);
+}
+.new-group-link svg { width: 15px; height: 15px; }
+.new-group-row { display: flex; align-items: center; gap: 7px; margin-top: 8px; }
+.new-group-row .field-input { flex: 1; min-width: 0; }
+
+.chip-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+.chip {
+  padding: 7px 13px; border-radius: 20px; background: var(--surface-2); border: 1.5px solid var(--border);
+  font-size: 13px; font-weight: 600; color: var(--text-2); transition: all .12s;
+}
+.chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip.add-chip { color: var(--accent); border-style: dashed; border-color: var(--accent-light-2); background: var(--accent-light); }
+.status-chip.active[data-status="open"] { background: #6B7280; border-color: #6B7280; color: #fff; }
+.status-chip.active[data-status="in_progress"] { background: var(--amber); border-color: var(--amber); color: #fff; }
+.status-chip.active[data-status="closed"] { background: var(--green); border-color: var(--green); color: #fff; }
+.status-badge { display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 20px; border: 1px solid; flex-shrink: 0; }
+.status-badge-inline { margin-inline-end: 6px; margin-bottom: 4px; }
+.template-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px 4px 13px; }
+.template-chip-apply { background: none; border: none; color: inherit; font: inherit; font-weight: 600; padding: 0; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.template-chip-del { display: flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; color: var(--text-3); flex-shrink: 0; }
+.template-chip-del svg { width: 11px; height: 11px; }
+.template-chip-del:hover { background: var(--red-light); color: var(--red); }
+
+/* ───────────────────────── Custom dialog (confirm / alert) ───────────────────────── */
+.dialog-backdrop {
+  position: fixed; inset: 0; z-index: 200; background: rgba(15,17,21,.5);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  animation: fadeIn .15s ease-out;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.dialog-box {
+  background: var(--surface); border-radius: var(--radius-lg); padding: 20px;
+  max-width: 320px; width: 100%; box-shadow: var(--shadow-lg);
+}
+.dialog-message { font-size: 14.5px; color: var(--text); line-height: 1.5; margin-bottom: 18px; text-align: center; }
+.dialog-actions { display: flex; gap: 10px; }
+.dialog-actions .btn { flex: 1; }
+
+/* ───────────────────────── Full-screen overlay (task editor / meta / annotator) ───────────────────────── */
+.overlay {
+  position: fixed; inset: 0; z-index: 50; background: var(--bg);
+  display: flex; flex-direction: column; animation: slideUp .22s ease-out;
+}
+@keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.overlay-topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: calc(var(--safe-t) + 12px) 14px 12px; background: var(--surface); border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.overlay-title { font-size: 15.5px; font-weight: 700; }
+.overlay-body { flex: 1; overflow-y: auto; padding: 18px 16px calc(var(--safe-b) + 30px); }
+.overlay-body.no-pad { padding: 0; }
+
+/* ───────────────────────── Photos ───────────────────────── */
+.photo-strip { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.photo-thumb {
+  position: relative; width: 92px; height: 92px; border-radius: var(--radius-md); overflow: hidden;
+  border: 1px solid var(--border); background: var(--surface-2); flex-shrink: 0;
+}
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.photo-thumb-del {
+  position: absolute; top: 4px; left: 4px; width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(20,20,30,.6); color: #fff; display: flex; align-items: center; justify-content: center;
+}
+.photo-thumb-del svg { width: 12px; height: 12px; }
+.photo-thumb-badge {
+  position: absolute; bottom: 4px; right: 4px; background: rgba(20,20,30,.6); color: #fff;
+  border-radius: 6px; padding: 2px 5px; display: flex; align-items: center;
+}
+.photo-thumb-badge svg { width: 11px; height: 11px; }
+.photo-add-tile {
+  width: 92px; height: 92px; border-radius: var(--radius-md); border: 1.5px dashed var(--border-strong);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  color: var(--accent); background: var(--accent-light); font-size: 11px; font-weight: 700; flex-shrink: 0;
+}
+.photo-add-tile svg { width: 20px; height: 20px; }
+.photo-add-actions { display: flex; gap: 10px; margin-top: 10px; }
+
+/* ───────────────────────── Annotator ───────────────────────── */
+.annotator { position: fixed; inset: 0; z-index: 60; background: #101114; display: flex; flex-direction: column; }
+.annotator-top {
+  display: flex; align-items: center; justify-content: space-between; padding: calc(var(--safe-t) + 10px) 12px 10px;
+  background: #17181C; flex-shrink: 0;
+}
+.annotator-top-btn { color: #fff; font-size: 14px; font-weight: 700; padding: 8px 10px; border-radius: 8px; }
+.annotator-top-btn:hover { background: rgba(255,255,255,.08); }
+.annotator-top-btn.save { color: #fff; background: var(--accent); }
+.annotator-top-btn:disabled { opacity: .35; }
+.annotator-canvas-wrap {
+  flex: 1; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 8px; position: relative;
+}
+.annotator-canvas-wrap canvas { touch-action: none; max-width: 100%; max-height: 100%; box-shadow: 0 4px 24px rgba(0,0,0,.5); background: #000; }
+.annotator-text-input {
+  position: absolute; background: transparent; border: 1.5px dashed #fff; color: inherit; padding: 2px 4px;
+  min-width: 40px; font-weight: 700; z-index: 5;
+}
+.annotator-toolbar { background: #17181C; padding: 10px 12px calc(var(--safe-b) + 10px); flex-shrink: 0; }
+.annotator-tools-row { display: flex; align-items: center; gap: 8px; overflow-x: auto; padding-bottom: 10px; }
+.tool-btn {
+  width: 42px; height: 42px; border-radius: 10px; background: #24262B; color: #C7C9CF;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1.5px solid transparent;
+}
+.tool-btn svg { width: 20px; height: 20px; }
+.tool-btn.active { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+.tool-sep { width: 1px; height: 26px; background: #34363C; flex-shrink: 0; margin: 0 2px; }
+.color-sw { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; border: 2px solid transparent; }
+.color-sw.active { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+.width-row { display: flex; gap: 8px; }
+.width-btn {
+  flex: 1; height: 34px; border-radius: 8px; background: #24262B; display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid transparent;
+}
+.width-btn.active { border-color: var(--accent); background: var(--accent-light); }
+.width-btn .dot { border-radius: 50%; background: #C7C9CF; }
+.width-btn.active .dot { background: var(--accent); }
+
+/* ───────────────────────── Task meta pills (shared) ───────────────────────── */
+.task-meta-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.meta-pill {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--text-2);
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 3px 7px;
+}
+.meta-pill svg { width: 11px; height: 11px; color: var(--text-3); flex-shrink: 0; }
+.meta-pill.carried-pill { background: var(--accent-light); border-color: var(--accent-light-2); color: var(--accent-h); }
+.meta-pill.carried-pill svg { color: var(--accent); }
+
+/* ───────────────────────── Organize screen ───────────────────────── */
+.organize-wrap { padding: 14px 16px calc(var(--nav-h) + var(--safe-b) + 40px); max-width: 760px; margin: 0 auto; }
+.organize-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.group-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 14px; box-shadow: var(--shadow-sm); overflow: hidden; }
+.group-header { display: flex; align-items: center; gap: 8px; padding: 12px 12px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+.group-name-input { flex: 1; font-size: 14.5px; font-weight: 700; background: transparent; border: none; padding: 4px 2px; border-bottom: 1.5px dashed var(--border-strong); }
+.group-name-input:focus { border-bottom-color: var(--accent); }
+.group-name-static { flex: 1; font-size: 14.5px; font-weight: 600; color: var(--text-2); padding: 4px 2px; }
+.group-count { font-size: 11.5px; color: var(--text-3); font-weight: 600; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 2px 9px; flex-shrink: 0; }
+.group-btn { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-3); flex-shrink: 0; }
+.group-btn:hover { background: var(--surface); color: var(--text); }
+.group-btn.del:hover { color: var(--red); }
+.group-body { padding: 6px; }
+.group-empty { padding: 16px; text-align: center; color: var(--text-3); font-size: 12.5px; }
+
+.org-row {
+  display: flex; align-items: flex-start; gap: 8px; padding: 10px 7px; border-radius: var(--radius-md);
+  background: var(--surface); transition: background .12s, box-shadow .12s;
+}
+.org-row.dragging { box-shadow: var(--shadow-lg); background: var(--surface-2); position: relative; z-index: 5; }
+.org-drag-handle { color: var(--text-3); flex-shrink: 0; padding: 6px; touch-action: none; cursor: grab; margin-top: 3px; }
+.org-drag-handle svg { width: 18px; height: 18px; }
+.org-row-thumb { width: 48px; height: 48px; border-radius: 7px; overflow: hidden; background: var(--surface-2); flex-shrink: 0; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--text-3); }
+.org-row-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.org-row-thumb svg { width: 18px; height: 18px; }
+.org-row-body { flex: 1; min-width: 0; text-align: right; cursor: pointer; padding-top: 2px; }
+.org-row-text {
+  font-size: 13.5px; font-weight: 400; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 9px;
+}
+.org-row-text.empty { color: var(--text-3); font-weight: 400; }
+.org-row-list {
+  font-size: 13.5px; font-weight: 400; line-height: 1.35; margin: 0;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 9px; padding-inline-start: 26px;
+}
+.org-row-list li { margin-bottom: 1px; }
+.org-row-list li:last-child { margin-bottom: 0; }
+.org-row-select { flex-shrink: 0; font-size: 12px; font-weight: 600; background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px; padding: 5px 6px; max-width: 92px; color: var(--text-2); margin-top: 2px; }
+/* On wide screens org-row-main/org-row-actions are transparent to layout — org-row itself
+   stays a single flex row exactly as before. On narrow phones they become two stacked rows
+   so the topic select + delete button drop below the text instead of squeezing it. */
+.org-row-main, .org-row-actions { display: contents; }
+@media (max-width: 480px) {
+  .org-row { flex-wrap: wrap; }
+  .org-row-main { display: flex; align-items: flex-start; gap: 8px; flex: 1 1 100%; }
+  .org-row-actions { display: flex; align-items: center; gap: 8px; flex: 1 1 100%; justify-content: flex-end; margin-top: 2px; }
+  .org-row-select { margin-top: 0; }
+}
+
+/* ───────────────────────── Preview / Print document ───────────────────────── */
+.preview-toolbar { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 16px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.preview-toolbar-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.preview-toolbar-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.layout-toggle { display: flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
+.layout-btn { border: none; background: transparent; padding: 5px 12px; font-size: 12.5px; font-weight: 600; color: var(--text-2); border-radius: 6px; cursor: pointer; }
+.layout-btn.active { background: var(--accent); color: #fff; }
+.preview-loc-toggle { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--text-2); cursor: pointer; }
+.zoom-controls { display: flex; align-items: center; gap: 4px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 2px 6px; }
+.zoom-btn { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; color: var(--text-2); border-radius: 6px; }
+.zoom-btn:hover:not(:disabled) { background: var(--surface); }
+.zoom-btn:disabled { opacity: .4; }
+.zoom-btn svg { width: 16px; height: 16px; }
+.zoom-level { font-size: 11.5px; font-weight: 700; color: var(--text-2); min-width: 34px; text-align: center; }
+.preview-scroll { padding: 20px 12px 60px; display: flex; flex-direction: column; align-items: center; }
+.doc-print-root { display: flex; flex-direction: column; align-items: center; gap: 24px; width: 100%; }
+.doc-page {
+  background: #fff; width: 100%; max-width: 794px; min-height: 1123px; padding: 34px 30px; box-shadow: var(--shadow-lg);
+  border-radius: 4px; color: #1a1a1a; box-sizing: border-box;
+}
+.doc-page-num { text-align: center; font-size: 11px; color: var(--text-3); margin-top: 14px; }
+.doc-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid var(--accent); padding-bottom: 14px; margin-bottom: 18px; gap: 12px; }
+.doc-header-brand { display: flex; align-items: center; gap: 8px; color: var(--accent); font-weight: 800; font-size: 13px; }
+.doc-header-brand svg { width: 16px; height: 16px; }
+.doc-title { font-size: 21px; font-weight: 800; margin-top: 4px; }
+.doc-header-right { text-align: left; font-size: 12px; color: #555; line-height: 1.6; white-space: nowrap; }
+.doc-participants { font-size: 12.5px; color: #444; margin: 0 0 12px; line-height: 1.5; white-space: pre-line; }
+.doc-participants b { color: #111; }
+.doc-group-title {
+  font-size: 14.5px; font-weight: 800; color: #fff; background: var(--accent);
+  padding: 7px 12px; border-radius: 6px 6px 0 0; margin-top: 22px;
+}
+.doc-task { border: 1px solid #E2E4E9; border-top: none; padding: 14px 14px 16px; page-break-inside: avoid; break-inside: avoid; }
+.doc-task:last-child { border-radius: 0 0 6px 6px; }
+.doc-task-head { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+.doc-task-num { font-size: 12.5px; font-weight: 800; color: var(--accent); flex-shrink: 0; margin-top: 1px; }
+.doc-task-text { font-size: 14px; font-weight: 400; line-height: 1.45; }
+.doc-task-list { font-size: 14px; font-weight: 400; line-height: 1.5; margin: 0; padding-inline-start: 18px; }
+.doc-task-list li { margin-bottom: 2px; }
+.doc-task-list li:last-child { margin-bottom: 0; }
+.doc-task-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 11.5px; color: #555; margin-bottom: 10px; }
+.doc-task-meta span b { color: #222; font-weight: 700; }
+.doc-photos { display: flex; flex-wrap: wrap; gap: 8px; }
+.doc-photo { position: relative; width: 150px; height: 112px; border-radius: 6px; overflow: visible; cursor: zoom-in; flex-shrink: 0; }
+.doc-photo-frame { width: 100%; height: 100%; border-radius: 6px; overflow: hidden; border: 1px solid #E2E4E9; }
+.doc-photo img { width: 100%; height: 100%; object-fit: cover; }
+.doc-photo-resize {
+  position: absolute; right: -6px; bottom: -6px; width: 18px; height: 18px;
+  background: var(--accent); border: 2px solid #fff; border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.35); cursor: nwse-resize; touch-action: none;
+}
+.doc-empty-note { text-align: center; color: #888; padding: 40px 20px; font-size: 13px; }
+
+.doc-table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 14px; }
+.doc-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.doc-table thead th {
+  background: var(--accent); color: #fff; font-weight: 800; font-size: 12px;
+  padding: 8px 10px; border: 1px solid var(--accent); text-align: right;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.doc-table td { border: 1px solid #D8DAE0; padding: 8px 10px; text-align: right; vertical-align: top; }
+.doc-table tr { page-break-inside: avoid; break-inside: avoid; }
+.doc-table-num { width: 48px; text-align: center; font-weight: 800; color: var(--accent); white-space: nowrap; }
+.doc-table-topic { width: 96px; font-weight: 800; text-align: center; vertical-align: middle; background: #F6F7FA; }
+.doc-table-desc { min-width: 220px; }
+.doc-table-item-num { font-weight: 800; color: var(--accent); margin-inline-end: 6px; }
+.doc-table-assignee, .doc-table-due { width: 104px; white-space: normal; }
+.doc-table-status { width: 84px; text-align: center; }
+.doc-table-loc { margin-top: 6px; font-size: 11px; color: #666; display: flex; gap: 12px; flex-wrap: wrap; }
+.doc-created-note { margin-top: 4px; font-size: 11px; color: var(--accent); font-weight: 600; }
+
+.doc-appendix-title { font-size: 18px; font-weight: 800; color: #111; margin-bottom: 16px; }
+.doc-appendix-item { margin-bottom: 18px; page-break-inside: avoid; break-inside: avoid; }
+.doc-appendix-item-head { font-size: 13px; font-weight: 800; color: var(--accent); margin-bottom: 3px; }
+.doc-appendix-item-loc { font-size: 11px; color: #666; margin-bottom: 8px; display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* ───────────────────────── Photo lightbox (PDF preview) ───────────────────────── */
+.lightbox-backdrop {
+  position: fixed; inset: 0; z-index: 210; background: rgba(10,11,14,.92);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  animation: fadeIn .15s ease-out;
+}
+.lightbox-img { max-width: 100%; max-height: 100%; border-radius: 6px; box-shadow: var(--shadow-lg); cursor: default; }
+.lightbox-close {
+  position: absolute; top: calc(var(--safe-t) + 14px); left: 14px; width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(255,255,255,.12); color: #fff; display: flex; align-items: center; justify-content: center;
+}
+.lightbox-close svg { width: 20px; height: 20px; }
+
+@media (min-width: 720px) {
+  .home-list { max-width: 640px; margin: 0 auto; }
+  .overlay-body { max-width: 640px; margin: 0 auto; width: 100%; }
+}
+
+/* Desktop web: contain the mobile-first shell in a centered "app card"
+   instead of stretching it edge-to-edge. Wide enough to fit a full A4
+   preview page (794px) with room to spare; narrower screens/forms keep
+   their own tighter max-widths (above) nested inside it. */
+@media (min-width: 900px) {
+  body { background: var(--border-strong); }
+  .app-shell {
+    max-width: 880px; margin: 0 auto; box-shadow: var(--shadow-lg);
+    /* contain becomes the positioning root for fixed-position children (FAB, overlays,
+       dialogs, lightbox) so they stay inside the card instead of pinning to the browser window */
+    contain: layout;
+  }
+}
+
+@media print {
+  body * { visibility: hidden; }
+  .doc-print-root, .doc-print-root * { visibility: visible; }
+  .doc-print-root { position: absolute; top: 0; left: 0; width: 100% !important; zoom: 1 !important; }
+  .doc-page { box-shadow: none !important; max-width: 100% !important; min-height: 0 !important; padding: 6mm 4mm; page-break-after: always; break-after: page; }
+  .doc-page:last-child { page-break-after: auto; break-after: auto; }
+  .doc-page-num { display: none; }
+  .doc-table-scroll { overflow: visible !important; }
+  @page { size: A4 portrait; margin: 12mm 12mm; }
+  .doc-group-title { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .doc-photo-resize { display: none; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+
+const { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, useContext } = React;
+
+/* ============================== Icons ============================== */
+const Icon = ({ d, children, ...p }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}>
+    {d ? <path d={d} /> : children}
+  </svg>
+);
+const IconPlus = (p) => <Icon d="M12 5v14M5 12h14" {...p} />;
+const IconBack = (p) => <Icon d="M9 18l6-6-6-6" {...p} />;
+const IconClose = (p) => <Icon d="M18 6L6 18M6 6l12 12" {...p} />;
+const IconCheck = (p) => <Icon d="M20 6L9 17l-5-5" {...p} />;
+const IconTrash = (p) => <Icon><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /></Icon>;
+const IconEdit = (p) => <Icon><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></Icon>;
+const IconCamera = (p) => <Icon><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2Z" /><circle cx="12" cy="13" r="4" /></Icon>;
+const IconImage = (p) => <Icon><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></Icon>;
+const IconFolder = (p) => <Icon d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2Z" {...p} />;
+const IconClipboard = (p) => <Icon><rect x="8" y="2" width="8" height="4" rx="1" /><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3" /><path d="M9 12h6M9 16h6" /></Icon>;
+const IconFile = (p) => <Icon><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6" /></Icon>;
+const IconLayer = (p) => <Icon d="M12 2 2 7l10 5 10-5-10-5ZM2 17l10 5 10-5M2 12l10 5 10-5" {...p} />;
+const IconMapPin = (p) => <Icon><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z" /><circle cx="12" cy="10" r="3" /></Icon>;
+const IconUser = (p) => <Icon><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></Icon>;
+const IconCalendar = (p) => <Icon><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></Icon>;
+const IconBuilding = (p) => <Icon><rect x="4" y="2" width="16" height="20" rx="1" /><path d="M9 22v-4h6v4M9 6h.01M15 6h.01M9 10h.01M15 10h.01M9 14h.01M15 14h.01" /></Icon>;
+const IconUp = (p) => <Icon d="M18 15l-6-6-6 6" {...p} />;
+const IconDown = (p) => <Icon d="M6 9l6 6 6-6" {...p} />;
+const IconGrip = (p) => <Icon><circle cx="9" cy="6" r="1.4" fill="currentColor" stroke="none" /><circle cx="15" cy="6" r="1.4" fill="currentColor" stroke="none" /><circle cx="9" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="15" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="9" cy="18" r="1.4" fill="currentColor" stroke="none" /><circle cx="15" cy="18" r="1.4" fill="currentColor" stroke="none" /></Icon>;
+const IconPen = (p) => <Icon d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" {...p} />;
+const IconArrowTool = (p) => <Icon d="M5 19L19 5M19 5H10M19 5v9" {...p} />;
+const IconRect = (p) => <Icon><rect x="4" y="6" width="16" height="12" rx="1" /></Icon>;
+const IconCircleTool = (p) => <Icon><circle cx="12" cy="12" r="8" /></Icon>;
+const IconType = (p) => <Icon d="M5 5h14M12 5v14M9 19h6" {...p} />;
+const IconUndo = (p) => <Icon {...p}><path d="M3 7v6h6" /><path d="M3 13a9 9 0 1 0 3-6.7L3 9" /></Icon>;
+const IconPrint = (p) => <Icon><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></Icon>;
+const IconZoomOut = (p) => <Icon><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="8" y1="11" x2="14" y2="11" /></Icon>;
+const IconZoomIn = (p) => <Icon><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" /></Icon>;
+const IconListBullet = (p) => <Icon><circle cx="4" cy="6" r="1.4" fill="currentColor" stroke="none" /><circle cx="4" cy="12" r="1.4" fill="currentColor" stroke="none" /><circle cx="4" cy="18" r="1.4" fill="currentColor" stroke="none" /><path d="M9 6h11M9 12h11M9 18h11" /></Icon>;
+const IconListNumber = (p) => <Icon><path d="M9 6h11M9 12h11M9 18h11" /><text x="1.5" y="8.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">1</text><text x="1.5" y="14.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">2</text><text x="1.5" y="20.5" fontSize="7" fontWeight="700" fill="currentColor" stroke="none">3</text></Icon>;
+const IconBookmark = (p) => <Icon d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" {...p} />;
+const IconFollowUp = (p) => <Icon><path d="M17 2v4M7 2v4M3 10h18" /><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M9.5 17l2.5-2.5-2.5-2.5M12 14.5h4" /></Icon>;
+const IconFilePlus = (p) => <Icon><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6" /><path d="M12 12v6M9 15h6" /></Icon>;
+const IconMicrosoft = (p) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" {...p}>
+    <rect x="1" y="1" width="10" height="10" fill="#F25022" />
+    <rect x="13" y="1" width="10" height="10" fill="#7FBA00" />
+    <rect x="1" y="13" width="10" height="10" fill="#00A4EF" />
+    <rect x="13" y="13" width="10" height="10" fill="#FFB900" />
+  </svg>
+);
+const IconExcel = (p) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" {...p}>
+    <rect x="2" y="2" width="20" height="20" rx="3" fill="#16A34A" />
+    <path d="M7 7l4 5-4 5M17 7l-4 5 4 5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+  </svg>
+);
+
+/* ============================== Utils ============================== */
+const STORAGE_KEY = 'sitenote_reports_v1';
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+function loadReports() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const reports = raw ? JSON.parse(raw) : [];
+    return reports.map((r) => ({
+      ...r,
+      floorsAboveGround: r.floorsAboveGround || 0,
+      floorsBelowGround: r.floorsBelowGround || 0,
+      tasks: (r.tasks || []).map((t) => (t.floors ? t : { ...t, floors: t.floor ? [t.floor] : [] })),
+    }));
+  }
+  catch (e) { console.error('load failed', e); return []; }
+}
+function persistReports(reports) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(reports)); return true; }
+  catch (e) { console.error('save failed', e); return false; }
+}
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+function formatDateHe(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+function formatDateHeFromTs(ts) {
+  return new Date(ts).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+function stripMarkup(text) { return (text || '').replace(/\*\*(.+?)\*\*/g, '$1').replace(/__(.+?)__/g, '$1'); }
+function downscaleImage(file, maxDim, quality) {
+  maxDim = maxDim || 1600; quality = quality || 0.78;
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('read failed'));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('decode failed'));
+      img.onload = () => {
+        let w = img.naturalWidth, h = img.naturalHeight;
+        if (w > maxDim || h > maxDim) {
+          const scale = maxDim / Math.max(w, h);
+          w = Math.round(w * scale); h = Math.round(h * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ============================== OneDrive Sync (Microsoft) ============================== */
+const MSAL_CLIENT_ID = '1b603a70-33a0-4f0f-8130-3d80b3b816a1';
+const MSAL_TENANT_ID = '4dc3c008-379c-4600-a9d3-cea4feb564ad';
+const MSAL_SCOPES = ['Files.ReadWrite.AppFolder', 'User.Read'];
+const ONEDRIVE_FILE_NAME = 'sitenote-data.json';
+
+let msalReadyPromise = null;
+function getMsal() {
+  if (!msalReadyPromise) {
+    msalReadyPromise = (async () => {
+      if (!window.msal) return null;
+      const instance = new window.msal.PublicClientApplication({
+        auth: {
+          clientId: MSAL_CLIENT_ID,
+          authority: 'https://login.microsoftonline.com/' + MSAL_TENANT_ID,
+          redirectUri: window.location.origin + window.location.pathname,
+        },
+        cache: { cacheLocation: 'localStorage' },
+      });
+      await instance.initialize();
+      return instance;
+    })();
+  }
+  return msalReadyPromise;
+}
+
+async function msalGetAccount() {
+  const msal = await getMsal();
+  if (!msal) return null;
+  const accounts = msal.getAllAccounts();
+  if (accounts.length === 0) return null;
+  msal.setActiveAccount(accounts[0]);
+  return accounts[0];
+}
+
+async function msalSignIn() {
+  const msal = await getMsal();
+  if (!msal) throw new Error('ספריית ההתחברות לא נטענה');
+  const result = await msal.loginPopup({ scopes: MSAL_SCOPES });
+  msal.setActiveAccount(result.account);
+  return result.account;
+}
+
+async function msalSignOut() {
+  const msal = await getMsal();
+  if (!msal) return;
+  const account = msal.getActiveAccount();
+  if (account) await msal.logoutPopup({ account });
+}
+
+async function msalGetToken() {
+  const msal = await getMsal();
+  if (!msal) throw new Error('ספריית ההתחברות לא נטענה');
+  const account = msal.getActiveAccount() || (await msalGetAccount());
+  if (!account) throw new Error('לא מחובר');
+  try {
+    const result = await msal.acquireTokenSilent({ scopes: MSAL_SCOPES, account });
+    return result.accessToken;
+  } catch (e) {
+    const result = await msal.acquireTokenPopup({ scopes: MSAL_SCOPES, account });
+    return result.accessToken;
+  }
+}
+
+async function oneDriveUpload(data) {
+  const token = await msalGetToken();
+  const res = await fetch(
+    'https://graph.microsoft.com/v1.0/me/drive/special/approot:/' + ONEDRIVE_FILE_NAME + ':/content',
+    { method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(data) }
+  );
+  if (!res.ok) throw new Error('העלאה ל-OneDrive נכשלה: ' + res.status);
+  return res.json();
+}
+
+async function oneDriveDownload() {
+  const token = await msalGetToken();
+  const res = await fetch(
+    'https://graph.microsoft.com/v1.0/me/drive/special/approot:/' + ONEDRIVE_FILE_NAME + ':/content',
+    { headers: { Authorization: 'Bearer ' + token } }
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error('הורדה מ-OneDrive נכשלה: ' + res.status);
+  return res.json();
+}
+
+// last-write-wins merge, per report, by updatedAt
+function mergeReports(local, remote) {
+  if (!remote || !Array.isArray(remote.reports)) return local;
+  const byId = new Map(local.map((r) => [r.id, r]));
+  remote.reports.forEach((rr) => {
+    const lr = byId.get(rr.id);
+    if (!lr || (rr.updatedAt || 0) > (lr.updatedAt || 0)) byId.set(rr.id, rr);
+  });
+  return Array.from(byId.values());
+}
+
+function useOneDriveSync(reports, setReports) {
+  const [account, setAccount] = useState(null);
+  const [status, setStatus] = useState('idle'); // idle | syncing | synced | error
+  const [errorMsg, setErrorMsg] = useState('');
+  const pushTimer = useRef(null);
+
+  async function pullMerge() {
+    setStatus('syncing'); setErrorMsg('');
+    try {
+      const remote = await oneDriveDownload();
+      if (remote) setReports((prev) => mergeReports(prev, remote));
+      setStatus('synced');
+    } catch (e) {
+      console.error(e);
+      setStatus('error'); setErrorMsg('סנכרון נכשל');
+    }
+  }
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const acc = await msalGetAccount();
+        if (acc) { setAccount(acc); await pullMerge(); }
+      } catch (e) { /* not signed in yet */ }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!account) return;
+    if (pushTimer.current) clearTimeout(pushTimer.current);
+    pushTimer.current = setTimeout(async () => {
+      setStatus('syncing');
+      try {
+        await oneDriveUpload({ reports, syncedAt: Date.now() });
+        setStatus('synced');
+      } catch (e) {
+        console.error(e);
+        setStatus('error'); setErrorMsg('שמירה ל-OneDrive נכשלה');
+      }
+    }, 2000);
+    return () => clearTimeout(pushTimer.current);
+  }, [reports, account]);
+
+  async function signIn() {
+    setStatus('syncing'); setErrorMsg('');
+    try {
+      const acc = await msalSignIn();
+      setAccount(acc);
+      await pullMerge();
+    } catch (e) {
+      console.error(e);
+      setStatus('error'); setErrorMsg('ההתחברות נכשלה או בוטלה');
+    }
+  }
+
+  async function signOut() {
+    await msalSignOut();
+    setAccount(null);
+    setStatus('idle');
+  }
+
+  return { account, status, errorMsg, signIn, signOut };
+}
+
+function AccountWidget({ account, status, errorMsg, onSignIn, onSignOut }) {
+  const [open, setOpen] = useState(false);
+  if (!account) {
+    return (
+      <button type="button" className="ms-signin-btn" onClick={onSignIn}>
+        <IconMicrosoft />התחברות עם Microsoft
+      </button>
+    );
+  }
+  const displayName = account.name || account.username || '';
+  const initial = displayName.trim().charAt(0).toUpperCase() || '?';
+  return (
+    <div className="account-widget">
+      <button type="button" className="account-avatar-btn" onClick={() => setOpen((v) => !v)} title={displayName}>
+        <span className={"account-avatar" + (status === 'syncing' ? ' syncing' : '')}>{initial}</span>
+      </button>
+      {open && (
+        <div className="account-menu">
+          <div className="account-menu-name">{account.name || 'משתמש Microsoft'}</div>
+          {account.username && <div className="account-menu-email">{account.username}</div>}
+          <div className={"account-menu-status" + (status === 'error' ? ' error' : '')}>
+            {status === 'syncing' ? 'מסנכרן עם OneDrive…' : status === 'error' ? (errorMsg || 'שגיאת סנכרון') : 'מסונכרן עם OneDrive'}
+          </div>
+          <button type="button" className="account-menu-signout" onClick={() => { setOpen(false); onSignOut(); }}>התנתקות</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function newTask(order) {
+  return { id: uid(), text: '', floors: [], location: '', assignee: '', dueDate: '', groupId: null, status: 'open', order, photos: [], createdAt: Date.now() };
+}
+
+function buildFloorList(report) {
+  const above = Math.max(0, Number(report.floorsAboveGround) || 0);
+  const below = Math.max(0, Number(report.floorsBelowGround) || 0);
+  if (above === 0 && below === 0) return { above: [], below: [] };
+  const aboveList = ['קומת קרקע'];
+  for (let i = 1; i <= above; i++) aboveList.push('קומה ' + i);
+  const belowList = [];
+  for (let i = 1; i <= below; i++) belowList.push('מרתף ' + i);
+  return { above: aboveList, below: belowList };
+}
+
+const STATUSES = [
+  { id: 'open', label: 'פתוח', color: '#6B7280' },
+  { id: 'in_progress', label: 'בטיפול', color: '#D97706' },
+  { id: 'closed', label: 'סגור', color: '#16A34A' },
+];
+
+const DEFAULT_ASSIGNEES = ['אדריכל', 'קבלן', 'מפקח', 'מנהל פרויקט'];
+function statusMeta(id) { return STATUSES.find((s) => s.id === id) || STATUSES[0]; }
+function StatusBadge({ status, className, style }) {
+  const m = statusMeta(status);
+  return <span className={"status-badge" + (className ? " " + className : "")} style={{ color: m.color, borderColor: m.color, background: m.color + '1F', ...style }}>{m.label}</span>;
+}
+
+const TEMPLATES_KEY = 'sitenote_templates_v1';
+function loadTemplates() {
+  try { const raw = localStorage.getItem(TEMPLATES_KEY); return raw ? JSON.parse(raw) : []; }
+  catch (e) { return []; }
+}
+function persistTemplates(templates) {
+  try { localStorage.setItem(TEMPLATES_KEY, JSON.stringify(templates)); return true; }
+  catch (e) { return false; }
+}
+function newReport() {
+  return {
+    id: uid(), siteName: '', inspector: '', date: todayISO(),
+    reportNumber: '', participants: '', notes: '',
+    groups: [], tasks: [], floors: [], assignees: [],
+    floorsAboveGround: 0, floorsBelowGround: 0,
+    pdfLayout: 'cards', pdfShowLocation: true, pdfPhotoAppendix: false, pdfShowStatus: true,
+    createdAt: Date.now(), updatedAt: Date.now(),
+  };
+}
+function reportTitle(r) { return r.siteName && r.siteName.trim() ? r.siteName : 'דוח ללא שם'; }
+
+// Whether a report is untouched from its just-created default state — used
+// to silently discard a brand-new report if the user backs out without
+// entering anything, instead of leaving a "דוח ללא שם" ghost on the list.
+function isEmptyReport(r) {
+  return !(r.siteName && r.siteName.trim())
+    && r.tasks.length === 0
+    && r.groups.length === 0
+    && !(r.notes && r.notes.trim())
+    && !(r.participants && r.participants.trim())
+    && !(r.inspector && r.inspector.trim())
+    && !(r.reportNumber && r.reportNumber.trim())
+    && !r.floorsAboveGround
+    && !r.floorsBelowGround;
+}
+
+const XLSX_HEADER_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } };
+const XLSX_BORDER = { style: 'thin', color: { argb: 'FFD8DAE0' } };
+
+// Builds an .xlsx workbook mirroring the on-screen PDF table (same columns,
+// grouping, and A4 print setup) and downloads it. `separatePhotos` mirrors
+// the existing PDF "נספח תמונות" toggle: on puts photos on their own sheet,
+// off embeds the first photo inline in the main table row.
+async function exportReportToExcel(report, sections, { showLocation, showStatus, separatePhotos }) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Site Note';
+  wb.created = new Date();
+
+  const cols = ["מס'", 'נושא', 'תיאור'];
+  if (showLocation) cols.push('מיקום/קומה');
+  cols.push('אחראי', 'תאריך יעד');
+  if (showStatus) cols.push('סטטוס');
+  if (!separatePhotos) cols.push('תמונות');
+  const numCols = cols.length;
+
+  const ws = wb.addWorksheet('דוח', {
+    views: [{ rightToLeft: true }],
+    pageSetup: {
+      paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+      margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+    },
+  });
+
+  ws.mergeCells(1, 1, 1, numCols);
+  const titleCell = ws.getCell(1, 1);
+  titleCell.value = reportTitle(report);
+  titleCell.font = { bold: true, size: 16 };
+  titleCell.alignment = { horizontal: 'right' };
+  ws.getRow(1).height = 26;
+
+  const metaParts = [];
+  if (report.reportNumber) metaParts.push("מס' דוח: " + report.reportNumber);
+  metaParts.push('תאריך סיור: ' + formatDateHe(report.date));
+  if (report.inspector) metaParts.push('אדריכל: ' + report.inspector);
+  metaParts.push('הופק: ' + formatDateHeFromTs(Date.now()));
+  ws.mergeCells(2, 1, 2, numCols);
+  const metaCell = ws.getCell(2, 1);
+  metaCell.value = metaParts.join('   ·   ');
+  metaCell.font = { size: 10, color: { argb: 'FF666666' } };
+  metaCell.alignment = { horizontal: 'right' };
+
+  ws.addRow([]);
+
+  const headerRow = ws.addRow(cols);
+  headerRow.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = XLSX_HEADER_FILL;
+    cell.alignment = { horizontal: 'right', vertical: 'middle' };
+  });
+  headerRow.height = 20;
+
+  const widths = [6, 16, 46];
+  if (showLocation) widths.push(18);
+  widths.push(16, 12);
+  if (showStatus) widths.push(10);
+  if (!separatePhotos) widths.push(14);
+  widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+
+  let c = 1;
+  const numColIdx = c++;
+  const topicColIdx = c++;
+  const descColIdx = c++;
+  const locColIdx = showLocation ? c++ : null;
+  const assigneeColIdx = c++;
+  const dueColIdx = c++;
+  const statusColIdx = showStatus ? c++ : null;
+  const photoColIdx = !separatePhotos ? c++ : null;
+
+  const photoAppendixEntries = [];
+
+  sections.forEach((sec, secIndex) => {
+    const startRow = ws.rowCount + 1;
+    sec.tasks.forEach((t, taskIndex) => {
+      const rowValues = [];
+      rowValues[numColIdx - 1] = String(secIndex + 1).padStart(2, '0');
+      rowValues[topicColIdx - 1] = sec.name;
+      rowValues[descColIdx - 1] = stripMarkup(t.text) || 'ללא תיאור';
+      if (locColIdx) {
+        const locParts = [];
+        if (t.floors && t.floors.length > 0) locParts.push('קומה: ' + t.floors.join(', '));
+        if (t.location) locParts.push('מיקום: ' + t.location);
+        rowValues[locColIdx - 1] = locParts.join(' | ');
+      }
+      rowValues[assigneeColIdx - 1] = t.assignee || '—';
+      rowValues[dueColIdx - 1] = t.dueDate ? formatDateHe(t.dueDate) : '—';
+      if (statusColIdx) rowValues[statusColIdx - 1] = statusMeta(t.status).label;
+      if (photoColIdx && t.photos.length > 1) rowValues[photoColIdx - 1] = '+' + (t.photos.length - 1) + ' נוספות';
+
+      const row = ws.addRow(rowValues);
+      row.eachCell((cell, colNum) => {
+        cell.alignment = { horizontal: colNum === numColIdx ? 'center' : 'right', vertical: 'top', wrapText: true };
+        cell.border = { top: XLSX_BORDER, bottom: XLSX_BORDER, left: XLSX_BORDER, right: XLSX_BORDER };
+      });
+      row.height = 34;
+
+      if (photoColIdx && t.photos.length > 0) {
+        const src = displaySrc(t.photos[0]);
+        if (src) {
+          try {
+            const imgId = wb.addImage({ base64: src, extension: 'jpeg' });
+            ws.addImage(imgId, { tl: { col: photoColIdx - 1 + 0.05, row: row.number - 1 + 0.05 }, ext: { width: 70, height: 48 } });
+            row.height = 42;
+          } catch (e) { /* skip a corrupt image rather than fail the whole export */ }
+        }
+      }
+      if (separatePhotos && t.photos.length > 0) photoAppendixEntries.push({ sec, secIndex, t, taskIndex });
+    });
+    const endRow = ws.rowCount;
+    if (endRow > startRow) {
+      ws.mergeCells(startRow, numColIdx, endRow, numColIdx);
+      ws.mergeCells(startRow, topicColIdx, endRow, topicColIdx);
+    }
+    const numCell = ws.getCell(startRow, numColIdx);
+    numCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    numCell.font = { bold: true, color: { argb: 'FF2563EB' } };
+    const topicCell = ws.getCell(startRow, topicColIdx);
+    topicCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    topicCell.font = { bold: true };
+  });
+
+  if (separatePhotos && photoAppendixEntries.length > 0) {
+    const ws2 = wb.addWorksheet('נספח תמונות', {
+      views: [{ rightToLeft: true }],
+      pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+    });
+    ws2.getColumn(1).width = 10;
+    ws2.getColumn(2).width = 28;
+    ws2.getColumn(3).width = 14;
+    ws2.getColumn(4).width = 14;
+    const hdr = ws2.addRow(['#', 'נושא', 'תמונה', '']);
+    hdr.eachCell((cell) => { cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }; cell.fill = XLSX_HEADER_FILL; cell.alignment = { horizontal: 'right' }; });
+    photoAppendixEntries.forEach(({ sec, secIndex, t, taskIndex }) => {
+      const label = String(taskIndex + 1).padStart(2, '0') + '.' + String(secIndex + 1).padStart(2, '0') + ' · ' + sec.name;
+      const row = ws2.addRow(['', label, '', '']);
+      row.eachCell((cell) => { cell.alignment = { horizontal: 'right', vertical: 'middle' }; });
+      row.height = 56;
+      t.photos.forEach((p, i) => {
+        const src = displaySrc(p);
+        if (!src) return;
+        try {
+          const imgId = wb.addImage({ base64: src, extension: 'jpeg' });
+          ws2.addImage(imgId, { tl: { col: 2 + i, row: row.number - 1 + 0.05 }, ext: { width: 80, height: 58 } });
+        } catch (e) { /* skip a corrupt image rather than fail the whole export */ }
+      });
+    });
+  }
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const filename = reportTitle(report).replace(/[\\/:*?"<>|]/g, ' ') + ' - דוח.xlsx';
+  await downloadFile(filename, blob);
+}
+
+function nextReportNumber(prev) {
+  const trimmed = (prev || '').trim();
+  const n = Number(trimmed);
+  return trimmed && Number.isFinite(n) && String(n) === trimmed ? String(n + 1) : '';
+}
+
+function buildFollowUpReport(source) {
+  const groupIdMap = {};
+  const newGroups = source.groups.map((g) => {
+    const newId = uid();
+    groupIdMap[g.id] = newId;
+    return { ...g, id: newId };
+  });
+  const openTasks = source.tasks.filter((t) => t.status !== 'closed');
+  const newTasks = openTasks.map((t, i) => ({
+    ...t,
+    id: uid(),
+    groupId: t.groupId ? (groupIdMap[t.groupId] || null) : null,
+    order: i,
+    photos: t.photos.map((p) => ({ ...p, id: uid() })),
+    createdAt: t.createdAt, // preserve the task's true original creation date across every carry-over
+    carriedFromReportTitle: reportTitle(source),
+    carriedFromReportDate: source.date,
+  }));
+  return {
+    ...newReport(),
+    siteName: source.siteName,
+    inspector: source.inspector,
+    reportNumber: nextReportNumber(source.reportNumber),
+    floorsAboveGround: source.floorsAboveGround || 0,
+    floorsBelowGround: source.floorsBelowGround || 0,
+    groups: newGroups,
+    tasks: newTasks,
+    previousReportId: source.id,
+  };
+}
+
+function displaySrc(photo) { return (photo && (photo.annotatedSrc || photo.src)) || ''; }
+
+// Saves a generated file for the viewer. On the real deployed site
+// window.claude doesn't exist, so this always falls through to a plain
+// <a download> blob link. Inside the sandboxed Claude Artifact preview,
+// that plain link is inert — so when the `downloads` capability is
+// available we use it instead, which is the only way a generated file
+// can actually reach the viewer there.
+async function downloadFile(filename, blob) {
+  try {
+    if (window.claude && typeof window.claude.use === 'function') {
+      const downloads = await window.claude.use('downloads');
+      if (downloads) {
+        await downloads.save({ filename, data: blob });
+        return;
+      }
+    }
+  } catch (e) { /* fall through to the plain browser download below */ }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
+
+/* Reorder helper: move item at `from` to `to` within array copy */
+function moveItem(arr, from, to) {
+  const copy = arr.slice();
+  const [item] = copy.splice(from, 1);
+  copy.splice(to, 0, item);
+  return copy;
+}
+
+/* ============================== Dialogs (custom confirm/alert) =============================
+   Native window.confirm/alert are silently swallowed inside a sandboxed iframe
+   (e.g. the Claude Artifact preview) without "allow-modals" — confirm() always
+   returns false and alert() shows nothing, so every delete button and every
+   alert looked dead. These custom modals work everywhere, and read better in
+   a touch-first app than native browser dialogs anyway. */
+const DialogContext = React.createContext(null);
+
+function DialogProvider({ children }) {
+  const [dialog, setDialog] = useState(null); // { message, mode: 'confirm'|'alert', resolve }
+
+  const confirm = useCallback((message, opts) => new Promise((resolve) => setDialog({ message, mode: 'confirm', resolve, confirmLabel: (opts && opts.confirmLabel) || 'מחיקה', danger: !opts || opts.danger !== false })), []);
+  const notify = useCallback((message) => new Promise((resolve) => setDialog({ message, mode: 'alert', resolve })), []);
+
+  function close(result) {
+    if (dialog) dialog.resolve(result);
+    setDialog(null);
+  }
+
+  useBackClose(!!dialog, () => close(dialog && dialog.mode === 'confirm' ? false : undefined));
+
+  return (
+    <DialogContext.Provider value={{ confirm, notify }}>
+      {children}
+      {dialog && (
+        <div className="dialog-backdrop" onClick={() => close(dialog.mode === 'confirm' ? false : undefined)}>
+          <div className="dialog-box" onClick={(e) => e.stopPropagation()}>
+            <div className="dialog-message">{dialog.message}</div>
+            <div className="dialog-actions">
+              {dialog.mode === 'confirm' ? (
+                <>
+                  <button className="btn btn-secondary" onClick={() => close(false)}>ביטול</button>
+                  <button className={"btn " + (dialog.danger ? "btn-danger" : "btn-primary")} onClick={() => close(true)}>{dialog.confirmLabel}</button>
+                </>
+              ) : (
+                <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => close()}>הבנתי</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </DialogContext.Provider>
+  );
+}
+function useDialog() { return useContext(DialogContext); }
+
+// Makes the phone's/browser's physical back button close whichever
+// overlay/screen is currently on top, instead of leaving the app. Every
+// open "layer" (a report, a full-screen editor, a lightbox, a dialog)
+// calls this with its own isOpen/onClose; layers nest correctly because
+// only the topmost one can ever be visible/reachable at once, so a
+// single back-press always unwinds exactly one level.
+const __backStack = [];
+// Incremented right before a programmatic history.back() call below, so the
+// popstate it triggers is not *also* treated as a real back-button press
+// (we already accounted for it ourselves at the call site).
+let __suppressPopstateCount = 0;
+window.addEventListener('popstate', () => {
+  if (__suppressPopstateCount > 0) { __suppressPopstateCount--; return; }
+  const top = __backStack.pop();
+  if (top) top.onClose();
+});
+function useBackClose(isOpen, onClose) {
+  const entryRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    if (isOpen && !entryRef.current) {
+      const entry = { onClose: () => onCloseRef.current() };
+      entryRef.current = entry;
+      __backStack.push(entry);
+      window.history.pushState({ __overlay: true }, '');
+    } else if (!isOpen && entryRef.current) {
+      const myEntry = entryRef.current;
+      entryRef.current = null;
+      const idx = __backStack.indexOf(myEntry);
+      if (idx === -1) {
+        // already popped by the back-button handler above — nothing to do
+      } else if (idx === __backStack.length - 1) {
+        // still on top: safe to consume the matching history entry
+        __backStack.pop();
+        __suppressPopstateCount++;
+        window.history.back();
+      } else {
+        // something else was pushed after ours in the same batched React
+        // commit (e.g. a confirm() dialog closing while it opens the next
+        // screen) — removing it from the stack without navigating avoids
+        // popping the wrong (newer) entry; costs one harmless orphaned
+        // history entry rather than risking corrupting the real one
+        __backStack.splice(idx, 1);
+      }
+    }
+  }, [isOpen]);
+}
+
+/* ============================== Bottom sheet-ish full overlay wrapper ============================== */
+function Overlay({ title, onClose, onSave, saveLabel, saveDisabled, children, noPad, rightExtra }) {
+  return (
+    <div className="overlay">
+      <div className="overlay-topbar">
+        <button className="topbar-icon-btn" onClick={onClose} aria-label="סגור"><IconClose /></button>
+        <div className="overlay-title">{title}</div>
+        {onSave ? (
+          <button className="btn btn-primary btn-sm" disabled={saveDisabled} onClick={onSave}>
+            <IconCheck />{saveLabel || 'שמירה'}
+          </button>
+        ) : (rightExtra || <div style={{width: 36}} />)}
+      </div>
+      <div className={"overlay-body" + (noPad ? " no-pad" : "")}>{children}</div>
+    </div>
+  );
+}
+
+/* ============================== Photo Annotator ============================== */
+const COLORS = ['#EF4444', '#F59E0B', '#22C55E', '#2563EB', '#FFFFFF', '#000000'];
+const WIDTHS = { thin: 4, medium: 9, thick: 16 };
+const FONT_SIZES = { thin: 26, medium: 38, thick: 54 };
+
+function PhotoAnnotator({ photo, onCancel, onSave }) {
+  const { confirm, notify } = useDialog();
+  const canvasRef = useRef(null);
+  const wrapRef = useRef(null);
+  const imgRef = useRef(null);
+  const [ready, setReady] = useState(false);
+  const [elements, setElements] = useState(photo.elements || []);
+  const [tool, setTool] = useState('pen');
+  const [color, setColor] = useState('#EF4444');
+  const [widthKey, setWidthKey] = useState('medium');
+  const drawingRef = useRef(null); // in-progress element
+  const [textInput, setTextInput] = useState(null); // {cssX, cssY, canvasX, canvasY, value}
+
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      imgRef.current = img;
+      const canvas = canvasRef.current;
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      setReady(true);
+    };
+    img.onerror = () => { notify('לא ניתן לטעון את התמונה לעריכה'); onCancel(); };
+    img.src = photo.src;
+  }, [photo.src]);
+
+  const redraw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !imgRef.current) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(imgRef.current, 0, 0, canvas.width, canvas.height);
+    const all = drawingRef.current ? elements.concat([drawingRef.current]) : elements;
+    all.forEach((el) => drawElement(ctx, el));
+  }, [elements]);
+
+  useEffect(() => { if (ready) redraw(); }, [ready, redraw]);
+
+  function drawElement(ctx, el) {
+    ctx.strokeStyle = el.color; ctx.fillStyle = el.color;
+    ctx.lineWidth = el.width; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    if (el.type === 'path') {
+      if (!el.points.length) return;
+      ctx.beginPath();
+      ctx.moveTo(el.points[0].x, el.points[0].y);
+      el.points.forEach((pt) => ctx.lineTo(pt.x, pt.y));
+      ctx.stroke();
+    } else if (el.type === 'rect') {
+      const x = Math.min(el.x1, el.x2), y = Math.min(el.y1, el.y2);
+      ctx.strokeRect(x, y, Math.abs(el.x2 - el.x1), Math.abs(el.y2 - el.y1));
+    } else if (el.type === 'ellipse') {
+      const cx = (el.x1 + el.x2) / 2, cy = (el.y1 + el.y2) / 2;
+      const rx = Math.abs(el.x2 - el.x1) / 2, ry = Math.abs(el.y2 - el.y1) / 2;
+      ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+    } else if (el.type === 'arrow') {
+      const { x1, y1, x2, y2 } = el;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      const angle = Math.atan2(y2 - y1, x2 - x1);
+      const headLen = Math.max(14, el.width * 2.2);
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 7), y2 - headLen * Math.sin(angle - Math.PI / 7));
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 7), y2 - headLen * Math.sin(angle + Math.PI / 7));
+      ctx.stroke();
+    } else if (el.type === 'text') {
+      ctx.font = `700 ${el.fontSize}px Heebo, sans-serif`;
+      ctx.textBaseline = 'top';
+      ctx.fillText(el.text, el.x, el.y);
+    }
+  }
+
+  function toCanvasPoint(e) {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  }
+
+  function handleTextClick(e) {
+    if (!ready) return;
+    const wrapRect = wrapRef.current.getBoundingClientRect();
+    const pt = toCanvasPoint(e);
+    setTextInput({ cssX: e.clientX - wrapRect.left, cssY: e.clientY - wrapRect.top, canvasX: pt.x, canvasY: pt.y, value: '' });
+  }
+  function handlePointerDown(e) {
+    if (!ready || tool === 'text') return;
+    e.target.setPointerCapture && e.target.setPointerCapture(e.pointerId);
+    const pt = toCanvasPoint(e);
+    const base = { color, width: WIDTHS[widthKey] };
+    if (tool === 'pen') drawingRef.current = { type: 'path', points: [pt], ...base };
+    else if (tool === 'arrow') drawingRef.current = { type: 'arrow', x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y, ...base };
+    else if (tool === 'rect') drawingRef.current = { type: 'rect', x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y, ...base };
+    else if (tool === 'ellipse') drawingRef.current = { type: 'ellipse', x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y, ...base };
+    redraw();
+  }
+  function handlePointerMove(e) {
+    if (!drawingRef.current) return;
+    const pt = toCanvasPoint(e);
+    const d = drawingRef.current;
+    if (d.type === 'path') d.points.push(pt);
+    else { d.x2 = pt.x; d.y2 = pt.y; }
+    redraw();
+  }
+  function handlePointerUp() {
+    if (!drawingRef.current) return;
+    const finished = drawingRef.current;
+    drawingRef.current = null;
+    setElements((prev) => prev.concat([finished]));
+  }
+  useEffect(() => { redraw(); }, [elements, redraw]);
+
+  function commitText() {
+    if (textInput && textInput.value.trim()) {
+      setElements((prev) => prev.concat([{
+        type: 'text', text: textInput.value, x: textInput.canvasX, y: textInput.canvasY,
+        color, fontSize: FONT_SIZES[widthKey],
+      }]));
+    }
+    setTextInput(null);
+  }
+
+  function undo() { setElements((prev) => prev.slice(0, -1)); }
+  async function clearAll() {
+    if (!elements.length) return;
+    if (await confirm('למחוק את כל הסימונים בתמונה?')) setElements([]);
+  }
+
+  function handleSave() {
+    const canvas = canvasRef.current;
+    const finalSrc = canvas.toDataURL('image/jpeg', 0.85);
+    onSave({ ...photo, elements, annotatedSrc: elements.length ? finalSrc : null });
+  }
+
+  const tools = [
+    { id: 'pen', icon: IconPen, label: 'עט' },
+    { id: 'arrow', icon: IconArrowTool, label: 'חץ' },
+    { id: 'rect', icon: IconRect, label: 'מלבן' },
+    { id: 'ellipse', icon: IconCircleTool, label: 'עיגול' },
+    { id: 'text', icon: IconType, label: 'טקסט' },
+  ];
+
+  return (
+    <div className="annotator">
+      <div className="annotator-top">
+        <button className="annotator-top-btn" onClick={onCancel}>ביטול</button>
+        <div style={{ color: '#8B8E96', fontSize: 12.5, fontWeight: 700 }}>עריכת תמונה</div>
+        <button className="annotator-top-btn save" onClick={handleSave}>שמירה</button>
+      </div>
+      <div className="annotator-canvas-wrap" ref={wrapRef}>
+        <canvas
+          ref={canvasRef}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
+          onClick={tool === 'text' ? handleTextClick : undefined}
+        />
+        {textInput && (
+          <input
+            autoFocus
+            className="annotator-text-input"
+            style={{ left: textInput.cssX, top: textInput.cssY, color, fontSize: Math.max(16, FONT_SIZES[widthKey] * 0.5) }}
+            value={textInput.value}
+            onChange={(e) => setTextInput({ ...textInput, value: e.target.value })}
+            onBlur={commitText}
+            onKeyDown={(e) => { if (e.key === 'Enter') commitText(); if (e.key === 'Escape') setTextInput(null); }}
+          />
+        )}
+      </div>
+      <div className="annotator-toolbar">
+        <div className="annotator-tools-row">
+          {tools.map((t) => (
+            <button key={t.id} className={"tool-btn" + (tool === t.id ? " active" : "")} onClick={() => setTool(t.id)} aria-label={t.label}>
+              <t.icon />
+            </button>
+          ))}
+          <div className="tool-sep" />
+          <button className="tool-btn" onClick={undo} aria-label="בטל" disabled={!elements.length} style={{ opacity: elements.length ? 1 : 0.35 }}><IconUndo /></button>
+          <button className="tool-btn" onClick={clearAll} aria-label="נקה הכל" style={{ opacity: elements.length ? 1 : 0.35 }}><IconTrash /></button>
+          <div className="tool-sep" />
+          {COLORS.map((c) => (
+            <button key={c} className={"color-sw" + (color === c ? " active" : "")} style={{ background: c, border: c === '#FFFFFF' ? '2px solid #444' : undefined }} onClick={() => setColor(c)} aria-label={c} />
+          ))}
+        </div>
+        <div className="width-row">
+          {Object.keys(WIDTHS).map((k, i) => (
+            <button key={k} className={"width-btn" + (widthKey === k ? " active" : "")} onClick={() => setWidthKey(k)}>
+              <span className="dot" style={{ width: 6 + i * 5, height: 6 + i * 5 }} />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ============================== Task Editor ============================== */
+function TaskEditor({ task, floors, floorPlan, assignees, groups, onCancel, onSave, onDelete, onCreateGroup, onCreateAssignee }) {
+  const { notify } = useDialog();
+  const [draft, setDraft] = useState(() => ({ ...task, photos: task.photos.map((p) => ({ ...p })) }));
+  const [annotatingPhotoId, setAnnotatingPhotoId] = useState(null);
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
+  const textareaRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [templates, setTemplates] = useState(() => loadTemplates());
+  const [addingGroup, setAddingGroup] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [addingAssignee, setAddingAssignee] = useState(false);
+  const [newAssigneeName, setNewAssigneeName] = useState('');
+
+  function toggleFloor(f) {
+    setDraft((d) => {
+      const cur = d.floors || [];
+      return { ...d, floors: cur.includes(f) ? cur.filter((x) => x !== f) : cur.concat([f]) };
+    });
+  }
+
+  function submitNewGroup() {
+    const name = newGroupName.trim();
+    if (!name) return;
+    const g = onCreateGroup(name);
+    set('groupId', g.id);
+    setNewGroupName('');
+    setAddingGroup(false);
+  }
+
+  function submitNewAssignee() {
+    const name = newAssigneeName.trim();
+    if (!name) return;
+    onCreateAssignee(name);
+    set('assignee', name);
+    setNewAssigneeName('');
+    setAddingAssignee(false);
+  }
+
+  function set(field, value) { setDraft((d) => ({ ...d, [field]: value })); }
+
+  function applyTemplate(t) { set('text', t.text); }
+  function saveCurrentAsTemplate() {
+    const text = (draft.text || '').trim();
+    if (!text || templates.some((t) => t.text === text)) return;
+    const next = templates.concat([{ id: uid(), text }]);
+    setTemplates(next);
+    persistTemplates(next);
+  }
+  function deleteTemplate(id) {
+    const next = templates.filter((t) => t.id !== id);
+    setTemplates(next);
+    persistTemplates(next);
+  }
+
+  function wrapSelection(prefix, suffix) {
+    const el = textareaRef.current;
+    if (!el) return;
+    const s = el.selectionStart, e = el.selectionEnd;
+    const text = draft.text || '';
+    const selected = text.slice(s, e);
+    const newText = text.slice(0, s) + prefix + selected + suffix + text.slice(e);
+    set('text', newText);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(s + prefix.length, s + prefix.length + selected.length);
+    });
+  }
+
+  function applyListMarker(marker) {
+    const el = textareaRef.current;
+    if (!el) return;
+    const text = draft.text || '';
+    const s = el.selectionStart, e = el.selectionEnd;
+    const lineStart = text.lastIndexOf('\n', s - 1) + 1;
+    const nextBreak = text.indexOf('\n', e);
+    const lineEnd = nextBreak === -1 ? text.length : nextBreak;
+    const lines = text.slice(lineStart, lineEnd).split('\n');
+    const newBlock = lines.map((line, i) => {
+      const stripped = line.replace(/^(\d+\.\s|•\s)/, '');
+      return (marker === 'number' ? `${i + 1}. ` : '• ') + stripped;
+    }).join('\n');
+    const newText = text.slice(0, lineStart) + newBlock + text.slice(lineEnd);
+    set('text', newText);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(lineStart, lineStart + newBlock.length);
+    });
+  }
+
+  async function handleFiles(fileList, openAnnotatorAfter) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    setBusy(true);
+    try {
+      const added = [];
+      for (const f of files) {
+        const src = await downscaleImage(f);
+        added.push({ id: uid(), src, elements: [], annotatedSrc: null });
+      }
+      setDraft((d) => ({ ...d, photos: d.photos.concat(added) }));
+      if (openAnnotatorAfter && added.length === 1) setAnnotatingPhotoId(added[0].id);
+    } catch (e) {
+      notify('שגיאה בטעינת התמונה');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function removePhoto(id) {
+    setDraft((d) => ({ ...d, photos: d.photos.filter((p) => p.id !== id) }));
+  }
+  function savePhotoAnnotation(updated) {
+    setDraft((d) => ({ ...d, photos: d.photos.map((p) => (p.id === updated.id ? updated : p)) }));
+    setAnnotatingPhotoId(null);
+  }
+
+  const annotatingPhoto = draft.photos.find((p) => p.id === annotatingPhotoId);
+  useBackClose(!!annotatingPhoto, () => setAnnotatingPhotoId(null));
+  if (annotatingPhoto) {
+    return <PhotoAnnotator photo={annotatingPhoto} onCancel={() => setAnnotatingPhotoId(null)} onSave={savePhotoAnnotation} />;
+  }
+
+  return (
+    <Overlay
+      title={task._existing ? 'עריכת משימה' : 'משימה חדשה'}
+      onClose={onCancel}
+      onSave={() => onSave(draft)}
+      saveLabel="שמירה"
+    >
+      {draft.carriedFromReportTitle && (
+        <div className="carried-note">
+          <IconFollowUp />
+          <span>משימה זו הועברה מדוח "{draft.carriedFromReportTitle}" ({formatDateHe(draft.carriedFromReportDate)}) · נוצרה במקור בתאריך {formatDateHeFromTs(draft.createdAt)}</span>
+        </div>
+      )}
+      <div className="field">
+        <div className="field-label-row">
+          <label className="field-label">תיאור המשימה</label>
+          <div className="text-toolbar">
+            <button type="button" className="text-toolbar-btn" style={{ fontWeight: 800 }} onClick={() => wrapSelection('**', '**')} aria-label="הדגשה">B</button>
+            <button type="button" className="text-toolbar-btn" style={{ textDecoration: 'underline' }} onClick={() => wrapSelection('__', '__')} aria-label="קו תחתון">U</button>
+            <button type="button" className="text-toolbar-btn" onClick={() => applyListMarker('bullet')} aria-label="רשימת תבליטים"><IconListBullet /></button>
+            <button type="button" className="text-toolbar-btn" onClick={() => applyListMarker('number')} aria-label="רשימה ממוספרת"><IconListNumber /></button>
+            <button type="button" className="text-toolbar-btn" onClick={saveCurrentAsTemplate} disabled={!draft.text.trim()} aria-label="שמירה כתבנית"><IconBookmark /></button>
+          </div>
+        </div>
+        <textarea ref={textareaRef} className="field-textarea field-textarea-main" placeholder="לדוגמה: יש להשלים איטום בפינת הקיר הצפונית..." value={draft.text} onChange={(e) => set('text', e.target.value)} style={{ minHeight: 190 }} autoFocus />
+        {templates.length > 0 && (
+          <div className="chip-row">
+            {templates.map((t) => (
+              <span key={t.id} className="chip template-chip">
+                <button type="button" className="template-chip-apply" onClick={() => applyTemplate(t)}>{t.text}</button>
+                <button type="button" className="template-chip-del" onClick={() => deleteTemplate(t.id)} aria-label="מחיקת תבנית"><IconClose /></button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="field">
+        <label className="field-label">תמונות</label>
+        <div className="photo-strip">
+          {draft.photos.map((p) => (
+            <div key={p.id} className="photo-thumb" onClick={() => setAnnotatingPhotoId(p.id)}>
+              <img src={displaySrc(p)} alt="" />
+              {p.annotatedSrc && <span className="photo-thumb-badge"><IconPen /></span>}
+              <button className="photo-thumb-del" onClick={(e) => { e.stopPropagation(); removePhoto(p.id); }}><IconClose /></button>
+            </div>
+          ))}
+          <button className="photo-add-tile" onClick={() => cameraInputRef.current.click()} disabled={busy}>
+            <IconCamera /><span>מצלמה</span>
+          </button>
+        </div>
+        <div className="photo-add-actions">
+          <button className="btn btn-secondary btn-sm" onClick={() => galleryInputRef.current.click()} disabled={busy}>
+            <IconImage />מהגלריה
+          </button>
+        </div>
+        <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
+          onChange={(e) => { handleFiles(e.target.files, true); e.target.value = ''; }} />
+        <input ref={galleryInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
+          onChange={(e) => { handleFiles(e.target.files, false); e.target.value = ''; }} />
+      </div>
+
+      <div className="field-meta-grid">
+        <div className="field field-compact">
+          <label className="field-label">נושא <span className="opt">(אופציונלי)</span></label>
+          <select className="field-select" value={draft.groupId || ''} onChange={(e) => set('groupId', e.target.value || null)}>
+            <option value="">ללא נושא</option>
+            {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+          </select>
+          {addingGroup ? (
+            <div className="new-group-row">
+              <input className="field-input" placeholder="שם נושא חדש" value={newGroupName} autoFocus
+                onChange={(e) => setNewGroupName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') submitNewGroup(); if (e.key === 'Escape') { setAddingGroup(false); setNewGroupName(''); } }} />
+              <button type="button" className="btn btn-primary btn-sm" onClick={submitNewGroup} disabled={!newGroupName.trim()}>הוספה</button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setAddingGroup(false); setNewGroupName(''); }}>ביטול</button>
+            </div>
+          ) : (
+            <button type="button" className="new-group-link" onClick={() => setAddingGroup(true)}><IconPlus />נושא חדש</button>
+          )}
+        </div>
+
+        <div className="field field-compact">
+          <label className="field-label">סטטוס</label>
+          <div className="chip-row" style={{ marginTop: 0 }}>
+            {STATUSES.map((s) => (
+              <button key={s.id} type="button" data-status={s.id} className={"chip status-chip" + (draft.status === s.id ? " active" : "")} onClick={() => set('status', s.id)}>{s.label}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="field field-compact">
+          <label className="field-label">קומה <span className="opt">(אופציונלי)</span></label>
+          {(floorPlan.above.length > 0 || floorPlan.below.length > 0) ? (
+            <>
+              {floorPlan.above.length > 0 && (
+                <div className="chip-row" style={{ marginTop: 0 }}>
+                  {floorPlan.above.map((f) => (
+                    <button key={f} type="button" className={"chip" + ((draft.floors || []).includes(f) ? " active" : "")} onClick={() => toggleFloor(f)}>{f}</button>
+                  ))}
+                </div>
+              )}
+              {floorPlan.below.length > 0 && (
+                <>
+                  <div className="floor-divider" />
+                  <div className="chip-row" style={{ marginTop: 0 }}>
+                    {floorPlan.below.map((f) => (
+                      <button key={f} type="button" className={"chip" + ((draft.floors || []).includes(f) ? " active" : "")} onClick={() => toggleFloor(f)}>{f}</button>
+                    ))}
+                  </div>
+                </>
+              )}
+              <div className="field-hint">אפשר לבחור יותר מקומה אחת</div>
+            </>
+          ) : (
+            <>
+              <input className="field-input" placeholder="לדוגמה: קומה 3" value={(draft.floors && draft.floors[0]) || ''} onChange={(e) => set('floors', e.target.value ? [e.target.value] : [])} />
+              {floors.length > 0 && (
+                <div className="chip-row">
+                  {floors.map((f) => (
+                    <button key={f} type="button" className={"chip" + ((draft.floors || []).includes(f) ? " active" : "")} onClick={() => set('floors', [f])}>{f}</button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="field field-compact">
+          <label className="field-label">מיקום <span className="opt">(אופציונלי)</span></label>
+          <input className="field-input" placeholder="לדוגמה: ממ״ד / חדר מדרגות" value={draft.location} onChange={(e) => set('location', e.target.value)} />
+        </div>
+
+        <div className="field field-compact">
+          <label className="field-label">אחראי <span className="opt">(אופציונלי)</span></label>
+          <input className="field-input" placeholder="שם הקבלן / בעל מקצוע" value={draft.assignee} onChange={(e) => set('assignee', e.target.value)} />
+          {assignees.length > 0 && (
+            <div className="chip-row">
+              {assignees.map((a) => (
+                <button key={a} type="button" className={"chip" + (draft.assignee === a ? " active" : "")} onClick={() => set('assignee', a)}>{a}</button>
+              ))}
+            </div>
+          )}
+          {addingAssignee ? (
+            <div className="new-group-row">
+              <input className="field-input" placeholder="שם אחראי חדש" value={newAssigneeName} autoFocus
+                onChange={(e) => setNewAssigneeName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') submitNewAssignee(); if (e.key === 'Escape') { setAddingAssignee(false); setNewAssigneeName(''); } }} />
+              <button type="button" className="btn btn-primary btn-sm" onClick={submitNewAssignee} disabled={!newAssigneeName.trim()}>הוספה</button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setAddingAssignee(false); setNewAssigneeName(''); }}>ביטול</button>
+            </div>
+          ) : (
+            <button type="button" className="new-group-link" onClick={() => setAddingAssignee(true)}><IconPlus />הוספת אחראי</button>
+          )}
+        </div>
+
+        <div className="field field-compact">
+          <label className="field-label">תאריך יעד <span className="opt">(אופציונלי)</span></label>
+          <input type="date" className="field-input" value={draft.dueDate} onChange={(e) => set('dueDate', e.target.value)} />
+        </div>
+      </div>
+
+      {onDelete && (
+        <button className="btn btn-danger btn-block" style={{ marginTop: 8 }} onClick={onDelete}>
+          <IconTrash />מחיקת משימה
+        </button>
+      )}
+    </Overlay>
+  );
+}
+
+/* ============================== Report Meta Editor ============================== */
+function ReportMetaEditor({ report, existingSiteNames, onCancel, onSave }) {
+  const [draft, setDraft] = useState({
+    siteName: report.siteName, inspector: report.inspector, date: report.date,
+    reportNumber: report.reportNumber || '', participants: report.participants || '', notes: report.notes || '',
+    floorsAboveGround: report.floorsAboveGround || 0, floorsBelowGround: report.floorsBelowGround || 0,
+  });
+  const notesRef = useRef(null);
+  function wrapNotesSelection(prefix, suffix) {
+    const el = notesRef.current;
+    if (!el) return;
+    const s = el.selectionStart, e = el.selectionEnd;
+    const text = draft.notes || '';
+    const selected = text.slice(s, e);
+    const newText = text.slice(0, s) + prefix + selected + suffix + text.slice(e);
+    setDraft((d) => ({ ...d, notes: newText }));
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(s + prefix.length, s + prefix.length + selected.length);
+    });
+  }
+  return (
+    <Overlay title="פרטי דוח" onClose={onCancel} onSave={() => onSave(draft)} saveDisabled={!draft.siteName.trim()}>
+      <div className="field">
+        <label className="field-label">שם האתר / פרויקט</label>
+        <input className="field-input" placeholder="לדוגמה: מגדל רוטשילד 12" value={draft.siteName} onChange={(e) => setDraft({ ...draft, siteName: e.target.value })} autoFocus />
+        {existingSiteNames && existingSiteNames.length > 0 && (
+          <>
+            <div className="chip-row">
+              {existingSiteNames.map((n) => (
+                <button key={n} type="button" className={"chip" + (draft.siteName === n ? " active" : "")} onClick={() => setDraft({ ...draft, siteName: n })}>{n}</button>
+              ))}
+            </div>
+            <div className="field-hint">בחרו פרויקט קיים מהרשימה, או הקלידו שם חדש</div>
+          </>
+        )}
+      </div>
+      <div className="field">
+        <label className="field-label">מס' דוח <span className="opt">(אופציונלי)</span></label>
+        <input className="field-input" placeholder="לדוגמה: 12" value={draft.reportNumber} onChange={(e) => setDraft({ ...draft, reportNumber: e.target.value })} />
+      </div>
+      <div className="field">
+        <label className="field-label">שם האדריכל <span className="opt">(אופציונלי)</span></label>
+        <input className="field-input" placeholder="שם מלא" value={draft.inspector} onChange={(e) => setDraft({ ...draft, inspector: e.target.value })} />
+      </div>
+      <div className="field">
+        <label className="field-label">תאריך הסיור</label>
+        <input type="date" className="field-input" value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} />
+      </div>
+      <div className="field">
+        <label className="field-label">מבנה קומות <span className="opt">(אופציונלי)</span></label>
+        <div className="two-col-row">
+          <div>
+            <label className="field-sublabel">קומות מעל הקרקע</label>
+            <input type="number" min="0" className="field-input" value={draft.floorsAboveGround}
+              onChange={(e) => setDraft({ ...draft, floorsAboveGround: Math.max(0, Number(e.target.value) || 0) })} />
+          </div>
+          <div>
+            <label className="field-sublabel">קומות מתחת לקרקע</label>
+            <input type="number" min="0" className="field-input" value={draft.floorsBelowGround}
+              onChange={(e) => setDraft({ ...draft, floorsBelowGround: Math.max(0, Number(e.target.value) || 0) })} />
+          </div>
+        </div>
+        <div className="field-hint">אם מוגדר, בעריכת משימה יהיה אפשר לבחור קומה (או כמה קומות) מרשימה סגורה במקום להקליד</div>
+      </div>
+      <div className="field">
+        <label className="field-label">משתתפים בסיור <span className="opt">(אופציונלי)</span></label>
+        <textarea className="field-textarea" placeholder="שמות המשתתפים, מופרדים בפסיק" value={draft.participants} onChange={(e) => setDraft({ ...draft, participants: e.target.value })} style={{ minHeight: 60 }} />
+      </div>
+      <div className="field">
+        <div className="field-label-row">
+          <label className="field-label">הערות כלליות <span className="opt">(אופציונלי)</span></label>
+          <div className="text-toolbar">
+            <button type="button" className="text-toolbar-btn" style={{ fontWeight: 800 }} onClick={() => wrapNotesSelection('**', '**')} aria-label="הדגשה">B</button>
+            <button type="button" className="text-toolbar-btn" style={{ textDecoration: 'underline' }} onClick={() => wrapNotesSelection('__', '__')} aria-label="קו תחתון">U</button>
+          </div>
+        </div>
+        <textarea ref={notesRef} className="field-textarea" placeholder="טקסט חופשי שיופיע בראש הדוח" value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} style={{ minHeight: 80 }} />
+      </div>
+    </Overlay>
+  );
+}
+
+/* ============================== Home Screen ============================== */
+function HomeScreen({ reports, onOpen, onCreate, onDelete, onFollowUp, cloud }) {
+  const [sortBy, setSortBy] = useState('date');
+  const sorted = useMemo(() => {
+    const list = reports.slice();
+    if (sortBy === 'name') {
+      list.sort((a, b) => reportTitle(a).localeCompare(reportTitle(b), 'he'));
+    } else {
+      list.sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.updatedAt - a.updatedAt);
+    }
+    return list;
+  }, [reports, sortBy]);
+  return (
+    <div className="app-shell">
+      <div className="topbar">
+        <div className="topbar-row">
+          <div className="brand-mark">
+            <div className="brand-badge"><IconClipboard /></div>
+            <div className="brand-name">Site<span>Note</span></div>
+          </div>
+          <AccountWidget account={cloud.account} status={cloud.status} errorMsg={cloud.errorMsg} onSignIn={cloud.signIn} onSignOut={cloud.signOut} />
+        </div>
+      </div>
+      <div className="main-scroll">
+        <div className="home-hero">
+          <h1>הדוחות שלי</h1>
+          <p>פיקוח וניהול משימות באתרי בנייה</p>
+        </div>
+        <div className="home-new-btn-wrap">
+          <button className="btn btn-primary btn-block" onClick={onCreate}><IconPlus />דוח סיור חדש</button>
+        </div>
+        {reports.length > 0 && (
+          <div className="home-sort-row">
+            <span className="home-sort-label">מיון:</span>
+            <button type="button" className={"chip" + (sortBy === 'date' ? " active" : "")} onClick={() => setSortBy('date')}>לפי תאריך</button>
+            <button type="button" className={"chip" + (sortBy === 'name' ? " active" : "")} onClick={() => setSortBy('name')}>לפי שם הפרויקט</button>
+          </div>
+        )}
+        {sorted.length === 0 ? (
+          <div className="empty-state">
+            <IconFolder />
+            <h3>אין עדיין דוחות</h3>
+            <p>התחילו דוח סיור חדש כדי לתעד משימות ותמונות מהאתר</p>
+          </div>
+        ) : (
+          <div className="home-list">
+            {sorted.map((r) => (
+              <div key={r.id} className="report-card" onClick={() => onOpen(r.id)}>
+                <div className="report-card-icon"><IconBuilding /></div>
+                <div className="report-card-body">
+                  <div className="report-card-title">{reportTitle(r)}</div>
+                  <div className="report-card-meta">
+                    {r.reportNumber && (
+                      <>
+                        <span>מס' פיקוח: {r.reportNumber}</span>
+                        <span>·</span>
+                      </>
+                    )}
+                    <span>{formatDateHe(r.date)}</span>
+                    <span>·</span>
+                    <span>{r.tasks.length} משימות</span>
+                  </div>
+                </div>
+                <button className="report-card-followup" onClick={(e) => { e.stopPropagation(); onFollowUp(r.id); }} aria-label="דוח המשך" title="צור דוח המשך"><IconFilePlus /></button>
+                <button className="report-card-del" onClick={(e) => { e.stopPropagation(); onDelete(r.id); }} aria-label="מחיקה"><IconTrash /></button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================== Capture Screen ============================== */
+/* ============================== Task Row (drag reorder) ============================== */
+function OrgRowText({ text }) {
+  const lines = (text || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return <div className="org-row-text empty">ללא תיאור</div>;
+  if (lines.length === 1 && !/^(\d+\.\s|•\s)/.test(lines[0])) {
+    return <div className="org-row-text">{parseInlineMarkup(lines[0])}</div>;
+  }
+  const isNumbered = lines.some((l) => /^\d+\.\s/.test(l));
+  const ListTag = isNumbered ? 'ol' : 'ul';
+  return (
+    <ListTag className="org-row-list">
+      {lines.map((line, i) => <li key={i}>{parseInlineMarkup(line.replace(/^(\d+\.\s|•\s)/, ''))}</li>)}
+    </ListTag>
+  );
+}
+
+function OrgRow({ task, listKey, index, groups, onDragHandleDown, dragging, onOpen, onReassign, onDelete }) {
+  return (
+    <div className={"org-row" + (dragging ? " dragging" : "")} data-org-row data-list-key={listKey} data-index={index}>
+      <div className="org-row-main">
+        <span
+          className="org-drag-handle"
+          onPointerDown={(e) => onDragHandleDown(e, listKey, index)}
+        ><IconGrip /></span>
+        <div className="org-row-thumb">
+          {task.photos[0] ? <img src={displaySrc(task.photos[0])} alt="" /> : <IconImage />}
+        </div>
+        <div className="org-row-body" onClick={() => onOpen(task.id)}>
+          <OrgRowText text={task.text} />
+          <div className="task-meta-row">
+            <StatusBadge status={task.status} />
+            {task.carriedFromReportTitle && (
+              <span className="meta-pill carried-pill" title={'הועברה מדוח: ' + task.carriedFromReportTitle}>
+                <IconFollowUp />נוצרה {formatDateHeFromTs(task.createdAt)}
+              </span>
+            )}
+            {task.floors && task.floors.length > 0 && <span className="meta-pill"><IconLayer />{task.floors.join(', ')}</span>}
+            {task.location && <span className="meta-pill"><IconMapPin />{task.location}</span>}
+            {task.assignee && <span className="meta-pill"><IconUser />{task.assignee}</span>}
+            {task.dueDate && <span className="meta-pill"><IconCalendar />{formatDateHe(task.dueDate)}</span>}
+            {task.photos.length > 0 && <span className="meta-pill"><IconImage />{task.photos.length}</span>}
+          </div>
+        </div>
+      </div>
+      <div className="org-row-actions">
+        <select className="org-row-select" value={task.groupId || ''} onChange={(e) => onReassign(task.id, e.target.value || null)}>
+          <option value="">ללא נושא</option>
+          {groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+        </select>
+        <button className="group-btn del" onClick={() => onDelete(task.id)} aria-label="מחיקה"><IconTrash /></button>
+      </div>
+    </div>
+  );
+}
+
+/* ============================== Tasks Screen (capture + organize) ============================== */
+function TasksScreen({ report, updateReport, onOpenTask, onNewTask }) {
+  const { confirm } = useDialog();
+  const [dragInfo, setDragInfo] = useState(null); // {listKey, index}
+
+  const groups = report.groups.slice().sort((a, b) => a.order - b.order);
+  const tasksByGroup = (groupId) => report.tasks.filter((t) => (t.groupId || null) === groupId).sort((a, b) => a.order - b.order);
+  const ungrouped = tasksByGroup(null);
+
+  function setTasks(newTasks) { updateReport({ ...report, tasks: newTasks }); }
+  function setGroups(newGroups) { updateReport({ ...report, groups: newGroups }); }
+
+  function addGroup(name) {
+    const g = { id: uid(), name: name, order: groups.length };
+    setGroups(groups.concat([g]));
+  }
+  function renameGroup(id, name) { setGroups(groups.map((g) => (g.id === id ? { ...g, name } : g))); }
+  async function deleteGroup(id) {
+    if (!(await confirm('למחוק את הנושא? המשימות בתוכו יעברו ל"ללא נושא".'))) return;
+    updateReport({
+      ...report,
+      groups: groups.filter((g) => g.id !== id),
+      tasks: report.tasks.map((t) => (t.groupId === id ? { ...t, groupId: null } : t)),
+    });
+  }
+  function moveGroup(id, dir) {
+    const idx = groups.findIndex((g) => g.id === id);
+    const swapIdx = idx + dir;
+    if (swapIdx < 0 || swapIdx >= groups.length) return;
+    const reordered = moveItem(groups, idx, swapIdx).map((g, i) => ({ ...g, order: i }));
+    setGroups(reordered);
+  }
+
+  function reassignTask(taskId, groupId) {
+    const targetList = tasksByGroup(groupId);
+    setTasks(report.tasks.map((t) => (t.id === taskId ? { ...t, groupId, order: targetList.length } : t)));
+  }
+  async function deleteTask(taskId) {
+    if (!(await confirm('למחוק את המשימה?'))) return;
+    setTasks(report.tasks.filter((t) => t.id !== taskId));
+  }
+
+  function handleDragStart(listKey, index) { setDragInfo({ listKey, index }); }
+  function handleDragOverList(listKey, hoverIndex) {
+    if (!dragInfo) return;
+    if (dragInfo.listKey === listKey) {
+      if (dragInfo.index === hoverIndex) return;
+      const groupKey = listKey === '__ungrouped__' ? null : listKey;
+      const list = listKey === '__ungrouped__' ? ungrouped : tasksByGroup(listKey);
+      const reordered = moveItem(list, dragInfo.index, hoverIndex).map((t, i) => ({ ...t, order: i }));
+      const otherTasks = report.tasks.filter((t) => (t.groupId || null) !== groupKey);
+      setTasks(otherTasks.concat(reordered));
+      setDragInfo({ listKey, index: hoverIndex });
+      return;
+    }
+
+    // moving between two different groups
+    const sourceGroupKey = dragInfo.listKey === '__ungrouped__' ? null : dragInfo.listKey;
+    const targetGroupKey = listKey === '__ungrouped__' ? null : listKey;
+    const sourceList = dragInfo.listKey === '__ungrouped__' ? ungrouped : tasksByGroup(dragInfo.listKey);
+    const draggedTask = sourceList[dragInfo.index];
+    if (!draggedTask) return;
+
+    const newSourceList = sourceList.filter((t) => t.id !== draggedTask.id).map((t, i) => ({ ...t, order: i }));
+    const targetList = (listKey === '__ungrouped__' ? ungrouped : tasksByGroup(listKey)).slice();
+    const clampedIndex = Math.min(hoverIndex, targetList.length);
+    targetList.splice(clampedIndex, 0, { ...draggedTask, groupId: targetGroupKey });
+    const newTargetList = targetList.map((t, i) => ({ ...t, order: i }));
+
+    const otherTasks = report.tasks.filter((t) => {
+      const g = t.groupId || null;
+      return g !== sourceGroupKey && g !== targetGroupKey;
+    });
+    setTasks(otherTasks.concat(newSourceList, newTargetList));
+    setDragInfo({ listKey, index: clampedIndex });
+  }
+  function handleDragEnd() { setDragInfo(null); }
+
+  // Pointer-Events-based drag (works on touch and mouse alike — native HTML5
+  // draggable/dragover does not fire from touch input on most mobile browsers).
+  // The handler below is attached once per gesture via window listeners, so it
+  // reads handleDragOverList through a ref kept fresh on every render instead
+  // of closing over a single (potentially stale) render's version.
+  const handleDragOverListRef = useRef(handleDragOverList);
+  handleDragOverListRef.current = handleDragOverList;
+
+  function findDropTarget(clientY) {
+    const emptyGroups = document.querySelectorAll('[data-empty-group]');
+    for (const el of emptyGroups) {
+      const r = el.getBoundingClientRect();
+      if (clientY >= r.top && clientY <= r.bottom) return { listKey: el.getAttribute('data-empty-group'), index: 0 };
+    }
+    // Find the row closest to the pointer (by distance to its vertical midpoint), then
+    // decide before/after based on which side of that specific row the pointer is on.
+    // Scanning for the first row whose midpoint is below the pointer would instead pick
+    // whichever row happens to satisfy that first — which can resolve to the wrong group
+    // when the pointer sits right at a row's boundary.
+    const rows = document.querySelectorAll('[data-org-row]');
+    let closest = null, closestDist = Infinity;
+    for (const el of rows) {
+      const r = el.getBoundingClientRect();
+      const mid = r.top + r.height / 2;
+      const dist = Math.abs(clientY - mid);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = { listKey: el.getAttribute('data-list-key'), index: Number(el.getAttribute('data-index')), mid };
+      }
+    }
+    if (!closest) return null;
+    return { listKey: closest.listKey, index: clientY < closest.mid ? closest.index : closest.index + 1 };
+  }
+
+  function onDragHandleDown(e, listKey, index) {
+    e.preventDefault();
+    handleDragStart(listKey, index);
+    function onMove(ev) {
+      const target = findDropTarget(ev.clientY);
+      if (target) handleDragOverListRef.current(target.listKey, target.index);
+    }
+    function onUp() {
+      handleDragEnd();
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  }
+
+  const [newGroupName, setNewGroupName] = useState('');
+
+  function renderList(listKey, list) {
+    return list.map((t, i) => (
+      <OrgRow
+        key={t.id}
+        task={t} index={i} listKey={listKey} groups={groups}
+        dragging={dragInfo && dragInfo.listKey === listKey && dragInfo.index === i}
+        onDragHandleDown={onDragHandleDown}
+        onOpen={onOpenTask} onReassign={reassignTask} onDelete={deleteTask}
+      />
+    ));
+  }
+
+  if (report.tasks.length === 0) {
+    return (
+      <>
+        <div className="empty-state">
+          <IconClipboard />
+          <h3>עדיין לא נוספו משימות</h3>
+          <p>הקישו על כפתור ה-+ כדי לתעד את המשימה הראשונה מהסיור</p>
+        </div>
+        <button className="fab" onClick={onNewTask} aria-label="הוספת משימה"><IconPlus /></button>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="organize-wrap">
+        <div className="organize-actions" style={{ marginBottom: 20 }}>
+          <input className="field-input" style={{ flex: 1, minWidth: 140 }} placeholder="שם נושא חדש" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && newGroupName.trim()) { addGroup(newGroupName.trim()); setNewGroupName(''); } }} />
+          <button className="btn btn-primary btn-sm" onClick={() => { if (newGroupName.trim()) { addGroup(newGroupName.trim()); setNewGroupName(''); } }}><IconPlus />הוספה</button>
+        </div>
+
+        {groups.map((g, gi) => {
+          const list = tasksByGroup(g.id);
+          return (
+            <div className="group-section" key={g.id}>
+              <div className="group-header">
+                <input className="group-name-input" value={g.name} onChange={(e) => renameGroup(g.id, e.target.value)} />
+                <span className="group-count">{list.length}</span>
+                <button className="group-btn" onClick={() => moveGroup(g.id, -1)} disabled={gi === 0} aria-label="הזז למעלה"><IconUp /></button>
+                <button className="group-btn" onClick={() => moveGroup(g.id, 1)} disabled={gi === groups.length - 1} aria-label="הזז למטה"><IconDown /></button>
+                <button className="group-btn del" onClick={() => deleteGroup(g.id)} aria-label="מחיקת נושא"><IconTrash /></button>
+              </div>
+              <div className="group-body">
+                {list.length === 0 ? <div className="group-empty" data-empty-group={g.id}>גררו משימות לכאן או בחרו נושא זה מהתפריט</div> : renderList(g.id, list)}
+              </div>
+            </div>
+          );
+        })}
+
+        {groups.length === 0 ? (
+          <div className="group-section">
+            <div className="group-body">{renderList('__ungrouped__', ungrouped)}</div>
+          </div>
+        ) : ungrouped.length > 0 ? (
+          <div className="group-section">
+            <div className="group-header">
+              <span className="group-name-static">ללא נושא</span>
+              <span className="group-count">{ungrouped.length}</span>
+            </div>
+            <div className="group-body">
+              {renderList('__ungrouped__', ungrouped)}
+            </div>
+          </div>
+        ) : null}
+      </div>
+      <button className="fab" onClick={onNewTask} aria-label="הוספת משימה"><IconPlus /></button>
+    </>
+  );
+}
+
+function parseInlineMarkup(text) {
+  const parts = [];
+  const regex = /\*\*(.+?)\*\*|__(.+?)__/g;
+  let lastIndex = 0, m, key = 0;
+  while ((m = regex.exec(text))) {
+    if (m.index > lastIndex) parts.push(text.slice(lastIndex, m.index));
+    if (m[1] !== undefined) parts.push(<b key={key++}>{m[1]}</b>);
+    else parts.push(<u key={key++}>{m[2]}</u>);
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts;
+}
+
+function TaskTextBlock({ text }) {
+  const lines = (text || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  if (lines.length === 0) return <span className="doc-task-text">ללא תיאור</span>;
+  if (lines.length === 1 && !/^(\d+\.\s|•\s)/.test(lines[0])) {
+    return <span className="doc-task-text">{parseInlineMarkup(lines[0])}</span>;
+  }
+  const isNumbered = lines.some((l) => /^\d+\.\s/.test(l));
+  const ListTag = isNumbered ? 'ol' : 'ul';
+  return (
+    <ListTag className="doc-task-list">
+      {lines.map((line, i) => <li key={i}>{parseInlineMarkup(line.replace(/^(\d+\.\s|•\s)/, ''))}</li>)}
+    </ListTag>
+  );
+}
+
+function DocPhoto({ photo, onOpen, onResize }) {
+  const [size, setSize] = useState({ w: photo.docW || 150, h: photo.docH || 112 });
+  useEffect(() => { setSize({ w: photo.docW || 150, h: photo.docH || 112 }); }, [photo.docW, photo.docH]);
+  const dragRef = useRef(null);
+
+  function handlePointerDown(e) {
+    e.stopPropagation();
+    dragRef.current = { startX: e.clientX, startY: e.clientY, startW: size.w, startH: size.h };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+  function handlePointerMove(e) {
+    if (!dragRef.current) return;
+    const { startX, startY, startW, startH } = dragRef.current;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    // Scale both dimensions uniformly (distance from the fixed top-left corner to the
+    // pointer vs. to the original bottom-right corner) so the box's aspect ratio never
+    // changes mid-resize — otherwise object-fit: cover would shift the crop as the box's
+    // own ratio drifted from the image's.
+    const origDist = Math.hypot(startW, startH);
+    const newDist = Math.hypot(startW + dx, startH + dy);
+    const rawScale = newDist / origDist;
+    const minScale = Math.max(70 / startW, 52 / startH);
+    const maxScale = Math.min(480 / startW, 480 / startH);
+    const scale = Math.min(Math.max(rawScale, minScale), maxScale);
+    setSize({ w: Math.round(startW * scale), h: Math.round(startH * scale) });
+  }
+  function handlePointerUp(e) {
+    if (!dragRef.current) return;
+    dragRef.current = null;
+    onResize(photo.id, size.w, size.h);
+  }
+
+  return (
+    <div className="doc-photo" style={{ width: size.w, height: size.h }} onClick={onOpen}>
+      <div className="doc-photo-frame"><img src={displaySrc(photo)} alt="" /></div>
+      <span
+        className="doc-photo-resize"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onClick={(e) => e.stopPropagation()}
+        aria-label="שינוי גודל תמונה"
+      />
+    </div>
+  );
+}
+
+/* ============================== A4 pagination ==============================
+ * The on-screen preview is meant to always look like real, stacked A4 pages —
+ * not one endlessly-tall scrolling block. We measure every atomic "unit" of
+ * content (a header block, a task card, a table row, an appendix item) in a
+ * hidden off-screen pass, then bucket them into pages that fit a fixed A4
+ * content-height budget, and finally render the real, visible pages from
+ * that grouping. A unit is never split across pages. */
+const A4_PAGE_WIDTH = 794;
+const A4_CONTENT_WIDTH = A4_PAGE_WIDTH - 30 * 2;
+const A4_CONTENT_HEIGHT = 950; // conservative vs. the real print page's tighter margins
+
+function pagesEqual(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].length !== b[i].length) return false;
+    for (let j = 0; j < a[i].length; j++) if (a[i][j] !== b[i][j]) return false;
+  }
+  return true;
+}
+
+function usePagedUnits(units, contentHeight) {
+  const [pages, setPages] = useState(null);
+  const refsRef = useRef([]);
+
+  useLayoutEffect(() => {
+    const heights = units.map((u, i) => (refsRef.current[i] ? refsRef.current[i].offsetHeight : 0));
+    let result = [];
+    let current = [];
+    let currentHeight = 0;
+    units.forEach((u, i) => {
+      const h = heights[i] || 0;
+      const forcePage = u.breakBefore === 'page' && current.length > 0;
+      const wouldOverflow = current.length > 0 && currentHeight + h > contentHeight;
+      if (forcePage || wouldOverflow) {
+        result.push(current);
+        current = [];
+        currentHeight = 0;
+      }
+      current.push(i);
+      currentHeight += h;
+    });
+    if (current.length > 0) result.push(current);
+
+    // A lone group title must never be the last thing on a page with none of
+    // its tasks alongside it — push it onto the following page instead.
+    for (let p = 0; p < result.length - 1; p++) {
+      const page = result[p];
+      const lastIdx = page[page.length - 1];
+      if (page.length > 0 && units[lastIdx] && units[lastIdx].isGroupTitle) {
+        page.pop();
+        result[p + 1].unshift(lastIdx);
+      }
+    }
+    result = result.filter((p) => p.length > 0);
+
+    setPages((prev) => (pagesEqual(prev, result) ? prev : result));
+  });
+
+  const setRef = (i) => (el) => { refsRef.current[i] = el; };
+  return { pages, setRef };
+}
+
+/* ============================== Preview / PDF Screen ============================== */
+const ZOOM_LEVELS = [1, 0.85, 0.7, 0.55, 0.4];
+
+function PreviewScreen({ report, updateReport }) {
+  const { notify } = useDialog();
+  const [lightboxSrc, setLightboxSrc] = useState(null);
+  const [zoomIndex, setZoomIndex] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  useBackClose(!!lightboxSrc, () => setLightboxSrc(null));
+  const zoom = ZOOM_LEVELS[zoomIndex];
+  function zoomOut() { setZoomIndex((i) => Math.min(ZOOM_LEVELS.length - 1, i + 1)); }
+  function zoomIn() { setZoomIndex((i) => Math.max(0, i - 1)); }
+  const groups = report.groups.slice().sort((a, b) => a.order - b.order);
+  const tasksByGroup = (groupId) => report.tasks.filter((t) => (t.groupId || null) === groupId).sort((a, b) => a.order - b.order);
+  const ungrouped = tasksByGroup(null);
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const layout = report.pdfLayout || 'cards';
+  const showLocation = report.pdfShowLocation !== false;
+  const photoAppendix = !!report.pdfPhotoAppendix;
+  const showStatus = report.pdfShowStatus !== false;
+  const xlsxSeparatePhotos = report.xlsxSeparatePhotos !== false;
+
+  async function handleExportExcel() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      await exportReportToExcel(report, sections, { showLocation, showStatus, separatePhotos: xlsxSeparatePhotos });
+    } catch (e) {
+      console.error(e);
+      notify('ייצוא לאקסל נכשל. נסו שוב.');
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  function resizePhoto(photoId, w, h) {
+    updateReport({
+      ...report,
+      tasks: report.tasks.map((t) => ({
+        ...t,
+        photos: t.photos.map((p) => (p.id === photoId ? { ...p, docW: w, docH: h } : p)),
+      })),
+    });
+  }
+
+  const sections = groups.map((g) => ({ id: g.id, name: (g.name && g.name.trim()) || 'נושא ללא שם', tasks: tasksByGroup(g.id) })).filter((s) => s.tasks.length > 0);
+  if (ungrouped.length > 0) sections.push({ id: '__ungrouped__', name: groups.length ? 'משימות נוספות' : 'משימות', tasks: ungrouped });
+
+  const photoEntries = [];
+  sections.forEach((sec, secIndex) => {
+    sec.tasks.forEach((t, taskIndex) => {
+      if (t.photos.length > 0) photoEntries.push({ sec, secIndex, t, taskIndex });
+    });
+  });
+
+  function renderPhotos(photos) {
+    return (
+      <div className="doc-photos">
+        {photos.map((p) => (
+          <DocPhoto key={p.id} photo={p} onOpen={() => setLightboxSrc(displaySrc(p))} onResize={resizePhoto} />
+        ))}
+      </div>
+    );
+  }
+
+  // The ordered list of atomic, unsplittable content units for the current
+  // layout/settings — the pagination pass below groups these into real
+  // A4-sized pages, exactly like a real paginated document would.
+  const units = [];
+  units.push({
+    key: 'header',
+    kind: 'div',
+    render: () => (
+      <>
+        <div className="doc-header">
+          <div>
+            <div className="doc-header-brand"><IconClipboard />Site Note</div>
+            <div className="doc-title">{reportTitle(report)}</div>
+          </div>
+          <div className="doc-header-right">
+            {report.reportNumber && <div>מס' דוח: {report.reportNumber}</div>}
+            <div>תאריך סיור: {formatDateHe(report.date)}</div>
+            {report.inspector && <div>אדריכל: {report.inspector}</div>}
+            <div>הופק: {formatDateHeFromTs(Date.now())}</div>
+          </div>
+        </div>
+        {report.participants && <div className="doc-participants"><b>משתתפים בסיור:</b> {report.participants}</div>}
+        {report.notes && <div className="doc-participants">{parseInlineMarkup(report.notes)}</div>}
+      </>
+    ),
+  });
+
+  if (report.tasks.length === 0) {
+    units.push({ key: 'empty', kind: 'div', render: () => <div className="doc-empty-note">לא נוספו משימות עדיין</div> });
+  } else if (layout === 'table') {
+    sections.forEach((sec, secIndex) => {
+      sec.tasks.forEach((t, taskIndex) => {
+        const renderRow = (showLead, leadRowSpan, refCb) => (
+          <tr key={t.id} ref={refCb}>
+            {showLead && <td className="doc-table-num" rowSpan={leadRowSpan}>{pad2(secIndex + 1)}</td>}
+            {showLead && <td className="doc-table-topic" rowSpan={leadRowSpan}>{sec.name}</td>}
+            <td className="doc-table-desc">
+              <span className="doc-table-item-num">{taskIndex + 1}.{pad2(secIndex + 1)}</span>
+              <TaskTextBlock text={t.text} />
+              {showLocation && ((t.floors && t.floors.length > 0) || t.location) && (
+                <div className="doc-table-loc">
+                  {t.floors && t.floors.length > 0 && <span>קומה: {t.floors.join(', ')}</span>}
+                  {t.location && <span>מיקום: {t.location}</span>}
+                </div>
+              )}
+              {!showStatus && t.carriedFromReportTitle && (
+                <div className="doc-created-note">נוצרה בתאריך: {formatDateHeFromTs(t.createdAt)}</div>
+              )}
+              {!photoAppendix && t.photos.length > 0 && renderPhotos(t.photos)}
+            </td>
+            <td className="doc-table-assignee">{t.assignee || '—'}</td>
+            <td className="doc-table-due">{t.dueDate ? formatDateHe(t.dueDate) : '—'}</td>
+            {showStatus && (
+              <td className="doc-table-status">
+                <StatusBadge status={t.status} />
+                {t.carriedFromReportTitle && (
+                  <div className="doc-created-note">נוצרה בתאריך: {formatDateHeFromTs(t.createdAt)}</div>
+                )}
+              </td>
+            )}
+          </tr>
+        );
+        units.push({ key: 'row-' + t.id, kind: 'row', sectionId: sec.id, renderRow });
+      });
+    });
+  } else {
+    sections.forEach((sec, secIndex) => {
+      units.push({
+        key: 'title-' + sec.id, kind: 'div', isGroupTitle: true,
+        render: () => <div className="doc-group-title">{pad2(secIndex + 1)}. {sec.name}</div>,
+      });
+      sec.tasks.forEach((t, taskIndex) => {
+        units.push({
+          key: 'task-' + t.id, kind: 'div',
+          render: () => (
+            <div className="doc-task">
+              <div className="doc-task-head">
+                <span className="doc-task-num">{pad2(secIndex + 1)}.{pad2(taskIndex + 1)}</span>
+                {showStatus && <StatusBadge status={t.status} className="status-badge-inline" />}
+                <TaskTextBlock text={t.text} />
+              </div>
+              <div className="doc-task-meta">
+                {t.floors && t.floors.length > 0 && <span>קומה: <b>{t.floors.join(', ')}</b></span>}
+                {t.location && <span>מיקום: <b>{t.location}</b></span>}
+                {t.assignee && <span>אחראי: <b>{t.assignee}</b></span>}
+                {t.dueDate && <span>תאריך יעד: <b>{formatDateHe(t.dueDate)}</b></span>}
+              </div>
+              {t.carriedFromReportTitle && (
+                <div className="doc-created-note">נוצרה בתאריך: {formatDateHeFromTs(t.createdAt)}</div>
+              )}
+              {!photoAppendix && t.photos.length > 0 && renderPhotos(t.photos)}
+            </div>
+          ),
+        });
+      });
+    });
+  }
+
+  if (photoAppendix && photoEntries.length > 0) {
+    units.push({ key: 'appendix-title', kind: 'div', breakBefore: 'page', render: () => <div className="doc-appendix-title">נספח תמונות</div> });
+    photoEntries.forEach(({ sec, secIndex, t, taskIndex }) => {
+      units.push({
+        key: 'appendix-' + t.id, kind: 'div',
+        render: () => (
+          <div className="doc-appendix-item">
+            <div className="doc-appendix-item-head">
+              {pad2(secIndex + 1)}.{pad2(taskIndex + 1)} · {sec.name}
+              {showStatus && <StatusBadge status={t.status} className="status-badge-inline" style={{ marginInlineStart: 8 }} />}
+            </div>
+            {showLocation && ((t.floors && t.floors.length > 0) || t.location) && (
+              <div className="doc-appendix-item-loc">
+                {t.floors && t.floors.length > 0 && <span>קומה: {t.floors.join(', ')}</span>}
+                {t.location && <span>מיקום: {t.location}</span>}
+              </div>
+            )}
+            {t.carriedFromReportTitle && (
+              <div className="doc-created-note">נוצרה בתאריך: {formatDateHeFromTs(t.createdAt)}</div>
+            )}
+            {renderPhotos(t.photos)}
+          </div>
+        ),
+      });
+    });
+  }
+
+  const { pages, setRef } = usePagedUnits(units, A4_CONTENT_HEIGHT);
+  // `pages` can briefly hold indices computed for a *previous* units array
+  // (e.g. the render right after switching cards<->table layout, before the
+  // pagination effect has re-measured) — never trust it across a shape
+  // change, fall back to one unpaginated page for that single render instead.
+  const pagesValid = pages && pages.every((pg) => pg.every((i) => i >= 0 && i < units.length));
+  const pageList = pagesValid ? pages : [units.map((_, i) => i)];
+  const hasRowUnits = units.some((u) => u.kind === 'row');
+
+  function handlePrint() {
+    // window.print() is silently ignored inside a sandboxed iframe missing "allow-modals"
+    // (e.g. this Artifact preview) — no exception, no callback, just nothing happening. The
+    // only observable signal is whether the browser's own "beforeprint" event ever fires.
+    let firedPrint = false;
+    const onBeforePrint = () => { firedPrint = true; };
+    window.addEventListener('beforeprint', onBeforePrint);
+    window.print();
+    setTimeout(() => {
+      window.removeEventListener('beforeprint', onBeforePrint);
+      if (!firedPrint) {
+        notify('לא ניתן לפתוח את חלון ההדפסה מתוך התצוגה המוטמעת הזו. פתחו את האפליקציה בכרטיסיית דפדפן נפרדת (למשל דרך קישור משותף, או הריצו את הקובץ באופן עצמאי) ונסו שוב.');
+      }
+    }, 700);
+  }
+
+  return (
+    <>
+      <div className="preview-toolbar">
+        <div className="preview-toolbar-controls">
+          <div className="layout-toggle">
+            <button className={"layout-btn" + (layout === 'cards' ? ' active' : '')} onClick={() => updateReport({ ...report, pdfLayout: 'cards' })}>כרטיסים</button>
+            <button className={"layout-btn" + (layout === 'table' ? ' active' : '')} onClick={() => updateReport({ ...report, pdfLayout: 'table' })}>טבלה</button>
+          </div>
+          <label className="preview-loc-toggle">
+            <input type="checkbox" checked={showLocation} onChange={(e) => updateReport({ ...report, pdfShowLocation: e.target.checked })} />
+            הצג מיקום/קומה
+          </label>
+          <label className="preview-loc-toggle">
+            <input type="checkbox" checked={photoAppendix} onChange={(e) => updateReport({ ...report, pdfPhotoAppendix: e.target.checked })} />
+            נספח תמונות
+          </label>
+          <label className="preview-loc-toggle">
+            <input type="checkbox" checked={showStatus} onChange={(e) => updateReport({ ...report, pdfShowStatus: e.target.checked })} />
+            הצג סטטוס
+          </label>
+          <label className="preview-loc-toggle">
+            <input type="checkbox" checked={xlsxSeparatePhotos} onChange={(e) => updateReport({ ...report, xlsxSeparatePhotos: e.target.checked })} />
+            הפרדת תמונות באקסל
+          </label>
+          <div className="zoom-controls">
+            <button type="button" className="zoom-btn" onClick={zoomOut} disabled={zoomIndex === ZOOM_LEVELS.length - 1} aria-label="הקטנת תצוגה"><IconZoomOut /></button>
+            <span className="zoom-level">{Math.round(zoom * 100)}%</span>
+            <button type="button" className="zoom-btn" onClick={zoomIn} disabled={zoomIndex === 0} aria-label="הגדלת תצוגה"><IconZoomIn /></button>
+          </div>
+        </div>
+        <div className="preview-toolbar-actions">
+          <button className="btn btn-secondary btn-sm" onClick={handleExportExcel} disabled={exporting}>
+            <IconExcel />{exporting ? 'מייצא...' : 'ייצוא לאקסל'}
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={handlePrint}><IconPrint />הפקת PDF</button>
+        </div>
+      </div>
+      <div className="preview-scroll">
+        <div className="doc-print-root" style={{ zoom }}>
+          {pageList.map((idxs, pageIdx) => {
+            const pageUnits = idxs.map((i) => units[i]);
+            const rowUnits = pageUnits.filter((u) => u.kind === 'row');
+            return (
+              <div className="doc-page" key={'page-' + pageIdx}>
+                {pageUnits.map((u) => (
+                  u.kind === 'div' ? <React.Fragment key={u.key}>{u.render()}</React.Fragment> : null
+                ))}
+                {rowUnits.length > 0 && (
+                  <div className="doc-table-scroll">
+                    <table className="doc-table">
+                      <thead>
+                        <tr>
+                          <th>מס'</th>
+                          <th>נושא</th>
+                          <th>תיאור</th>
+                          <th>אחראי</th>
+                          <th>תאריך יעד</th>
+                          {showStatus && <th>סטטוס</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const out = [];
+                          let i = 0;
+                          while (i < rowUnits.length) {
+                            const sid = rowUnits[i].sectionId;
+                            let j = i;
+                            while (j < rowUnits.length && rowUnits[j].sectionId === sid) j++;
+                            const runLen = j - i;
+                            for (let k = i; k < j; k++) out.push(rowUnits[k].renderRow(k === i, runLen));
+                            i = j;
+                          }
+                          return out;
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {pagesValid && <div className="doc-page-num">עמוד {pageIdx + 1} מתוך {pageList.length}</div>}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Hidden off-screen measuring pass — comes AFTER the real pages in the
+            DOM (so any ".doc-task"/".doc-table" query naturally finds the real,
+            visible one first). Reuses the real .doc-page CSS so its width always
+            matches the visible pages at any screen size / zoom level. Never
+            seen, never clickable. */}
+        <div className="doc-page" style={{ position: 'fixed', top: 0, left: -99999, visibility: 'hidden', pointerEvents: 'none' }} aria-hidden="true">
+          {units.map((u, i) => (
+            u.kind === 'div' ? <div key={u.key} ref={setRef(i)}>{u.render()}</div> : null
+          ))}
+          {hasRowUnits && (
+            <table className="doc-table" style={{ width: '100%' }}>
+              <tbody>
+                {units.map((u, i) => (u.kind === 'row' ? u.renderRow(true, 1, setRef(i)) : null))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+      {lightboxSrc && (
+        <div className="lightbox-backdrop" onClick={() => setLightboxSrc(null)}>
+          <button className="lightbox-close" onClick={() => setLightboxSrc(null)} aria-label="סגירה"><IconClose /></button>
+          <img className="lightbox-img" src={lightboxSrc} alt="" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ============================== Report Workspace (shell for an open report) ============================== */
+function ReportWorkspace({ report, updateReport, existingSiteNames, onBack, saveState }) {
+  const [tab, setTab] = useState('tasks');
+  const [taskOverlay, setTaskOverlay] = useState(null); // 'new' | taskId | null
+  // Starts false and opens itself a tick after mount (rather than as the initial
+  // state) so its back-button history entry is always pushed in a separate
+  // commit *after* the report's own — otherwise, for a brand-new report,
+  // React's child-before-parent effect order would push them in reverse and
+  // one back-press would close the whole report instead of just this editor.
+  const [metaOpen, setMetaOpen] = useState(false);
+  useEffect(() => { if (!report.siteName.trim()) setMetaOpen(true); }, []);
+  useBackClose(!!taskOverlay, () => setTaskOverlay(null));
+  useBackClose(metaOpen, () => setMetaOpen(false));
+
+  const floors = useMemo(() => {
+    const s = [];
+    report.tasks.forEach((t) => { (t.floors || []).forEach((f) => { if (s.indexOf(f) === -1) s.push(f); }); });
+    return s;
+  }, [report.tasks]);
+  const floorPlan = useMemo(() => buildFloorList(report), [report.floorsAboveGround, report.floorsBelowGround]);
+  const assignees = useMemo(() => {
+    const s = DEFAULT_ASSIGNEES.slice();
+    (report.assignees || []).forEach((a) => { if (s.indexOf(a) === -1) s.push(a); });
+    report.tasks.forEach((t) => { if (t.assignee && s.indexOf(t.assignee) === -1) s.push(t.assignee); });
+    return s;
+  }, [report.tasks, report.assignees]);
+  const sortedGroups = useMemo(() => report.groups.slice().sort((a, b) => a.order - b.order), [report.groups]);
+
+  function createGroup(name) {
+    const g = { id: uid(), name, order: report.groups.length };
+    updateReport({ ...report, groups: report.groups.concat([g]) });
+    return g;
+  }
+
+  function createAssignee(name) {
+    if ((report.assignees || []).indexOf(name) === -1 && DEFAULT_ASSIGNEES.indexOf(name) === -1) {
+      updateReport({ ...report, assignees: (report.assignees || []).concat([name]) });
+    }
+    return name;
+  }
+
+  function openNewTask() { setTaskOverlay('new'); }
+  function openEditTask(id) { setTaskOverlay(id); }
+  function closeTaskOverlay() { setTaskOverlay(null); }
+
+  function saveTask(rawDraft) {
+    const { _existing, ...draft } = rawDraft;
+    let tasks;
+    const exists = report.tasks.some((t) => t.id === draft.id);
+    if (exists) {
+      tasks = report.tasks.map((t) => (t.id === draft.id ? draft : t));
+    } else {
+      tasks = report.tasks.concat([{ ...draft, order: report.tasks.length }]);
+    }
+    updateReport({ ...report, tasks });
+    setTaskOverlay(null);
+  }
+  function deleteTaskById(id) {
+    updateReport({ ...report, tasks: report.tasks.filter((t) => t.id !== id) });
+    setTaskOverlay(null);
+  }
+
+  const editingTask = taskOverlay && taskOverlay !== 'new' ? report.tasks.find((t) => t.id === taskOverlay) : null;
+  const isNewTask = taskOverlay === 'new';
+
+  const tabs = [
+    { id: 'tasks', label: 'משימות', icon: IconClipboard },
+    { id: 'preview', label: 'PDF', icon: IconFile },
+  ];
+
+  return (
+    <div className="app-shell">
+      <div className="topbar">
+        <div className="topbar-row">
+          <button className="topbar-icon-btn" onClick={onBack} aria-label="חזרה"><IconBack /></button>
+          <div className="topbar-titles" onClick={() => setMetaOpen(true)}>
+            <div className="topbar-title">{reportTitle(report)}</div>
+            <div className="topbar-subtitle">
+              <span className={"save-dot" + (saveState === 'saving' ? ' saving' : '') + (saveState === 'error' ? ' error' : '')} />
+              {saveState === 'saving' ? 'שומר...' : saveState === 'error' ? 'שגיאה בשמירה — נסו לפנות מקום או להוריד תמונות' : 'נשמר'} · {formatDateHe(report.date)}
+            </div>
+          </div>
+          <button className="topbar-icon-btn" onClick={() => setMetaOpen(true)} aria-label="פרטי דוח"><IconEdit /></button>
+        </div>
+      </div>
+
+      <div className="main-scroll">
+        {tab === 'tasks' && (
+          <TasksScreen report={report} updateReport={updateReport} onOpenTask={openEditTask} onNewTask={openNewTask} />
+        )}
+        {tab === 'preview' && <PreviewScreen report={report} updateReport={updateReport} />}
+      </div>
+
+      <div className="bottom-nav">
+        {tabs.map((tb) => (
+          <button key={tb.id} className={"bottom-nav-item" + (tab === tb.id ? " active" : "")} onClick={() => setTab(tb.id)}>
+            <tb.icon />{tb.label}
+          </button>
+        ))}
+      </div>
+
+      {(isNewTask || editingTask) && (
+        <TaskEditor
+          task={isNewTask ? newTask(report.tasks.length) : { ...editingTask, _existing: true }}
+          floors={floors}
+          floorPlan={floorPlan}
+          assignees={assignees}
+          groups={sortedGroups}
+          onCreateGroup={createGroup}
+          onCreateAssignee={createAssignee}
+          onCancel={closeTaskOverlay}
+          onSave={saveTask}
+          onDelete={isNewTask ? null : () => deleteTaskById(editingTask.id)}
+        />
+      )}
+
+      {metaOpen && (
+        <ReportMetaEditor
+          report={report}
+          existingSiteNames={existingSiteNames}
+          onCancel={() => setMetaOpen(false)}
+          onSave={(meta) => { updateReport({ ...report, ...meta }); setMetaOpen(false); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ============================== App Root ============================== */
+function App() {
+  const { confirm } = useDialog();
+  const [reports, setReports] = useState(() => loadReports());
+  const [openReportId, setOpenReportId] = useState(null);
+  const [justCreatedId, setJustCreatedId] = useState(null);
+  const [saveState, setSaveState] = useState('saved');
+  const saveTimer = useRef(null);
+  const cloud = useOneDriveSync(reports, setReports);
+
+  useEffect(() => {
+    setSaveState('saving');
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      setSaveState(persistReports(reports) ? 'saved' : 'error');
+    }, 350);
+    return () => clearTimeout(saveTimer.current);
+  }, [reports]);
+
+  function createReport() {
+    const r = newReport();
+    setReports((prev) => prev.concat([r]));
+    setOpenReportId(r.id);
+    setJustCreatedId(r.id);
+  }
+  function backFromReport() {
+    if (openReport && openReport.id === justCreatedId && isEmptyReport(openReport)) {
+      setReports((prev) => prev.filter((r) => r.id !== openReport.id));
+    }
+    setJustCreatedId(null);
+    setOpenReportId(null);
+  }
+  async function deleteReport(id) {
+    if (!(await confirm('למחוק את הדוח לצמיתות?'))) return;
+    setReports((prev) => prev.filter((r) => r.id !== id));
+  }
+  async function createFollowUpReport(id) {
+    const source = reports.find((r) => r.id === id);
+    if (!source) return;
+    const openCount = source.tasks.filter((t) => t.status !== 'closed').length;
+    const message = openCount > 0
+      ? `ליצור דוח המשך המבוסס על "${reportTitle(source)}"? ${openCount} משימות פתוחות יועברו אליו.`
+      : `ליצור דוח המשך המבוסס על "${reportTitle(source)}"? אין בו כרגע משימות פתוחות להעברה.`;
+    if (!(await confirm(message, { confirmLabel: 'יצירה', danger: false }))) return;
+    const r = buildFollowUpReport(source);
+    setReports((prev) => prev.concat([r]));
+    setOpenReportId(r.id);
+  }
+  function updateReport(next) {
+    setReports((prev) => prev.map((r) => (r.id === next.id ? { ...next, updatedAt: Date.now() } : r)));
+  }
+
+  const openReport = reports.find((r) => r.id === openReportId);
+  useBackClose(!!openReport, backFromReport);
+  const existingSiteNames = useMemo(() => {
+    const s = [];
+    reports.forEach((r) => { if (r.siteName && r.siteName.trim() && s.indexOf(r.siteName) === -1) s.push(r.siteName); });
+    return s;
+  }, [reports]);
+
+  if (openReport) {
+    return (
+      <ReportWorkspace
+        report={openReport}
+        updateReport={updateReport}
+        existingSiteNames={existingSiteNames}
+        onBack={backFromReport}
+        saveState={saveState}
+      />
+    );
+  }
+
+  return (
+    <HomeScreen
+      reports={reports}
+      onOpen={setOpenReportId}
+      onCreate={createReport}
+      onDelete={deleteReport}
+      onFollowUp={createFollowUpReport}
+      cloud={cloud}
+    />
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<DialogProvider><App /></DialogProvider>);
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('./sw.js').catch(function () {});
+  });
+}
+</script>
+</body>
+</html>

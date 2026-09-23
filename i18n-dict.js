@@ -1948,7 +1948,8 @@ Object.assign(HE_EN, {
 "הפרופיל לא נשמר — בדוק שהשרת המקומי פועל ונסה שוב": "The profile was not saved — check that the local server is running and try again",
 "כניסה": "Sign in",
 "רמת הרשאה": "Permission level",
-"רמת ההרשאה נקבעת על ידי Super Admin בלבד": "Only a Super Admin can set the permission level"
+"רמת ההרשאה נקבעת על ידי Super Admin בלבד": "Only a Super Admin can set the permission level",
+"מ- ": "from "
 });
 
 window.I18N_HE_EN = HE_EN;

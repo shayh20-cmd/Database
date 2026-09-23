@@ -36,6 +36,17 @@ if (!HE_EN) {
 var lang = 'he';
 try { lang = localStorage.getItem(LS_KEY) === 'en' ? 'en' : 'he'; } catch (e) {}
 
+/* A page may pin its language by setting window.I18N_FORCE_LANG before this
+   script loads. Used by project_hub.en.html, which is an English-only copy.
+   Deliberately does NOT write localStorage: these pages share an origin, so
+   persisting the choice here would silently flip the Hebrew originals too.
+   A pinned page gets no toggle button — there is nothing to toggle to. */
+var pinned = false;
+if (window.I18N_FORCE_LANG === 'en' || window.I18N_FORCE_LANG === 'he') {
+  lang = window.I18N_FORCE_LANG;
+  pinned = true;
+}
+
 var RX = null;
 function buildRegex() {
   var keys = Object.keys(HE_EN).sort(function (a, b) { return b.length - a.length; });
@@ -46,10 +57,18 @@ function tr(s) {
   return s.replace(RX, function (m) { return HE_EN.hasOwnProperty(m) ? HE_EN[m] : m; });
 }
 
+/* A page holding only demo data may ask for that data to be translated too, by
+   setting window.I18N_TRANSLATE_USER_DATA before this script loads. Used by
+   project_hub.en.html, whose task titles and project names are seed content
+   rather than anything a person typed. Never set this on a page with real data:
+   a project somebody named in Hebrew is a proper noun. */
+var SKIP_SEL = '#lang-toggle,[data-i18n-skip],[contenteditable="true"],script,style' +
+  (window.I18N_TRANSLATE_USER_DATA ? '' : ',' + USER_DATA_SEL);
+
 function skip(node) {
   var el = node.nodeType === 3 ? node.parentElement : node;
   if (!el) return false;
-  if (el.closest && el.closest('#lang-toggle,[data-i18n-skip],[contenteditable="true"],script,style,' + USER_DATA_SEL)) return true;
+  if (el.closest && el.closest(SKIP_SEL)) return true;
   var tag = el.tagName;
   return tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT';
 }
@@ -194,7 +213,7 @@ function startObserver() {
 function boot() {
   buildRegex();
   applyDir();
-  makeButton();
+  if (!pinned) makeButton();
   applyTitle();
   walk(document.body);
   startObserver();
