@@ -280,10 +280,14 @@ function listSheetsOfTrack(doc, trackId){
     .sort((a,b) => rank(a.id) - rank(b.id));
 }
 function defaultLocation(doc){
-  // a loose task belongs in the no-track list sheet — "משימות שוטפות"
-  const sheet = ((doc||{}).sheets||[]).find(s => s.type === 'list' && sameTrack(s.track, null));
+  // a loose task belongs in the no-track list sheet — "משימות שוטפות".
+  // A project without one (its list moved into a track) falls back to the first
+  // track that has a list sheet, or the window opens on a track that can't save.
   const tracks = (doc||{}).tracks || [];
-  const track = tracks.find(t => sameTrack(t.trackValue, null)) || tracks[0];
+  const loose = tracks.find(t => sameTrack(t.trackValue, null));
+  const track = [loose].concat(tracks).find(t => t && listSheetsOfTrack(doc, t.id).length)
+             || loose || tracks[0];
+  const sheet = track ? listSheetsOfTrack(doc, track.id)[0] : null;
   return { trackId: track ? track.id : null, stageId: sheet ? sheet.id : null };
 }
 function locateTask(doc, taskId){

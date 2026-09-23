@@ -279,6 +279,7 @@ function principalFrom(req) {
 // The two translation files the pages load are allowed by exact name; no other script is.
 const CLOUD_PAGE = /^\/[A-Za-z0-9_-]+(\.html)?$/;
 const CLOUD_ASSETS = new Set(['/i18n.js', '/i18n-dict.js']);
+const LOGIN_PAGES = new Set(['/login', '/login.html']);
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
@@ -300,11 +301,15 @@ const server = http.createServer((req, res) => {
   }
   if (!healthy) { sendJson(res, 503, { error: 'Not serving; see /health' }); return; }
 
+  /* Easy Auth lets anonymous requests through (AllowAnonymous), so this is the gate. A visitor
+     who is not signed in gets only the sign-in page, whose button starts Microsoft sign-in. */
   const user = principalFrom(req);
   if (!user) {
     if (url.pathname.startsWith('/api/')) { sendJson(res, 401, { error: 'Sign in required' }); return; }
-    redirect(res, '/.auth/login/aad?post_login_redirect_uri=' + encodeURIComponent(url.pathname + url.search));
-    return;
+    if (!LOGIN_PAGES.has(url.pathname)) {
+      redirect(res, '/login?next=' + encodeURIComponent(url.pathname + url.search));
+      return;
+    }
   }
 
   if (url.pathname === '/api/me') { sendJson(res, 200, { name: user.name, email: user.email, mode: SITE_MODE }); return; }
@@ -331,8 +336,9 @@ const server = http.createServer((req, res) => {
   const attMatch = url.pathname.match(ATTACH_ROUTE);
   if (attMatch) { handleAttachment(res, attMatch[1], attMatch[2], attMatch[3]); return; }
 
+  // index.html sends the GitHub Pages root to Site Note; this server's root is Project Hub
+  if (url.pathname === '/') { redirect(res, '/project_hub_01'); return; }
   if (SITE_MODE === 'cloud') {
-    if (url.pathname === '/') { redirect(res, '/project_hub_01'); return; }
     if (!CLOUD_PAGE.test(url.pathname) && !CLOUD_ASSETS.has(url.pathname)) { sendJson(res, 404, { error: 'Not found' }); return; }
   }
   // Local dev server: tell browsers to always revalidate so edited HTML/JS/CSS never

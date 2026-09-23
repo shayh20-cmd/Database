@@ -35,6 +35,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 function makeSite() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-site-'));
   fs.writeFileSync(path.join(root, 'project_hub_01.html'), '<!doctype html><title>hub</title>');
+  fs.writeFileSync(path.join(root, 'login.html'), '<!doctype html><title>login</title>');
   fs.writeFileSync(path.join(root, 'i18n.js'), '// engine');
   fs.writeFileSync(path.join(root, 'i18n-dict.js'), '// dictionary');
   fs.writeFileSync(path.join(root, 'other.js'), '// not a page, not allowed');
@@ -109,7 +110,14 @@ test('cloud mode: sign-in gate, allowlist, redirect from /', async (t) => {
 
   const anonPage = await req('GET', '/project_hub_01.html', { port });
   assert.strictEqual(anonPage.status, 302);
-  assert.ok(anonPage.headers.location.startsWith('/.auth/login/aad?post_login_redirect_uri='), anonPage.headers.location);
+  assert.strictEqual(anonPage.headers.location, '/login?next=%2Fproject_hub_01.html');
+
+  const anonLogin = await req('GET', '/login', { port });
+  assert.strictEqual(anonLogin.status, 200, 'the sign-in page is the one page served without a session');
+  for (const p of ['/other.js', '/i18n.js', '/tools/local-server/server.js']) {
+    const r = await req('GET', p, { port });
+    assert.strictEqual(r.status, 302, p + ' must not be served without a session');
+  }
 
   const hdr = { 'x-ms-client-principal': principal({ name: 'דנה כהן', preferred_username: 'dana@example.com' }) };
 

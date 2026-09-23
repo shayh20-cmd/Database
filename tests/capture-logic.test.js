@@ -80,10 +80,14 @@ function listSheetsOfTrack(doc, trackId){
     .sort((a,b) => rank(a.id) - rank(b.id));
 }
 function defaultLocation(doc){
-  // a loose task belongs in the no-track list sheet — "משימות שוטפות"
-  const sheet = ((doc||{}).sheets||[]).find(s => s.type === 'list' && sameTrack(s.track, null));
+  // a loose task belongs in the no-track list sheet — "משימות שוטפות".
+  // A project without one (its list moved into a track) falls back to the first
+  // track that has a list sheet, or the window opens on a track that can't save.
   const tracks = (doc||{}).tracks || [];
-  const track = tracks.find(t => sameTrack(t.trackValue, null)) || tracks[0];
+  const loose = tracks.find(t => sameTrack(t.trackValue, null));
+  const track = [loose].concat(tracks).find(t => t && listSheetsOfTrack(doc, t.id).length)
+             || loose || tracks[0];
+  const sheet = track ? listSheetsOfTrack(doc, track.id)[0] : null;
   return { trackId: track ? track.id : null, stageId: sheet ? sheet.id : null };
 }
 function locateTask(doc, taskId){
@@ -197,6 +201,10 @@ eq(listSheetsOfTrack({},'ongoing').length, 0, 'stages: empty doc → none');
 eq(defaultLocation(DOC).trackId, 'ongoing', 'default: lands on the ongoing track');
 eq(defaultLocation(DOC).stageId, 's1', 'default: lands on משימות שוטפות');
 eq(defaultLocation({}).stageId, null, 'default: empty doc → nothing');
+// the loose list moved into a track: the ongoing track is empty, so skip it
+const MOVED = { tracks: DOC.tracks, sheets: DOC.sheets.filter(s => !sameTrack(s.track, null)) };
+eq(defaultLocation(MOVED).trackId, 'licensing', 'default: no loose list → first track with a stage');
+eq(defaultLocation(MOVED).stageId, 's3', 'default: no loose list → that track’s first stage (by stageOrder)');
 
 eq((locateTask(DOC,'t2')||{}).stageId, 's2', 'locate: finds the task’s sheet');
 eq((locateTask(DOC,'t2')||{}).trackId, 'licensing', 'locate: reports its track');

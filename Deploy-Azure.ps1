@@ -11,7 +11,8 @@ What it creates, all in one resource group:
   - a Linux App Service plan (F1, free, by default) and a Node 22 web app
   - an Entra app registration (single tenant) with a client secret, used by App Service
     authentication ("Easy Auth") to sign people in with their work account
-  - App Service authentication configured to require sign-in on every request
+  - App Service authentication, with the server letting only the sign-in page through
+    without a session
 
 The documents live under /home/data on the web app, which App Service keeps across
 restarts and deployments. See docs\azure.md.
@@ -66,6 +67,11 @@ $plan = "$Name-plan"
 $url = "https://$Name.azurewebsites.net"
 $secretSetting = "MICROSOFT_PROVIDER_AUTHENTICATION_SECRET"
 
+# Set-Content -Encoding utf8 writes a BOM on Windows PowerShell 5.1; az reads @file JSON without one.
+function Write-Utf8NoBom([string]$Path, [string]$Text) {
+    [System.IO.File]::WriteAllText($Path, $Text, (New-Object System.Text.UTF8Encoding $false))
+}
+
 function Fail($message) {
     Write-Host ""
     Write-Host $message -ForegroundColor Red
@@ -101,7 +107,9 @@ function Set-AppSettings([hashtable]$settings) {
         $payload = @($settings.GetEnumerator() | ForEach-Object {
             [pscustomobject]@{ name = $_.Key; value = $_.Value; slotSetting = $false }
         })
-        $payload | ConvertTo-Json -Depth 3 -AsArray | Set-Content -Path $file -Encoding utf8
+        # Windows PowerShell 5.1 has no ConvertTo-Json -AsArray, and unwraps a one-item array.
+        $json = '[' + (($payload | ForEach-Object { $_ | ConvertTo-Json -Depth 3 -Compress }) -join ',') + ']'
+        Write-Utf8NoBom $file $json
         $applied = Invoke-AzWithRetry {
             az webapp config appsettings set --name $Name --resource-group $ResourceGroup --settings "@$file" --output none
         }
@@ -286,17 +294,16 @@ if (-not $hasSecret) {
 Step "Applying configuration..."
 Set-AppSettings $settings
 
-# Everything but /health requires a signed-in member of the directory. /health is open so
-# the smoke check below can tell "the app is running" from "sign-in is on".
+# Anonymous requests reach the app, which is the gate: without a session it serves only
+# /health and the sign-in page (login.html, whose button starts Microsoft sign-in) and
+# answers everything else with a redirect there or a 401. The smoke check below verifies it.
 Step "App Service authentication..."
 $auth = @{
     properties = @{
         platform = @{ enabled = $true }
         globalValidation = @{
-            requireAuthentication       = $true
-            unauthenticatedClientAction = "RedirectToLoginPage"
-            redirectToProvider          = "azureactivedirectory"
-            excludedPaths               = @("/health")
+            requireAuthentication       = $false
+            unauthenticatedClientAction = "AllowAnonymous"
         }
         identityProviders = @{
             azureActiveDirectory = @{
@@ -315,7 +322,7 @@ $auth = @{
 }
 $authFile = Join-Path ([System.IO.Path]::GetTempPath()) "hub-auth-$([guid]::NewGuid()).json"
 try {
-    $auth | ConvertTo-Json -Depth 8 | Set-Content -Path $authFile -Encoding utf8
+    Write-Utf8NoBom $authFile ($auth | ConvertTo-Json -Depth 8)
     $authUrl = "https://management.azure.com/subscriptions/$subscription/resourceGroups/$ResourceGroup/providers/Microsoft.Web/sites/$Name/config/authsettingsV2?api-version=2022-03-01"
     $authApplied = Invoke-AzWithRetry { az rest --method put --url $authUrl --body "@$authFile" --output none }
     if (-not $authApplied.Success) { Fail "Could not configure authentication.`n`n$($authApplied.Output | Out-String)" }
@@ -333,7 +340,7 @@ $zip = "$stage.zip"
 try {
     Step "Packaging..."
     New-Item -ItemType Directory -Path (Join-Path $stage "tools/local-server") -Force | Out-Null
-    foreach ($f in "project_hub_01.html", "i18n.js", "i18n-dict.js") {
+    foreach ($f in "project_hub_01.html", "login.html", "i18n.js", "i18n-dict.js") {
         Copy-Item (Join-Path $root $f) $stage
     }
     foreach ($f in "server.js", "package.json", "package-lock.json") {
@@ -420,9 +427,8 @@ A 503 with a JSON body is the app itself saying what is wrong. Anything else:
 "@
 }
 
-# Asked the way a browser asks (Accept: text/html) — App Service authentication answers
-# 401 to anything else. HttpClient rather than Invoke-WebRequest, which throws on a
-# redirect it is told not to follow.
+# Without a session the app must send a page request to the sign-in page. HttpClient
+# rather than Invoke-WebRequest, which throws on a redirect it is told not to follow.
 $handler = [System.Net.Http.HttpClientHandler]::new()
 $handler.AllowAutoRedirect = $false
 $client = [System.Net.Http.HttpClient]::new($handler)
@@ -432,8 +438,15 @@ $gate = $client.GetAsync($url).GetAwaiter().GetResult()
 $status = [int]$gate.StatusCode
 $location = [string]$gate.Headers.Location
 $client.Dispose()
-if ($status -notin 301, 302 -or $location -notmatch "login\.microsoftonline\.com") {
-    Fail "The site answers, but $url did not redirect to Microsoft sign-in (got $status $location). Sign-in is NOT enforced; do not share the address."
+if ($status -notin 301, 302 -or $location -notmatch "^/login") {
+    Fail "The site answers, but $url did not redirect to the sign-in page (got $status $location). Sign-in is NOT enforced; do not share the address."
+}
+# The pages redirect; the data must refuse outright.
+$apiClient = [System.Net.Http.HttpClient]::new()
+$apiStatus = [int]$apiClient.GetAsync("$url/api/project-hub-01").GetAwaiter().GetResult().StatusCode
+$apiClient.Dispose()
+if ($apiStatus -ne 401) {
+    Fail "The site answers, but $url/api/project-hub-01 returned $apiStatus without a session instead of 401. Sign-in is NOT enforced; do not share the address."
 }
 
 Write-Host ""

@@ -16,14 +16,17 @@ The same `tools/local-server/server.js` that serves the page locally, started wi
 | | locally | on Azure |
 |---|---|---|
 | documents | `data/` in the repo | `/home/data` on the web app — kept across restarts and redeploys |
-| who you are | `LOCAL_USER_NAME` (default שי הרשקוביץ) | the signed-in Microsoft account |
-| served | every file under the root | pages only; `/health` is open, everything else needs sign-in |
+| who you are | `LOCAL_USER_NAME` (default שי הרשקוביץ) | the signed-in Microsoft account, matched by email to the office staff list |
+| served | every file under the root | pages only; `/health` and the sign-in page are open, everything else needs sign-in |
 | snipping (`/api/snip`) | works | absent |
 
 Sign-in is App Service authentication ("Easy Auth") with an app registration in the
-firm's directory. It runs in front of the server: without a session every request is
-redirected to Microsoft; with one, the server reads the name from the
-`X-MS-CLIENT-PRINCIPAL` header and signs activity-log entries with it. The server
+firm's directory. Easy Auth lets anonymous requests through, and the server is the gate: without a
+session a page request is redirected to the sign-in page (`login.html`) and an API call
+gets 401. The sign-in page's button starts Microsoft sign-in (`/.auth/login/aad`) with the
+typed email as `login_hint`. With a session, the server reads the name and email from the
+`X-MS-CLIENT-PRINCIPAL` header; the page matches the email to the staff list to know who
+you are (roles, ownership, profile), and activity-log entries are signed with the name. The server
 refuses to start in cloud mode unless App Service reports authentication on.
 
 ## Seeing each other's changes
@@ -48,7 +51,7 @@ subscription (`az login`), Node with the server's dependencies installed
 The name becomes the address and must be unique across Azure. The script creates a
 resource group `project-hub`, a free Linux plan, the web app, the app registration
 and its secret, turns sign-in on, deploys the page and the server, then checks that
-`/health` answers and `/` redirects to Microsoft. Registering the application needs an
+`/health` answers, `/` redirects to the sign-in page and the data API refuses without a session. Registering the application needs an
 account allowed to do so in the directory; if yours is not, the script says so.
 
 To start with the demo project rather than an empty one, upload the JSON from the
