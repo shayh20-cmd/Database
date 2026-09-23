@@ -336,8 +336,9 @@ const server = http.createServer((req, res) => {
   const attMatch = url.pathname.match(ATTACH_ROUTE);
   if (attMatch) { handleAttachment(res, attMatch[1], attMatch[2], attMatch[3]); return; }
 
+  // index.html sends the GitHub Pages root to Site Note; this server's root is Project Hub
+  if (url.pathname === '/') { redirect(res, '/project_hub_01'); return; }
   if (SITE_MODE === 'cloud') {
-    if (url.pathname === '/') { redirect(res, '/project_hub_01'); return; }
     if (!CLOUD_PAGE.test(url.pathname) && !CLOUD_ASSETS.has(url.pathname)) { sendJson(res, 404, { error: 'Not found' }); return; }
   }
   // Local dev server: tell browsers to always revalidate so edited HTML/JS/CSS never
