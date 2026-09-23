@@ -1411,6 +1411,27 @@ html[dir="ltr"] .sp-panel{box-shadow:-4px 0 28px rgba(0,0,0,.12);}
 html[dir="ltr"] .cal-cell.rng-first{background:linear-gradient(to left,transparent 50%,rgba(37,99,235,.1) 50%);}
 html[dir="ltr"] .cal-cell.rng-last{background:linear-gradient(to right,transparent 50%,rgba(37,99,235,.1) 50%);}
 html[dir="ltr"] .hw-resize{cursor:nwse-resize;background:linear-gradient(-45deg,transparent 45%,var(--border-strong) 45%,var(--border-strong) 55%,transparent 55%);}
+.pg-wrap{padding:24px;max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:16px;}
+.pg-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-sm);padding:18px 20px;}
+.pg-h{font-size:13px;font-weight:700;color:var(--text);margin:0 0 14px;display:flex;align-items:center;gap:6px;}
+.pg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px 18px;}
+.pg-f{display:flex;flex-direction:column;gap:5px;min-width:0;}
+.pg-wide{grid-column:1/-1;}
+.pg-lbl{font-size:11px;font-weight:700;color:var(--text-2);}
+.pg-hint{font-size:11px;color:var(--text-3);}
+.pg-ro{font-size:13px;color:var(--text);padding:7px 0;}
+.pg-select{width:100%;padding:7px 10px;font-size:13px;}
+.pg-hero{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.pg-badge{font-size:13px;padding:5px 10px;}
+.pg-hero-txt{display:flex;flex-direction:column;gap:2px;flex:1;min-width:180px;}
+.pg-hero-name{font-size:17px;font-weight:700;color:var(--text);}
+.pg-hero-sub{font-size:12px;color:var(--text-3);}
+.pg-hero-prog{display:flex;flex-direction:column;gap:6px;width:180px;}
+.pg-team{display:flex;flex-direction:column;gap:8px;}
+.pg-member{min-width:0;}
+.pg-member .pm-who{flex:1;min-width:0;}
+.pg-role{width:170px;flex:none;padding:5px 8px;font-size:12px;}
+@media (max-width:640px){.pg-wrap{padding:16px;}.pg-member{flex-wrap:wrap;}.pg-role{width:100%;}}
 </style>
 </head>
 <body>
@@ -5486,11 +5507,399 @@ function FieldsTab({data,save}){const fields=data.fields||[];const sheets=(data.
 const addField=f=>{save({...data,fields:[...fields,{...f,id:uid()}]});setAddingType(null);};const updateField=f=>{save({...data,fields:fields.map(x=>x.id===f.id?f:x)});setEditField(null);};const deleteField=id=>{save({...data,fields:fields.filter(f=>f.id!==id)});setEditField(null);};const usageCount=fieldId=>sheets.filter(s=>!(s.hiddenCols||{})[fieldId]).length;const BUILTIN_DISPLAY_TYPE={status:'single-select',priority:'single-select',tag:'single-select',timeline:'timeline',assignee:'people',text:'text'};const builtinRows=BUILTIN_FIELDS.filter(f=>BUILTIN_DISPLAY_TYPE[f.type]&&!f.locked).map(f=>({id:f.id,title:f.label,displayType:BUILTIN_DISPLAY_TYPE[f.type],isBuiltin:true,raw:f}));const customRows=fields.map(f=>({id:f.id,title:f.title,displayType:f.type,isBuiltin:false,raw:f}));const allRows=[...builtinRows,...customRows];return/*#__PURE__*/React.createElement("div",{style:{padding:'24px 20px',display:'flex',flexDirection:'column',gap:24,maxWidth:640}},/*#__PURE__*/React.createElement("div",null,/*#__PURE__*/React.createElement("div",{className:"sp-sec-lbl",style:{padding:'0 0 8px'}},"יצירת שדה חדש"),/*#__PURE__*/React.createElement("div",{style:{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:8}},FIELD_TYPES.map(ft=>/*#__PURE__*/React.createElement("button",{key:ft.id,onClick:()=>setAddingType(ft.id),style:{display:'flex',alignItems:'center',gap:8,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:'10px 12px',fontSize:12,fontFamily:'inherit',cursor:'pointer',textAlign:'start',color:'var(--text)'}},/*#__PURE__*/React.createElement("span",{style:{fontSize:14}},ft.icon),ft.label)))),/*#__PURE__*/React.createElement("div",null,/*#__PURE__*/React.createElement("div",{className:"sp-sec-lbl",style:{padding:'0 0 8px'}},"שדות הפרויקט"),allRows.length===0?/*#__PURE__*/React.createElement("div",{style:{color:'var(--text-3)',fontSize:12}},"עדיין אין שדות בפרויקט"):/*#__PURE__*/React.createElement("div",{style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,overflow:'hidden'}},allRows.map((r,i)=>/*#__PURE__*/React.createElement("div",{key:r.id,className:"sp-field-row",style:{cursor:'pointer',borderTop:i>0?'1px solid var(--border)':'none'},onClick:()=>setEditField({field:r.raw,isBuiltin:r.isBuiltin})},/*#__PURE__*/React.createElement("div",{className:"sp-ficon"},FIELD_TYPES.find(t=>t.id===r.displayType)?.icon||'○'),/*#__PURE__*/React.createElement("span",{className:"sp-fname"},r.title),/*#__PURE__*/React.createElement("span",{className:"sp-ftype"},`מוצג ב-${usageCount(r.id)}/${sheets.length} שלבים`))))),addingType&&/*#__PURE__*/React.createElement(AddFieldModal,{onSave:addField,onClose:()=>setAddingType(null),initialType:addingType}),editField&&/*#__PURE__*/React.createElement(EditFieldModal,{effLists:{priorities:data.priorities||PRIORITIES,disciplines:data.disciplines||DISCIPLINES,statuses:data.statuses||STATUSES},field:editField.isBuiltin?{...editField.field,...(data.builtinConfig?.[editField.field.id]||{})}:editField.field,isBuiltin:editField.isBuiltin,onSave:editField.isBuiltin?updated=>{save(saveBuiltinField(data,updated));setEditField(null);}:updateField,onDelete:editField.isBuiltin?null:deleteField,onClose:()=>setEditField(null)}));}/* ══════════════════════════════════════
    Template View — track/stage hierarchy editor
 ══════════════════════════════════════ */function ThemeTab(){const[activeTheme,setActiveTheme]=useState(()=>{try{return localStorage.getItem('pm_theme')||'default';}catch{return'default';}});const pick=id=>{applyTheme(id);setActiveTheme(id);};const[,forceTick]=useState(0);useEffect(()=>{const on=()=>forceTick(x=>x+1);window.addEventListener('i18n:change',on);window.addEventListener('appearance:change',on);return()=>{window.removeEventListener('i18n:change',on);window.removeEventListener('appearance:change',on);};},[]);const curLang=(window.I18N&&window.I18N.get&&window.I18N.get())||'he';const curAppearance=getAppearance();const optBtn=(active,onClick,label,skip)=>/*#__PURE__*/React.createElement("button",{onClick,style:{padding:'8px 16px',borderRadius:8,cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,border:active?'2px solid var(--accent)':'1px solid var(--border)',background:'var(--surface)',color:'var(--text)'},...(skip?{'data-i18n-skip':''}:{})},label);return/*#__PURE__*/React.createElement("div",{style:{padding:24,maxWidth:640}},/*#__PURE__*/React.createElement("div",{style:{fontSize:13,fontWeight:700,color:'var(--text)',marginBottom:4}},"ערכת צבעים"),/*#__PURE__*/React.createElement("div",{style:{fontSize:12,color:'var(--text-3)',marginBottom:16}},"בחר את עוצמת הצבע הדומיננטי בכל המערכת"),/*#__PURE__*/React.createElement("div",{style:{fontSize:13,fontWeight:700,color:'var(--text)',marginBottom:4}},"שפה"),/*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:8,marginBottom:16}},optBtn(curLang==='he',()=>{if(curLang!=='he')window.I18N&&window.I18N.toggle();},"עברית",false),optBtn(curLang==='en',()=>{if(curLang!=='en')window.I18N&&window.I18N.toggle();},"English",true)),/*#__PURE__*/React.createElement("div",{style:{fontSize:13,fontWeight:700,color:'var(--text)',marginBottom:4}},"מראה"),/*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:8,marginBottom:16}},optBtn(curAppearance==='light',()=>applyAppearance('light'),"בהיר",false),optBtn(curAppearance==='dark',()=>applyAppearance('dark'),"כהה",false)),/*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:14}},THEMES.map(th=>/*#__PURE__*/React.createElement("button",{key:th.id,onClick:()=>pick(th.id),style:{display:'flex',flexDirection:'column',alignItems:'center',gap:8,padding:'16px 20px',borderRadius:10,cursor:'pointer',fontFamily:'inherit',border:activeTheme===th.id?`2px solid ${th.vars['--accent']}`:'1px solid var(--border)',background:'var(--surface)',minWidth:130}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:4}},/*#__PURE__*/React.createElement("div",{style:{width:22,height:22,borderRadius:'50%',background:th.vars['--accent']}}),/*#__PURE__*/React.createElement("div",{style:{width:22,height:22,borderRadius:'50%',background:th.vars['--blue']}})),/*#__PURE__*/React.createElement("span",{style:{fontSize:12,fontWeight:600,color:'var(--text)'}},th.label),activeTheme===th.id?/*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:th.vars['--accent'],fontWeight:700}},"✓ פעיל"):/*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:'var(--text-3)'}},"—")))));}
+function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
+/* ══════════════════════════════════════
+   טמפלייט → כללי — the open project's own details in one place.
+   Name, code, color and visibility are mirrored into the registry so the
+   sidebar and the other projects see them. PH01 is not a registry entry, so
+   its overrides live under reg.ph01 and loadProjectRegistry lays them over it.
+══════════════════════════════════════ */
+async function syncProjectRegistry(patch) {
+  if (myOfficeRole() === 'viewer') return;
+  const r = await fetch(PROJECTS_ENDPOINT);
+  // never write the registry back from a failed read - that would wipe it
+  if (!r.ok) throw new Error('registry load failed');
+  const reg = await r.json();
+  const next = ACTIVE_PROJECT_ID === PH01_ID ? {
+    ...reg,
+    ph01: {
+      ...(reg.ph01 || {}),
+      ...patch
+    }
+  } : {
+    ...reg,
+    projects: (reg.projects || []).map(p => p.id === ACTIVE_PROJECT_ID ? {
+      ...p,
+      ...patch
+    } : p)
+  };
+  await postJson(PROJECTS_ENDPOINT, {
+    ...next,
+    _ts: Date.now()
+  });
+  const mine = MY_PROJECTS.find(p => p.id === ACTIVE_PROJECT_ID);
+  if (mine) Object.assign(mine, patch);
+}
+/* a text box that saves on blur/Enter, so one edit is one undo step */
+function GenText({
+  value,
+  onCommit,
+  className = 'af-input',
+  ...rest
+}) {
+  const [v, setV] = useState(value || '');
+  useEffect(() => setV(value || ''), [value]);
+  return /*#__PURE__*/React.createElement("input", _extends({
+    className: className,
+    value: v,
+    onChange: e => setV(e.target.value),
+    onBlur: () => {
+      if (v !== (value || '')) onCommit(v);
+    },
+    onKeyDown: e => {
+      if (e.key === 'Enter') e.target.blur();
+      if (e.key === 'Escape') setV(value || '');
+    }
+  }, rest));
+}
+function ProjectGeneralTab({
+  data,
+  save
+}) {
+  const me = MY_PROJECTS.find(p => p.id === ACTIVE_PROJECT_ID) || {};
+  const meta = data.projectMeta || {};
+  const pi = data.projectInfo || {};
+  const team = data.team || [];
+  const canManage = iManage(team);
+  const code = meta.code || me.code || '';
+  const color = meta.color || me.color || PROJECT_COLORS[0];
+  const visibility = meta.visibility || me.visibility || 'shared';
+  const status = projectStatusOf(data);
+  const statusDef = PROJECT_STATUS.find(s => s.id === status) || PROJECT_STATUS[0];
+  const start = projectStartDate(data);
+  const infoFields = data.projectInfoFields || [];
+  const startField = infoFields.find(f => f.type === 'date' && /התחלה/.test(f.label || ''));
+  const fieldMeta = data.projectFieldMeta || {};
+  const prog = projectProgress(data);
+  const [err, setErr] = useState('');
+  const [codeErr, setCodeErr] = useState('');
+  const takenCodes = useMemo(() => new Set(MY_PROJECTS.filter(p => p.id !== ACTIVE_PROJECT_ID).map(p => p.code)), []);
+  const sync = patch => syncProjectRegistry(patch).then(() => setErr('')).catch(() => setErr('השינוי נשמר בפרויקט אך לא ברשימת הפרויקטים — בדוק שהשרת המקומי פועל'));
+  const setMeta = (patch, registry) => {
+    save({
+      ...data,
+      projectMeta: {
+        ...meta,
+        ...patch
+      }
+    });
+    if (registry) sync(patch);
+  };
+  const commitName = v => {
+    const name = v.trim();
+    if (!name) return;
+    save({
+      ...data,
+      projectName: name
+    });
+    sync({
+      name
+    });
+  };
+  const commitCode = v => {
+    const c = v.trim().toUpperCase();
+    if (!c) {
+      setCodeErr('יש להזין קוד');
+      return;
+    }
+    if (takenCodes.has(c)) {
+      setCodeErr('הקוד כבר בשימוש בפרויקט אחר');
+      return;
+    }
+    setCodeErr('');
+    setMeta({
+      code: c
+    }, true);
+  };
+  const setInfo = (key, val) => save({
+    ...data,
+    projectInfo: {
+      ...pi,
+      [key]: val
+    }
+  });
+  // the start date is the custom date field the פרויקטים screen already reads
+  const setStart = date => {
+    const field = startField || {
+      id: uid(),
+      label: 'תאריך התחלה',
+      type: 'date'
+    };
+    save({
+      ...data,
+      projectInfoFields: startField ? infoFields : [...infoFields, field],
+      projectInfo: {
+        ...pi,
+        customFields: {
+          ...(pi.customFields || {}),
+          [field.id]: date
+        }
+      }
+    });
+  };
+  const managers = team.filter(m => memberAccess(m) === 'manager').length;
+  const setTeam = team => save({
+    ...data,
+    team
+  });
+  const addMember = (s, access) => {
+    if (team.some(m => m.staffId === s.id)) return;
+    setTeam([...team, {
+      id: uid(),
+      staffId: s.id,
+      name: s.name,
+      role: s.role,
+      email: s.email,
+      phone: s.phone,
+      projectRole: '',
+      access,
+      invitedAt: todayISO(),
+      invitedBy: CURRENT_USER.id
+    }]);
+  };
+  const removeMember = async m => {
+    if (!(await askConfirm(`להסיר את ${m.name} מהפרויקט?`, {
+      confirmLabel: 'הסר'
+    }))) return;
+    setTeam(team.filter(x => x.id !== m.id));
+  };
+  const infoLabel = (key, fallback) => (fieldMeta[key] || {}).label || fallback;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "pg-wrap"
+  }, /*#__PURE__*/React.createElement("section", {
+    className: "pg-card pg-hero"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "sb-proj-badge pg-badge",
+    style: {
+      background: hexBg(color),
+      color,
+      border: `1px solid ${color}40`
+    }
+  }, code || '—'), /*#__PURE__*/React.createElement("div", {
+    className: "pg-hero-txt"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pg-hero-name",
+    "data-i18n-skip": ""
+  }, data.projectName || me.name), /*#__PURE__*/React.createElement("span", {
+    className: "pg-hero-sub"
+  }, [pi.client, pi.location].filter(Boolean).join(' · ') || 'ללא לקוח ומיקום')), /*#__PURE__*/React.createElement("div", {
+    className: "pg-hero-prog",
+    title: `${prog.done} מתוך ${prog.total} משימות הושלמו`
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pg-lbl"
+  }, "\u05D4\u05EA\u05E7\u05D3\u05DE\u05D5\u05EA \xB7 ", prog.pct, "%"), /*#__PURE__*/React.createElement("span", {
+    className: "pj-bar"
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      width: prog.pct + '%',
+      background: color
+    }
+  })))), err && /*#__PURE__*/React.createElement("div", {
+    className: "np-err pj-err",
+    role: "alert"
+  }, err), /*#__PURE__*/React.createElement("section", {
+    className: "pg-card"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "pg-h"
+  }, "\u05E4\u05E8\u05D8\u05D9 \u05D4\u05E4\u05E8\u05D5\u05D9\u05E7\u05D8"), /*#__PURE__*/React.createElement("div", {
+    className: "pg-grid"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "pg-f pg-wide"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pg-lbl"
+  }, "\u05E9\u05DD \u05D4\u05E4\u05E8\u05D5\u05D9\u05E7\u05D8"), /*#__PURE__*/React.createElement(GenText, {
+    value: data.projectName || me.name,
+    onCommit: commitName,
+    "data-i18n-skip": ""
+  })), /*#__PURE__*/React.createElement("label", {
+    className: "pg-f"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pg-lbl"
+  }, "\u05E7\u05D5\u05D3"), /*#__PURE__*/React.createElement(GenText, {
+    className: "af-input np-code",
+    value: code,
+    onCommit: commitCode,
+    maxLength: 10
+  }), codeErr && /*#__PURE__*/React.createElement("span", {
+    className: "np-err"
+  }, codeErr)), /*#__PURE__*/React.createElement("label", {
+    className: "pg-f"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pg-lbl"
+  }, "\u05E1\u05D8\u05D8\u05D5\u05E1"), /*#__PURE__*/React.createElement("select", {
+    className: "pj-status pg-select",
+    value: status,
+    onChange: e => setMeta({
+      status: e.target.value
+    }),
+    style: {
+      color: statusDef.color,
+      borderColor: statusDef.color + '55',
+      background: hexBg(statusDef.color)
+    }
+  }, PROJECT_STATUS.map(s => /*#__PURE__*/React.createElement("option", {
+    key: s.id,
+    value: s.id
+  }, s.label)))), /*#__PURE__*/React.createElement("label", {
+    className: "pg-f"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pg-lbl"
+  }, "\u05EA\u05D0\u05E8\u05D9\u05DA \u05D4\u05EA\u05D7\u05DC\u05D4"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    className: "af-input",
+    value: startField && (pi.customFields || {})[startField.id] || '',
+    onChange: e => setStart(e.target.value)
+  }), start && start.derived && /*#__PURE__*/React.createElement("span", {
+    className: "pg-hint"
+  }, "\u05DC\u05D0 \u05E0\u05E7\u05D1\u05E2 \u2014 \u05D4\u05DE\u05E9\u05D9\u05DE\u05D4 \u05D4\u05DE\u05D5\u05E7\u05D3\u05DE\u05EA \u05DE\u05EA\u05D7\u05D9\u05DC\u05D4 \u05D1\u05BE", fmtDateFull(start.date))), /*#__PURE__*/React.createElement("label", {
+    className: "pg-f"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pg-lbl"
+  }, "\u05EA\u05D0\u05E8\u05D9\u05DA \u05E1\u05D9\u05D5\u05DD \u05DE\u05EA\u05D5\u05DB\u05E0\u05DF"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    className: "af-input",
+    value: meta.endDate || '',
+    onChange: e => setMeta({
+      endDate: e.target.value
+    })
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "pg-f pg-wide"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pg-lbl"
+  }, "\u05E6\u05D1\u05E2"), /*#__PURE__*/React.createElement("div", {
+    className: "np-colors"
+  }, PROJECT_COLORS.map(c => /*#__PURE__*/React.createElement("button", {
+    key: c,
+    type: "button",
+    className: 'np-swatch' + (c === color ? ' on' : ''),
+    style: {
+      background: c
+    },
+    "aria-label": c,
+    "aria-pressed": c === color,
+    onClick: () => c !== color && setMeta({
+      color: c
+    }, true)
+  })))), /*#__PURE__*/React.createElement("div", {
+    className: "pg-f pg-wide"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pg-lbl"
+  }, "\u05E0\u05E8\u05D0\u05D5\u05EA"), /*#__PURE__*/React.createElement("div", {
+    className: "np-vis"
+  }, VISIBILITY_OPTS.map(o => /*#__PURE__*/React.createElement("button", {
+    key: o.id,
+    type: "button",
+    className: 'np-vis-opt' + (visibility === o.id ? ' on' : ''),
+    disabled: !canManage,
+    title: canManage ? undefined : 'רק מנהל הפרויקט יכול לשנות נראות',
+    "aria-pressed": visibility === o.id,
+    onClick: () => visibility !== o.id && setMeta({
+      visibility: o.id
+    }, true)
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "np-vis-ic"
+  }, /*#__PURE__*/React.createElement(o.Icon, {
+    size: 14
+  })), /*#__PURE__*/React.createElement("span", {
+    className: "np-vis-txt"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "np-vis-lbl"
+  }, o.label), /*#__PURE__*/React.createElement("span", {
+    className: "np-vis-desc"
+  }, o.desc)))))))), /*#__PURE__*/React.createElement("section", {
+    className: "pg-card"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "pg-h"
+  }, "\u05E4\u05E8\u05D8\u05D9\u05DD \u05E0\u05D5\u05E1\u05E4\u05D9\u05DD"), /*#__PURE__*/React.createElement("div", {
+    className: "pg-grid"
+  }, [['client', 'לקוח'], ['location', 'מיקום'], ['phase', 'שלב'], ['area', 'שטח']].map(([key, label]) => /*#__PURE__*/React.createElement("label", {
+    key: key,
+    className: "pg-f"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pg-lbl"
+  }, infoLabel(key, label)), /*#__PURE__*/React.createElement(GenText, {
+    value: pi[key],
+    onCommit: v => setInfo(key, v.trim())
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "pg-f"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "pg-lbl"
+  }, "\u05E0\u05D5\u05E6\u05E8 \u05E2\"\u05D9"), /*#__PURE__*/React.createElement("span", {
+    className: "pg-ro"
+  }, meta.ownerName || '—', meta.createdAt ? ` · ${fmtDateFull(meta.createdAt)}` : '')))), /*#__PURE__*/React.createElement("section", {
+    className: "pg-card"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "pg-h"
+  }, "\u05E6\u05D5\u05D5\u05EA \u05D4\u05E4\u05E8\u05D5\u05D9\u05E7\u05D8 ", /*#__PURE__*/React.createElement("span", {
+    className: "pm-count"
+  }, team.length)), /*#__PURE__*/React.createElement("div", {
+    className: "pg-team"
+  }, team.length === 0 && /*#__PURE__*/React.createElement("span", {
+    className: "pj-none"
+  }, "\u05D0\u05D9\u05DF \u05E2\u05D3\u05D9\u05D9\u05DF \u05D0\u05E0\u05E9\u05D9 \u05E6\u05D5\u05D5\u05EA"), team.map(m => {
+    const acc = memberAccess(m);
+    const lastManager = acc === 'manager' && managers === 1 && !isSuperAdmin();
+    return /*#__PURE__*/React.createElement("div", {
+      key: m.id,
+      className: "pj-member pg-member"
+    }, /*#__PURE__*/React.createElement(Avatar, {
+      person: m,
+      size: 28
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "pm-who"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "pm-name",
+      "data-i18n-skip": ""
+    }, m.name), /*#__PURE__*/React.createElement("span", {
+      className: "pm-sub"
+    }, m.role || '—')), /*#__PURE__*/React.createElement(GenText, {
+      className: "af-input pg-role",
+      value: m.projectRole,
+      placeholder: "\u05EA\u05E4\u05E7\u05D9\u05D3 \u05D1\u05E4\u05E8\u05D5\u05D9\u05E7\u05D8",
+      onCommit: v => setTeam(team.map(x => x.id === m.id ? {
+        ...x,
+        projectRole: v.trim()
+      } : x))
+    }), /*#__PURE__*/React.createElement("select", {
+      className: 'pm-access pj-acc pj-acc-' + acc,
+      value: acc,
+      disabled: !canManage || lastManager,
+      title: accessBlockedTitle(canManage, lastManager),
+      onChange: e => setTeam(team.map(x => x.id === m.id ? {
+        ...x,
+        access: e.target.value
+      } : x)),
+      "aria-label": `הרשאה של ${m.name}`
+    }, PROJECT_ACCESS.map(a => /*#__PURE__*/React.createElement("option", {
+      key: a.id,
+      value: a.id
+    }, a.label))), /*#__PURE__*/React.createElement("button", {
+      className: "pm-remove pj-remove",
+      disabled: !canManage || lastManager,
+      title: removeBlockedTitle(canManage, lastManager),
+      "aria-label": `הסר את ${m.name}`,
+      onClick: () => removeMember(m)
+    }, "\xD7"));
+  }), /*#__PURE__*/React.createElement(AddMemberPicker, {
+    doc: data,
+    onAdd: addMember
+  }))));
+}
 function TemplateView({data,save,autoNavReq,onAutoNavConsumed}){const[activeTab,setActiveTab]=useState('work');useEffect(()=>{if(autoNavReq)setActiveTab('automations');},[autoNavReq]);// 'general' | 'work' | 'fields' | 'automations'
 const tracks=data.tracks||[];const sheets=data.sheets||[];const[editingTrackId,setEditingTrackId]=useState(null);const[trackNameDraft,setTrackNameDraft]=useState('');const[editingStageId,setEditingStageId]=useState(null);const[stageNameDraft,setStageNameDraft]=useState('');const[editingCategoryId,setEditingCategoryId]=useState(null);const[categoryNameDraft,setCategoryNameDraft]=useState('');const[addingTrack,setAddingTrack]=useState(false);const[newTrackDraft,setNewTrackDraft]=useState('');const[dragStage,setDragStage]=useState(null);// {trackId, sheetId}
 const renameTrack=(trackId,label)=>{if(!label.trim()){setEditingTrackId(null);return;}save({...data,tracks:tracks.map(t=>t.id===trackId?{...t,label:label.trim()}:t)});setEditingTrackId(null);};const deleteTrack=track=>{if(track.stageOrder.length)return;save({...data,tracks:tracks.filter(t=>t.id!==track.id)});};const addTrack=label=>{if(!label.trim()){setAddingTrack(false);return;}const id=uid();save({...data,tracks:[...tracks,{id,label:label.trim(),trackValue:id,stageOrder:[]}]});setAddingTrack(false);setNewTrackDraft('');};const addStage=track=>{const ns={...makeEmptySheet('שלב חדש'),track:track.trackValue};save({...data,sheets:[...sheets,ns],tracks:tracks.map(t=>t.id===track.id?{...t,stageOrder:[...t.stageOrder,ns.id]}:t)});};const deleteStage=async(track,sheetId)=>{const sheet=sheets.find(s=>s.id===sheetId);if(!(await askConfirm(`למחוק את השלב "${sheet?.name||''}"? כל המשימות בו יימחקו לצמיתות.`)))return;save({...data,sheets:sheets.filter(s=>s.id!==sheetId),tracks:tracks.map(t=>t.id===track.id?{...t,stageOrder:t.stageOrder.filter(id=>id!==sheetId)}:t)});};const renameStage=(sheetId,name)=>{if(!name.trim()){setEditingStageId(null);return;}save({...data,sheets:sheets.map(s=>s.id===sheetId?{...s,name:name.trim()}:s)});setEditingStageId(null);};const reorderStage=(track,srcId,tgtId)=>{if(srcId===tgtId)return;const order=[...track.stageOrder];const si=order.indexOf(srcId),ti=order.indexOf(tgtId);if(si===-1||ti===-1)return;order.splice(si,1);order.splice(ti,0,srcId);save({...data,tracks:tracks.map(t=>t.id===track.id?{...t,stageOrder:order}:t)});};/* ── Categories: an independent sub-division within a track, not tied to a
      specific stage/sheet (e.g. a track has stages, but also a cross-stage
-     grouping like "תשתיות" that doesn't map to any one stage). ── */const addCategory=track=>{const ns={...makeEmptySheet('קטגוריה חדשה'),track:track.trackValue};save({...data,sheets:[...sheets,ns],tracks:tracks.map(t=>t.id===track.id?{...t,categories:[...(t.categories||[]),{id:uid(),sheetId:ns.id}],stageOrder:[...t.stageOrder,ns.id]}:t)});setCategoryNameDraft(ns.name);setEditingCategoryId(ns.id);};const deleteCategory=async(track,catId)=>{const cat=(track.categories||[]).find(c=>c.id===catId);if(!cat)return;const catSheet=sheets.find(s=>s.id===cat.sheetId);if(!(await askConfirm(`למחוק את הקטגוריה "${catSheet?.name||''}"? כל המשימות בה יימחקו לצמיתות.`)))return;save({...data,sheets:sheets.filter(s=>s.id!==cat.sheetId),tracks:tracks.map(t=>t.id===track.id?{...t,categories:(t.categories||[]).filter(c=>c.id!==catId),stageOrder:t.stageOrder.filter(id=>id!==cat.sheetId)}:t)});};return/*#__PURE__*/React.createElement("div",{style:{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',borderBottom:'1px solid var(--border)',background:'var(--surface)',flexShrink:0}},[{id:'general',label:'כללי'},{id:'work',label:'סכימת עבודה'},{id:'fields',label:'שדות'},{id:'automations',label:'אוטומציות'}].map(t=>/*#__PURE__*/React.createElement("button",{key:t.id,onClick:()=>setActiveTab(t.id),style:{padding:'9px 16px',fontSize:12,fontFamily:'inherit',border:'none',cursor:'pointer',background:'none',borderBottom:'2px solid',borderBottomColor:activeTab===t.id?'var(--accent)':'transparent',fontWeight:activeTab===t.id?700:400,color:activeTab===t.id?'var(--text)':'var(--text-2)'}},t.label))),/*#__PURE__*/React.createElement("div",{style:{flex:1,overflow:'auto',background:'var(--bg)'}},activeTab==='general'&&/*#__PURE__*/React.createElement(ThemeTab,null),activeTab==='fields'&&/*#__PURE__*/React.createElement(FieldsTab,{data,save}),activeTab==='automations'&&/*#__PURE__*/React.createElement(AutomationsTab,{data:data,save:save,openReq:autoNavReq,onOpenConsumed:onAutoNavConsumed}),activeTab==='work'&&/*#__PURE__*/React.createElement("div",{style:{padding:'32px 24px',display:'flex',flexDirection:'column',alignItems:'center',gap:0}},/*#__PURE__*/React.createElement("div",{style:{background:'var(--accent)',color:'#fff',padding:'7px 16px',borderRadius:8,fontSize:12.5,fontWeight:700}},"ניהול תכנון"),/*#__PURE__*/React.createElement("div",{style:{width:1,height:14,background:'var(--border-strong)'}}),/*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:16,flexWrap:'wrap',justifyContent:'center'}},tracks.filter(t=>t.id!=='ongoing').map(track=>/*#__PURE__*/React.createElement("div",{key:track.id,style:{background:'#eef2ff',border:'1.5px solid #c7d2fe',borderRadius:10,padding:10,display:'flex',flexDirection:'column',gap:6,minWidth:160}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:6}},editingTrackId===track.id?/*#__PURE__*/React.createElement("input",{autoFocus:true,value:trackNameDraft,onChange:e=>setTrackNameDraft(e.target.value),onBlur:()=>renameTrack(track.id,trackNameDraft),onKeyDown:e=>{if(e.key==='Enter')e.target.blur();if(e.key==='Escape')setEditingTrackId(null);},style:{fontWeight:700,fontSize:12.5,border:'none',borderBottom:'1.5px solid var(--accent)',outline:'none',background:'transparent',fontFamily:'inherit',color:'#1e3a8a',flex:1,minWidth:60}}):/*#__PURE__*/React.createElement("span",{"data-i18n-skip":"",onClick:()=>{setTrackNameDraft(track.label);setEditingTrackId(track.id);},style:{fontWeight:700,fontSize:12.5,color:'#1e3a8a',cursor:'text'}},track.label),/*#__PURE__*/React.createElement("button",{onClick:()=>deleteTrack(track),disabled:track.stageOrder.length>0,title:track.stageOrder.length>0?'יש להעביר או למחוק את השלבים לפני מחיקת המסלול':'מחק מסלול',style:{background:'none',border:'none',cursor:track.stageOrder.length>0?'default':'pointer',color:track.stageOrder.length>0?'var(--border-strong)':'#94a3b8',fontSize:13,padding:0}},"✕")),track.stageOrder.filter(sheetId=>!(track.categories||[]).some(c=>c.sheetId===sheetId)).map(sheetId=>{const sheet=sheets.find(s=>s.id===sheetId);if(!sheet)return null;return/*#__PURE__*/React.createElement("div",{key:sheetId,draggable:true,onDragStart:()=>setDragStage({trackId:track.id,sheetId}),onDragOver:e=>{if(dragStage&&dragStage.trackId===track.id)e.preventDefault();},onDrop:e=>{e.preventDefault();if(dragStage&&dragStage.trackId===track.id)reorderStage(track,dragStage.sheetId,sheetId);setDragStage(null);},onDragEnd:()=>setDragStage(null),style:{background:'#fff',border:'1px solid #dbe3f5',borderRadius:6,padding:'5px 8px',fontSize:10.5,display:'flex',justifyContent:'space-between',alignItems:'center',gap:6,cursor:'grab'}},editingStageId===sheetId?/*#__PURE__*/React.createElement("input",{autoFocus:true,value:stageNameDraft,onChange:e=>setStageNameDraft(e.target.value),onBlur:()=>renameStage(sheetId,stageNameDraft),onKeyDown:e=>{if(e.key==='Enter')e.target.blur();if(e.key==='Escape')setEditingStageId(null);},style:{fontSize:10.5,border:'none',borderBottom:'1.5px solid var(--accent)',outline:'none',background:'transparent',fontFamily:'inherit',flex:1,minWidth:50}}):/*#__PURE__*/React.createElement("span",{"data-i18n-skip":"",onClick:()=>{setStageNameDraft(sheet.name);setEditingStageId(sheetId);},style:{cursor:'text'}},sheet.name),/*#__PURE__*/React.createElement("button",{onClick:()=>deleteStage(track,sheetId),style:{background:'none',border:'none',cursor:'pointer',color:'#cbd5e1',fontSize:11,padding:0}},"✕"));}),/*#__PURE__*/React.createElement("div",{onClick:()=>addStage(track),style:{color:'#6b85c4',fontSize:10,padding:3,cursor:'pointer'}},"+ הוסף שלב"),(track.categories||[]).length>0&&/*#__PURE__*/React.createElement("div",{style:{height:1,background:'#c7d2fe',margin:'2px 0'}}),(track.categories||[]).map(cat=>{const sheet=sheets.find(s=>s.id===cat.sheetId);return/*#__PURE__*/React.createElement("div",{key:cat.id,style:{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:6,padding:'5px 8px',fontSize:10.5,display:'flex',justifyContent:'space-between',alignItems:'center',gap:6}},editingCategoryId===cat.sheetId?/*#__PURE__*/React.createElement("input",{autoFocus:true,value:categoryNameDraft,onChange:e=>setCategoryNameDraft(e.target.value),onBlur:()=>{renameStage(cat.sheetId,categoryNameDraft);setEditingCategoryId(null);},onKeyDown:e=>{if(e.key==='Enter')e.target.blur();if(e.key==='Escape')setEditingCategoryId(null);},style:{fontSize:10.5,border:'none',borderBottom:'1.5px solid #f59e0b',outline:'none',background:'transparent',fontFamily:'inherit',flex:1,minWidth:50}}):/*#__PURE__*/React.createElement("span",{"data-i18n-skip":"",onClick:()=>{setCategoryNameDraft(sheet?.name||'');setEditingCategoryId(cat.sheetId);},style:{cursor:'text',color:'#9a3412',fontWeight:600,display:'flex',alignItems:'center',gap:4}},/*#__PURE__*/React.createElement("span",{style:{width:6,height:6,borderRadius:'50%',background:'#f59e0b',flexShrink:0}}),sheet?.name||''),/*#__PURE__*/React.createElement("button",{onClick:()=>deleteCategory(track,cat.id),style:{background:'none',border:'none',cursor:'pointer',color:'#fcd9a8',fontSize:11,padding:0}},"✕"));}),null)),addingTrack?/*#__PURE__*/React.createElement("input",{autoFocus:true,value:newTrackDraft,onChange:e=>setNewTrackDraft(e.target.value),onBlur:()=>addTrack(newTrackDraft),onKeyDown:e=>{if(e.key==='Enter')e.target.blur();if(e.key==='Escape'){setAddingTrack(false);setNewTrackDraft('');}},placeholder:"שם המסלול",style:{minWidth:90,border:'1.5px dashed #c7d2fe',borderRadius:10,padding:'10px 12px',fontSize:12,fontFamily:'inherit',outline:'none',background:'#fff'}}):/*#__PURE__*/React.createElement("div",{onClick:()=>setAddingTrack(true),style:{minWidth:90,border:'1.5px dashed #c7d2fe',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',color:'#94a3b8',fontSize:11,cursor:'pointer'}},"+ מסלול")))));}/* ══════════════════════════════════════
+     grouping like "תשתיות" that doesn't map to any one stage). ── */const addCategory=track=>{const ns={...makeEmptySheet('קטגוריה חדשה'),track:track.trackValue};save({...data,sheets:[...sheets,ns],tracks:tracks.map(t=>t.id===track.id?{...t,categories:[...(t.categories||[]),{id:uid(),sheetId:ns.id}],stageOrder:[...t.stageOrder,ns.id]}:t)});setCategoryNameDraft(ns.name);setEditingCategoryId(ns.id);};const deleteCategory=async(track,catId)=>{const cat=(track.categories||[]).find(c=>c.id===catId);if(!cat)return;const catSheet=sheets.find(s=>s.id===cat.sheetId);if(!(await askConfirm(`למחוק את הקטגוריה "${catSheet?.name||''}"? כל המשימות בה יימחקו לצמיתות.`)))return;save({...data,sheets:sheets.filter(s=>s.id!==cat.sheetId),tracks:tracks.map(t=>t.id===track.id?{...t,categories:(t.categories||[]).filter(c=>c.id!==catId),stageOrder:t.stageOrder.filter(id=>id!==cat.sheetId)}:t)});};return/*#__PURE__*/React.createElement("div",{style:{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',borderBottom:'1px solid var(--border)',background:'var(--surface)',flexShrink:0}},[{id:'general',label:'כללי'},{id:'work',label:'סכימת עבודה'},{id:'fields',label:'שדות'},{id:'automations',label:'אוטומציות'}].map(t=>/*#__PURE__*/React.createElement("button",{key:t.id,onClick:()=>setActiveTab(t.id),style:{padding:'9px 16px',fontSize:12,fontFamily:'inherit',border:'none',cursor:'pointer',background:'none',borderBottom:'2px solid',borderBottomColor:activeTab===t.id?'var(--accent)':'transparent',fontWeight:activeTab===t.id?700:400,color:activeTab===t.id?'var(--text)':'var(--text-2)'}},t.label))),/*#__PURE__*/React.createElement("div",{style:{flex:1,overflow:'auto',background:'var(--bg)'}},activeTab==='general'&&/*#__PURE__*/React.createElement(ProjectGeneralTab,{data:data,save:save}),activeTab==='fields'&&/*#__PURE__*/React.createElement(FieldsTab,{data,save}),activeTab==='automations'&&/*#__PURE__*/React.createElement(AutomationsTab,{data:data,save:save,openReq:autoNavReq,onOpenConsumed:onAutoNavConsumed}),activeTab==='work'&&/*#__PURE__*/React.createElement("div",{style:{padding:'32px 24px',display:'flex',flexDirection:'column',alignItems:'center',gap:0}},/*#__PURE__*/React.createElement("div",{style:{background:'var(--accent)',color:'#fff',padding:'7px 16px',borderRadius:8,fontSize:12.5,fontWeight:700}},"ניהול תכנון"),/*#__PURE__*/React.createElement("div",{style:{width:1,height:14,background:'var(--border-strong)'}}),/*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:16,flexWrap:'wrap',justifyContent:'center'}},tracks.filter(t=>t.id!=='ongoing').map(track=>/*#__PURE__*/React.createElement("div",{key:track.id,style:{background:'#eef2ff',border:'1.5px solid #c7d2fe',borderRadius:10,padding:10,display:'flex',flexDirection:'column',gap:6,minWidth:160}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center',gap:6}},editingTrackId===track.id?/*#__PURE__*/React.createElement("input",{autoFocus:true,value:trackNameDraft,onChange:e=>setTrackNameDraft(e.target.value),onBlur:()=>renameTrack(track.id,trackNameDraft),onKeyDown:e=>{if(e.key==='Enter')e.target.blur();if(e.key==='Escape')setEditingTrackId(null);},style:{fontWeight:700,fontSize:12.5,border:'none',borderBottom:'1.5px solid var(--accent)',outline:'none',background:'transparent',fontFamily:'inherit',color:'#1e3a8a',flex:1,minWidth:60}}):/*#__PURE__*/React.createElement("span",{"data-i18n-skip":"",onClick:()=>{setTrackNameDraft(track.label);setEditingTrackId(track.id);},style:{fontWeight:700,fontSize:12.5,color:'#1e3a8a',cursor:'text'}},track.label),/*#__PURE__*/React.createElement("button",{onClick:()=>deleteTrack(track),disabled:track.stageOrder.length>0,title:track.stageOrder.length>0?'יש להעביר או למחוק את השלבים לפני מחיקת המסלול':'מחק מסלול',style:{background:'none',border:'none',cursor:track.stageOrder.length>0?'default':'pointer',color:track.stageOrder.length>0?'var(--border-strong)':'#94a3b8',fontSize:13,padding:0}},"✕")),track.stageOrder.filter(sheetId=>!(track.categories||[]).some(c=>c.sheetId===sheetId)).map(sheetId=>{const sheet=sheets.find(s=>s.id===sheetId);if(!sheet)return null;return/*#__PURE__*/React.createElement("div",{key:sheetId,draggable:true,onDragStart:()=>setDragStage({trackId:track.id,sheetId}),onDragOver:e=>{if(dragStage&&dragStage.trackId===track.id)e.preventDefault();},onDrop:e=>{e.preventDefault();if(dragStage&&dragStage.trackId===track.id)reorderStage(track,dragStage.sheetId,sheetId);setDragStage(null);},onDragEnd:()=>setDragStage(null),style:{background:'#fff',border:'1px solid #dbe3f5',borderRadius:6,padding:'5px 8px',fontSize:10.5,display:'flex',justifyContent:'space-between',alignItems:'center',gap:6,cursor:'grab'}},editingStageId===sheetId?/*#__PURE__*/React.createElement("input",{autoFocus:true,value:stageNameDraft,onChange:e=>setStageNameDraft(e.target.value),onBlur:()=>renameStage(sheetId,stageNameDraft),onKeyDown:e=>{if(e.key==='Enter')e.target.blur();if(e.key==='Escape')setEditingStageId(null);},style:{fontSize:10.5,border:'none',borderBottom:'1.5px solid var(--accent)',outline:'none',background:'transparent',fontFamily:'inherit',flex:1,minWidth:50}}):/*#__PURE__*/React.createElement("span",{"data-i18n-skip":"",onClick:()=>{setStageNameDraft(sheet.name);setEditingStageId(sheetId);},style:{cursor:'text'}},sheet.name),/*#__PURE__*/React.createElement("button",{onClick:()=>deleteStage(track,sheetId),style:{background:'none',border:'none',cursor:'pointer',color:'#cbd5e1',fontSize:11,padding:0}},"✕"));}),/*#__PURE__*/React.createElement("div",{onClick:()=>addStage(track),style:{color:'#6b85c4',fontSize:10,padding:3,cursor:'pointer'}},"+ הוסף שלב"),(track.categories||[]).length>0&&/*#__PURE__*/React.createElement("div",{style:{height:1,background:'#c7d2fe',margin:'2px 0'}}),(track.categories||[]).map(cat=>{const sheet=sheets.find(s=>s.id===cat.sheetId);return/*#__PURE__*/React.createElement("div",{key:cat.id,style:{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:6,padding:'5px 8px',fontSize:10.5,display:'flex',justifyContent:'space-between',alignItems:'center',gap:6}},editingCategoryId===cat.sheetId?/*#__PURE__*/React.createElement("input",{autoFocus:true,value:categoryNameDraft,onChange:e=>setCategoryNameDraft(e.target.value),onBlur:()=>{renameStage(cat.sheetId,categoryNameDraft);setEditingCategoryId(null);},onKeyDown:e=>{if(e.key==='Enter')e.target.blur();if(e.key==='Escape')setEditingCategoryId(null);},style:{fontSize:10.5,border:'none',borderBottom:'1.5px solid #f59e0b',outline:'none',background:'transparent',fontFamily:'inherit',flex:1,minWidth:50}}):/*#__PURE__*/React.createElement("span",{"data-i18n-skip":"",onClick:()=>{setCategoryNameDraft(sheet?.name||'');setEditingCategoryId(cat.sheetId);},style:{cursor:'text',color:'#9a3412',fontWeight:600,display:'flex',alignItems:'center',gap:4}},/*#__PURE__*/React.createElement("span",{style:{width:6,height:6,borderRadius:'50%',background:'#f59e0b',flexShrink:0}}),sheet?.name||''),/*#__PURE__*/React.createElement("button",{onClick:()=>deleteCategory(track,cat.id),style:{background:'none',border:'none',cursor:'pointer',color:'#fcd9a8',fontSize:11,padding:0}},"✕"));}),null)),addingTrack?/*#__PURE__*/React.createElement("input",{autoFocus:true,value:newTrackDraft,onChange:e=>setNewTrackDraft(e.target.value),onBlur:()=>addTrack(newTrackDraft),onKeyDown:e=>{if(e.key==='Enter')e.target.blur();if(e.key==='Escape'){setAddingTrack(false);setNewTrackDraft('');}},placeholder:"שם המסלול",style:{minWidth:90,border:'1.5px dashed #c7d2fe',borderRadius:10,padding:'10px 12px',fontSize:12,fontFamily:'inherit',outline:'none',background:'#fff'}}):/*#__PURE__*/React.createElement("div",{onClick:()=>setAddingTrack(true),style:{minWidth:90,border:'1.5px dashed #c7d2fe',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',color:'#94a3b8',fontSize:11,cursor:'pointer'}},"+ מסלול")))));}/* ══════════════════════════════════════
    Principles View — עקרון תכנון sidebar page
 ══════════════════════════════════════ */function PrinciplesView({data,save,onNavigateToTasks,onOpenMeeting}){const[adding,setAdding]=useState(false);const[descDraft,setDescDraft]=useState('');const[discDraft,setDiscDraft]=useState('');const[stageDraft,setStageDraft]=useState('');const[showFullForm,setShowFullForm]=useState(false);/* Same options PrinciplesTable computes for its own per-row select — that component only gets sheets/tracks as props and does not share this scope. */const stageOptions=(data.tracks||[]).flatMap(t=>t.stageOrder.map(sheetId=>(data.sheets||[]).find(s=>s.id===sheetId)).filter(Boolean).map(s=>({sheetId:s.id,label:`${t.label} / ${s.name}`})));const principles=computePrinciples(data);const submitAdd=()=>{if(!descDraft.trim()){setAdding(false);return;}addStandalonePrinciple(data,save,descDraft.trim(),discDraft,stageDraft);setAdding(false);setDescDraft('');setDiscDraft('');setStageDraft('');};const onDeleteRow=principlesDeleteHandler(data,save);return/*#__PURE__*/React.createElement("div",{style:{flex:1,display:'flex',flexDirection:'column',overflow:'auto',padding:24,gap:16}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},/*#__PURE__*/React.createElement("h2",{style:{fontSize:15,fontWeight:700,margin:0}},"עקרון תכנון"),/*#__PURE__*/React.createElement("button",{onClick:()=>setAdding(true),style:{background:'var(--accent)',color:'#fff',border:'none',borderRadius:6,padding:'6px 14px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}},"+ הוסף עקרון")),adding&&/*#__PURE__*/React.createElement("div",{className:"principle-add-row",style:{display:'flex',gap:8,alignItems:'center',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:10}},/*#__PURE__*/React.createElement("input",{autoFocus:true,value:descDraft,onChange:e=>setDescDraft(e.target.value),placeholder:"תיאור העיקרון",style:{flex:1,border:'1px solid var(--border)',borderRadius:6,padding:'5px 8px',fontSize:12,fontFamily:'inherit'}}),/*#__PURE__*/React.createElement("button",{className:"principle-expand-btn",title:"פתח את כל הפרטים",onClick:()=>setShowFullForm(true)},"⤢"),/*#__PURE__*/React.createElement(DisciplineCell,{discipline:discDraft,onChange:setDiscDraft}),/*#__PURE__*/React.createElement("select",{value:stageDraft,onChange:e=>setStageDraft(e.target.value),style:{fontSize:12,fontFamily:'inherit',border:'1px solid var(--border)',borderRadius:4,padding:'5px 6px'}},/*#__PURE__*/React.createElement("option",{value:""},"מסלול/שלב — ללא"),stageOptions.map(o=>/*#__PURE__*/React.createElement("option",{"data-i18n-skip":"",key:o.sheetId,value:o.sheetId},o.label))),/*#__PURE__*/React.createElement("button",{onClick:submitAdd,style:{background:'var(--accent)',color:'#fff',border:'none',borderRadius:6,padding:'5px 12px',fontSize:12,cursor:'pointer',fontFamily:'inherit'}},"שמור"),/*#__PURE__*/React.createElement("button",{onClick:()=>{setAdding(false);setDescDraft('');setDiscDraft('');setStageDraft('');},style:{background:'none',border:'none',color:'var(--text-3)',fontSize:12,cursor:'pointer',fontFamily:'inherit'}},"ביטול")),/*#__PURE__*/React.createElement(PrinciplesTable,{principles:principles,onDeleteRow:onDeleteRow,onOpenSource:onNavigateToTasks,onOpenMeeting:onOpenMeeting,onEditStandalone:principlesUpdateHandler(data,save),sheets:data.sheets,tracks:data.tracks}),showFullForm&&/*#__PURE__*/React.createElement(PrincipleDetailSidebar,{principle:{description:descDraft,discipline:discDraft,stageSheetId:stageDraft,createdAt:todayISO()},isNew:true,stageOptions:stageOptions,onClose:()=>setShowFullForm(false),onCreate:(d,disc,st)=>{addStandalonePrinciple(data,save,d,disc,st);setShowFullForm(false);setAdding(false);setDescDraft('');setDiscDraft('');setStageDraft('');}}));}/* ══════════════════════════════════════
    Tender View — מסלול מכרז summary tiles + view shell (Task 6). Sheet
@@ -6136,6 +6545,7 @@ function switchProject(id, track) {
    fixed (PH01, then projects by creation) whichever project is open. */
 async function loadProjectRegistry() {
   let list = [];
+  let ph01Override = null;
   try {
     const r = await fetch(PROJECTS_ENDPOINT);
     if (r.ok) {
@@ -6144,6 +6554,7 @@ async function loadProjectRegistry() {
         ...DEFAULT_OFFICE_ROLES,
         ...(reg.officeRoles || {})
       };
+      ph01Override = reg.ph01 || null;
       applyStaffProfiles(reg.staffProfiles);
       showProfileName();
       list = (reg.projects || []).filter(p => p.visibility === 'shared' || p.ownerId === CURRENT_USER.id);
@@ -6159,6 +6570,7 @@ async function loadProjectRegistry() {
     return new Promise(() => {});
   }
   const ph01 = MY_PROJECTS.find(p => p.id === PH01_ID);
+  if (ph01Override) Object.assign(ph01, ph01Override);
   const sims = MY_PROJECTS.filter(p => p.sim);
   const real = [ph01, ...list.map(p => ({
     id: p.id,
@@ -9541,7 +9953,7 @@ if(out!==d)setData(out);
 setSaveError(false);}catch{setSaveError(true);}finally{saving.current=false;}},[]);const openFileFallback=useCallback(async()=>{if(!window.showOpenFilePicker)return;try{const[handle]=await window.showOpenFilePicker({types:[{description:'JSON',accept:{'application/json':['.json']}}]});const file=await handle.getFile();const text=await file.text();const parsed=text?JSON.parse(text):{};const d=repairPrecondsSheet(migrateData(Object.keys(parsed).length?parsed:makeDefaultData()));fileHandleRef.current=handle;setLoadError(false);timeAutoRan.current=false;setData(d);}catch{}},[]);
 const save=useCallback(nd=>{if(myOfficeRole()==='viewer'){setReadOnlyNotice(Date.now());return;}const ad=runAutomations(data,nd);const d={...ad,_ts:Date.now(),_by:CURRENT_USER_LABEL};const label=detectActionLabel(data,nd);setPastStack(p=>[...p.slice(-(MAX_HIST-1)),{snapshot:{...data},label}]);setFutureStack([]);setData(d);persist(d);},[data,persist]);/* Every 30 seconds and on focus: if someone else saved, merge their version into the screen. Not while a save is in flight or a field has focus — the next check does it. Undo is cleared: it restores whole snapshots and would quietly remove a colleague's change. */React.useEffect(()=>{const check=async()=>{if(saving.current||!baseDoc.current||fileHandleRef.current)return;const ae=document.activeElement;if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT'||ae.isContentEditable))return;try{const r=await fetch(API_ENDPOINT,{headers:serverVersion?{'If-None-Match':serverVersion}:{}});if(r.status!==200)return;const theirs=await r.json();if(!theirs||!Object.keys(theirs).length||saving.current)return;serverVersion=r.headers.get('etag')||serverVersion;setData(cur=>{const merged=mergeDocs(baseDoc.current,cur,theirs);baseDoc.current=theirs;return merged;});setPastStack([]);setFutureStack([]);setExternalNotice(theirs._by||'משתמש אחר');setTimeout(()=>setExternalNotice(''),6000);}catch{}};window.addEventListener('focus',check);const iv=setInterval(check,30000);return()=>{window.removeEventListener('focus',check);clearInterval(iv);};},[]);
 const timeAutoRan=useRef(false);React.useEffect(()=>{if(!data||timeAutoRan.current)return;timeAutoRan.current=true;const res=runTimeBasedAutomations(data);if(res.changed){const d={...res.data,_ts:Date.now()};setData(d);persist(d);}},[data,persist]);const undoTo=useCallback(steps=>{const n=Math.min(steps,pastStack.length);if(!n)return;const newPast=pastStack.slice(0,pastStack.length-n);const displaced=pastStack.slice(pastStack.length-n);// oldest→newest
-const futureEntries=[{snapshot:{...data},label:displaced[displaced.length-1].label},...displaced.slice(0,-1).reverse().map((p,i,arr)=>({snapshot:arr[i+1]?.snapshot??displaced[displaced.length-1].snapshot,label:p.label}))];const restored={...displaced[0].snapshot,_ts:Date.now()};setPastStack(newPast);setFutureStack(fut=>[...futureEntries,...fut].slice(0,MAX_HIST));setData(restored);persist(restored);},[data,pastStack,persist]);const redoTo=useCallback(steps=>{const n=Math.min(steps,futureStack.length);if(!n)return;const displaced=futureStack.slice(0,n);const newFuture=futureStack.slice(n);const pastEntries=[{snapshot:{...data},label:displaced[0].label},...displaced.slice(1).map((f,i)=>({snapshot:displaced[i].snapshot,label:f.label}))];const restored={...displaced[n-1].snapshot,_ts:Date.now()};setPastStack(p=>[...p.slice(-(MAX_HIST-n)),...pastEntries]);setFutureStack(newFuture);setData(restored);persist(restored);},[data,futureStack,persist]);React.useEffect(()=>{const handler=e=>{if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='z'){e.preventDefault();undoTo(1);}if((e.ctrlKey||e.metaKey)&&(e.shiftKey&&e.key==='z'||e.key==='y')){e.preventDefault();redoTo(1);}};document.addEventListener('keydown',handler);return()=>document.removeEventListener('keydown',handler);},[undoTo,redoTo]);const commitName=()=>{if(nameDraft.trim())save({...data,projectName:nameDraft.trim()});setEditName(false);};/* top-level track: 'overview' | 'tasks' | 'template' | one of data.tracks' ids */const[track,setTrack]=useState(()=>{try{const t=sessionStorage.getItem(PENDING_TRACK_KEY);sessionStorage.removeItem(PENDING_TRACK_KEY);return t||'home';}catch{return'home';}});const[autoNavReq,setAutoNavReq]=useState(null);const editAutomation=useCallback(ruleId=>{setAutoNavReq(ruleId?{ruleId}:{isNew:true});setTrack('template');},[]);const[taskNavReq,setTaskNavReq]=useState(null);const openTaskAt=useCallback((trackId,taskId,sheetId)=>{setTrack(trackId);setTaskNavReq({taskId,sheetId,n:Date.now()});},[]);const dataReady=!!data;useEffect(()=>{if(!dataReady)return;let req=null;try{req=JSON.parse(sessionStorage.getItem(PENDING_TASK_KEY)||'null');sessionStorage.removeItem(PENDING_TASK_KEY);}catch{}if(!req||req.projId!==ACTIVE_PROJECT_ID)return;const trackId=trackIdForSheet(data,req.sheetId);if(trackId)openTaskAt(trackId,req.taskId,req.sheetId);},[dataReady]);if(!data){return/*#__PURE__*/React.createElement("div",{style:{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,padding:40}},loadError?/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{style:{fontSize:14,color:'var(--text-2)'}},"לא ניתן להתחבר לשרת השמירה המקומי"),window.showOpenFilePicker&&/*#__PURE__*/React.createElement("button",{onClick:openFileFallback,style:{background:'var(--accent)',color:'#fff',border:'none',borderRadius:6,padding:'8px 16px',fontSize:13,cursor:'pointer',fontFamily:'inherit'}},"פתח קובץ נתונים...")):/*#__PURE__*/React.createElement("div",{style:{fontSize:14,color:'var(--text-2)'}},"טוען..."));}return/*#__PURE__*/React.createElement("div",{className:"shell"},/*#__PURE__*/React.createElement(ConfirmHost,null),readOnlyNotice?/*#__PURE__*/React.createElement("div",{role:"status",className:"ro-toast"},"צפייה בלבד — ברמת Viewer אין הרשאת עריכה"):null,saveError&&/*#__PURE__*/React.createElement("div",{style:{position:'fixed',top:0,left:0,right:0,zIndex:9999,background:'#DC2626',color:'#fff',fontSize:12,fontWeight:600,textAlign:'center',padding:'4px 0'}},"לא ניתן לשמור — השינויים האחרונים לא נשמרו"),externalNotice&&React.createElement("div",{style:{position:'fixed',top:saveError?22:0,left:0,right:0,zIndex:9999,background:'#2563EB',color:'#fff',fontSize:12,fontWeight:600,textAlign:'center',padding:'4px 0'}},"עודכן על ידי "+externalNotice),/*#__PURE__*/React.createElement(Sidebar,{track:track,setTrack:setTrack,tracks:data.tracks||[]}),/*#__PURE__*/React.createElement("div",{className:"app"},/*#__PURE__*/React.createElement("div",{/* office-wide pages carry no project header */className:"proj-header"+(['home','mytasks','projects','portfolio','settings'].includes(track)?' hdr-home':'')},/*#__PURE__*/React.createElement("div",{className:"proj-top"},/*#__PURE__*/React.createElement("div",{className:"proj-icon"},/*#__PURE__*/React.createElement(Ic,{n:"building",size:15})),editName?/*#__PURE__*/React.createElement("input",{className:"proj-name-input",autoFocus:true,value:nameDraft,onChange:e=>setNameDraft(e.target.value),onBlur:commitName,onKeyDown:e=>{if(e.key==='Enter')commitName();if(e.key==='Escape')setEditName(false);}}):/*#__PURE__*/React.createElement("span",{className:"proj-name",onClick:()=>{setNameDraft(data.projectName);setEditName(true);}},data.projectName),/*#__PURE__*/React.createElement("button",{className:"icon-btn",title:"מועדפים"},/*#__PURE__*/React.createElement(Ic,{n:"star"})),/*#__PURE__*/React.createElement(ProjectStatusSelect,{data:data,save:save}),/*#__PURE__*/React.createElement("div",{className:"hdr-right"},/*#__PURE__*/React.createElement(ProjectShareControls,{data:data,save:save}))),/* the project strip belongs to מבט על and the pages it links to — not to tracks, ניהול תכנון or the template */['overview','contacts','data','notes'].includes(track)&&/*#__PURE__*/React.createElement("div",{className:"sheet-tabs",style:{borderTop:'1px solid var(--border)'}},React.createElement(ProjectHeaderNav,{track:track,setTrack:setTrack}),/*#__PURE__*/React.createElement("div",{style:{marginInlineStart:'auto',display:'flex',alignItems:'center',gap:4,paddingInlineEnd:10,flexShrink:0}},/*#__PURE__*/React.createElement(UndoRedoBtn,{icon:"↩",tooltip:"ביטול",items:pastStack,disabled:!pastStack.length,onApply:()=>undoTo(1),onGoTo:undoTo}),/*#__PURE__*/React.createElement(UndoRedoBtn,{icon:"↪",tooltip:"שחזור",items:futureStack,disabled:!futureStack.length,onApply:()=>redoTo(1),onGoTo:redoTo})))),/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},track==='overview'&&/*#__PURE__*/React.createElement(OverviewPage,{data:data,save:save,onNavigateToTasks:()=>setTrack('ongoing'),onNavigateToData:()=>setTrack('data')}),track==='contacts'&&/*#__PURE__*/React.createElement(ContactsView,{data:data,save:save}),track==='data'&&/*#__PURE__*/React.createElement(ProjectDataView,{data:data,save:save}),track==='notes'&&/*#__PURE__*/React.createElement(NotepadTab,{data:data,save:save}),track==='tasks'&&/*#__PURE__*/React.createElement(NihulHubView,{data:data,save:save,onNavigateToOngoing:()=>setTrack('ongoing'),onEditAutomation:editAutomation}),(data.tracks||[]).some(t=>t.id===track)&&/*#__PURE__*/React.createElement(TrackView,{data:data,save:save,trackId:track,onEditAutomation:editAutomation,taskNavReq:taskNavReq,onTaskNavConsumed:()=>setTaskNavReq(null)}),track==='mytasks'&&/*#__PURE__*/React.createElement(MyTasksView,{data:data,save:save}),track==='home'&&/*#__PURE__*/React.createElement(HomeView,{data:data,save:save,onNavigate:setTrack,onOpenTask:openTaskAt}),track==='projects'&&/*#__PURE__*/React.createElement(ProjectsDirectoryView,{data:data,save:save}),track==='portfolio'&&/*#__PURE__*/React.createElement(PortfolioView,null),track==='settings'&&/*#__PURE__*/React.createElement(OfficeSettingsView,{data:data,save:save}),track==='template'&&/*#__PURE__*/React.createElement(TemplateView,{data:data,save:save,autoNavReq:autoNavReq,onAutoNavConsumed:()=>setAutoNavReq(null)}))));}if(isSignedOut())location.replace('login.html');else ME_READY.then(()=>loadProjectRegistry()).finally(()=>ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(App,null)));
+const futureEntries=[{snapshot:{...data},label:displaced[displaced.length-1].label},...displaced.slice(0,-1).reverse().map((p,i,arr)=>({snapshot:arr[i+1]?.snapshot??displaced[displaced.length-1].snapshot,label:p.label}))];const restored={...displaced[0].snapshot,_ts:Date.now()};setPastStack(newPast);setFutureStack(fut=>[...futureEntries,...fut].slice(0,MAX_HIST));setData(restored);persist(restored);},[data,pastStack,persist]);const redoTo=useCallback(steps=>{const n=Math.min(steps,futureStack.length);if(!n)return;const displaced=futureStack.slice(0,n);const newFuture=futureStack.slice(n);const pastEntries=[{snapshot:{...data},label:displaced[0].label},...displaced.slice(1).map((f,i)=>({snapshot:displaced[i].snapshot,label:f.label}))];const restored={...displaced[n-1].snapshot,_ts:Date.now()};setPastStack(p=>[...p.slice(-(MAX_HIST-n)),...pastEntries]);setFutureStack(newFuture);setData(restored);persist(restored);},[data,futureStack,persist]);React.useEffect(()=>{const handler=e=>{if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='z'){e.preventDefault();undoTo(1);}if((e.ctrlKey||e.metaKey)&&(e.shiftKey&&e.key==='z'||e.key==='y')){e.preventDefault();redoTo(1);}};document.addEventListener('keydown',handler);return()=>document.removeEventListener('keydown',handler);},[undoTo,redoTo]);const commitName=()=>{if(nameDraft.trim()){save({...data,projectName:nameDraft.trim()});syncProjectRegistry({name:nameDraft.trim()}).catch(()=>{});}setEditName(false);};/* top-level track: 'overview' | 'tasks' | 'template' | one of data.tracks' ids */const[track,setTrack]=useState(()=>{try{const t=sessionStorage.getItem(PENDING_TRACK_KEY);sessionStorage.removeItem(PENDING_TRACK_KEY);return t||'home';}catch{return'home';}});const[autoNavReq,setAutoNavReq]=useState(null);const editAutomation=useCallback(ruleId=>{setAutoNavReq(ruleId?{ruleId}:{isNew:true});setTrack('template');},[]);const[taskNavReq,setTaskNavReq]=useState(null);const openTaskAt=useCallback((trackId,taskId,sheetId)=>{setTrack(trackId);setTaskNavReq({taskId,sheetId,n:Date.now()});},[]);const dataReady=!!data;useEffect(()=>{if(!dataReady)return;let req=null;try{req=JSON.parse(sessionStorage.getItem(PENDING_TASK_KEY)||'null');sessionStorage.removeItem(PENDING_TASK_KEY);}catch{}if(!req||req.projId!==ACTIVE_PROJECT_ID)return;const trackId=trackIdForSheet(data,req.sheetId);if(trackId)openTaskAt(trackId,req.taskId,req.sheetId);},[dataReady]);if(!data){return/*#__PURE__*/React.createElement("div",{style:{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,padding:40}},loadError?/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{style:{fontSize:14,color:'var(--text-2)'}},"לא ניתן להתחבר לשרת השמירה המקומי"),window.showOpenFilePicker&&/*#__PURE__*/React.createElement("button",{onClick:openFileFallback,style:{background:'var(--accent)',color:'#fff',border:'none',borderRadius:6,padding:'8px 16px',fontSize:13,cursor:'pointer',fontFamily:'inherit'}},"פתח קובץ נתונים...")):/*#__PURE__*/React.createElement("div",{style:{fontSize:14,color:'var(--text-2)'}},"טוען..."));}return/*#__PURE__*/React.createElement("div",{className:"shell"},/*#__PURE__*/React.createElement(ConfirmHost,null),readOnlyNotice?/*#__PURE__*/React.createElement("div",{role:"status",className:"ro-toast"},"צפייה בלבד — ברמת Viewer אין הרשאת עריכה"):null,saveError&&/*#__PURE__*/React.createElement("div",{style:{position:'fixed',top:0,left:0,right:0,zIndex:9999,background:'#DC2626',color:'#fff',fontSize:12,fontWeight:600,textAlign:'center',padding:'4px 0'}},"לא ניתן לשמור — השינויים האחרונים לא נשמרו"),externalNotice&&React.createElement("div",{style:{position:'fixed',top:saveError?22:0,left:0,right:0,zIndex:9999,background:'#2563EB',color:'#fff',fontSize:12,fontWeight:600,textAlign:'center',padding:'4px 0'}},"עודכן על ידי "+externalNotice),/*#__PURE__*/React.createElement(Sidebar,{track:track,setTrack:setTrack,tracks:data.tracks||[]}),/*#__PURE__*/React.createElement("div",{className:"app"},/*#__PURE__*/React.createElement("div",{/* office-wide pages carry no project header */className:"proj-header"+(['home','mytasks','projects','portfolio','settings'].includes(track)?' hdr-home':'')},/*#__PURE__*/React.createElement("div",{className:"proj-top"},/*#__PURE__*/React.createElement("div",{className:"proj-icon"},/*#__PURE__*/React.createElement(Ic,{n:"building",size:15})),editName?/*#__PURE__*/React.createElement("input",{className:"proj-name-input",autoFocus:true,value:nameDraft,onChange:e=>setNameDraft(e.target.value),onBlur:commitName,onKeyDown:e=>{if(e.key==='Enter')commitName();if(e.key==='Escape')setEditName(false);}}):/*#__PURE__*/React.createElement("span",{className:"proj-name",onClick:()=>{setNameDraft(data.projectName);setEditName(true);}},data.projectName),/*#__PURE__*/React.createElement("button",{className:"icon-btn",title:"מועדפים"},/*#__PURE__*/React.createElement(Ic,{n:"star"})),/*#__PURE__*/React.createElement(ProjectStatusSelect,{data:data,save:save}),/*#__PURE__*/React.createElement("div",{className:"hdr-right"},/*#__PURE__*/React.createElement(ProjectShareControls,{data:data,save:save}))),/* the project strip belongs to מבט על and the pages it links to — not to tracks, ניהול תכנון or the template */['overview','contacts','data','notes'].includes(track)&&/*#__PURE__*/React.createElement("div",{className:"sheet-tabs",style:{borderTop:'1px solid var(--border)'}},React.createElement(ProjectHeaderNav,{track:track,setTrack:setTrack}),/*#__PURE__*/React.createElement("div",{style:{marginInlineStart:'auto',display:'flex',alignItems:'center',gap:4,paddingInlineEnd:10,flexShrink:0}},/*#__PURE__*/React.createElement(UndoRedoBtn,{icon:"↩",tooltip:"ביטול",items:pastStack,disabled:!pastStack.length,onApply:()=>undoTo(1),onGoTo:undoTo}),/*#__PURE__*/React.createElement(UndoRedoBtn,{icon:"↪",tooltip:"שחזור",items:futureStack,disabled:!futureStack.length,onApply:()=>redoTo(1),onGoTo:redoTo})))),/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},track==='overview'&&/*#__PURE__*/React.createElement(OverviewPage,{data:data,save:save,onNavigateToTasks:()=>setTrack('ongoing'),onNavigateToData:()=>setTrack('data')}),track==='contacts'&&/*#__PURE__*/React.createElement(ContactsView,{data:data,save:save}),track==='data'&&/*#__PURE__*/React.createElement(ProjectDataView,{data:data,save:save}),track==='notes'&&/*#__PURE__*/React.createElement(NotepadTab,{data:data,save:save}),track==='tasks'&&/*#__PURE__*/React.createElement(NihulHubView,{data:data,save:save,onNavigateToOngoing:()=>setTrack('ongoing'),onEditAutomation:editAutomation}),(data.tracks||[]).some(t=>t.id===track)&&/*#__PURE__*/React.createElement(TrackView,{data:data,save:save,trackId:track,onEditAutomation:editAutomation,taskNavReq:taskNavReq,onTaskNavConsumed:()=>setTaskNavReq(null)}),track==='mytasks'&&/*#__PURE__*/React.createElement(MyTasksView,{data:data,save:save}),track==='home'&&/*#__PURE__*/React.createElement(HomeView,{data:data,save:save,onNavigate:setTrack,onOpenTask:openTaskAt}),track==='projects'&&/*#__PURE__*/React.createElement(ProjectsDirectoryView,{data:data,save:save}),track==='portfolio'&&/*#__PURE__*/React.createElement(PortfolioView,null),track==='settings'&&/*#__PURE__*/React.createElement(OfficeSettingsView,{data:data,save:save}),track==='template'&&/*#__PURE__*/React.createElement(TemplateView,{data:data,save:save,autoNavReq:autoNavReq,onAutoNavConsumed:()=>setAutoNavReq(null)}))));}if(isSignedOut())location.replace('login.html');else ME_READY.then(()=>loadProjectRegistry()).finally(()=>ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(App,null)));
 </script>
 <script src="i18n-dict.js"></script>
 <script src="i18n.js"></script>
