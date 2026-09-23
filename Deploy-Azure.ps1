@@ -11,7 +11,8 @@ What it creates, all in one resource group:
   - a Linux App Service plan (F1, free, by default) and a Node 22 web app
   - an Entra app registration (single tenant) with a client secret, used by App Service
     authentication ("Easy Auth") to sign people in with their work account
-  - App Service authentication configured to require sign-in on every request
+  - App Service authentication, with the server letting only the sign-in page through
+    without a session
 
 The documents live under /home/data on the web app, which App Service keeps across
 restarts and deployments. See docs\azure.md.
@@ -332,7 +333,7 @@ $zip = "$stage.zip"
 try {
     Step "Packaging..."
     New-Item -ItemType Directory -Path (Join-Path $stage "tools/local-server") -Force | Out-Null
-    foreach ($f in "project_hub_01.html", "i18n.js", "i18n-dict.js") {
+    foreach ($f in "project_hub_01.html", "login.html", "i18n.js", "i18n-dict.js") {
         Copy-Item (Join-Path $root $f) $stage
     }
     foreach ($f in "server.js", "package.json", "package-lock.json") {
