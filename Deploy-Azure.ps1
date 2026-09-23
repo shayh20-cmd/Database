@@ -67,6 +67,11 @@ $plan = "$Name-plan"
 $url = "https://$Name.azurewebsites.net"
 $secretSetting = "MICROSOFT_PROVIDER_AUTHENTICATION_SECRET"
 
+# Set-Content -Encoding utf8 writes a BOM on Windows PowerShell 5.1; az reads @file JSON without one.
+function Write-Utf8NoBom([string]$Path, [string]$Text) {
+    [System.IO.File]::WriteAllText($Path, $Text, (New-Object System.Text.UTF8Encoding $false))
+}
+
 function Fail($message) {
     Write-Host ""
     Write-Host $message -ForegroundColor Red
@@ -102,7 +107,9 @@ function Set-AppSettings([hashtable]$settings) {
         $payload = @($settings.GetEnumerator() | ForEach-Object {
             [pscustomobject]@{ name = $_.Key; value = $_.Value; slotSetting = $false }
         })
-        $payload | ConvertTo-Json -Depth 3 -AsArray | Set-Content -Path $file -Encoding utf8
+        # Windows PowerShell 5.1 has no ConvertTo-Json -AsArray, and unwraps a one-item array.
+        $json = '[' + (($payload | ForEach-Object { $_ | ConvertTo-Json -Depth 3 -Compress }) -join ',') + ']'
+        Write-Utf8NoBom $file $json
         $applied = Invoke-AzWithRetry {
             az webapp config appsettings set --name $Name --resource-group $ResourceGroup --settings "@$file" --output none
         }
@@ -315,7 +322,7 @@ $auth = @{
 }
 $authFile = Join-Path ([System.IO.Path]::GetTempPath()) "hub-auth-$([guid]::NewGuid()).json"
 try {
-    $auth | ConvertTo-Json -Depth 8 | Set-Content -Path $authFile -Encoding utf8
+    Write-Utf8NoBom $authFile ($auth | ConvertTo-Json -Depth 8)
     $authUrl = "https://management.azure.com/subscriptions/$subscription/resourceGroups/$ResourceGroup/providers/Microsoft.Web/sites/$Name/config/authsettingsV2?api-version=2022-03-01"
     $authApplied = Invoke-AzWithRetry { az rest --method put --url $authUrl --body "@$authFile" --output none }
     if (-not $authApplied.Success) { Fail "Could not configure authentication.`n`n$($authApplied.Output | Out-String)" }
