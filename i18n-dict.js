@@ -1936,7 +1936,19 @@ Object.assign(HE_EN, {
 "כהה": "Dark",
 "החלף שפה": "Switch language",
 "מצב כהה": "Dark mode",
-"מצב בהיר": "Light mode"
+"מצב בהיר": "Light mode",
+"הפרופיל שלי": "My profile",
+"התנתקות": "Sign out",
+"שם פרטי *": "First name *",
+"שם משפחה": "Last name",
+"טלפון משרד": "Office phone",
+"טלפון נייד": "Mobile phone",
+"יש להזין שם פרטי": "Enter a first name",
+"כתובת המייל אינה תקינה": "The email address is not valid",
+"הפרופיל לא נשמר — בדוק שהשרת המקומי פועל ונסה שוב": "The profile was not saved — check that the local server is running and try again",
+"כניסה": "Sign in",
+"רמת הרשאה": "Permission level",
+"רמת ההרשאה נקבעת על ידי Super Admin בלבד": "Only a Super Admin can set the permission level"
 });
 
 window.I18N_HE_EN = HE_EN;

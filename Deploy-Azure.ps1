@@ -286,17 +286,16 @@ if (-not $hasSecret) {
 Step "Applying configuration..."
 Set-AppSettings $settings
 
-# Everything but /health requires a signed-in member of the directory. /health is open so
-# the smoke check below can tell "the app is running" from "sign-in is on".
+# Anonymous requests reach the app, which is the gate: without a session it serves only
+# /health and the sign-in page (login.html, whose button starts Microsoft sign-in) and
+# answers everything else with a redirect there or a 401. The smoke check below verifies it.
 Step "App Service authentication..."
 $auth = @{
     properties = @{
         platform = @{ enabled = $true }
         globalValidation = @{
-            requireAuthentication       = $true
-            unauthenticatedClientAction = "RedirectToLoginPage"
-            redirectToProvider          = "azureactivedirectory"
-            excludedPaths               = @("/health")
+            requireAuthentication       = $false
+            unauthenticatedClientAction = "AllowAnonymous"
         }
         identityProviders = @{
             azureActiveDirectory = @{
@@ -420,9 +419,8 @@ A 503 with a JSON body is the app itself saying what is wrong. Anything else:
 "@
 }
 
-# Asked the way a browser asks (Accept: text/html) — App Service authentication answers
-# 401 to anything else. HttpClient rather than Invoke-WebRequest, which throws on a
-# redirect it is told not to follow.
+# Without a session the app must send a page request to the sign-in page. HttpClient
+# rather than Invoke-WebRequest, which throws on a redirect it is told not to follow.
 $handler = [System.Net.Http.HttpClientHandler]::new()
 $handler.AllowAutoRedirect = $false
 $client = [System.Net.Http.HttpClient]::new($handler)
@@ -432,8 +430,15 @@ $gate = $client.GetAsync($url).GetAwaiter().GetResult()
 $status = [int]$gate.StatusCode
 $location = [string]$gate.Headers.Location
 $client.Dispose()
-if ($status -notin 301, 302 -or $location -notmatch "login\.microsoftonline\.com") {
-    Fail "The site answers, but $url did not redirect to Microsoft sign-in (got $status $location). Sign-in is NOT enforced; do not share the address."
+if ($status -notin 301, 302 -or $location -notmatch "^/login") {
+    Fail "The site answers, but $url did not redirect to the sign-in page (got $status $location). Sign-in is NOT enforced; do not share the address."
+}
+# The pages redirect; the data must refuse outright.
+$apiClient = [System.Net.Http.HttpClient]::new()
+$apiStatus = [int]$apiClient.GetAsync("$url/api/project-hub-01").GetAwaiter().GetResult().StatusCode
+$apiClient.Dispose()
+if ($apiStatus -ne 401) {
+    Fail "The site answers, but $url/api/project-hub-01 returned $apiStatus without a session instead of 401. Sign-in is NOT enforced; do not share the address."
 }
 
 Write-Host ""

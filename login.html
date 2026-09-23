@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project Hub · כניסה</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy-900:#0a2540; --blue-800:#12478f; --blue-700:#1450a3; --blue-600:#1d63c9; --blue-500:#2f7be0;
+  --sky-400:#4fa3f0; --sky-300:#7cc4f5; --sky-100:#e3effc; --sky-50:#f3f8fe; --white:#ffffff;
+  --ink:#0f2744; --muted:#5b7190; --line:#c9dcf2; --danger:#c62f3b;
+  --radius-sm:8px; --radius-lg:18px; --radius-pill:999px;
+  --shadow-card:0 30px 60px -20px rgba(10,37,64,.28), 0 8px 20px -8px rgba(10,37,64,.12);
+  --font:"Heebo", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{font-family:var(--font);color:var(--ink);background:#e9f2fc;overflow-x:hidden;
+  display:flex;align-items:center;justify-content:center;min-height:100vh;padding:32px 16px}
+
+/* ---------- background ---------- */
+.bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.bg .grid{position:absolute;inset:-80px;opacity:.55;
+  background-image:linear-gradient(rgba(29,99,201,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(29,99,201,.07) 1px,transparent 1px),
+    linear-gradient(rgba(29,99,201,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(29,99,201,.035) 1px,transparent 1px);
+  background-size:80px 80px,80px 80px,16px 16px,16px 16px}
+@keyframes drift{to{transform:translate(80px,80px)}}
+.bg svg{position:absolute;inset:0;width:100%;height:100%}
+.bg .wave1{fill:#1d63c9;opacity:.10}
+.bg .wave2{fill:#4fa3f0;opacity:.12}
+.bg .dim{stroke:#1d63c9;stroke-opacity:.18;stroke-width:1;fill:none;stroke-dasharray:6 6}
+@keyframes sway1{to{transform:translate(-40px,20px) rotate(-4deg) scale(1.04)}}
+@keyframes sway2{to{transform:translate(50px,-30px) rotate(5deg)}}
+@keyframes dash{to{stroke-dashoffset:-240}}
+
+/* ---------- logo ---------- */
+.lockup{direction:ltr;display:inline-flex;align-items:center;gap:.42em;line-height:1}
+.lockup .mark{width:1.9em;height:1.9em;flex:none;overflow:visible}
+.lockup .word{font-weight:300;letter-spacing:.14em;font-size:1em;color:var(--navy-900);white-space:nowrap}
+.lockup .word b{font-weight:800;letter-spacing:.08em;color:var(--blue-600)}
+.mark .f-top{fill:var(--sky-300)} .mark .f-left{fill:var(--blue-600)} .mark .f-right{fill:var(--navy-900)}
+.mark .node{fill:#fff;stroke:var(--blue-600);stroke-width:2.4}
+.mark .outline{fill:none;stroke:var(--blue-600);stroke-width:1.4;stroke-linejoin:round;opacity:0}
+
+/* intro */
+.intro{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:#e9f2fc;
+  transition:background-color .7s ease}
+.intro .lockup{font-size:44px;transform-origin:0 0;transition:transform .8s cubic-bezier(.65,0,.25,1)}
+.intro .outline{opacity:1;stroke-dasharray:180;stroke-dashoffset:180;animation:draw 1.1s .1s cubic-bezier(.6,0,.3,1) forwards,fadeOut .5s 1.5s forwards}
+.intro .face{transform-box:view-box;transform-origin:32px 31.8px;transform:scale(0);opacity:0;animation:pop .55s cubic-bezier(.3,1.5,.5,1) forwards}
+.intro .f-top{animation-delay:.75s}.intro .f-left{animation-delay:.9s}.intro .f-right{animation-delay:1.05s}
+.intro .node{transform-box:fill-box;transform-origin:center;transform:scale(0);animation:pop .45s 1.3s cubic-bezier(.3,1.8,.5,1) forwards}
+.intro .word span{display:inline-block;opacity:0;transform:translateY(.35em);animation:letter .45s cubic-bezier(.2,.8,.2,1) forwards;animation-delay:calc(1.45s + var(--i) * 45ms)}
+.intro .tag{position:absolute;top:calc(50% + 70px);font-size:14px;color:var(--muted);letter-spacing:.02em;opacity:0;animation:fadeIn .6s 2s forwards}
+.intro.fly{background-color:rgba(233,242,252,0);pointer-events:none}
+.intro.fly .tag{opacity:0;animation:none;transition:opacity .2s}
+.intro.gone{display:none}
+.intro .skip{position:absolute;bottom:24px;inset-inline-start:24px;background:none;border:0;color:var(--muted);font:inherit;font-size:13px;cursor:pointer;opacity:.8}
+.intro.fly .skip{display:none}
+@keyframes draw{to{stroke-dashoffset:0}}
+@keyframes fadeOut{to{opacity:0}}
+@keyframes fadeIn{to{opacity:1}}
+@keyframes pop{to{transform:scale(1);opacity:1}}
+@keyframes letter{to{opacity:1;transform:none}}
+
+/* ---------- card ---------- */
+.card{position:relative;z-index:1;width:min(1000px,100%);min-height:600px;background:var(--white);border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-card);display:grid;grid-template-columns:1.12fr 1fr;overflow:hidden;
+  opacity:0;transform:translateY(24px) scale(.985);transition:opacity .8s ease,transform .9s cubic-bezier(.2,.8,.2,1)}
+.shown .card{opacity:1;transform:none}
+.card .shape{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.card .shape .main{fill:var(--blue-600)}
+.card .shape .glass{fill:#fff;opacity:.12}
+
+.hero{position:relative;color:#fff;padding:40px 36px 34px;display:flex;flex-direction:column;justify-content:flex-end;min-height:600px}
+.welcome{position:absolute;top:34px;inset-inline-start:26px;writing-mode:vertical-rl;font-weight:800;font-size:64px;letter-spacing:.04em;
+  line-height:1;color:#fff;opacity:.28;direction:ltr;user-select:none}
+.illus{position:absolute;top:62px;left:-4%;width:86%;height:auto;overflow:visible}
+.hero .tagline{position:relative;font-size:14px;letter-spacing:.06em;font-weight:500;max-width:300px;line-height:1.5}
+.hero .tagline small{display:block;font-weight:300;opacity:.85;letter-spacing:.02em;font-size:13px}
+
+.form-side{position:relative;padding:44px 48px 30px;padding-inline-start:40px;padding-inline-end:52px;display:flex;flex-direction:column}
+.form-side .brand{font-size:21px;align-self:flex-start}
+.form-side .brand.pending{visibility:hidden}
+.form-side h1{margin-top:52px;font-size:30px;font-weight:800;color:var(--blue-600);letter-spacing:-.01em}
+.form-side .sub{margin-top:6px;color:var(--muted);font-size:15px}
+form{margin-top:34px;display:flex;flex-direction:column;gap:26px}
+.field label{display:block;font-size:14px;font-weight:500;color:var(--blue-700);margin-bottom:4px}
+.field .ctl{position:relative;display:flex;align-items:center;border-bottom:1.5px solid var(--line);transition:border-color .2s}
+.field .ctl:focus-within{border-color:var(--blue-600)}
+.field .ctl::after{content:"";position:absolute;bottom:-1.5px;right:0;height:2px;width:0;background:var(--blue-600);transition:width .35s ease}
+.field .ctl:focus-within::after{width:100%}
+.field input{flex:1;border:0;outline:0;background:transparent;font:inherit;font-size:16px;color:var(--ink);padding:9px 0 9px 8px;min-width:0}
+.field input::placeholder{color:#9db0c9}
+.field input[type=email]{direction:ltr;text-align:right}
+.field input[type=email]:not(:placeholder-shown){text-align:left}
+.field .ico{width:20px;height:20px;color:var(--sky-400);flex:none}
+.field .eye{background:none;border:0;padding:4px;cursor:pointer;color:var(--muted);display:flex;border-radius:6px}
+.field .eye:focus-visible{outline:2px solid var(--blue-600)}
+.field .err{font-size:13px;color:var(--danger);margin-top:6px;min-height:0;display:none}
+.field.invalid .ctl{border-color:var(--danger)} .field.invalid .err{display:block}
+
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:-6px}
+.check{display:inline-flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;color:var(--ink);user-select:none}
+.check input{position:absolute;opacity:0;width:1px;height:1px}
+.check .box{width:20px;height:20px;border-radius:6px;border:1.5px solid #9dbbe0;display:grid;place-items:center;transition:all .2s;background:#fff}
+.check .box svg{width:13px;height:13px;stroke:#fff;stroke-width:3;fill:none;stroke-dasharray:20;stroke-dashoffset:20;transition:stroke-dashoffset .25s .05s}
+.check input:checked + .box{background:var(--blue-600);border-color:var(--blue-600)}
+.check input:checked + .box svg{stroke-dashoffset:0}
+.check input:focus-visible + .box{outline:2px solid var(--blue-600);outline-offset:2px}
+.link{color:var(--blue-600);font-size:14px;font-weight:500;text-decoration:none}
+.link:hover{text-decoration:underline}
+
+.btn{margin-top:6px;height:52px;border:0;border-radius:var(--radius-pill);background:var(--blue-600);color:#fff;font:inherit;font-size:17px;font-weight:700;
+  cursor:pointer;box-shadow:0 12px 24px -10px rgba(29,99,201,.65);transition:transform .15s,box-shadow .2s,background .2s;position:relative;overflow:hidden}
+.btn:hover{background:var(--blue-700);transform:translateY(-1px)}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible{outline:3px solid var(--sky-300);outline-offset:3px}
+.btn .spin{display:none;width:20px;height:20px;border:2.5px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;margin:auto}
+.btn.loading .lbl{display:none}.btn.loading .spin{display:block}
+.btn.done{background:#177a52}
+.btn .lbl{display:inline-flex;align-items:center;justify-content:center;gap:10px}
+.btn .ms{width:18px;height:18px;flex:none}
+.mode-note{margin-top:-12px;font-size:13px;color:var(--muted);text-align:center}
+.mode-note[hidden]{display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.foot{margin-top:auto;padding-top:28px;display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--muted)}
+.foot nav{display:flex;gap:18px}
+
+/* illustration motion */
+.illus .rise{opacity:0}
+.ready .illus .rise{transform-box:fill-box;transform-origin:50% 100%;animation:rise .9s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--d) + .15s)}
+.ready .illus .laptop{animation-name:riseLap}
+@keyframes rise{from{opacity:0;transform:translateY(40px) scale(.6)}to{opacity:1;transform:none}}
+@keyframes riseLap{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:none}}
+@keyframes bob{50%{transform:translateY(-9px)}}
+@keyframes swing{0%,100%{transform:rotate(2.5deg)}50%{transform:rotate(-2.5deg)}}
+.illus{--c-top:#eaf3fd;--c-r:#b9d6f6;--c-l:#8ebcef;}
+.illus polygon,.illus ellipse,.illus circle{stroke:#0b3a78;stroke-opacity:.18;stroke-width:.6;stroke-linejoin:round}
+.illus .t{fill:#f4f9ff}.illus .r{fill:#cfe3fa}.illus .l{fill:#a9cdf5}
+.illus .tb{fill:#e3effd}.illus .rb{fill:#8fc0f2}.illus .lb{fill:#5d9fe6}
+.illus .t2{fill:#2f7be0}.illus .r2{fill:#1d63c9}.illus .l2{fill:#1450a3}
+.illus .win{fill:#1d63c9;fill-opacity:.55;stroke:none}.illus .win-r{fill-opacity:.35}
+.illus .deck{fill:#f7fbff}.illus .deck-r{fill:#c6dcf5}.illus .deck-l{fill:#a4c6ee}
+.illus .kbd{fill:#e2edfa}.illus .kbd-l{stroke:#b6cfee;stroke-width:.8}
+.illus .pad{fill:#e8f1fc}
+.illus .lid{fill:#dbe9fa}.illus .lid-t{fill:#eef5fe}.illus .lid-r{fill:#b9d3f2}
+.illus .screen{fill:#0e3a74}
+.illus .ui-bar{fill:#1d63c9}.illus .ui-side{fill:#12478f}.illus .ui-card{fill:#1a56a8}
+.illus .ui-line{stroke:#6fb0f3;stroke-width:1.4;stroke-linecap:round}
+.illus .ui-grid{stroke:#4fa3f0;stroke-width:.8;stroke-opacity:.7}
+.illus .bp{fill:#0f3f80}.illus .bp-edge{fill:#0a2d5e}
+.illus .bp-l{stroke:#fff;stroke-width:1.6;stroke-linecap:square}.illus .bp-dim{stroke:#bfe0ff;stroke-width:.8;stroke-dasharray:3 2}
+.illus .panel{fill:#fff}.illus .panel-edge{fill:#b9d3f2}
+.illus .bar{fill:#8ebcef}.illus .bar-hi{fill:#1d63c9}
+.illus .trend{fill:none;stroke:#0a2540;stroke-width:1.4;stroke-linejoin:round}
+.illus .pie{fill:#fff}.illus .pie-edge{fill:#b9d3f2}.illus .pie-slice{fill:#1d63c9}.illus .pie-slice2{fill:#8ebcef}
+.illus .crane-t{fill:#fff}.illus .crane-r{fill:#4fa3f0}.illus .crane-l{fill:#2f7be0}
+.illus .lattice{stroke:#fff;stroke-width:.7;stroke-opacity:.8}
+.illus .cable{stroke:#0a2540;stroke-width:.8;stroke-opacity:.6}
+.illus .trunk{stroke:#1450a3;stroke-width:2.2;stroke-linecap:round}
+.illus .crown{fill:#7cc4f5}.illus .crown-hl{fill:none;stroke:#fff;stroke-width:1.6;stroke-linecap:round;stroke-opacity:.8}
+.illus .shadow{fill:#0a2540;fill-opacity:.12;stroke:none}
+.illus .gshadow{fill:#0a2540;fill-opacity:.14;stroke:none}
+.illus .bp-edge2{fill:#082449}
+.illus .load-t{fill:#fff}.illus .load-r{fill:#7cc4f5}.illus .load-l{fill:#4fa3f0}
+
+.illus .jib-top{fill:#fff}.illus .jib-side{fill:#2f7be0}.illus .jib-lat{stroke:#fff;stroke-width:.7;stroke-opacity:.75}
+.illus .cw-top{fill:#2f7be0}.illus .cw-side{fill:#1450a3}
+.illus .trolley{fill:#0a2540}.illus .hookc{stroke:#0a2540;stroke-width:.9;stroke-opacity:.7}
+.illus .hk{fill:none;stroke:#0a2540;stroke-width:1.6;stroke-linecap:round}
+
+
+/* ---------- responsive ---------- */
+@media (max-width:860px){
+  body{padding:0;align-items:stretch}
+  .card{grid-template-columns:1fr;border-radius:0;min-height:100vh}
+  .card .shape{display:none}
+  .hero{background:var(--blue-600);min-height:0;padding:20px 16px 22px;justify-content:flex-start;overflow:hidden}
+  .welcome{writing-mode:horizontal-tb;font-size:40px;top:16px;inset-inline-start:auto;left:16px}
+  .illus{position:relative;top:auto;left:auto;display:block;width:min(330px,88%);margin:52px auto 0}
+  .hero .tagline{display:none}
+  .form-side{padding:28px 16px 20px}
+  .form-side h1{margin-top:28px;font-size:26px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+</style>
+</head>
+<body>
+
+<div class="bg" aria-hidden="true">
+  <div class="grid"></div>
+  <svg viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice">
+    <path class="wave2" d="M-100,760 C200,600 420,880 760,760 C1040,660 1180,820 1540,700 L1540,1000 L-100,1000 Z"/>
+    <path class="wave1" d="M820,-80 C700,160 760,380 980,520 C1160,640 1260,820 1240,980 L1540,980 L1540,-80 Z"/>
+    <path class="dim" d="M80,120 H520 M80,112 V128 M520,112 V128"/>
+    <path class="dim" d="M1340,300 V760 M1332,300 H1348 M1332,760 H1348"/>
+    <circle class="dim" cx="200" cy="640" r="70"/>
+  </svg>
+</div>
+
+<!-- intro: the logo builds itself, then flies into the card -->
+<div class="intro" id="intro" aria-hidden="true">
+  <div class="lockup" id="introLogo">
+    <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+      <path class="outline" d="M32,4 L56,17.9 L56,45.6 L32,59.5 L8,45.6 L8,17.9 Z M32,31.8 L32,59.5 M32,31.8 L8,17.9 M32,31.8 L56,17.9"/>
+      <polygon class="face f-top" points="32,6.2 52.2,17.9 32,29.6 11.8,17.9"/>
+      <polygon class="face f-left" points="9.9,21.2 30.1,32.9 30.1,56.2 9.9,44.5"/>
+      <polygon class="face f-right" points="33.9,32.9 54.1,21.2 54.1,44.5 33.9,56.2"/>
+      <circle class="node" cx="32" cy="31.8" r="4.4"/>
+    </svg>
+    <span class="word"><span style="--i:0">P</span><span style="--i:1">R</span><span style="--i:2">O</span><span style="--i:3">J</span><span style="--i:4">E</span><span style="--i:5">C</span><span style="--i:6">T</span> <b><span style="--i:8">H</span><span style="--i:9">U</span><span style="--i:10">B</span></b></span>
+  </div>
+  <div class="tag">ניהול פרויקטים לאדריכלות ובנייה</div>
+  <button class="skip" id="skip" type="button">דלג ›</button>
+</div>
+
+<main class="card" id="card">
+  <svg class="shape" viewBox="0 0 1000 600" preserveAspectRatio="none" aria-hidden="true">
+    <path class="main" d="M1000,0 H575 C515,110 482,250 490,390 C497,480 530,550 575,600 H1000 Z"/>
+    <path class="glass" d="M1000,0 H730 C615,120 555,300 595,470 C610,530 625,570 650,600 H1000 Z"/>
+  </svg>
+
+  <section class="hero" aria-label="Project Hub">
+    <div class="welcome" aria-hidden="true">Welcome</div>
+    <svg class="illus" viewBox="30 50 520 500" role="img" aria-label="מחשב נייד שממנו עולים בניינים, עגורן, שרטוט, עצים וגרפים">
+      <ellipse class="gshadow" cx="276.0" cy="446.0" rx="200" ry="74"/>
+<g class="rise laptop" style="--d:0s"><polygon class="deck-r" points="457.8,445.5 302.0,535.5 302.0,525.0 457.8,435.0"/><polygon class="deck-l" points="94.1,415.5 302.0,535.5 302.0,525.0 94.1,405.0"/><polygon class="deck" points="250.0,315.0 457.8,435.0 302.0,525.0 94.1,405.0"/><polygon class="kbd" points="246.1,339.8 415.0,437.2 355.2,471.8 186.3,374.2"/><line class="kbd-l" x1="234.2" y1="346.6" x2="403.0" y2="444.1"/><line class="kbd-l" x1="222.2" y1="353.6" x2="391.1" y2="451.0"/><line class="kbd-l" x1="210.2" y1="360.4" x2="379.1" y2="457.9"/><line class="kbd-l" x1="198.3" y1="367.3" x2="367.2" y2="464.8"/><line class="kbd-l" x1="259.1" y1="347.2" x2="199.3" y2="381.8"/><line class="kbd-l" x1="272.1" y1="354.8" x2="212.3" y2="389.2"/><line class="kbd-l" x1="285.1" y1="362.2" x2="225.3" y2="396.8"/><line class="kbd-l" x1="298.1" y1="369.8" x2="238.3" y2="404.2"/><line class="kbd-l" x1="311.1" y1="377.2" x2="251.3" y2="411.8"/><line class="kbd-l" x1="324.0" y1="384.8" x2="264.3" y2="419.2"/><line class="kbd-l" x1="337.0" y1="392.2" x2="277.3" y2="426.8"/><line class="kbd-l" x1="350.0" y1="399.8" x2="290.3" y2="434.2"/><line class="kbd-l" x1="363.0" y1="407.2" x2="303.3" y2="441.8"/><line class="kbd-l" x1="376.0" y1="414.8" x2="316.3" y2="449.2"/><line class="kbd-l" x1="389.0" y1="422.2" x2="329.2" y2="456.7"/><line class="kbd-l" x1="402.0" y1="429.8" x2="342.2" y2="464.2"/><polygon class="pad" points="229.2,417.0 281.2,447.0 244.8,468.0 192.8,438.0"/><polygon class="lid-r" points="464.3,431.2 457.8,435.0 457.8,277.5 464.3,273.8"/><polygon class="lid" points="250.0,315.0 457.8,435.0 457.8,277.5 250.0,157.5"/><polygon class="lid-t" points="256.5,153.8 464.3,273.8 457.8,277.5 250.0,157.5"/><polygon class="screen" points="259.1,306.8 448.8,416.2 448.8,282.8 259.1,173.2"/><polygon class="ui-bar" points="259.1,186.8 448.8,296.2 448.8,282.8 259.1,173.2"/><polygon class="ui-side" points="259.1,306.8 296.8,328.5 296.8,208.5 259.1,186.8"/><polygon class="ui-card" points="305.9,267.8 359.1,298.5 359.1,255.0 305.9,224.2"/><polygon class="ui-card" points="366.9,303.0 439.7,345.0 439.7,301.5 366.9,259.5"/><line class="ui-line" x1="266.9" y1="210.8" x2="289.0" y2="223.5"/><line class="ui-line" x1="266.9" y1="219.0" x2="289.0" y2="231.8"/><line class="ui-line" x1="266.9" y1="227.2" x2="289.0" y2="240.0"/><line class="ui-line" x1="266.9" y1="235.5" x2="289.0" y2="248.2"/><line class="ui-grid" x1="309.8" y1="327.0" x2="309.8" y2="280.5"/><line class="ui-grid" x1="340.9" y1="345.0" x2="340.9" y2="298.5"/><line class="ui-grid" x1="372.1" y1="363.0" x2="372.1" y2="316.5"/><line class="ui-grid" x1="403.3" y1="381.0" x2="403.3" y2="334.5"/><line class="ui-grid" x1="434.5" y1="399.0" x2="434.5" y2="352.5"/><line class="ui-grid" x1="305.9" y1="301.5" x2="439.7" y2="378.8"/></g>
+<g class="rise float-bp" style="--d:1.35s"><g class="fl"><polygon class="bp" points="120.1,60.0 224.0,120.0 146.1,165.0 42.2,105.0"/><polygon class="bp-edge" points="42.2,108.8 146.1,168.8 146.1,165.0 42.2,105.0"/><polygon class="bp-edge2" points="224.0,123.8 146.1,168.8 146.1,165.0 224.0,120.0"/><line class="bp-l" x1="121.4" y1="71.2" x2="204.5" y2="119.2"/><line class="bp-l" x1="204.5" y1="119.2" x2="144.8" y2="153.8"/><line class="bp-l" x1="144.8" y1="153.8" x2="61.6" y2="105.8"/><line class="bp-l" x1="61.6" y1="105.8" x2="121.4" y2="71.2"/><line class="bp-l" x1="161.7" y1="94.5" x2="124.0" y2="116.2"/><line class="bp-l" x1="83.7" y1="93.0" x2="111.0" y2="108.8"/><line class="bp-l" x1="124.0" y1="116.2" x2="166.9" y2="141.0"/><line class="bp-l" x1="144.8" y1="128.2" x2="122.7" y2="141.0"/><line class="bp-dim" x1="126.6" y1="68.2" x2="209.7" y2="116.2"/></g></g>
+<g class="rise float-ch" style="--d:1.55s"><g class="fl"><polygon class="panel" points="477.3,348.8 548.8,390.0 548.8,315.0 477.3,273.8"/><polygon class="panel-edge" points="552.7,387.8 548.8,390.0 548.8,315.0 552.7,312.8"/><polygon class="bar" points="486.4,345.0 495.5,350.2 495.5,329.2 486.4,324.0"/><polygon class="bar" points="502.0,354.0 511.1,359.2 511.1,323.2 502.0,318.0"/><polygon class="bar" points="517.6,363.0 526.7,368.2 526.7,339.7 517.6,334.5"/><polygon class="bar bar-hi" points="533.2,372.0 542.3,377.2 542.3,327.8 533.2,322.5"/><path class="trend" d="M490.3,317.2 L505.9,315.8 L521.5,329.2 L537.1,318.8"/></g></g>
+<g class="rise float-pie" style="--d:1.7s"><g class="fl"><ellipse class="pie-edge" cx="133.1" cy="267.5" rx="34" ry="19"/><ellipse class="pie" cx="133.1" cy="262.5" rx="34" ry="19"/><path class="pie-slice" d="M133.1,262.5 L167.1,262.5 A34,19 0 0 0 123.1,244.3 Z"/><path class="pie-slice2" d="M133.1,262.5 L123.1,244.3 A34,19 0 0 0 101.1,256.1 Z"/></g></g>
+<g class="rise crane" style="--d:0.95s"><polygon class="crane-r" points="396.8,438.8 387.7,444.0 387.7,181.5 396.8,176.2"/><polygon class="crane-l" points="378.6,438.8 387.7,444.0 387.7,181.5 378.6,176.2"/><polygon class="crane-t" points="387.7,171.0 396.8,176.2 387.7,181.5 378.6,176.2"/><line class="lattice" x1="378.6" y1="438.8" x2="387.7" y2="424.5"/><line class="lattice" x1="396.8" y1="438.8" x2="387.7" y2="424.5"/><line class="lattice" x1="378.6" y1="419.2" x2="387.7" y2="405.0"/><line class="lattice" x1="396.8" y1="419.2" x2="387.7" y2="405.0"/><line class="lattice" x1="378.6" y1="399.8" x2="387.7" y2="385.5"/><line class="lattice" x1="396.8" y1="399.8" x2="387.7" y2="385.5"/><line class="lattice" x1="378.6" y1="380.2" x2="387.7" y2="366.0"/><line class="lattice" x1="396.8" y1="380.2" x2="387.7" y2="366.0"/><line class="lattice" x1="378.6" y1="360.8" x2="387.7" y2="346.5"/><line class="lattice" x1="396.8" y1="360.8" x2="387.7" y2="346.5"/><line class="lattice" x1="378.6" y1="341.2" x2="387.7" y2="327.0"/><line class="lattice" x1="396.8" y1="341.2" x2="387.7" y2="327.0"/><line class="lattice" x1="378.6" y1="321.8" x2="387.7" y2="307.5"/><line class="lattice" x1="396.8" y1="321.8" x2="387.7" y2="307.5"/><line class="lattice" x1="378.6" y1="302.2" x2="387.7" y2="288.0"/><line class="lattice" x1="396.8" y1="302.2" x2="387.7" y2="288.0"/><line class="lattice" x1="378.6" y1="282.8" x2="387.7" y2="268.5"/><line class="lattice" x1="396.8" y1="282.8" x2="387.7" y2="268.5"/><line class="lattice" x1="378.6" y1="263.2" x2="387.7" y2="249.0"/><line class="lattice" x1="396.8" y1="263.2" x2="387.7" y2="249.0"/><line class="lattice" x1="378.6" y1="243.8" x2="387.7" y2="229.5"/><line class="lattice" x1="396.8" y1="243.8" x2="387.7" y2="229.5"/><line class="lattice" x1="378.6" y1="224.2" x2="387.7" y2="210.0"/><line class="lattice" x1="396.8" y1="224.2" x2="387.7" y2="210.0"/><line class="lattice" x1="378.6" y1="204.7" x2="387.7" y2="190.5"/><line class="lattice" x1="396.8" y1="204.7" x2="387.7" y2="190.5"/><polygon class="crane-r" points="392.9,176.2 387.7,179.2 387.7,146.2 392.9,143.2"/><polygon class="crane-l" points="382.5,176.2 387.7,179.2 387.7,146.2 382.5,143.2"/><polygon class="crane-t" points="387.7,140.2 392.9,143.2 387.7,146.2 382.5,143.2"/></g>
+<g class="rise bld" style="--d:0.55s"><polygon class="r" points="343.5,405.0 315.0,421.5 315.0,264.0 343.5,247.5"/><polygon class="l" points="283.8,403.5 315.0,421.5 315.0,264.0 283.8,246.0"/><polygon class="t" points="312.4,229.5 343.5,247.5 315.0,264.0 283.8,246.0"/><polygon class="win" points="287.7,393.8 295.5,398.3 295.5,387.2 287.7,382.7"/><polygon class="win" points="303.3,402.8 311.1,407.3 311.1,396.2 303.3,391.7"/><polygon class="win win-r" points="340.0,395.1 332.8,399.3 332.8,388.1 340.0,384.0"/><polygon class="win win-r" points="325.7,403.4 318.5,407.5 318.5,396.4 325.7,392.2"/><polygon class="win" points="287.7,369.1 295.5,373.6 295.5,362.4 287.7,357.9"/><polygon class="win" points="303.3,378.1 311.1,382.6 311.1,371.4 303.3,366.9"/><polygon class="win win-r" points="340.0,370.4 332.8,374.5 332.8,363.4 340.0,359.2"/><polygon class="win win-r" points="325.7,378.6 318.5,382.8 318.5,371.6 325.7,367.5"/><polygon class="win" points="287.7,344.3 295.5,348.8 295.5,337.7 287.7,333.2"/><polygon class="win" points="303.3,353.3 311.1,357.8 311.1,346.7 303.3,342.2"/><polygon class="win win-r" points="340.0,345.6 332.8,349.8 332.8,338.6 340.0,334.5"/><polygon class="win win-r" points="325.7,353.9 318.5,358.0 318.5,346.9 325.7,342.8"/><polygon class="win" points="287.7,319.6 295.5,324.1 295.5,312.9 287.7,308.4"/><polygon class="win" points="303.3,328.6 311.1,333.1 311.1,321.9 303.3,317.4"/><polygon class="win win-r" points="340.0,320.9 332.8,325.0 332.8,313.9 340.0,309.8"/><polygon class="win win-r" points="325.7,329.1 318.5,333.3 318.5,322.1 325.7,318.0"/><polygon class="win" points="287.7,294.8 295.5,299.3 295.5,288.2 287.7,283.7"/><polygon class="win" points="303.3,303.8 311.1,308.3 311.1,297.2 303.3,292.7"/><polygon class="win win-r" points="340.0,296.1 332.8,300.3 332.8,289.1 340.0,285.0"/><polygon class="win win-r" points="325.7,304.4 318.5,308.5 318.5,297.4 325.7,293.2"/><polygon class="win" points="287.7,270.1 295.5,274.6 295.5,263.4 287.7,258.9"/><polygon class="win" points="303.3,279.1 311.1,283.6 311.1,272.4 303.3,267.9"/><polygon class="win win-r" points="340.0,271.4 332.8,275.5 332.8,264.4 340.0,260.2"/><polygon class="win win-r" points="325.7,279.6 318.5,283.8 318.5,272.6 325.7,268.5"/><polygon class="r2" points="333.1,247.5 315.0,258.0 315.0,252.8 333.1,242.2"/><polygon class="l2" points="294.2,246.0 315.0,258.0 315.0,252.8 294.2,240.8"/><polygon class="t" points="312.4,230.2 333.1,242.2 315.0,252.8 294.2,240.8"/></g>
+<g class="rise bld" style="--d:0.45s"><polygon class="rb" points="291.6,384.0 263.0,400.5 263.0,303.0 291.6,286.5"/><polygon class="lb" points="224.0,378.0 263.0,400.5 263.0,303.0 224.0,280.5"/><polygon class="tb" points="252.6,264.0 291.6,286.5 263.0,303.0 224.0,280.5"/><polygon class="win" points="227.3,368.7 233.8,372.5 233.8,362.5 227.3,358.8"/><polygon class="win" points="240.3,376.2 246.8,380.0 246.8,370.0 240.3,366.3"/><polygon class="win" points="253.2,383.7 259.7,387.5 259.7,377.5 253.2,373.8"/><polygon class="win win-r" points="288.0,374.9 280.9,379.1 280.9,369.1 288.0,365.0"/><polygon class="win win-r" points="273.7,383.2 266.6,387.3 266.6,377.3 273.7,373.2"/><polygon class="win" points="227.3,346.6 233.8,350.4 233.8,340.4 227.3,336.7"/><polygon class="win" points="240.3,354.1 246.8,357.9 246.8,347.9 240.3,344.2"/><polygon class="win" points="253.2,361.6 259.7,365.4 259.7,355.4 253.2,351.7"/><polygon class="win win-r" points="288.0,352.8 280.9,356.9 280.9,347.0 288.0,342.8"/><polygon class="win win-r" points="273.7,361.1 266.6,365.2 266.6,355.2 273.7,351.1"/><polygon class="win" points="227.3,324.5 233.8,328.2 233.8,318.3 227.3,314.5"/><polygon class="win" points="240.3,332.0 246.8,335.7 246.8,325.8 240.3,322.0"/><polygon class="win" points="253.2,339.5 259.7,343.2 259.7,333.3 253.2,329.5"/><polygon class="win win-r" points="288.0,330.7 280.9,334.8 280.9,324.8 288.0,320.7"/><polygon class="win win-r" points="273.7,338.9 266.6,343.1 266.6,333.1 273.7,329.0"/><polygon class="win" points="227.3,302.4 233.8,306.1 233.8,296.2 227.3,292.4"/><polygon class="win" points="240.3,309.9 246.8,313.6 246.8,303.7 240.3,299.9"/><polygon class="win" points="253.2,317.4 259.7,321.1 259.7,311.2 253.2,307.4"/><polygon class="win win-r" points="288.0,308.6 280.9,312.7 280.9,302.7 288.0,298.6"/><polygon class="win win-r" points="273.7,316.8 266.6,320.9 266.6,311.0 273.7,306.8"/><polygon class="r2" points="281.2,286.5 263.0,297.0 263.0,291.8 281.2,281.2"/><polygon class="l2" points="234.4,280.5 263.0,297.0 263.0,291.8 234.4,275.2"/><polygon class="t" points="252.6,264.8 281.2,281.2 263.0,291.8 234.4,275.2"/></g>
+<g class="rise bld" style="--d:0.65s"><polygon class="rb" points="379.9,441.0 351.3,457.5 351.3,382.5 379.9,366.0"/><polygon class="lb" points="309.8,433.5 351.3,457.5 351.3,382.5 309.8,358.5"/><polygon class="tb" points="338.3,342.0 379.9,366.0 351.3,382.5 309.8,358.5"/><polygon class="win" points="313.2,424.4 320.1,428.4 320.1,418.5 313.2,414.5"/><polygon class="win" points="327.1,432.4 334.0,436.4 334.0,426.5 327.1,422.5"/><polygon class="win" points="340.9,440.4 347.9,444.4 347.9,434.5 340.9,430.5"/><polygon class="win win-r" points="376.3,432.0 369.2,436.1 369.2,426.2 376.3,422.1"/><polygon class="win win-r" points="362.0,440.2 354.9,444.3 354.9,434.4 362.0,430.3"/><polygon class="win" points="313.2,402.4 320.1,406.4 320.1,396.5 313.2,392.5"/><polygon class="win" points="327.1,410.4 334.0,414.4 334.0,404.5 327.1,400.5"/><polygon class="win" points="340.9,418.4 347.9,422.4 347.9,412.5 340.9,408.5"/><polygon class="win win-r" points="376.3,410.0 369.2,414.1 369.2,404.2 376.3,400.1"/><polygon class="win win-r" points="362.0,418.2 354.9,422.3 354.9,412.4 362.0,408.3"/><polygon class="win" points="313.2,380.4 320.1,384.4 320.1,374.5 313.2,370.5"/><polygon class="win" points="327.1,388.4 334.0,392.4 334.0,382.5 327.1,378.5"/><polygon class="win" points="340.9,396.4 347.9,400.4 347.9,390.5 340.9,386.5"/><polygon class="win win-r" points="376.3,388.0 369.2,392.1 369.2,382.2 376.3,378.1"/><polygon class="win win-r" points="362.0,396.2 354.9,400.3 354.9,390.4 362.0,386.3"/><polygon class="r2" points="369.5,366.0 351.3,376.5 351.3,371.2 369.5,360.8"/><polygon class="l2" points="320.1,358.5 351.3,376.5 351.3,371.2 320.1,353.2"/><polygon class="t" points="338.3,342.8 369.5,360.8 351.3,371.2 320.1,353.2"/></g>
+<g class="rise bld" style="--d:0.8s"><polygon class="r" points="255.2,417.0 229.2,432.0 229.2,381.0 255.2,366.0"/><polygon class="l" points="200.6,415.5 229.2,432.0 229.2,381.0 200.6,364.5"/><polygon class="t" points="226.6,349.5 255.2,366.0 229.2,381.0 200.6,364.5"/><polygon class="win" points="204.2,406.8 211.4,410.9 211.4,401.4 204.2,397.3"/><polygon class="win" points="218.5,415.0 225.6,419.1 225.6,409.7 218.5,405.6"/><polygon class="win win-r" points="251.9,408.1 245.5,411.8 245.5,402.4 251.9,398.6"/><polygon class="win win-r" points="239.0,415.6 232.5,419.3 232.5,409.9 239.0,406.1"/><polygon class="win" points="204.2,385.8 211.4,389.9 211.4,380.4 204.2,376.3"/><polygon class="win" points="218.5,394.0 225.6,398.1 225.6,388.7 218.5,384.6"/><polygon class="win win-r" points="251.9,387.1 245.5,390.8 245.5,381.4 251.9,377.6"/><polygon class="win win-r" points="239.0,394.6 232.5,398.3 232.5,388.9 239.0,385.1"/><polygon class="r2" points="244.8,366.0 229.2,375.0 229.2,369.8 244.8,360.8"/><polygon class="l2" points="211.0,364.5 229.2,375.0 229.2,369.8 211.0,359.2"/><polygon class="t" points="226.6,350.2 244.8,360.8 229.2,369.8 211.0,359.2"/></g>
+<g class="rise tree" style="--d:1.05s"><line class="trunk" x1="182.5" y1="390.0" x2="182.5" y2="372.6"/><ellipse class="shadow" cx="182.5" cy="390.0" rx="10.1" ry="5.1"/><circle class="crown" cx="182.5" cy="368.6" r="11.2"/><path class="crown-hl" d="M176.3,367.5 a6.8,6.8 0 0 1 6.8,-6.2"/></g>
+<g class="rise tree" style="--d:1.1s"><line class="trunk" x1="273.4" y1="439.5" x2="273.4" y2="417.9"/><ellipse class="shadow" cx="273.4" cy="439.5" rx="12.2" ry="6.1"/><circle class="crown" cx="273.4" cy="413.9" r="13.5"/><path class="crown-hl" d="M266.0,412.5 a8.1,8.1 0 0 1 8.1,-7.4"/></g>
+<g class="rise tree" style="--d:1.2s"><line class="trunk" x1="299.4" y1="469.5" x2="299.4" y2="453.6"/><ellipse class="shadow" cx="299.4" cy="469.5" rx="9.5" ry="4.7"/><circle class="crown" cx="299.4" cy="449.6" r="10.5"/><path class="crown-hl" d="M293.6,448.5 a6.3,6.3 0 0 1 6.3,-5.8"/></g>
+<g class="rise tree" style="--d:1.25s"><line class="trunk" x1="343.5" y1="468.0" x2="343.5" y2="456.3"/><ellipse class="shadow" cx="343.5" cy="468.0" rx="7.4" ry="3.7"/><circle class="crown" cx="343.5" cy="452.3" r="8.2"/><path class="crown-hl" d="M339.0,451.5 a5.0,5.0 0 0 1 5.0,-4.5"/></g>
+<g class="rise crane-dyn" style="--d:0.95s"><g id="craneDyn"></g></g>
+    </svg>
+    <p class="tagline">ניהול פרויקטים לאדריכלות ובנייה<small>תכנון · פיקוח · מסמכים · רגולציה — במקום אחד</small></p>
+  </section>
+
+  <section class="form-side">
+    <div class="lockup brand pending" id="brandLogo">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+      <path class="outline" d="M32,4 L56,17.9 L56,45.6 L32,59.5 L8,45.6 L8,17.9 Z M32,31.8 L32,59.5 M32,31.8 L8,17.9 M32,31.8 L56,17.9"/>
+      <polygon class="face f-top" points="32,6.2 52.2,17.9 32,29.6 11.8,17.9"/>
+      <polygon class="face f-left" points="9.9,21.2 30.1,32.9 30.1,56.2 9.9,44.5"/>
+      <polygon class="face f-right" points="33.9,32.9 54.1,21.2 54.1,44.5 33.9,56.2"/>
+      <circle class="node" cx="32" cy="31.8" r="4.4"/>
+    </svg>
+      <span class="word">PROJECT <b>HUB</b></span>
+    </div>
+
+    <h1>כניסה למערכת</h1>
+    <p class="sub">ברוכים הבאים — היכנסו עם חשבון Microsoft של המשרד</p>
+
+    <form id="loginForm" novalidate>
+      <div class="field" id="fEmail">
+        <label for="email">כתובת מייל</label>
+        <div class="ctl">
+          <input id="email" name="email" type="email" autocomplete="username" placeholder="name@office.co.il" required>
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/></svg>
+        </div>
+        <div class="err" role="alert">נא להזין כתובת מייל תקינה</div>
+      </div>
+
+      <div class="row">
+        <label class="check">
+          <input type="checkbox" id="remember" name="remember">
+          <span class="box"><svg viewBox="0 0 16 16"><path d="M3 8.5 6.5 12 13 4.5"/></svg></span>
+          זכור אותי במחשב זה
+        </label>
+      </div>
+
+      <button class="btn" type="submit" id="submit"><span class="lbl"><svg class="ms" viewBox="0 0 21 21" aria-hidden="true"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>כניסה עם Microsoft</span><span class="spin" aria-hidden="true"></span></button>
+      <p class="mode-note" id="modeNote" hidden>שרת מקומי — הכניסה ללא Microsoft</p>
+    </form>
+
+    <div class="foot">
+      <span>© <span id="yr"></span> Project Hub</span>
+      <nav><a class="link" href="#">עזרה</a><a class="link" href="#">צור קשר</a></nav>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const intro = $('intro'), introLogo = $('introLogo'), brand = $('brandLogo'), body = document.body;
+  const KEY = 'projecthub.remember';
+  $('yr').textContent = new Date().getFullYear();
+
+  /* ---- remember me (LocalStorage) ---- */
+  const store = {
+    get(){ try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { return null; } },
+    set(v){ try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {} },
+    clear(){ try { localStorage.removeItem(KEY); } catch {} }
+  };
+  const saved = store.get();
+  if (saved && saved.email) { $('email').value = saved.email; $('remember').checked = true; }
+
+  /* ---- intro sequence ---- */
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let finished = false, timers = [];
+  function reveal(){
+    brand.classList.remove('pending');
+    intro.classList.add('gone');
+    body.classList.add('ready');
+    (saved && saved.email ? $('submit') : $('email')).focus({preventScroll:true});
+  }
+  function fly(){
+    if (finished) return; finished = true; timers.forEach(clearTimeout);
+    body.classList.add('shown');
+    requestAnimationFrame(() => {
+      const a = introLogo.getBoundingClientRect(), b = brand.getBoundingClientRect();
+      const s = b.width / a.width;
+      intro.classList.add('fly');
+      introLogo.style.transform = `translate(${b.left - a.left}px, ${b.top - a.top}px) scale(${s})`;
+      setTimeout(reveal, 850);
+    });
+  }
+  if (reduced) { body.classList.add('shown'); finished = true; reveal(); }
+  else {
+    timers.push(setTimeout(fly, 2700));
+    $('skip').addEventListener('click', fly);
+    intro.addEventListener('click', fly);
+    addEventListener('keydown', e => { if (!finished && (e.key === 'Escape' || e.key === 'Enter')) fly(); });
+  }
+
+
+  /* ---- tower crane: slews, moves the trolley and hoists equipment at random ---- */
+  (function crane(){
+    const g = document.getElementById('craneDyn'); if (!g) return;
+    const S=15, OX=250, OY=330, C=Math.cos(Math.PI/6), H=.5;
+    const P=(x,y,z)=>[OX+(x-y)*C*S, OY+(x+y)*H*S - z*S];
+    const pt=a=>a.map(p=>P(...p).map(v=>v.toFixed(1)).join(',')).join(' ');
+    const MX=12.55, MY=1.95, TOP=17.5, APEX=TOP+2.2, JIB=11.5, CJ=3.4;
+    const st={ang:180, trol:.72, drop:5.2, load:true};
+    const loads=['beam','pallet','panel']; let loadKind='beam';
+    function prism(ax,ay,bx,by,w,z0,z1,top,side,lat){
+      const dx=bx-ax, dy=by-ay, len=Math.hypot(dx,dy)||1, nx=-dy/len*w/2, ny=dx/len*w/2;
+      const sgn=(nx+ny)>0?1:-1;                   // side facing the viewer
+      const sx=nx*sgn, sy=ny*sgn;
+      let o=`<polygon class="${side}" points="${pt([[ax+sx,ay+sy,z0],[bx+sx,by+sy,z0],[bx+sx,by+sy,z1],[ax+sx,ay+sy,z1]])}"/>`;
+      if(lat){ const n=Math.max(2,Math.round(len/1.1));
+        for(let i=0;i<n;i++){const t0=i/n,t1=(i+1)/n,za=i%2?z1:z0,zb=i%2?z0:z1;
+          const [x1,y1]=P(ax+dx*t0+sx,ay+dy*t0+sy,za),[x2,y2]=P(ax+dx*t1+sx,ay+dy*t1+sy,zb);
+          o+=`<line class="jib-lat" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`;} }
+      o+=`<polygon class="${top}" points="${pt([[ax+nx,ay+ny,z1],[bx+nx,by+ny,z1],[bx-nx,by-ny,z1],[ax-nx,ay-ny,z1]])}"/>`;
+      return o;
+    }
+    function isoBox(cx,cy,z,wx,wy,h,t,r,l){
+      const x0=cx-wx/2,x1=cx+wx/2,y0=cy-wy/2,y1=cy+wy/2,z1=z+h;
+      return `<polygon class="${r}" points="${pt([[x1,y0,z],[x1,y1,z],[x1,y1,z1],[x1,y0,z1]])}"/>`+
+             `<polygon class="${l}" points="${pt([[x0,y1,z],[x1,y1,z],[x1,y1,z1],[x0,y1,z1]])}"/>`+
+             `<polygon class="${t}" points="${pt([[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]])}"/>`;
+    }
+    const line=(a,b,c)=>{const [x1,y1]=P(...a),[x2,y2]=P(...b);return `<line class="${c}" x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"/>`;};
+    function draw(){
+      const a=st.ang*Math.PI/180, ux=Math.cos(a), uy=Math.sin(a);
+      const tip=[MX+ux*JIB, MY+uy*JIB], back=[MX-ux*CJ, MY-uy*CJ];
+      const tx=MX+ux*JIB*st.trol, ty=MY+uy*JIB*st.trol, hz=TOP-.2-st.drop;
+      let o='';
+      const hookPart = line([tx,ty,TOP-.2],[tx,ty,hz+.35],'hookc') +
+        `<path class="hk" d="M${P(tx,ty,hz+.35).map(v=>v.toFixed(1)).join(',')} v4 a2 2 0 1 1 -3 -1"/>` +
+        (st.load ? (loadKind==='beam' ? isoBox(tx,ty,hz-.55,2.6,.5,.4,'load-t','load-r','load-l')
+                  : loadKind==='pallet' ? isoBox(tx,ty,hz-1.1,1.3,1.3,.95,'t','r','l')
+                  : isoBox(tx,ty,hz-.9,.4,1.9,.75,'load-t','load-r','load-l')) : '');
+      const jib = prism(MX,MY,tip[0],tip[1],.45,TOP-.2,TOP+.35,'jib-top','jib-side',true)
+                + prism(MX,MY,back[0],back[1],.5,TOP-.1,TOP+.3,'jib-top','jib-side',false)
+                + isoBox(back[0]+ux*.7,back[1]+uy*.7,TOP-1.1,.9,.9,.9,'cw-top','cw-side','cw-side')
+                + line([MX,MY,APEX],[tip[0],tip[1],TOP+.35],'cable') + line([MX,MY,APEX],[back[0],back[1],TOP+.3],'cable')
+                + isoBox(tx,ty,TOP-.45,.55,.55,.3,'trolley','trolley','trolley');
+      // hook behind the jib when the jib points toward the viewer
+      g.innerHTML = (ux+uy>0) ? jib+hookPart : hookPart+jib;
+    }
+    const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2, rnd=(a,b)=>a+Math.random()*(b-a), wait=ms=>new Promise(r=>setTimeout(r,ms));
+    function tween(key,to,speed){ return new Promise(res=>{ const from=st[key], dur=Math.max(300,Math.abs(to-from)/speed*1000), t0=performance.now();
+      (function f(now){ const t=Math.min(1,(now-t0)/dur); st[key]=from+(to-from)*ease(t); draw(); t<1?requestAnimationFrame(f):res(); })(t0); }); }
+    draw();
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    (async function loop(){
+      await wait(3600);
+      for(;;){
+        await tween('ang', rnd(115,215), 14);          // slew
+        await tween('trol', rnd(.35,.95), .35);        // move trolley along the jib
+        await tween('drop', rnd(4.6,6.6), 1.3);        // lower
+        await wait(500);
+        st.load=!st.load; if(st.load) loadKind=loads[Math.floor(Math.random()*loads.length)]; draw();   // pick up / set down
+        await wait(400);
+        await tween('drop', rnd(1.2,2.6), 1.1);        // raise
+        await wait(rnd(300,1200));
+      }
+    })();
+  })();
+
+  /* ---- where to go, and how ----
+     On Azure the server sends anyone without a session here (?next=<page>); the button hands
+     the email to Microsoft sign-in (Easy Auth) as login_hint. The local server has no Microsoft
+     sign-in: the button clears the app's signed-out flag and opens the app. */
+  const nextRaw = new URLSearchParams(location.search).get('next') || '';
+  const next = /^\/(?!\/)/.test(nextRaw) && !/^\/login/.test(nextRaw) ? nextRaw : '/project_hub_01';
+  let mode = 'local';
+  fetch('/api/me', { cache: 'no-store' }).then(r => {
+    if (r.status === 401) { mode = 'cloud'; return null; }
+    return r.ok ? r.json() : null;
+  }).then(me => {
+    if (!me) return;
+    mode = me.mode || 'local';
+    if (mode === 'cloud') location.replace(next);          // already signed in
+    else $('modeNote').hidden = false;
+  }).catch(() => { $('modeNote').hidden = false; });
+
+  /* ---- submit ---- */
+  const validEmail = v => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+  $('loginForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const email = $('email').value.trim(), remember = $('remember').checked;
+    $('fEmail').classList.toggle('invalid', !validEmail(email));
+    if (!validEmail(email)) return $('email').focus();
+
+    if (remember) store.set({ email, at: Date.now() }); else store.clear();
+
+    const btn = $('submit');
+    btn.classList.add('loading'); btn.disabled = true;
+    if (mode === 'cloud') {
+      location.href = '/.auth/login/aad?post_login_redirect_uri=' + encodeURIComponent(next) + '&login_hint=' + encodeURIComponent(email);
+      return;
+    }
+    try { localStorage.removeItem('pm_signed_out'); } catch {}
+    setTimeout(() => location.replace(next), 400);
+  });
+  $('email').addEventListener('input', () => $('fEmail').classList.remove('invalid'));
+})();
+</script>
+</body>
+</html>
