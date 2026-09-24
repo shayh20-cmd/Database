@@ -6905,19 +6905,35 @@ async function loadProjectRegistry() {
   const ph01 = MY_PROJECTS.find(p => p.id === PH01_ID);
   if (ph01Override) Object.assign(ph01, ph01Override);
   const sims = MY_PROJECTS.filter(p => p.sim);
-  const real = [ph01, ...list.map(p => ({
+  const real = await onlyMyProjects([ph01, ...list.map(p => ({
     id: p.id,
     name: p.name,
     code: p.code,
     color: p.color,
     visibility: p.visibility,
     real: true
-  }))];
+  }))]);
+  if (real.length && !real.some(p => p.id === ACTIVE_PROJECT_ID)) {
+    try {
+      localStorage.setItem(ACTIVE_PROJECT_KEY, real[0].id);
+    } catch {}
+    location.reload();
+    return new Promise(() => {});
+  }
   const active = real.find(p => p.id === ACTIVE_PROJECT_ID) || ph01;
   real.forEach(p => {
     p.active = p === active;
   });
   MY_PROJECTS.splice(0, MY_PROJECTS.length, ...real, ...sims);
+}
+/* Below Admin you see only the projects whose team you are on (the sidebar,
+   home, פרויקטים and settings all read MY_PROJECTS). Membership lives in each
+   project's data.team, so every document is read once here; one that can't be
+   read is left out. */
+async function onlyMyProjects(projects) {
+  if (hasOfficeRole('admin')) return projects;
+  const mine = await Promise.all(projects.map(p => fetch(projectEndpointOf(p.id)).then(r => r.ok ? r.json() : null).then(d => !!d && (d.team || []).some(m => m.staffId === CURRENT_USER.id)).catch(() => false)));
+  return projects.filter((p, i) => mine[i]);
 }
 function suggestProjectCode(name, taken) {
   const latin = (name.match(/[A-Za-z0-9]+/g) || []).join('').toUpperCase();
