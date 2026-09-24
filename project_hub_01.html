@@ -7282,13 +7282,10 @@ function isHighPriority(id, list) {
 ══════════════════════════════════════ */
 const MT_WHEN = ['באיחור', 'היום', 'השבוע', 'מאוחר יותר', 'ללא תאריך', 'עבר'];
 const MT_STUCK = ['סטטוס תקוע', 'באיחור', 'חריגה בעדכון'];
+/* one extra column; whether a task is stuck shows in its status, and the תקוע filter still covers every reason */
 const MT_FIELDS = [{
   id: 'mtProject',
   title: 'פרויקט',
-  type: 'text'
-}, {
-  id: 'mtStuck',
-  title: 'סיבת תקיעה',
   type: 'text'
 }];
 const MT_VIEW_KEY = 'pm_activeView___mytasks';
@@ -7847,13 +7844,7 @@ function MyTasksTable({
       }
     }, t.mtProjCode), /*#__PURE__*/React.createElement("span", {
       className: "mt-proj-stage"
-    }, t.__stage)),
-    mtStuck: t => (t.mtStuck || []).length === 0 ? null : /*#__PURE__*/React.createElement("span", {
-      className: "mt-flags"
-    }, t.mtStuck.map(r => /*#__PURE__*/React.createElement("span", {
-      key: r,
-      className: 'mt-tag ' + (r === 'חריגה בעדכון' ? 'mt-tag-warn' : 'mt-tag-bad')
-    }, r === 'חריגה בעדכון' ? 'חריגה ' + t.mtDelay + 'י׳' : r === 'סטטוס תקוע' ? 'תקוע' : r)))
+    }, t.__stage))
   };
   const opts = arr => arr.map(v => ({
     value: v,
