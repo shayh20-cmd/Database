@@ -446,6 +446,7 @@ button.pm-trigger:focus-visible{outline:2px solid var(--accent);outline-offset:2
 .gx-bar{height:14px;border-radius:4px;border:1px solid;}
 .gx-line{height:5px;border-radius:3px;width:80%;}
 .gx-line.short{width:45%;}
+.sb-create-wrap{position:relative;}.sb-create-menu{left:auto;right:0;min-width:170px;z-index:1200;}.sb-create-opt{width:100%;border:none;background:none;font-family:inherit;text-align:start;}.sb-create-opt:disabled{opacity:.45;cursor:default;}.nt-box{width:440px;}.nt-title{font-size:14px;padding:9px 12px;}.nt-dest{font-size:11px;color:var(--text-3);margin-top:5px;}.nt-more{align-self:flex-start;background:none;border:none;color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;padding:0;}.nt-more-body{display:flex;flex-direction:column;gap:12px;}.nt-people{display:flex;flex-wrap:wrap;gap:6px;}.nt-person{padding:4px 10px;border-radius:14px;border:1px solid var(--border);background:var(--surface);font-size:12px;font-family:inherit;cursor:pointer;color:var(--text);}.nt-person.on{background:var(--accent);border-color:var(--accent);color:#fff;}
 .sb-create-dot{width:18px;height:18px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;flex-shrink:0;line-height:1;}
 
 .sb-body{flex:1;overflow-y:auto;overflow-x:hidden;padding:8px 8px 16px;}
@@ -3924,10 +3925,10 @@ const map=new Map();sorted.forEach(t=>{const k=t[groupBy]||'';if(!map.has(k))map
    Coming Soon Placeholder
 ══════════════════════════════════════ */function ComingSoonPage({iconName,title,desc}){return/*#__PURE__*/React.createElement("div",{style:{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,padding:40,background:'var(--bg)',color:'var(--text-2)'}},/*#__PURE__*/React.createElement("div",{style:{color:'var(--border-strong)',opacity:.5}},/*#__PURE__*/React.createElement(Ic,{n:iconName,size:48})),/*#__PURE__*/React.createElement("div",{style:{fontSize:22,fontWeight:700,color:'var(--text)'}},title),/*#__PURE__*/React.createElement("div",{style:{fontSize:14,color:'var(--text-2)',maxWidth:360,textAlign:'center',lineHeight:1.6}},desc),/*#__PURE__*/React.createElement("div",{style:{marginTop:8,padding:'8px 20px',borderRadius:20,background:'var(--surface)',border:'1px solid var(--border)',fontSize:12,color:'var(--text-3)',fontWeight:600,display:'flex',alignItems:'center',gap:6}},/*#__PURE__*/React.createElement(Ic,{n:"soon",size:13})," בקרוב"));}/* ══════════════════════════════════════
    Sidebar
-══════════════════════════════════════ */const MY_PROJECTS=[{id:'ph01',name:'אולם ספורט לוד',color:'#2563EB',code:'PH01',active:true,real:true}];const PROJ_TRACKS=[{id:'overview',label:'מבט על',icon:'overview',enabled:true},{id:'contacts',label:'אנשי קשר',icon:'consultants',enabled:true},{id:'data',label:'נתונים',icon:'planning',enabled:true},{id:'tasks',label:'ניהול תכנון',icon:'tasks',enabled:true},{id:'template',label:'טמפלייט',icon:'template',enabled:true}];const CROSS_CUTTING_ITEMS=[{id:'ongoing',label:'רשימה',icon:'tasks'},{id:'gantt',label:'גאנט',icon:'gantt'},{id:'meetings',label:'ישיבות',icon:'meetings'},{id:'principles',label:'עקרונות תכנון',icon:'principles'},{id:'supervision',label:'פיקוח',icon:'supervision'},{id:'milestones',label:'אבני דרך',icon:'milestones'},{id:'goals',label:'יעדים',icon:'goals'}];function Sidebar({track,setTrack,tracks}){/* The footer shows whoever is signed in; /api/me may answer before or after this mounts. */const[meName,setMeName]=React.useState(CURRENT_USER_LABEL);React.useEffect(()=>{setMeName(CURRENT_USER_LABEL);const on=e=>setMeName(e.detail.name);window.addEventListener('pm-user',on);return()=>window.removeEventListener('pm-user',on);},[]);const[userMenu,setUserMenu]=React.useState(false);const[profileOpen,setProfileOpen]=React.useState(false);const userMenuRef=React.useRef(null);React.useEffect(()=>{if(!userMenu)return;const h=e=>{if(userMenuRef.current&&!userMenuRef.current.contains(e.target))setUserMenu(false);};const k=e=>{if(e.key==='Escape')setUserMenu(false);};document.addEventListener('mousedown',h);document.addEventListener('keydown',k);return()=>{document.removeEventListener('mousedown',h);document.removeEventListener('keydown',k);};},[userMenu]);const meInitials=meName.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()||'?';const[,forceLangTick]=React.useState(0);React.useEffect(()=>{const on=()=>forceLangTick(x=>x+1);window.addEventListener('i18n:change',on);window.addEventListener('appearance:change',on);return()=>{window.removeEventListener('i18n:change',on);window.removeEventListener('appearance:change',on);};},[]);const[sidebarOpen,setSidebarOpen]=React.useState(true);const[sidebarW,setSidebarW]=React.useState(()=>{const saved=parseInt(localStorage.getItem('pm_sidebar_w'),10);return Number.isFinite(saved)&&saved>=180&&saved<=420?saved:220;});React.useEffect(()=>{localStorage.setItem('pm_sidebar_w',String(sidebarW));},[sidebarW]);const[isResizingSidebar,setIsResizingSidebar]=React.useState(false);const startSidebarResize=e=>{e.preventDefault();const startX=e.clientX;const startW=sidebarW;setIsResizingSidebar(true);const onMove=ev=>{const next=Math.max(180,Math.min(420,startW+(IS_LTR()?1:-1)*(ev.clientX-startX)));setSidebarW(next);};const onUp=()=>{setIsResizingSidebar(false);document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);};document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp);};const[expandedProj,setExpandedProj]=React.useState(ACTIVE_PROJECT_ID);// the open project starts expanded
-const[newProjOpen,setNewProjOpen]=React.useState(false);
+══════════════════════════════════════ */const MY_PROJECTS=[{id:'ph01',name:'אולם ספורט לוד',color:'#2563EB',code:'PH01',active:true,real:true}];const PROJ_TRACKS=[{id:'overview',label:'מבט על',icon:'overview',enabled:true},{id:'contacts',label:'אנשי קשר',icon:'consultants',enabled:true},{id:'data',label:'נתונים',icon:'planning',enabled:true},{id:'tasks',label:'ניהול תכנון',icon:'tasks',enabled:true},{id:'template',label:'טמפלייט',icon:'template',enabled:true}];const CROSS_CUTTING_ITEMS=[{id:'ongoing',label:'רשימה',icon:'tasks'},{id:'gantt',label:'גאנט',icon:'gantt'},{id:'meetings',label:'ישיבות',icon:'meetings'},{id:'principles',label:'עקרונות תכנון',icon:'principles'},{id:'supervision',label:'פיקוח',icon:'supervision'},{id:'milestones',label:'אבני דרך',icon:'milestones'},{id:'goals',label:'יעדים',icon:'goals'}];function Sidebar({track,setTrack,tracks,data,save}){/* The footer shows whoever is signed in; /api/me may answer before or after this mounts. */const[meName,setMeName]=React.useState(CURRENT_USER_LABEL);React.useEffect(()=>{setMeName(CURRENT_USER_LABEL);const on=e=>setMeName(e.detail.name);window.addEventListener('pm-user',on);return()=>window.removeEventListener('pm-user',on);},[]);const[userMenu,setUserMenu]=React.useState(false);const[profileOpen,setProfileOpen]=React.useState(false);const userMenuRef=React.useRef(null);React.useEffect(()=>{if(!userMenu)return;const h=e=>{if(userMenuRef.current&&!userMenuRef.current.contains(e.target))setUserMenu(false);};const k=e=>{if(e.key==='Escape')setUserMenu(false);};document.addEventListener('mousedown',h);document.addEventListener('keydown',k);return()=>{document.removeEventListener('mousedown',h);document.removeEventListener('keydown',k);};},[userMenu]);const meInitials=meName.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()||'?';const[,forceLangTick]=React.useState(0);React.useEffect(()=>{const on=()=>forceLangTick(x=>x+1);window.addEventListener('i18n:change',on);window.addEventListener('appearance:change',on);return()=>{window.removeEventListener('i18n:change',on);window.removeEventListener('appearance:change',on);};},[]);const[sidebarOpen,setSidebarOpen]=React.useState(true);const[sidebarW,setSidebarW]=React.useState(()=>{const saved=parseInt(localStorage.getItem('pm_sidebar_w'),10);return Number.isFinite(saved)&&saved>=180&&saved<=420?saved:220;});React.useEffect(()=>{localStorage.setItem('pm_sidebar_w',String(sidebarW));},[sidebarW]);const[isResizingSidebar,setIsResizingSidebar]=React.useState(false);const startSidebarResize=e=>{e.preventDefault();const startX=e.clientX;const startW=sidebarW;setIsResizingSidebar(true);const onMove=ev=>{const next=Math.max(180,Math.min(420,startW+(IS_LTR()?1:-1)*(ev.clientX-startX)));setSidebarW(next);};const onUp=()=>{setIsResizingSidebar(false);document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);};document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp);};const[expandedProj,setExpandedProj]=React.useState(ACTIVE_PROJECT_ID);// the open project starts expanded
+const[newProjOpen,setNewProjOpen]=React.useState(false);const[newTaskOpen,setNewTaskOpen]=React.useState(false);
 const[tracksExpanded,setTracksExpanded]=React.useState(true);const[overviewExpanded,setOverviewExpanded]=React.useState(true);
-const NAV=[{id:'home',label:'בית',icon:'home'},{id:'mytasks',label:'המשימות שלי',icon:'mytasks'},{id:'projects',label:'פרויקטים',icon:'projects'},{id:'hours',label:'דיווח שעות',icon:'hours'},{id:'portfolio',label:'פורטפוליו',icon:'portfolio'},{id:'settings',label:'הגדרות',icon:'settings'}];const ChevronIcon=({dir})=>/*#__PURE__*/React.createElement("svg",{width:"11",height:"11",viewBox:"0 0 12 12",fill:"none",stroke:"currentColor",strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round"},dir==='right'?/*#__PURE__*/React.createElement("path",{d:"M4 2l4 4-4 4"}):/*#__PURE__*/React.createElement("path",{d:"M8 2L4 6l4 4"}));const DownIcon=({open})=>/*#__PURE__*/React.createElement("svg",{width:"10",height:"10",viewBox:"0 0 12 12",fill:"none",stroke:"currentColor",strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round"},open?/*#__PURE__*/React.createElement("path",{d:"M2 8l4-4 4 4"}):/*#__PURE__*/React.createElement("path",{d:"M2 4l4 4 4-4"}));return/*#__PURE__*/React.createElement(React.Fragment,null,newProjOpen&&/*#__PURE__*/React.createElement(NewProjectModal,{onClose:()=>setNewProjOpen(false)}),!sidebarOpen&&/*#__PURE__*/React.createElement("button",{className:"sb-toggle-fixed",onClick:()=>setSidebarOpen(true),title:"פתח תפריט"},/*#__PURE__*/React.createElement(ChevronIcon,{dir:"left"})),/*#__PURE__*/React.createElement("div",{className:`sidebar${sidebarOpen?'':' collapsed'}`,style:{position:'relative',...(sidebarOpen?{width:sidebarW+'px'}:{}),...(isResizingSidebar?{transition:'none'}:{})}},sidebarOpen&&/*#__PURE__*/React.createElement("div",{onMouseDown:startSidebarResize,title:"שינוי רוחב התפריט",style:{position:'absolute',top:0,bottom:0,insetInlineEnd:-3,width:6,cursor:'col-resize',zIndex:20}}),/*#__PURE__*/React.createElement("div",{className:"sb-top"},/*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',gap:6,marginBottom:4}},/*#__PURE__*/React.createElement("div",{className:"sb-workspace",style:{flex:1,marginBottom:0}},/*#__PURE__*/React.createElement(BrandLockup,null)),/*#__PURE__*/React.createElement("button",{className:"sb-toggle",onClick:()=>setSidebarOpen(false),title:"סגור תפריט"},/*#__PURE__*/React.createElement(ChevronIcon,{dir:"right"}))),/*#__PURE__*/React.createElement("button",{className:"sb-create",onClick:()=>setNewProjOpen(true)},/*#__PURE__*/React.createElement("span",{className:"sb-create-dot"},"+"),"צור חדש")),/*#__PURE__*/React.createElement("div",{className:"sb-body"},/*#__PURE__*/React.createElement("div",{className:"sb-section"},NAV.map(item=>{const trackMap={home:'home',mytasks:'mytasks',projects:'projects',portfolio:'portfolio',settings:'settings'};const itemTrack=trackMap[item.id];const isActive=itemTrack&&track===itemTrack;const roleBlocked=item.id==='portfolio'&&!hasOfficeRole('admin');const isEnabled=!!itemTrack&&!roleBlocked;return/*#__PURE__*/React.createElement("button",{key:item.id,className:`sb-item${isActive?' active':isEnabled?'':' disabled'}`,title:roleBlocked?'פורטפוליו זמין מרמת Admin':undefined,onClick:isEnabled?()=>setTrack(itemTrack):undefined},/*#__PURE__*/React.createElement("span",{className:"sb-item-icon"},/*#__PURE__*/React.createElement(Ic,{n:item.icon,size:15})),item.label);})),/*#__PURE__*/React.createElement("div",{className:"sb-section"},/*#__PURE__*/React.createElement("div",{className:"sb-section-label"},"הפרויקטים שלי"),MY_PROJECTS.filter(p=>isMyProject(p)||p.id===ACTIVE_PROJECT_ID).map(p=>{const isActive=p.id===ACTIVE_PROJECT_ID;const canOpen=!isActive&&!!p.real;const isExpanded=expandedProj===p.id;return/*#__PURE__*/React.createElement("div",{key:p.id},/*#__PURE__*/React.createElement("div",{className:"sb-proj-row"},/*#__PURE__*/React.createElement("button",{className:`sb-proj-btn${isActive?' active':canOpen?'':' disabled'}`,title:p.visibility==='private'?'פרויקט פרטי':undefined,onClick:isActive?()=>{setExpandedProj(p.id);setTrack('overview');}:canOpen?()=>switchProject(p.id,'overview'):undefined},/*#__PURE__*/React.createElement("span",{className:"sb-proj-badge",style:{background:hexBg(p.color),color:p.color,border:`1px solid ${p.color}40`}},p.code),/*#__PURE__*/React.createElement("span",{className:"sb-proj-name"},p.name),p.visibility==='private'&&/*#__PURE__*/React.createElement("span",{className:"sb-proj-lock"},/*#__PURE__*/React.createElement(LockIcon,{size:10}))),/*#__PURE__*/React.createElement("button",{className:`sb-proj-chevron${isActive||canOpen?'':' disabled'}`,onClick:isActive?()=>setExpandedProj(isExpanded?null:p.id):canOpen?()=>switchProject(p.id,'overview'):undefined},/*#__PURE__*/React.createElement(DownIcon,{open:isExpanded}))),isExpanded&&/*#__PURE__*/React.createElement("div",{style:{marginBottom:2}},/*#__PURE__*/React.createElement("button",{className:`sb-sub-item${track==='overview'?' active':''}`,onClick:()=>setTrack('overview')},/*#__PURE__*/React.createElement("span",{className:"sb-sub-dot",style:{background:track==='overview'?'var(--accent)':'var(--border-strong)'}}),/*#__PURE__*/React.createElement("span",{className:"sb-item-icon",style:{width:13,height:13}},/*#__PURE__*/React.createElement(Ic,{n:"overview",size:13})),"מבט על"),/*#__PURE__*/React.createElement("button",{className:`sb-sub-item${track==='tasks'?' active':''}`,onClick:()=>setTrack('tasks')},/*#__PURE__*/React.createElement("span",{className:"sb-sub-dot",style:{background:track==='tasks'?'var(--accent)':'var(--border-strong)'}}),/*#__PURE__*/React.createElement("span",{className:"sb-item-icon",style:{width:13,height:13}},/*#__PURE__*/React.createElement(Ic,{n:"tasks",size:13})),"ניהול תכנון"),/*#__PURE__*/React.createElement("button",{className:`sb-sub-item${!tracksExpanded&&tracks.filter(t=>t.id!=='ongoing').some(t=>t.id===track)?' active':''}`,onClick:()=>setTracksExpanded(!tracksExpanded)},/*#__PURE__*/React.createElement("span",{className:"sb-sub-dot",style:{background:!tracksExpanded&&tracks.filter(t=>t.id!=='ongoing').some(t=>t.id===track)?'var(--accent)':'var(--border-strong)'}}),/*#__PURE__*/React.createElement("span",{className:"sb-item-icon",style:{width:13,height:13}},/*#__PURE__*/React.createElement(DownIcon,{open:tracksExpanded})),"מסלולים"),tracksExpanded&&tracks.filter(t=>t.id!=='ongoing').map(t=>/*#__PURE__*/React.createElement("button",{"data-i18n-skip":"",key:t.id,className:`sb-sub-item${track===t.id?' active':''}`,style:{paddingInlineStart:44},onClick:()=>setTrack(t.id)},/*#__PURE__*/React.createElement("span",{className:"sb-sub-dot",style:{background:track===t.id?'var(--accent)':'var(--border-strong)'}}),/*#__PURE__*/React.createElement("span",{className:"sb-item-icon",style:{width:13,height:13}},/*#__PURE__*/React.createElement(Ic,{n:"tasks",size:13})),t.label)),/*#__PURE__*/React.createElement("button",{className:`sb-sub-item${track==='template'?' active':''}`,onClick:()=>setTrack('template')},/*#__PURE__*/React.createElement("span",{className:"sb-sub-dot",style:{background:track==='template'?'var(--accent)':'var(--border-strong)'}}),/*#__PURE__*/React.createElement("span",{className:"sb-item-icon",style:{width:13,height:13}},/*#__PURE__*/React.createElement(Ic,{n:"template",size:13})),"טמפלייט")));}))),/*#__PURE__*/React.createElement("div",{className:"sb-footer"},/*#__PURE__*/React.createElement("div",{className:"sb-user"},profileOpen&&/*#__PURE__*/React.createElement(ProfileModal,{onClose:()=>setProfileOpen(false)}),/*#__PURE__*/React.createElement("div",{className:"sb-user-wrap",ref:userMenuRef},/*#__PURE__*/React.createElement("button",{className:`sb-user-btn${userMenu?' open':''}`,onClick:()=>setUserMenu(o=>!o),title:"הפרופיל שלי","aria-haspopup":"menu","aria-expanded":userMenu},/*#__PURE__*/React.createElement("div",{"data-i18n-skip":"",className:"sb-avatar"},meInitials),/*#__PURE__*/React.createElement("span",{"data-i18n-skip":"",className:"sb-user-name"},meName)),userMenu&&/*#__PURE__*/React.createElement(UserMenu,{name:meName,initials:meInitials,onProfile:()=>{setUserMenu(false);setProfileOpen(true);}})),/*#__PURE__*/React.createElement("button",{title:"החלף שפה",style:{background:'none',border:'none',cursor:'default',opacity:.55,fontSize:15,lineHeight:1,padding:4,color:'var(--text-2)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,gap:3,height:24},onClick:()=>window.I18N&&window.I18N.toggle()},"🌐",/*#__PURE__*/React.createElement("span",{"data-i18n-skip":"",style:{fontSize:11}},(window.I18N&&window.I18N.get&&window.I18N.get()==='he')?'EN':'עב')),/*#__PURE__*/React.createElement("button",{title:getAppearance()==='dark'?"מצב בהיר":"מצב כהה",style:{background:'none',border:'none',cursor:'default',opacity:.55,fontSize:15,lineHeight:1,padding:4,color:'var(--text-2)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,width:24,height:24},onClick:()=>applyAppearance(getAppearance()==='dark'?'light':'dark')},getAppearance()==='dark'?"☀":"☾")))));}/* ══════════════════════════════════════
+const NAV=[{id:'home',label:'בית',icon:'home'},{id:'mytasks',label:'המשימות שלי',icon:'mytasks'},{id:'projects',label:'פרויקטים',icon:'projects'},{id:'hours',label:'דיווח שעות',icon:'hours'},{id:'portfolio',label:'פורטפוליו',icon:'portfolio'},{id:'settings',label:'הגדרות',icon:'settings'}];const ChevronIcon=({dir})=>/*#__PURE__*/React.createElement("svg",{width:"11",height:"11",viewBox:"0 0 12 12",fill:"none",stroke:"currentColor",strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round"},dir==='right'?/*#__PURE__*/React.createElement("path",{d:"M4 2l4 4-4 4"}):/*#__PURE__*/React.createElement("path",{d:"M8 2L4 6l4 4"}));const DownIcon=({open})=>/*#__PURE__*/React.createElement("svg",{width:"10",height:"10",viewBox:"0 0 12 12",fill:"none",stroke:"currentColor",strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round"},open?/*#__PURE__*/React.createElement("path",{d:"M2 8l4-4 4 4"}):/*#__PURE__*/React.createElement("path",{d:"M2 4l4 4 4-4"}));return/*#__PURE__*/React.createElement(React.Fragment,null,newProjOpen&&/*#__PURE__*/React.createElement(NewProjectModal,{onClose:()=>setNewProjOpen(false)}),newTaskOpen&&data&&/*#__PURE__*/React.createElement(NewTaskModal,{data:data,save:save,onClose:()=>setNewTaskOpen(false)}),!sidebarOpen&&/*#__PURE__*/React.createElement("button",{className:"sb-toggle-fixed",onClick:()=>setSidebarOpen(true),title:"פתח תפריט"},/*#__PURE__*/React.createElement(ChevronIcon,{dir:"left"})),/*#__PURE__*/React.createElement("div",{className:`sidebar${sidebarOpen?'':' collapsed'}`,style:{position:'relative',...(sidebarOpen?{width:sidebarW+'px'}:{}),...(isResizingSidebar?{transition:'none'}:{})}},sidebarOpen&&/*#__PURE__*/React.createElement("div",{onMouseDown:startSidebarResize,title:"שינוי רוחב התפריט",style:{position:'absolute',top:0,bottom:0,insetInlineEnd:-3,width:6,cursor:'col-resize',zIndex:20}}),/*#__PURE__*/React.createElement("div",{className:"sb-top"},/*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',gap:6,marginBottom:4}},/*#__PURE__*/React.createElement("div",{className:"sb-workspace",style:{flex:1,marginBottom:0}},/*#__PURE__*/React.createElement(BrandLockup,null)),/*#__PURE__*/React.createElement("button",{className:"sb-toggle",onClick:()=>setSidebarOpen(false),title:"סגור תפריט"},/*#__PURE__*/React.createElement(ChevronIcon,{dir:"right"}))),/*#__PURE__*/React.createElement(CreateNewButton,{onTask:()=>setNewTaskOpen(true),onProject:()=>setNewProjOpen(true)})),/*#__PURE__*/React.createElement("div",{className:"sb-body"},/*#__PURE__*/React.createElement("div",{className:"sb-section"},NAV.map(item=>{const trackMap={home:'home',mytasks:'mytasks',projects:'projects',portfolio:'portfolio',settings:'settings'};const itemTrack=trackMap[item.id];const isActive=itemTrack&&track===itemTrack;const roleBlocked=item.id==='portfolio'&&!hasOfficeRole('admin');const isEnabled=!!itemTrack&&!roleBlocked;return/*#__PURE__*/React.createElement("button",{key:item.id,className:`sb-item${isActive?' active':isEnabled?'':' disabled'}`,title:roleBlocked?'פורטפוליו זמין מרמת Admin':undefined,onClick:isEnabled?()=>setTrack(itemTrack):undefined},/*#__PURE__*/React.createElement("span",{className:"sb-item-icon"},/*#__PURE__*/React.createElement(Ic,{n:item.icon,size:15})),item.label);})),/*#__PURE__*/React.createElement("div",{className:"sb-section"},/*#__PURE__*/React.createElement("div",{className:"sb-section-label"},"הפרויקטים שלי"),MY_PROJECTS.filter(p=>isMyProject(p)||p.id===ACTIVE_PROJECT_ID).map(p=>{const isActive=p.id===ACTIVE_PROJECT_ID;const canOpen=!isActive&&!!p.real;const isExpanded=expandedProj===p.id;return/*#__PURE__*/React.createElement("div",{key:p.id},/*#__PURE__*/React.createElement("div",{className:"sb-proj-row"},/*#__PURE__*/React.createElement("button",{className:`sb-proj-btn${isActive?' active':canOpen?'':' disabled'}`,title:p.visibility==='private'?'פרויקט פרטי':undefined,onClick:isActive?()=>{setExpandedProj(p.id);setTrack('overview');}:canOpen?()=>switchProject(p.id,'overview'):undefined},/*#__PURE__*/React.createElement("span",{className:"sb-proj-badge",style:{background:hexBg(p.color),color:p.color,border:`1px solid ${p.color}40`}},p.code),/*#__PURE__*/React.createElement("span",{className:"sb-proj-name"},p.name),p.visibility==='private'&&/*#__PURE__*/React.createElement("span",{className:"sb-proj-lock"},/*#__PURE__*/React.createElement(LockIcon,{size:10}))),/*#__PURE__*/React.createElement("button",{className:`sb-proj-chevron${isActive||canOpen?'':' disabled'}`,onClick:isActive?()=>setExpandedProj(isExpanded?null:p.id):canOpen?()=>switchProject(p.id,'overview'):undefined},/*#__PURE__*/React.createElement(DownIcon,{open:isExpanded}))),isExpanded&&/*#__PURE__*/React.createElement("div",{style:{marginBottom:2}},/*#__PURE__*/React.createElement("button",{className:`sb-sub-item${track==='overview'?' active':''}`,onClick:()=>setTrack('overview')},/*#__PURE__*/React.createElement("span",{className:"sb-sub-dot",style:{background:track==='overview'?'var(--accent)':'var(--border-strong)'}}),/*#__PURE__*/React.createElement("span",{className:"sb-item-icon",style:{width:13,height:13}},/*#__PURE__*/React.createElement(Ic,{n:"overview",size:13})),"מבט על"),/*#__PURE__*/React.createElement("button",{className:`sb-sub-item${track==='tasks'?' active':''}`,onClick:()=>setTrack('tasks')},/*#__PURE__*/React.createElement("span",{className:"sb-sub-dot",style:{background:track==='tasks'?'var(--accent)':'var(--border-strong)'}}),/*#__PURE__*/React.createElement("span",{className:"sb-item-icon",style:{width:13,height:13}},/*#__PURE__*/React.createElement(Ic,{n:"tasks",size:13})),"ניהול תכנון"),/*#__PURE__*/React.createElement("button",{className:`sb-sub-item${!tracksExpanded&&tracks.filter(t=>t.id!=='ongoing').some(t=>t.id===track)?' active':''}`,onClick:()=>setTracksExpanded(!tracksExpanded)},/*#__PURE__*/React.createElement("span",{className:"sb-sub-dot",style:{background:!tracksExpanded&&tracks.filter(t=>t.id!=='ongoing').some(t=>t.id===track)?'var(--accent)':'var(--border-strong)'}}),/*#__PURE__*/React.createElement("span",{className:"sb-item-icon",style:{width:13,height:13}},/*#__PURE__*/React.createElement(DownIcon,{open:tracksExpanded})),"מסלולים"),tracksExpanded&&tracks.filter(t=>t.id!=='ongoing').map(t=>/*#__PURE__*/React.createElement("button",{"data-i18n-skip":"",key:t.id,className:`sb-sub-item${track===t.id?' active':''}`,style:{paddingInlineStart:44},onClick:()=>setTrack(t.id)},/*#__PURE__*/React.createElement("span",{className:"sb-sub-dot",style:{background:track===t.id?'var(--accent)':'var(--border-strong)'}}),/*#__PURE__*/React.createElement("span",{className:"sb-item-icon",style:{width:13,height:13}},/*#__PURE__*/React.createElement(Ic,{n:"tasks",size:13})),t.label)),/*#__PURE__*/React.createElement("button",{className:`sb-sub-item${track==='template'?' active':''}`,onClick:()=>setTrack('template')},/*#__PURE__*/React.createElement("span",{className:"sb-sub-dot",style:{background:track==='template'?'var(--accent)':'var(--border-strong)'}}),/*#__PURE__*/React.createElement("span",{className:"sb-item-icon",style:{width:13,height:13}},/*#__PURE__*/React.createElement(Ic,{n:"template",size:13})),"טמפלייט")));}))),/*#__PURE__*/React.createElement("div",{className:"sb-footer"},/*#__PURE__*/React.createElement("div",{className:"sb-user"},profileOpen&&/*#__PURE__*/React.createElement(ProfileModal,{onClose:()=>setProfileOpen(false)}),/*#__PURE__*/React.createElement("div",{className:"sb-user-wrap",ref:userMenuRef},/*#__PURE__*/React.createElement("button",{className:`sb-user-btn${userMenu?' open':''}`,onClick:()=>setUserMenu(o=>!o),title:"הפרופיל שלי","aria-haspopup":"menu","aria-expanded":userMenu},/*#__PURE__*/React.createElement("div",{"data-i18n-skip":"",className:"sb-avatar"},meInitials),/*#__PURE__*/React.createElement("span",{"data-i18n-skip":"",className:"sb-user-name"},meName)),userMenu&&/*#__PURE__*/React.createElement(UserMenu,{name:meName,initials:meInitials,onProfile:()=>{setUserMenu(false);setProfileOpen(true);}})),/*#__PURE__*/React.createElement("button",{title:"החלף שפה",style:{background:'none',border:'none',cursor:'default',opacity:.55,fontSize:15,lineHeight:1,padding:4,color:'var(--text-2)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,gap:3,height:24},onClick:()=>window.I18N&&window.I18N.toggle()},"🌐",/*#__PURE__*/React.createElement("span",{"data-i18n-skip":"",style:{fontSize:11}},(window.I18N&&window.I18N.get&&window.I18N.get()==='he')?'EN':'עב')),/*#__PURE__*/React.createElement("button",{title:getAppearance()==='dark'?"מצב בהיר":"מצב כהה",style:{background:'none',border:'none',cursor:'default',opacity:.55,fontSize:15,lineHeight:1,padding:4,color:'var(--text-2)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,width:24,height:24},onClick:()=>applyAppearance(getAppearance()==='dark'?'light':'dark')},getAppearance()==='dark'?"☀":"☾")))));}/* ══════════════════════════════════════
    User menu and profile
 ══════════════════════════════════════ */
 function BrandLockup() {
@@ -7148,6 +7149,347 @@ const VISIBILITY_OPTS = [{
   desc: 'משתמשים נוספים במשרד יכולים לראות ולערוך',
   Icon: PeopleIcon
 }];
+/* ══════════════════════════════════════
+   "צור חדש" — a small menu: a new task (NewTaskModal) or a new project
+   (NewProjectModal). A new task goes to the first stage of מסלול תכנון in
+   one of the user's own projects; the open project saves through App's save
+   (undoable), any other is read, patched and written back.
+══════════════════════════════════════ */
+function CreateNewButton({
+  onTask,
+  onProject
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const close = useCallback(() => setOpen(false), []);
+  useOutsideClose(ref, open, close);
+  const canTask = myOfficeRole() !== 'viewer';
+  const pick = f => {
+    setOpen(false);
+    f();
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    ref: ref,
+    className: "sb-create-wrap"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "sb-create",
+    "aria-haspopup": "menu",
+    "aria-expanded": open,
+    onClick: () => setOpen(v => !v)
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "sb-create-dot"
+  }, "+"), "\u05E6\u05D5\u05E8 \u05D7\u05D3\u05E9"), open && /*#__PURE__*/React.createElement("div", {
+    className: "dp sb-create-menu",
+    role: "menu"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    role: "menuitem",
+    className: "dp-opt sb-create-opt",
+    disabled: !canTask,
+    title: canTask ? undefined : 'ברמת Viewer אין הרשאת עריכה',
+    onClick: () => pick(onTask)
+  }, /*#__PURE__*/React.createElement(Ic, {
+    n: "tasks",
+    size: 14
+  }), "\u05DE\u05E9\u05D9\u05DE\u05D4 \u05D7\u05D3\u05E9\u05D4"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    role: "menuitem",
+    className: "dp-opt sb-create-opt",
+    onClick: () => pick(onProject)
+  }, /*#__PURE__*/React.createElement(Ic, {
+    n: "projects",
+    size: 14
+  }), "\u05E4\u05E8\u05D5\u05D9\u05E7\u05D8 \u05D7\u05D3\u05E9")));
+}
+/* the first list stage of the design track (מסלול תכנון), where new tasks land */
+function designStageOf(doc) {
+  const sheets = doc && doc.sheets || [];
+  const track = (doc && doc.tracks || []).find(t => t.id === 'design' || t.trackValue === 'design');
+  const isList = s => s && s.type === 'list';
+  const byOrder = track ? (track.stageOrder || []).map(id => sheets.find(s => s.id === id)).find(isList) : null;
+  return byOrder || sheets.find(s => isList(s) && s.track === 'design') || null;
+}
+/* every track that has list stages, with its stages in the track's order — for the stage picker */
+function stagesByTrack(doc) {
+  const sheets = (doc && doc.sheets || []).filter(s => s.type === 'list');
+  return (doc && doc.tracks || []).filter(t => t.trackValue).map(t => {
+    const own = sheets.filter(s => s.track === t.trackValue);
+    const order = t.stageOrder || [];
+    const rank = s => {
+      const i = order.indexOf(s.id);
+      return i < 0 ? order.length : i;
+    };
+    return {
+      track: t,
+      stages: [...own].sort((a, b) => rank(a) - rank(b))
+    };
+  }).filter(x => x.stages.length);
+}
+function NewTaskModal({
+  data,
+  save,
+  onClose
+}) {
+  const projects = MY_PROJECTS.filter(p => p.real && isMyProject(p));
+  const [projectId, setProjectId] = useState(() => (projects.find(p => p.id === ACTIVE_PROJECT_ID) || projects[0] || {}).id || '');
+  const [title, setTitle] = useState('');
+  const [more, setMore] = useState(false);
+  const [discipline, setDiscipline] = useState('');
+  const [priority, setPriority] = useState('medium');
+  const [startDate, setStartDate] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [assigneeIds, setAssigneeIds] = useState([]);
+  const [stageId, setStageId] = useState(''); // '' = the default, first stage of מסלול תכנון
+  const [otherDoc, setOtherDoc] = useState(null);
+  const [loadErr, setLoadErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const isActive = projectId === ACTIVE_PROJECT_ID;
+  useEffect(() => {
+    setOtherDoc(null);
+    setLoadErr('');
+    setAssigneeIds([]);
+    setStageId('');
+    if (!projectId || projectId === ACTIVE_PROJECT_ID) return;
+    let alive = true;
+    fetch(projectEndpointOf(projectId)).then(r => r.ok ? r.json() : null).then(d => {
+      if (!alive) return;
+      if (d && d.sheets) setOtherDoc(migrateData(d));else setLoadErr('לא ניתן לטעון את הפרויקט');
+    }).catch(() => alive && setLoadErr('לא ניתן לטעון את הפרויקט'));
+    return () => {
+      alive = false;
+    };
+  }, [projectId]);
+  useEffect(() => {
+    const h = e => {
+      if (e.key === 'Escape' && !busy) onClose();
+    };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [busy, onClose]);
+  const doc = isActive ? data : otherDoc;
+  const pickStage = d => stageId && (d.sheets || []).find(s => s.id === stageId && s.type === 'list') || designStageOf(d);
+  const stage = doc ? pickStage(doc) : null;
+  const stageTrack = stage && doc ? (doc.tracks || []).find(t => t.trackValue === stage.track) : null;
+  const disciplines = doc && doc.disciplines || DISCIPLINES;
+  const priorities = doc && doc.priorities || PRIORITIES;
+  const team = (doc && doc.team || []).filter(m => m.staffId);
+  const toggleAssignee = id => setAssigneeIds(a => a.includes(id) ? a.filter(x => x !== id) : [...a, id]);
+  const addTo = (d, st) => {
+    const task = {
+      id: uid(),
+      groupId: (st.groups || [])[0]?.id || null,
+      title: title.trim(),
+      statusId: 'N',
+      priority,
+      discipline: discipline || null,
+      startDate,
+      dueDate: dueDate && startDate && dueDate < startDate ? startDate : dueDate,
+      comment: '',
+      done: false,
+      taskType: 'simple',
+      fieldValues: {},
+      subtasks: [],
+      ...(assigneeIds.length ? {
+        assigneeIds
+      } : {})
+    };
+    return {
+      ...d,
+      sheets: d.sheets.map(s => s.id === st.id ? {
+        ...s,
+        tasks: [...(s.tasks || []), task]
+      } : s)
+    };
+  };
+  const submit = async e => {
+    e && e.preventDefault();
+    if (busy) return;
+    if (!title.trim()) {
+      setErr('יש לכתוב את המשימה');
+      return;
+    }
+    if (!doc) return;
+    if (!stage) {
+      setErr('בפרויקט הזה אין שלב במסלול תכנון');
+      return;
+    }
+    setErr('');
+    if (isActive) {
+      save(addTo(data, stage));
+      onClose();
+      return;
+    }
+    setBusy(true);
+    try {
+      // re-read right before writing so a change made meanwhile isn't overwritten
+      const r = await fetch(projectEndpointOf(projectId));
+      if (!r.ok) throw new Error('load');
+      const fresh = migrateData(await r.json());
+      const st = pickStage(fresh);
+      if (!st) throw new Error('stage');
+      await postJson(projectEndpointOf(projectId), {
+        ...addTo(fresh, st),
+        _ts: Date.now()
+      });
+      onClose();
+    } catch {
+      setErr('המשימה לא נשמרה — בדוק שהשרת פועל');
+      setBusy(false);
+    }
+  };
+  return ReactDOM.createPortal(/*#__PURE__*/React.createElement("div", {
+    className: "af-overlay",
+    onMouseDown: e => {
+      if (e.target === e.currentTarget && !busy) onClose();
+    }
+  }, /*#__PURE__*/React.createElement("form", {
+    className: "af-box np-box nt-box",
+    onSubmit: submit
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "af-hdr"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "af-title"
+  }, "\u05DE\u05E9\u05D9\u05DE\u05D4 \u05D7\u05D3\u05E9\u05D4"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "af-close",
+    onClick: onClose,
+    "aria-label": "\u05E1\u05D2\u05D5\u05E8"
+  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+    className: "af-body np-body"
+  }, /*#__PURE__*/React.createElement("input", {
+    className: "af-input nt-title",
+    autoFocus: true,
+    value: title,
+    placeholder: "\u05DE\u05D4 \u05E6\u05E8\u05D9\u05DA \u05DC\u05E2\u05E9\u05D5\u05EA?",
+    onChange: e => {
+      setTitle(e.target.value);
+      setErr('');
+    }
+  }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "af-label"
+  }, "\u05E4\u05E8\u05D5\u05D9\u05E7\u05D8"), projects.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "np-err"
+  }, "\u05D0\u05D9\u05DF \u05DC\u05DA \u05E4\u05E8\u05D5\u05D9\u05E7\u05D8\u05D9\u05DD \u2014 \u05E6\u05E8\u05D9\u05DA \u05DC\u05D4\u05D9\u05D5\u05EA \u05D1\u05E6\u05D5\u05D5\u05EA \u05E9\u05DC \u05E4\u05E8\u05D5\u05D9\u05E7\u05D8 \u05DB\u05D3\u05D9 \u05DC\u05D4\u05D5\u05E1\u05D9\u05E3 \u05DC\u05D5 \u05DE\u05E9\u05D9\u05DE\u05D4") : /*#__PURE__*/React.createElement("select", {
+    className: "af-input",
+    value: projectId,
+    onChange: e => setProjectId(e.target.value)
+  }, projects.map(p => /*#__PURE__*/React.createElement("option", {
+    key: p.id,
+    value: p.id
+  }, p.code ? p.code + ' · ' : '', p.name))), /*#__PURE__*/React.createElement("div", {
+    className: "nt-dest"
+  }, loadErr ? /*#__PURE__*/React.createElement("span", {
+    className: "np-err"
+  }, loadErr) : !doc ? 'טוען…' : stage ? /*#__PURE__*/React.createElement(React.Fragment, null, "\u05EA\u05D9\u05DB\u05E0\u05E1 \u05DC: ", stageTrack && stageTrack.label || 'מסלול תכנון', " \u203A ", stage.name || 'שלב') : /*#__PURE__*/React.createElement("span", {
+    className: "np-err"
+  }, "\u05D1\u05E4\u05E8\u05D5\u05D9\u05E7\u05D8 \u05D4\u05D6\u05D4 \u05D0\u05D9\u05DF \u05E9\u05DC\u05D1 \u05D1\u05DE\u05E1\u05DC\u05D5\u05DC \u05EA\u05DB\u05E0\u05D5\u05DF"))), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "nt-more",
+    "aria-expanded": more,
+    onClick: () => setMore(v => !v)
+  }, more ? '▾' : '▸', " \u05D0\u05E4\u05E9\u05E8\u05D5\u05D9\u05D5\u05EA \u05E0\u05D5\u05E1\u05E4\u05D5\u05EA"), more && doc && /*#__PURE__*/React.createElement("div", {
+    className: "nt-more-body"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "af-label"
+  }, "\u05DE\u05E1\u05DC\u05D5\u05DC / \u05E9\u05DC\u05D1"), /*#__PURE__*/React.createElement("select", {
+    className: "af-input",
+    value: stageId,
+    onChange: e => setStageId(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "\u05D0\u05D5\u05D8\u05D5\u05DE\u05D8\u05D9 \u2014 \u05D4\u05E9\u05DC\u05D1 \u05D4\u05E8\u05D0\u05E9\u05D5\u05DF \u05D1\u05DE\u05E1\u05DC\u05D5\u05DC \u05EA\u05DB\u05E0\u05D5\u05DF"), stagesByTrack(doc).map(({
+    track,
+    stages
+  }) => /*#__PURE__*/React.createElement("optgroup", {
+    key: track.id,
+    label: track.label
+  }, stages.map(s => /*#__PURE__*/React.createElement("option", {
+    key: s.id,
+    value: s.id
+  }, s.name || 'שלב')))))), /*#__PURE__*/React.createElement("div", {
+    className: "np-row"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "af-label"
+  }, "\u05EA\u05D7\u05D5\u05DD"), /*#__PURE__*/React.createElement("select", {
+    className: "af-input",
+    value: discipline,
+    onChange: e => setDiscipline(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "\u2014 \u05DC\u05DC\u05D0 \u2014"), disciplines.map(d => /*#__PURE__*/React.createElement("option", {
+    key: d.id,
+    value: d.id
+  }, d.label)))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "af-label"
+  }, "\u05E2\u05D3\u05D9\u05E4\u05D5\u05EA"), /*#__PURE__*/React.createElement("select", {
+    className: "af-input",
+    value: priority,
+    onChange: e => setPriority(e.target.value)
+  }, priorities.map(p => /*#__PURE__*/React.createElement("option", {
+    key: p.id,
+    value: p.id
+  }, p.label))))), /*#__PURE__*/React.createElement("div", {
+    className: "np-row"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "af-label"
+  }, "\u05EA\u05D0\u05E8\u05D9\u05DA \u05D4\u05EA\u05D7\u05DC\u05D4"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    className: "af-input",
+    value: startDate,
+    onChange: e => setStartDate(e.target.value)
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "af-label"
+  }, "\u05EA\u05D0\u05E8\u05D9\u05DA \u05D9\u05E2\u05D3"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    className: "af-input",
+    value: dueDate,
+    min: startDate || undefined,
+    onChange: e => setDueDate(e.target.value)
+  }))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "af-label"
+  }, "\u05D0\u05D7\u05E8\u05D0\u05D9"), team.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "nt-dest"
+  }, "\u05D0\u05D9\u05DF \u05D0\u05E0\u05E9\u05D9 \u05E6\u05D5\u05D5\u05EA \u05D1\u05E4\u05E8\u05D5\u05D9\u05E7\u05D8") : /*#__PURE__*/React.createElement("div", {
+    className: "nt-people"
+  }, team.map(m => /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    key: m.staffId,
+    "aria-pressed": assigneeIds.includes(m.staffId),
+    className: 'nt-person' + (assigneeIds.includes(m.staffId) ? ' on' : ''),
+    onClick: () => toggleAssignee(m.staffId)
+  }, m.name || m.staffId))))), err && /*#__PURE__*/React.createElement("div", {
+    className: "np-err",
+    role: "alert"
+  }, err)), /*#__PURE__*/React.createElement("div", {
+    className: "np-foot"
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "np-btn",
+    onClick: onClose,
+    disabled: busy
+  }, "\u05D1\u05D9\u05D8\u05D5\u05DC"), /*#__PURE__*/React.createElement("button", {
+    type: "submit",
+    className: "np-btn primary",
+    disabled: busy || !doc || !stage || !title.trim()
+  }, busy ? 'שומר…' : 'הוסף משימה')))), document.body);
+}
 function NewProjectModal({
   onClose
 }) {
@@ -10673,7 +11015,7 @@ if(out!==d)setData(out);
 setSaveError(false);}catch{setSaveError(true);}finally{saving.current=false;}},[]);const openFileFallback=useCallback(async()=>{if(!window.showOpenFilePicker)return;try{const[handle]=await window.showOpenFilePicker({types:[{description:'JSON',accept:{'application/json':['.json']}}]});const file=await handle.getFile();const text=await file.text();const parsed=text?JSON.parse(text):{};const d=repairPrecondsSheet(migrateData(Object.keys(parsed).length?parsed:makeDefaultData()));fileHandleRef.current=handle;setLoadError(false);timeAutoRan.current=false;setData(d);}catch{}},[]);
 const save=useCallback(nd=>{if(myOfficeRole()==='viewer'){setReadOnlyNotice(Date.now());return;}const ad=runAutomations(data,nd);const d={...ad,_ts:Date.now(),_by:CURRENT_USER_LABEL};const label=detectActionLabel(data,nd);setPastStack(p=>[...p.slice(-(MAX_HIST-1)),{snapshot:{...data},label}]);setFutureStack([]);setData(d);persist(d);},[data,persist]);/* Every 30 seconds and on focus: if someone else saved, merge their version into the screen. Not while a save is in flight or a field has focus — the next check does it. Undo is cleared: it restores whole snapshots and would quietly remove a colleague's change. */React.useEffect(()=>{const check=async()=>{if(saving.current||!baseDoc.current||fileHandleRef.current)return;const ae=document.activeElement;if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT'||ae.isContentEditable))return;try{const r=await fetch(API_ENDPOINT,{headers:serverVersion?{'If-None-Match':serverVersion}:{}});if(r.status!==200)return;const theirs=await r.json();if(!theirs||!Object.keys(theirs).length||saving.current)return;serverVersion=r.headers.get('etag')||serverVersion;setData(cur=>{const merged=mergeDocs(baseDoc.current,cur,theirs);baseDoc.current=theirs;return merged;});setPastStack([]);setFutureStack([]);setExternalNotice(theirs._by||'משתמש אחר');setTimeout(()=>setExternalNotice(''),6000);}catch{}};window.addEventListener('focus',check);const iv=setInterval(check,30000);return()=>{window.removeEventListener('focus',check);clearInterval(iv);};},[]);
 const timeAutoRan=useRef(false);React.useEffect(()=>{if(!data||timeAutoRan.current)return;timeAutoRan.current=true;const res=runTimeBasedAutomations(data);if(res.changed){const d={...res.data,_ts:Date.now()};setData(d);persist(d);}},[data,persist]);const undoTo=useCallback(steps=>{const n=Math.min(steps,pastStack.length);if(!n)return;const newPast=pastStack.slice(0,pastStack.length-n);const displaced=pastStack.slice(pastStack.length-n);// oldest→newest
-const futureEntries=[{snapshot:{...data},label:displaced[displaced.length-1].label},...displaced.slice(0,-1).reverse().map((p,i,arr)=>({snapshot:arr[i+1]?.snapshot??displaced[displaced.length-1].snapshot,label:p.label}))];const restored={...displaced[0].snapshot,_ts:Date.now()};setPastStack(newPast);setFutureStack(fut=>[...futureEntries,...fut].slice(0,MAX_HIST));setData(restored);persist(restored);},[data,pastStack,persist]);const redoTo=useCallback(steps=>{const n=Math.min(steps,futureStack.length);if(!n)return;const displaced=futureStack.slice(0,n);const newFuture=futureStack.slice(n);const pastEntries=[{snapshot:{...data},label:displaced[0].label},...displaced.slice(1).map((f,i)=>({snapshot:displaced[i].snapshot,label:f.label}))];const restored={...displaced[n-1].snapshot,_ts:Date.now()};setPastStack(p=>[...p.slice(-(MAX_HIST-n)),...pastEntries]);setFutureStack(newFuture);setData(restored);persist(restored);},[data,futureStack,persist]);React.useEffect(()=>{const handler=e=>{if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='z'){e.preventDefault();undoTo(1);}if((e.ctrlKey||e.metaKey)&&(e.shiftKey&&e.key==='z'||e.key==='y')){e.preventDefault();redoTo(1);}};document.addEventListener('keydown',handler);return()=>document.removeEventListener('keydown',handler);},[undoTo,redoTo]);const commitName=()=>{if(nameDraft.trim()){save({...data,projectName:nameDraft.trim()});syncProjectRegistry({name:nameDraft.trim()}).catch(()=>{});}setEditName(false);};/* top-level track: 'overview' | 'tasks' | 'template' | one of data.tracks' ids */const[track,setTrack]=useState(()=>{try{const t=sessionStorage.getItem(PENDING_TRACK_KEY);sessionStorage.removeItem(PENDING_TRACK_KEY);return t||'home';}catch{return'home';}});const[autoNavReq,setAutoNavReq]=useState(null);const editAutomation=useCallback(ruleId=>{setAutoNavReq(ruleId?{ruleId}:{isNew:true});setTrack('template');},[]);const[taskNavReq,setTaskNavReq]=useState(null);const openTaskAt=useCallback((trackId,taskId,sheetId)=>{setTrack(trackId);setTaskNavReq({taskId,sheetId,n:Date.now()});},[]);const dataReady=!!data;useEffect(()=>{if(!dataReady)return;let req=null;try{req=JSON.parse(sessionStorage.getItem(PENDING_TASK_KEY)||'null');sessionStorage.removeItem(PENDING_TASK_KEY);}catch{}if(!req||req.projId!==ACTIVE_PROJECT_ID)return;const trackId=trackIdForSheet(data,req.sheetId);if(trackId)openTaskAt(trackId,req.taskId,req.sheetId);},[dataReady]);if(!data){return/*#__PURE__*/React.createElement("div",{style:{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,padding:40}},loadError?/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{style:{fontSize:14,color:'var(--text-2)'}},"לא ניתן להתחבר לשרת השמירה המקומי"),window.showOpenFilePicker&&/*#__PURE__*/React.createElement("button",{onClick:openFileFallback,style:{background:'var(--accent)',color:'#fff',border:'none',borderRadius:6,padding:'8px 16px',fontSize:13,cursor:'pointer',fontFamily:'inherit'}},"פתח קובץ נתונים...")):/*#__PURE__*/React.createElement("div",{style:{fontSize:14,color:'var(--text-2)'}},"טוען..."));}return/*#__PURE__*/React.createElement("div",{className:"shell"},/*#__PURE__*/React.createElement(ConfirmHost,null),readOnlyNotice?/*#__PURE__*/React.createElement("div",{role:"status",className:"ro-toast"},"צפייה בלבד — ברמת Viewer אין הרשאת עריכה"):null,saveError&&/*#__PURE__*/React.createElement("div",{style:{position:'fixed',top:0,left:0,right:0,zIndex:9999,background:'#DC2626',color:'#fff',fontSize:12,fontWeight:600,textAlign:'center',padding:'4px 0'}},"לא ניתן לשמור — השינויים האחרונים לא נשמרו"),externalNotice&&React.createElement("div",{style:{position:'fixed',top:saveError?22:0,left:0,right:0,zIndex:9999,background:'#2563EB',color:'#fff',fontSize:12,fontWeight:600,textAlign:'center',padding:'4px 0'}},"עודכן על ידי "+externalNotice),/*#__PURE__*/React.createElement(Sidebar,{track:track,setTrack:setTrack,tracks:data.tracks||[]}),/*#__PURE__*/React.createElement("div",{className:"app"},/*#__PURE__*/React.createElement("div",{/* office-wide pages carry no project header */className:"proj-header"+(['home','mytasks','projects','portfolio','settings'].includes(track)?' hdr-home':'')},/*#__PURE__*/React.createElement("div",{className:"proj-top"},(()=>{/* the same code badge the sidebar shows for this project */const hp=MY_PROJECTS.find(p=>p.id===ACTIVE_PROJECT_ID)||{};const code=data.projectMeta?.code||hp.code||'';const color=data.projectMeta?.color||hp.color||'#2563EB';return /*#__PURE__*/React.createElement("span",{className:"sb-proj-badge proj-code-badge",style:{background:hexBg(color),color:color,border:`1px solid ${color}40`}},code);})(),editName?/*#__PURE__*/React.createElement("input",{className:"proj-name-input",autoFocus:true,value:nameDraft,onChange:e=>setNameDraft(e.target.value),onBlur:commitName,onKeyDown:e=>{if(e.key==='Enter')commitName();if(e.key==='Escape')setEditName(false);}}):/*#__PURE__*/React.createElement("span",{className:"proj-name",onClick:()=>{setNameDraft(data.projectName);setEditName(true);}},data.projectName),/*#__PURE__*/React.createElement("button",{className:"icon-btn",title:"מועדפים"},/*#__PURE__*/React.createElement(Ic,{n:"star"})),/*#__PURE__*/React.createElement(ProjectStatusSelect,{data:data,save:save}),/*#__PURE__*/React.createElement("div",{className:"hdr-right"},/*#__PURE__*/React.createElement(ProjectShareControls,{data:data,save:save}))),/* the project strip belongs to מבט על and the pages it links to — not to tracks, ניהול תכנון or the template */['overview','contacts','data','notes'].includes(track)&&/*#__PURE__*/React.createElement("div",{className:"sheet-tabs",style:{borderTop:'1px solid var(--border)'}},React.createElement(ProjectHeaderNav,{track:track,setTrack:setTrack}),/*#__PURE__*/React.createElement("div",{style:{marginInlineStart:'auto',display:'flex',alignItems:'center',gap:4,paddingInlineEnd:10,flexShrink:0}},/*#__PURE__*/React.createElement(UndoRedoBtn,{icon:"↩",tooltip:"ביטול",items:pastStack,disabled:!pastStack.length,onApply:()=>undoTo(1),onGoTo:undoTo}),/*#__PURE__*/React.createElement(UndoRedoBtn,{icon:"↪",tooltip:"שחזור",items:futureStack,disabled:!futureStack.length,onApply:()=>redoTo(1),onGoTo:redoTo})))),/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},track==='overview'&&/*#__PURE__*/React.createElement(OverviewPage,{data:data,save:save,onNavigateToTasks:()=>setTrack('ongoing'),onNavigateToData:()=>setTrack('data')}),track==='contacts'&&/*#__PURE__*/React.createElement(ContactsView,{data:data,save:save}),track==='data'&&/*#__PURE__*/React.createElement(ProjectDataView,{data:data,save:save}),track==='notes'&&/*#__PURE__*/React.createElement(NotepadTab,{data:data,save:save}),track==='tasks'&&/*#__PURE__*/React.createElement(NihulHubView,{data:data,save:save,onNavigateToOngoing:()=>setTrack('ongoing'),onEditAutomation:editAutomation}),(data.tracks||[]).some(t=>t.id===track)&&/*#__PURE__*/React.createElement(TrackView,{data:data,save:save,trackId:track,onEditAutomation:editAutomation,taskNavReq:taskNavReq,onTaskNavConsumed:()=>setTaskNavReq(null)}),track==='mytasks'&&/*#__PURE__*/React.createElement(MyTasksView,{data:data,save:save}),track==='home'&&/*#__PURE__*/React.createElement(HomeView,{data:data,save:save,onNavigate:setTrack,onOpenTask:openTaskAt}),track==='projects'&&/*#__PURE__*/React.createElement(ProjectsDirectoryView,{data:data,save:save}),track==='portfolio'&&/*#__PURE__*/React.createElement(PortfolioView,null),track==='settings'&&/*#__PURE__*/React.createElement(OfficeSettingsView,{data:data,save:save}),track==='template'&&/*#__PURE__*/React.createElement(TemplateView,{data:data,save:save,autoNavReq:autoNavReq,onAutoNavConsumed:()=>setAutoNavReq(null)}))));}if(isSignedOut())location.replace('login.html');else ME_READY.then(()=>loadProjectRegistry()).finally(()=>ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(App,null)));
+const futureEntries=[{snapshot:{...data},label:displaced[displaced.length-1].label},...displaced.slice(0,-1).reverse().map((p,i,arr)=>({snapshot:arr[i+1]?.snapshot??displaced[displaced.length-1].snapshot,label:p.label}))];const restored={...displaced[0].snapshot,_ts:Date.now()};setPastStack(newPast);setFutureStack(fut=>[...futureEntries,...fut].slice(0,MAX_HIST));setData(restored);persist(restored);},[data,pastStack,persist]);const redoTo=useCallback(steps=>{const n=Math.min(steps,futureStack.length);if(!n)return;const displaced=futureStack.slice(0,n);const newFuture=futureStack.slice(n);const pastEntries=[{snapshot:{...data},label:displaced[0].label},...displaced.slice(1).map((f,i)=>({snapshot:displaced[i].snapshot,label:f.label}))];const restored={...displaced[n-1].snapshot,_ts:Date.now()};setPastStack(p=>[...p.slice(-(MAX_HIST-n)),...pastEntries]);setFutureStack(newFuture);setData(restored);persist(restored);},[data,futureStack,persist]);React.useEffect(()=>{const handler=e=>{if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='z'){e.preventDefault();undoTo(1);}if((e.ctrlKey||e.metaKey)&&(e.shiftKey&&e.key==='z'||e.key==='y')){e.preventDefault();redoTo(1);}};document.addEventListener('keydown',handler);return()=>document.removeEventListener('keydown',handler);},[undoTo,redoTo]);const commitName=()=>{if(nameDraft.trim()){save({...data,projectName:nameDraft.trim()});syncProjectRegistry({name:nameDraft.trim()}).catch(()=>{});}setEditName(false);};/* top-level track: 'overview' | 'tasks' | 'template' | one of data.tracks' ids */const[track,setTrack]=useState(()=>{try{const t=sessionStorage.getItem(PENDING_TRACK_KEY);sessionStorage.removeItem(PENDING_TRACK_KEY);return t||'home';}catch{return'home';}});const[autoNavReq,setAutoNavReq]=useState(null);const editAutomation=useCallback(ruleId=>{setAutoNavReq(ruleId?{ruleId}:{isNew:true});setTrack('template');},[]);const[taskNavReq,setTaskNavReq]=useState(null);const openTaskAt=useCallback((trackId,taskId,sheetId)=>{setTrack(trackId);setTaskNavReq({taskId,sheetId,n:Date.now()});},[]);const dataReady=!!data;useEffect(()=>{if(!dataReady)return;let req=null;try{req=JSON.parse(sessionStorage.getItem(PENDING_TASK_KEY)||'null');sessionStorage.removeItem(PENDING_TASK_KEY);}catch{}if(!req||req.projId!==ACTIVE_PROJECT_ID)return;const trackId=trackIdForSheet(data,req.sheetId);if(trackId)openTaskAt(trackId,req.taskId,req.sheetId);},[dataReady]);if(!data){return/*#__PURE__*/React.createElement("div",{style:{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,padding:40}},loadError?/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{style:{fontSize:14,color:'var(--text-2)'}},"לא ניתן להתחבר לשרת השמירה המקומי"),window.showOpenFilePicker&&/*#__PURE__*/React.createElement("button",{onClick:openFileFallback,style:{background:'var(--accent)',color:'#fff',border:'none',borderRadius:6,padding:'8px 16px',fontSize:13,cursor:'pointer',fontFamily:'inherit'}},"פתח קובץ נתונים...")):/*#__PURE__*/React.createElement("div",{style:{fontSize:14,color:'var(--text-2)'}},"טוען..."));}return/*#__PURE__*/React.createElement("div",{className:"shell"},/*#__PURE__*/React.createElement(ConfirmHost,null),readOnlyNotice?/*#__PURE__*/React.createElement("div",{role:"status",className:"ro-toast"},"צפייה בלבד — ברמת Viewer אין הרשאת עריכה"):null,saveError&&/*#__PURE__*/React.createElement("div",{style:{position:'fixed',top:0,left:0,right:0,zIndex:9999,background:'#DC2626',color:'#fff',fontSize:12,fontWeight:600,textAlign:'center',padding:'4px 0'}},"לא ניתן לשמור — השינויים האחרונים לא נשמרו"),externalNotice&&React.createElement("div",{style:{position:'fixed',top:saveError?22:0,left:0,right:0,zIndex:9999,background:'#2563EB',color:'#fff',fontSize:12,fontWeight:600,textAlign:'center',padding:'4px 0'}},"עודכן על ידי "+externalNotice),/*#__PURE__*/React.createElement(Sidebar,{track:track,setTrack:setTrack,tracks:data.tracks||[],data:data,save:save}),/*#__PURE__*/React.createElement("div",{className:"app"},/*#__PURE__*/React.createElement("div",{/* office-wide pages carry no project header */className:"proj-header"+(['home','mytasks','projects','portfolio','settings'].includes(track)?' hdr-home':'')},/*#__PURE__*/React.createElement("div",{className:"proj-top"},(()=>{/* the same code badge the sidebar shows for this project */const hp=MY_PROJECTS.find(p=>p.id===ACTIVE_PROJECT_ID)||{};const code=data.projectMeta?.code||hp.code||'';const color=data.projectMeta?.color||hp.color||'#2563EB';return /*#__PURE__*/React.createElement("span",{className:"sb-proj-badge proj-code-badge",style:{background:hexBg(color),color:color,border:`1px solid ${color}40`}},code);})(),editName?/*#__PURE__*/React.createElement("input",{className:"proj-name-input",autoFocus:true,value:nameDraft,onChange:e=>setNameDraft(e.target.value),onBlur:commitName,onKeyDown:e=>{if(e.key==='Enter')commitName();if(e.key==='Escape')setEditName(false);}}):/*#__PURE__*/React.createElement("span",{className:"proj-name",onClick:()=>{setNameDraft(data.projectName);setEditName(true);}},data.projectName),/*#__PURE__*/React.createElement("button",{className:"icon-btn",title:"מועדפים"},/*#__PURE__*/React.createElement(Ic,{n:"star"})),/*#__PURE__*/React.createElement(ProjectStatusSelect,{data:data,save:save}),/*#__PURE__*/React.createElement("div",{className:"hdr-right"},/*#__PURE__*/React.createElement(ProjectShareControls,{data:data,save:save}))),/* the project strip belongs to מבט על and the pages it links to — not to tracks, ניהול תכנון or the template */['overview','contacts','data','notes'].includes(track)&&/*#__PURE__*/React.createElement("div",{className:"sheet-tabs",style:{borderTop:'1px solid var(--border)'}},React.createElement(ProjectHeaderNav,{track:track,setTrack:setTrack}),/*#__PURE__*/React.createElement("div",{style:{marginInlineStart:'auto',display:'flex',alignItems:'center',gap:4,paddingInlineEnd:10,flexShrink:0}},/*#__PURE__*/React.createElement(UndoRedoBtn,{icon:"↩",tooltip:"ביטול",items:pastStack,disabled:!pastStack.length,onApply:()=>undoTo(1),onGoTo:undoTo}),/*#__PURE__*/React.createElement(UndoRedoBtn,{icon:"↪",tooltip:"שחזור",items:futureStack,disabled:!futureStack.length,onApply:()=>redoTo(1),onGoTo:redoTo})))),/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},track==='overview'&&/*#__PURE__*/React.createElement(OverviewPage,{data:data,save:save,onNavigateToTasks:()=>setTrack('ongoing'),onNavigateToData:()=>setTrack('data')}),track==='contacts'&&/*#__PURE__*/React.createElement(ContactsView,{data:data,save:save}),track==='data'&&/*#__PURE__*/React.createElement(ProjectDataView,{data:data,save:save}),track==='notes'&&/*#__PURE__*/React.createElement(NotepadTab,{data:data,save:save}),track==='tasks'&&/*#__PURE__*/React.createElement(NihulHubView,{data:data,save:save,onNavigateToOngoing:()=>setTrack('ongoing'),onEditAutomation:editAutomation}),(data.tracks||[]).some(t=>t.id===track)&&/*#__PURE__*/React.createElement(TrackView,{data:data,save:save,trackId:track,onEditAutomation:editAutomation,taskNavReq:taskNavReq,onTaskNavConsumed:()=>setTaskNavReq(null)}),track==='mytasks'&&/*#__PURE__*/React.createElement(MyTasksView,{data:data,save:save}),track==='home'&&/*#__PURE__*/React.createElement(HomeView,{data:data,save:save,onNavigate:setTrack,onOpenTask:openTaskAt}),track==='projects'&&/*#__PURE__*/React.createElement(ProjectsDirectoryView,{data:data,save:save}),track==='portfolio'&&/*#__PURE__*/React.createElement(PortfolioView,null),track==='settings'&&/*#__PURE__*/React.createElement(OfficeSettingsView,{data:data,save:save}),track==='template'&&/*#__PURE__*/React.createElement(TemplateView,{data:data,save:save,autoNavReq:autoNavReq,onAutoNavConsumed:()=>setAutoNavReq(null)}))));}if(isSignedOut())location.replace('login.html');else ME_READY.then(()=>loadProjectRegistry()).finally(()=>ReactDOM.createRoot(document.getElementById('root')).render(/*#__PURE__*/React.createElement(App,null)));
 </script>
 <script src="i18n-dict.js"></script>
 <script src="i18n.js"></script>
