@@ -7275,8 +7275,9 @@ function isHighPriority(id, list) {
    project I'm on (assigned to me, or all of them where I'm a manager) plus my
    personal tasks. Edits go back where each task lives: the open project
    through App's save, another project by read → patch → If-Match write, a
-   personal task to /api/personal. Columns, widths and saved views are kept
-   in the personal list, so they belong to the user.
+   personal task to /api/personal. Columns, widths, saved views and sections
+   are kept in the personal list, so they belong to the user: moving a task
+   into a section here is recorded in taskGroups and never touches its project.
 ══════════════════════════════════════ */
 const MT_WHEN = ['באיחור', 'היום', 'השבוע', 'מאוחר יותר', 'ללא תאריך', 'עבר'];
 const MT_STUCK = ['סטטוס תקוע', 'באיחור', 'חריגה בעדכון'];
@@ -7302,6 +7303,14 @@ function mtClean(t) {
   if (t.__src === 'proj') out.groupId = t.__origGroupId ?? null;else delete out.groupId;
   return out;
 }
+const mtKey = t => t.__src === 'proj' ? t.__projId + ':' + t.id : 'me:' + t.id;
+/* true when two versions of a task differ only in their section here */
+const mtOnlyGroupMoved = (a, b) => {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  keys.delete('groupId');
+  for (const k of keys) if (a[k] !== b[k]) return false;
+  return a.groupId !== b.groupId;
+};
 const mtUnion = lists => {
   const seen = new Map();
   lists.forEach(l => (l || []).forEach(x => {
@@ -7519,16 +7528,22 @@ function MyTasksTable({
     });
   });
   const lay = layout || {};
+  const groups = lay.groups && lay.groups.length ? lay.groups : [{
+    id: '__mt',
+    name: 'משימות',
+    collapsed: false
+  }];
+  const taskGroups = lay.taskGroups || {};
+  tasks.forEach(t => {
+    const g = taskGroups[mtKey(t)];
+    t.groupId = g && groups.some(x => x.id === g) ? g : groups[0].id;
+  });
   const sheet = {
     id: '__mytasks',
     name: 'המשימות שלי',
     type: 'list',
     __combined: true,
-    groups: [{
-      id: '__mt',
-      name: 'משימות',
-      collapsed: false
-    }],
+    groups,
     tasks,
     hiddenCols: lay.hiddenCols || {},
     colOrder: lay.colOrder || [],
@@ -7598,7 +7613,9 @@ function MyTasksTable({
       });else personalOps.push(op);
     };
     next.forEach(t => {
-      if (prevById.get(t.id) !== t) push(t, {
+      const old = prevById.get(t.id);
+      if (old === t || old && mtOnlyGroupMoved(old, t)) return; // a section move stays in the layout
+      push(t, {
         task: mtClean(t)
       });
     });
@@ -7646,17 +7663,26 @@ function MyTasksTable({
   };
   const onSave = next => {
     setErr('');
+    const nextGroups = next.groups && next.groups.length ? next.groups : groups;
+    const nextTaskGroups = {};
+    (next.tasks || sheet.tasks).forEach(t => {
+      if (t.groupId && t.groupId !== nextGroups[0].id && nextGroups.some(g => g.id === t.groupId)) nextTaskGroups[mtKey(t)] = t.groupId;
+    });
     const nextLayout = {
       hiddenCols: next.hiddenCols || {},
       colOrder: next.colOrder || [],
       colWidths: next.colWidths || {},
-      views: next.views || []
+      views: next.views || [],
+      groups: nextGroups,
+      taskGroups: nextTaskGroups
     };
     if (JSON.stringify(nextLayout) !== JSON.stringify({
       hiddenCols: sheet.hiddenCols,
       colOrder: sheet.colOrder,
       colWidths: sheet.colWidths,
-      views: sheet.views
+      views: sheet.views,
+      groups,
+      taskGroups: Object.fromEntries(sheet.tasks.filter(t => t.groupId !== groups[0].id).map(t => [mtKey(t), t.groupId]))
     })) {
       setLayout(nextLayout);
       updatePersonal(d => ({
