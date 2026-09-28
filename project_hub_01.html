@@ -7553,7 +7553,22 @@ function MyTasksTable({
   const loaded = projects.filter(docOf);
 
   /* shared lists: every project's, so each task shows its own values */
-  const priorities = mtUnion([...loaded.map(p => docOf(p).priorities || PRIORITIES), PERSONAL_PRIORITIES]);
+  /* priorities merge by name: a project's own "דחוף" and the personal one are one option here;
+     each task shows the merged id and is saved back with its own list's id */
+  const priListOf = t => t.__src === 'me' ? PERSONAL_PRIORITIES : (docOf({
+    id: t.__projId
+  }) || {}).priorities || PRIORITIES;
+  const priLabel = s => (s || '').trim();
+  const priorities = [];
+  [...loaded.map(p => docOf(p).priorities || PRIORITIES), PERSONAL_PRIORITIES].forEach(l => l.forEach(x => {
+    if (x && !priorities.some(y => y.id === x.id || priLabel(y.label) === priLabel(x.label))) priorities.push(x);
+  }));
+  const priMove = (id, from, to) => {
+    const own = from.find(x => x.id === id);
+    if (!own) return id;
+    const hit = to.find(x => priLabel(x.label) === priLabel(own.label));
+    return hit ? hit.id : id;
+  };
   const disciplines = mtUnion(loaded.map(p => docOf(p).disciplines || DISCIPLINES));
   const team = mtUnion(loaded.map(p => (docOf(p).team || []).filter(m => m.staffId).map(m => ({
     ...m,
@@ -7619,6 +7634,7 @@ function MyTasksTable({
         if (delay != null) stuck.push('חריגה בעדכון');
         tasks.push({
           ...t,
+          priority: priMove(t.priority, doc.priorities || PRIORITIES, priorities),
           groupId: '__mt',
           __src: 'proj',
           __projId: p.id,
@@ -7645,6 +7661,7 @@ function MyTasksTable({
     if (!done && t.dueDate && t.dueDate < today) stuck.push('באיחור');
     tasks.push({
       ...t,
+      priority: priMove(t.priority, PERSONAL_PRIORITIES, priorities),
       groupId: '__mt',
       __src: 'me',
       mtProject: 'אישי',
@@ -7744,7 +7761,10 @@ function MyTasksTable({
       const old = prevById.get(t.id);
       if (old === t || old && mtOnlyGroupMoved(old, t)) return; // a section move stays in the layout
       push(t, {
-        task: mtClean(t)
+        task: {
+          ...mtClean(t),
+          priority: priMove(t.priority, priorities, priListOf(t))
+        }
       });
     });
     prev.forEach(t => {
@@ -7840,6 +7860,7 @@ function MyTasksTable({
         sheetId: st.id,
         task: {
           ...task,
+          priority: priMove(task.priority, priorities, doc.priorities || PRIORITIES),
           groupId: (st.groups || [])[0]?.id || null
         }
       }]);
