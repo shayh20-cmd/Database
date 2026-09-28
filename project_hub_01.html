@@ -7334,91 +7334,47 @@ const mtUnion = lists => {
   }));
   return [...seen.values()];
 };
+/* the starting views every user gets (the office's two); each user edits or deletes their own copy */
 function mtPresetViews(priorities) {
-  const blank = {
-    hiddenCols: {},
-    colOrder: [],
-    colWidths: {}
-  };
   const highIds = priorities.filter(p => isHighPriority(p.id, priorities)).map(p => p.id);
-  const open = {
-    mtState: ['פתוחה']
-  };
-  const mine = {
-    mtScope: ['משויך אליי', 'אישי']
-  };
-  const byDue = [{
-    column: 'dueDate',
-    dir: 'asc'
-  }];
   const views = [{
-    id: 'mtv-mine',
-    name: 'הפתוחות שלי',
+    id: 'mtv-todo',
+    name: 'לביצוע להיום/השבוע/המשך',
     filterState: {
-      ...open,
-      ...mine
-    },
-    sortState: byDue,
-    groupByState: [{
-      field: 'mtWhen'
-    }],
-    ...blank
-  }, {
-    id: 'mtv-week',
-    name: 'השבוע',
-    filterState: {
-      ...open,
-      ...mine,
-      mtWhen: ['באיחור', 'היום', 'השבוע']
-    },
-    sortState: byDue,
-    groupByState: [],
-    ...blank
-  }, {
-    id: 'mtv-high',
-    name: 'עדיפות גבוהה',
-    filterState: {
-      ...open,
       priority: highIds
     },
-    sortState: byDue,
+    sortState: [{
+      column: 'dueDate',
+      dir: 'asc'
+    }, {
+      column: 'mtProject',
+      dir: 'desc'
+    }, {
+      column: 'priority',
+      dir: 'asc'
+    }],
+    groupByState: [{
+      field: 'section'
+    }],
+    colOrder: [],
+    colWidths: {
+      mtProject: 163,
+      __name: 427
+    }
+  }, {
+    id: 'mtv-byproject',
+    name: 'לפי פרויקט',
+    filterState: {
+      priority: highIds
+    },
+    sortState: null,
     groupByState: [{
       field: 'mtProject'
     }],
-    ...blank
-  }, {
-    id: 'mtv-stuck',
-    name: 'תקוע',
-    filterState: {
-      ...open,
-      mtStuck: MT_STUCK
-    },
-    sortState: byDue,
-    groupByState: [{
-      field: 'mtProject'
-    }],
-    ...blank
-  }, {
-    id: 'mtv-late',
-    name: 'באיחור',
-    filterState: {
-      ...open,
-      mtWhen: ['באיחור']
-    },
-    sortState: byDue,
-    groupByState: [],
-    ...blank
-  }, {
-    id: 'mtv-managed',
-    name: 'כולל פרויקטים שאני מנהל',
-    filterState: {
-      ...open
-    },
-    sortState: byDue,
-    groupByState: [{
-      field: 'mtProject'
-    }],
-    ...blank
+    colOrder: [],
+    colWidths: {
+      __name: 447
+    }
   }];
   return views.map(v => ({
     ...v,
@@ -7602,7 +7558,7 @@ function MyTasksTable({
       views: mtPresetViews(priorities)
     };
     try {
-      localStorage.setItem(MT_VIEW_KEY, 'mtv-mine');
+      localStorage.setItem(MT_VIEW_KEY, 'mtv-todo');
     } catch {}
     setLayout(seeded);
     updatePersonal(d => ({
