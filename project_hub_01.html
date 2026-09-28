@@ -7627,6 +7627,7 @@ function MyTasksTable({
         if (!mine && !iManageIt) return;
         const status = taskStatusEff(t);
         const done = status === 'C';
+        if (done) return; // finished work isn't shown here at all
         const delay = done ? null : updateDelayOf(t, threshold, today);
         const stuck = [];
         if (!done && status === 'S') stuck.push('סטטוס תקוע');
@@ -7656,6 +7657,7 @@ function MyTasksTable({
   });
   (personal && personal.tasks || []).forEach(t => {
     const done = taskStatusEff(t) === 'C';
+    if (done) return;
     const stuck = [];
     if (!done && t.statusId === 'S') stuck.push('סטטוס תקוע');
     if (!done && t.dueDate && t.dueDate < today) stuck.push('באיחור');
@@ -7951,11 +7953,6 @@ function MyTasksTable({
     options: opts(MT_STUCK),
     valueOf: t => t.mtStuck || []
   }, {
-    key: 'mtState',
-    label: 'מצב',
-    options: opts(['פתוחה', 'הושלמה']),
-    valueOf: t => t.mtState
-  }, {
     key: 'mtAssignee',
     label: 'אחראי',
     options: team.map(m => ({
@@ -7973,9 +7970,6 @@ function MyTasksTable({
   }, {
     field: 'mtWhen',
     label: 'מועד'
-  }, {
-    field: 'mtState',
-    label: 'מצב'
   }];
   const extraSorts = [{
     column: 'mtProject',
