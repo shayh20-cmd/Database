@@ -37,7 +37,13 @@ $candidates = @(
 )
 $browser = $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 if (-not $browser) { throw "Neither Chrome nor Edge was found." }
-$window = "--window-size=540,720"
+$window = "--window-size=470,560"
+
+# the Project Hub icon with a "+" (not Chrome's), copied next to the user's profile so it outlives the repo folder
+$iconDir = Join-Path $env:LOCALAPPDATA "ProjectHub"
+New-Item -ItemType Directory -Path $iconDir -Force | Out-Null
+$icon = Join-Path $iconDir "project-hub-add.ico"
+Copy-Item (Join-Path $PSScriptRoot "project-hub-add.ico") $icon -Force
 
 # 1. Start menu shortcuts with hotkeys
 $programs = Join-Path ([Environment]::GetFolderPath('Programs')) "Project Hub"
@@ -48,7 +54,7 @@ function New-QuickShortcut($name, $query, $hotkey) {
     $lnk.TargetPath = $browser
     $lnk.Arguments = "--app=`"$base`?$query`" $window"
     $lnk.Hotkey = $hotkey
-    $lnk.IconLocation = "$browser,0"
+    $lnk.IconLocation = "$icon,0"
     $lnk.Description = "Project Hub — $name"
     $lnk.Save()
 }
@@ -65,7 +71,7 @@ $entries = @(
 foreach ($e in $entries) {
     New-Item -Path $e.Key -Force | Out-Null
     Set-ItemProperty -Path $e.Key -Name "MUIVerb" -Value $label
-    Set-ItemProperty -Path $e.Key -Name "Icon" -Value "$browser,0"
+    Set-ItemProperty -Path $e.Key -Name "Icon" -Value "$icon"
     New-Item -Path "$($e.Key)\command" -Force | Out-Null
     Set-ItemProperty -Path "$($e.Key)\command" -Name "(default)" -Value "`"$browser`" --app=`"$base`?$($e.Query)`" $window"
 }
@@ -75,4 +81,5 @@ Write-Host "Project Hub quick access is installed (browser: $browser)" -Foregrou
 Write-Host "  $Hotkey  new task (the tab at the top switches to an update)"
 Write-Host "  Right-click the desktop or inside a folder → $label"
 Write-Host "  (Windows 11: under 'Show more options')"
+Write-Host "  Taskbar button: Start → Project Hub → right-click 'משימה חדשה' → Pin to taskbar"
 Write-Host ""

@@ -5,6 +5,8 @@ Removes what Install-QuickAccess.ps1 added: the Start menu shortcuts and the rig
 $ErrorActionPreference = "Stop"
 $programs = Join-Path ([Environment]::GetFolderPath('Programs')) "Project Hub"
 if (Test-Path $programs) { Remove-Item -Recurse -Force $programs }
+$iconDir = Join-Path $env:LOCALAPPDATA "ProjectHub"
+if (Test-Path $iconDir) { Remove-Item -Recurse -Force $iconDir }
 foreach ($k in "HKCU:\Software\Classes\DesktopBackground\Shell\ProjectHubTask",
                "HKCU:\Software\Classes\Directory\Background\shell\ProjectHubTask") {
     if (Test-Path $k) { Remove-Item -Recurse -Force $k }

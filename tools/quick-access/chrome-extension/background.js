@@ -14,7 +14,7 @@ function openQuick(kind, { title = '', link = '' } = {}) {
   const t = title.replace(/\s+/g, ' ').trim().slice(0, 200);
   if (t) q.set('title', t);
   if (link && !link.startsWith(BASE)) q.set('link', link);
-  chrome.windows.create({ url: `${BASE}?${q}`, type: 'popup', width: 540, height: 720 });
+  chrome.windows.create({ url: `${BASE}?${q}`, type: 'popup', width: 470, height: 560 });
 }
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {

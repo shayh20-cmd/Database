@@ -21,9 +21,12 @@ powershell -ExecutionPolicy Bypass -File tools\quick-access\Install-QuickAccess.
 
 ## 2. Taskbar
 
-Open Project Hub in Chrome → menu ⋮ → *Cast, save and share* → *Install page as app*
-(or the install icon in the address bar) → right-click its taskbar icon → *Pin to taskbar*.
-Right-clicking the pinned icon shows **משימה חדשה · עדכון למשימה · המשימות שלי**.
+After the install above: Start → **Project Hub** → right-click **משימה חדשה** → *Pin to taskbar*.
+The button carries the Project Hub icon with a green **+** and opens the quick window (its tab
+switches to an update). Windows doesn't let a script pin to the taskbar, so this step is by hand.
+
+Optionally, for the whole app: open Project Hub in Chrome → menu ⋮ → *Cast, save and share* →
+*Install page as app* → pin it; right-clicking that icon shows **משימה חדשה · עדכון למשימה · המשימות שלי**.
 
 ## 3. Right-click inside Chrome
 
