@@ -6,11 +6,5 @@
   "description": "לחצן ימני בכל דף: משימה חדשה או עדכון למשימה ב-Project Hub (KKARC)",
   "permissions": ["contextMenus"],
   "background": { "service_worker": "background.js" },
-  "action": { "default_title": "Project Hub — משימה חדשה" },
-  "commands": {
-    "new-task": {
-      "suggested_key": { "default": "Ctrl+Shift+Y" },
-      "description": "משימה חדשה ב-Project Hub"
-    }
-  }
+  "action": { "default_title": "Project Hub — משימה חדשה" }
 }

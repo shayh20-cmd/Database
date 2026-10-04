@@ -1,5 +1,4 @@
-// Project Hub quick access in Chrome: a right-click item on any page, the toolbar button and a
-// keyboard command all open the compact quick window (?quick=new|update) as a small popup.
+// Project Hub quick access in Chrome: a right-click item on any page and the toolbar button open the compact quick window (?quick=new|update) as a small popup.
 // The selected text (or the page title) becomes the task's title and the page/link its note.
 const BASE = 'https://kkarc-hub.azurewebsites.net/project_hub_01';
 
@@ -27,4 +26,3 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 });
 
 chrome.action.onClicked.addListener(() => openQuick('new'));
-chrome.commands.onCommand.addListener(cmd => { if (cmd === 'new-task') openQuick('new'); });

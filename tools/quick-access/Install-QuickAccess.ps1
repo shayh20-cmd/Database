@@ -4,10 +4,9 @@ Quick access to Project Hub from anywhere in Windows: a keyboard shortcut and a 
 
 .DESCRIPTION
 For the current user only (no admin rights, nothing outside the user's own profile/registry):
-  - Start menu shortcuts that open the compact quick window, with keyboard shortcuts:
-      Ctrl+Alt+N  →  new task
-      Ctrl+Alt+U  →  add an update to a task
-    (Windows only honours a shortcut's hotkey for shortcuts in the Start menu or on the desktop.)
+  - Start menu shortcuts that open the compact quick window. One of them carries a one-handed
+    keyboard shortcut, Ctrl+Alt+Q: it opens a new task, and a tab at the top switches to adding
+    an update. (Windows only honours a shortcut's hotkey in the Start menu or on the desktop.)
   - A right-click item "משימה חדשה ב-Project Hub" on the desktop background and on any folder's
     background. From a folder, the folder's path is filled in as the task's note.
     On Windows 11 it is under "Show more options" (Shift+F10), like every classic menu item.
@@ -21,7 +20,9 @@ The Project Hub address. Defaults to the office site on Azure.
 #>
 [CmdletBinding()]
 param(
-    [string]$Site = "https://kkarc-hub.azurewebsites.net"
+    [string]$Site = "https://kkarc-hub.azurewebsites.net",
+    # the global keyboard shortcut; Windows accepts e.g. "CTRL+ALT+Q" or a function key ("F9")
+    [string]$Hotkey = "CTRL+ALT+Q"
 )
 $ErrorActionPreference = "Stop"
 $base = $Site.TrimEnd('/') + "/project_hub_01"
@@ -51,8 +52,9 @@ function New-QuickShortcut($name, $query, $hotkey) {
     $lnk.Description = "Project Hub — $name"
     $lnk.Save()
 }
-New-QuickShortcut "משימה חדשה" "quick=new" "CTRL+ALT+N"
-New-QuickShortcut "עדכון למשימה" "quick=update" "CTRL+ALT+U"
+New-QuickShortcut "משימה חדשה" "quick=new" $Hotkey
+# no hotkey of its own: the quick window's tab switches to an update (this clears an older Ctrl+Alt+U)
+New-QuickShortcut "עדכון למשימה" "quick=update" ""
 
 # 2. Right-click: desktop background and folder background (current user only)
 $label = "משימה חדשה ב-Project Hub"
@@ -70,7 +72,7 @@ foreach ($e in $entries) {
 
 Write-Host ""
 Write-Host "Project Hub quick access is installed (browser: $browser)" -ForegroundColor Green
-Write-Host "  Ctrl+Alt+N  new task        Ctrl+Alt+U  update a task"
+Write-Host "  $Hotkey  new task (the tab at the top switches to an update)"
 Write-Host "  Right-click the desktop or inside a folder → $label"
 Write-Host "  (Windows 11: under 'Show more options')"
 Write-Host ""
