@@ -45,8 +45,8 @@ $window = "--window-size=470,560"
 # the Project Hub icon with a "+" (not Chrome's), copied next to the user's profile so it outlives the repo folder
 $iconDir = Join-Path $env:LOCALAPPDATA "ProjectHub"
 New-Item -ItemType Directory -Path $iconDir -Force | Out-Null
-$icon = Join-Path $iconDir "project-hub-add.ico"
-Copy-Item (Join-Path $PSScriptRoot "project-hub-add.ico") $icon -Force
+$icon = Join-Path $iconDir "project-hub-new-task.ico"
+Copy-Item (Join-Path $PSScriptRoot "project-hub-new-task.ico") $icon -Force
 
 # 1. Start menu shortcuts with hotkeys
 $programs = Join-Path ([Environment]::GetFolderPath('Programs')) "Project Hub"
