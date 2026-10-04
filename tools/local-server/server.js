@@ -369,6 +369,15 @@ const server = http.createServer((req, res) => {
     }
   }
 
+  /* The page's version (its file's size and time), so a tab left open can tell a newer one was deployed. */
+  if (url.pathname === '/api/version') {
+    fs.stat(path.join(STATIC_ROOT, 'project_hub_01.html'), (err, st) => {
+      if (err) { sendJson(res, 404, { error: 'Not found' }); return; }
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ v: Math.floor(st.mtimeMs).toString(36) + '-' + st.size.toString(36) }));
+    });
+    return;
+  }
   if (url.pathname === '/api/me') { sendJson(res, 200, { name: user.name, email: user.email, mode: SITE_MODE }); return; }
   if (url.pathname === '/api/snip' && SITE_MODE === 'local') { handleSnip(req, res); return; }
   if (url.pathname === '/api/projects' && req.method === 'GET') {
