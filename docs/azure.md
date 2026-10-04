@@ -85,6 +85,46 @@ disables the site (and its logs) until the hour turns.
 - Free tier: the first request after a quiet spell waits 20–40 seconds while the app
   starts, and the plan has 60 CPU-minutes a day. `-Sku B1` removes both.
 
+## The register
+
+The page reads a project's details and its consultants from the register — KKarcDB's
+database on Supabase — through KKarcDB.Api, signed in to Supabase with Microsoft in the
+browser. Read-only: nothing is written to the register from here. Design:
+`docs/superpowers/specs/2026-10-04-register-link-design.md`.
+
+Four app settings, all public values (`KK_SUPABASE_URL` and `KK_SUPABASE_ANON_KEY` are the
+same as KKarcHub's repository variables; its published `/shell/config.json` shows them):
+
+| Setting | Value |
+|---|---|
+| `KK_SUPABASE_URL` | the Supabase project URL |
+| `KK_SUPABASE_ANON_KEY` | the Supabase anon key |
+| `KKARCDB_API` | `https://kkarcdb.azurewebsites.net` |
+| `KK_HUB_URL` | KK Hub's site, `https://icy-sky-0b0e54f0f.6.azurestaticapps.net` |
+
+Set them in the PowerShell window and run `.\Deploy-Azure.ps1 -Name kkarc-hub` once without
+`-CodeOnly` (that run applies settings), or set them directly:
+
+    az webapp config appsettings set --name kkarc-hub --resource-group project-hub --settings KK_SUPABASE_URL=… KK_SUPABASE_ANON_KEY=… KKARCDB_API=https://kkarcdb.azurewebsites.net KK_HUB_URL=https://icy-sky-0b0e54f0f.6.azurestaticapps.net
+
+With any of the first three unset the page shows no register, only a line saying so.
+
+Three changes outside this repository, once:
+
+1. **KKarcDB.Api** — add `https://kkarc-hub.azurewebsites.net` to `KKARCDB_ALLOWED_ORIGINS`
+   (comma-separated) in `D:\Coding\KkarcDB\env.ps1`, then that repository's
+   `Deploy-Azure.ps1`, or as an app setting on the API.
+2. **Supabase → Authentication → URL Configuration → Redirect URLs** — add
+   `https://kkarc-hub.azurewebsites.net/**`.
+3. **KK Hub → Setup → Disciplines** — add *Tender* / *מכרזים*; its code must be `tender`
+   (the hub's TNDR maps to it).
+
+For a local check against the live API, also add `http://localhost:3000` to both lists in 1
+and 2, and run the server on port 3000.
+
+A person must be enrolled in the register to read it; anyone else sees "not registered" and
+the id to give an administrator.
+
 ## Not in this deployment
 
 The capture window, the planning dashboard, the spec creator and the home view's
