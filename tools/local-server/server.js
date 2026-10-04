@@ -286,7 +286,10 @@ function principalFrom(req) {
 // serve-handler answers /page.html with a redirect to /page (cleanUrls), so both forms pass.
 // The two translation files the pages load are allowed by exact name; no other script is.
 const CLOUD_PAGE = /^\/[A-Za-z0-9_-]+(\.html)?$/;
-const CLOUD_ASSETS = new Set(['/i18n.js', '/i18n-dict.js']);
+const CLOUD_ASSETS = new Set(['/i18n.js', '/i18n-dict.js', '/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png']);
+// The install files of the Project Hub app (manifest, service worker, icons) hold no data, and the browser
+// fetches a manifest without cookies — so they are served before sign-in.
+const PUBLIC_ASSETS = new Set(['/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png']);
 const LOGIN_PAGES = new Set(['/login', '/login.html']);
 
 const server = http.createServer((req, res) => {
@@ -314,7 +317,7 @@ const server = http.createServer((req, res) => {
   const user = principalFrom(req);
   if (!user) {
     if (url.pathname.startsWith('/api/')) { sendJson(res, 401, { error: 'Sign in required' }); return; }
-    if (!LOGIN_PAGES.has(url.pathname)) {
+    if (!LOGIN_PAGES.has(url.pathname) && !PUBLIC_ASSETS.has(url.pathname)) {
       redirect(res, '/login?next=' + encodeURIComponent(url.pathname + url.search));
       return;
     }

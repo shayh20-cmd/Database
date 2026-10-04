@@ -1,0 +1,76 @@
+﻿<#
+.SYNOPSIS
+Quick access to Project Hub from anywhere in Windows: a keyboard shortcut and a right-click item.
+
+.DESCRIPTION
+For the current user only (no admin rights, nothing outside the user's own profile/registry):
+  - Start menu shortcuts that open the compact quick window, with keyboard shortcuts:
+      Ctrl+Alt+N  →  new task
+      Ctrl+Alt+U  →  add an update to a task
+    (Windows only honours a shortcut's hotkey for shortcuts in the Start menu or on the desktop.)
+  - A right-click item "משימה חדשה ב-Project Hub" on the desktop background and on any folder's
+    background. From a folder, the folder's path is filled in as the task's note.
+    On Windows 11 it is under "Show more options" (Shift+F10), like every classic menu item.
+The window opens in Chrome (or Edge if Chrome isn't installed) as a small app window, signed in
+with the browser's own session.
+
+Run Uninstall-QuickAccess.ps1 to remove everything this adds.
+
+.PARAMETER Site
+The Project Hub address. Defaults to the office site on Azure.
+#>
+[CmdletBinding()]
+param(
+    [string]$Site = "https://kkarc-hub.azurewebsites.net"
+)
+$ErrorActionPreference = "Stop"
+$base = $Site.TrimEnd('/') + "/project_hub_01"
+
+# the browser: Chrome first (where the office signs in), else Edge
+$candidates = @(
+    "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+    "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+    "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe",
+    "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
+    "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe"
+)
+$browser = $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+if (-not $browser) { throw "Neither Chrome nor Edge was found." }
+$window = "--window-size=540,720"
+
+# 1. Start menu shortcuts with hotkeys
+$programs = Join-Path ([Environment]::GetFolderPath('Programs')) "Project Hub"
+New-Item -ItemType Directory -Path $programs -Force | Out-Null
+$shell = New-Object -ComObject WScript.Shell
+function New-QuickShortcut($name, $query, $hotkey) {
+    $lnk = $shell.CreateShortcut((Join-Path $programs "$name.lnk"))
+    $lnk.TargetPath = $browser
+    $lnk.Arguments = "--app=`"$base`?$query`" $window"
+    $lnk.Hotkey = $hotkey
+    $lnk.IconLocation = "$browser,0"
+    $lnk.Description = "Project Hub — $name"
+    $lnk.Save()
+}
+New-QuickShortcut "משימה חדשה" "quick=new" "CTRL+ALT+N"
+New-QuickShortcut "עדכון למשימה" "quick=update" "CTRL+ALT+U"
+
+# 2. Right-click: desktop background and folder background (current user only)
+$label = "משימה חדשה ב-Project Hub"
+$entries = @(
+    @{ Key = "HKCU:\Software\Classes\DesktopBackground\Shell\ProjectHubTask"; Query = "quick=new" },
+    @{ Key = "HKCU:\Software\Classes\Directory\Background\shell\ProjectHubTask"; Query = "quick=new&folder=%V" }
+)
+foreach ($e in $entries) {
+    New-Item -Path $e.Key -Force | Out-Null
+    Set-ItemProperty -Path $e.Key -Name "MUIVerb" -Value $label
+    Set-ItemProperty -Path $e.Key -Name "Icon" -Value "$browser,0"
+    New-Item -Path "$($e.Key)\command" -Force | Out-Null
+    Set-ItemProperty -Path "$($e.Key)\command" -Name "(default)" -Value "`"$browser`" --app=`"$base`?$($e.Query)`" $window"
+}
+
+Write-Host ""
+Write-Host "Project Hub quick access is installed (browser: $browser)" -ForegroundColor Green
+Write-Host "  Ctrl+Alt+N  new task        Ctrl+Alt+U  update a task"
+Write-Host "  Right-click the desktop or inside a folder → $label"
+Write-Host "  (Windows 11: under 'Show more options')"
+Write-Host ""
