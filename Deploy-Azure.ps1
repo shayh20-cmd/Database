@@ -349,6 +349,10 @@ try {
     foreach ($f in "project_hub_01.html", "login.html", "i18n.js", "i18n-dict.js", "react-18.3.1.min.js", "react-dom-18.3.1.min.js", "supabase-js-2.112.4.min.js", "register-link.js", "register-link-ui.js", "hub.webmanifest", "hub-sw.js", "icon-192.png", "icon-512.png", "icon-512-maskable.png", "icon-new-task-192.png") {
         Copy-Item (Join-Path $root $f) $stage
     }
+    # the quick-access installer and its icons, at the site's root under the names it downloads them by
+    Copy-Item (Join-Path $root "tools/quick-access/ProjectHub-Setup.cmd") $stage
+    Copy-Item (Join-Path $root "tools/quick-access/project-hub-cube.ico") (Join-Path $stage "qa-app.ico")
+    Copy-Item (Join-Path $root "tools/quick-access/project-hub-cube-new-task.ico") (Join-Path $stage "qa-new-task.ico")
     foreach ($f in "server.js", "package.json", "package-lock.json") {
         Copy-Item (Join-Path $root "tools/local-server/$f") (Join-Path $stage "tools/local-server")
     }

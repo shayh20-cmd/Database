@@ -287,10 +287,18 @@ function principalFrom(req) {
 // serve-handler answers /page.html with a redirect to /page (cleanUrls), so both forms pass.
 // The two translation files the pages load are allowed by exact name; no other script is.
 const CLOUD_PAGE = /^\/[A-Za-z0-9_-]+(\.html)?$/;
-const CLOUD_ASSETS = new Set(['/i18n.js', '/i18n-dict.js', '/react-18.3.1.min.js', '/react-dom-18.3.1.min.js', '/supabase-js-2.112.4.min.js', '/register-link.js', '/register-link-ui.js', '/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png', '/icon-new-task-192.png']);
+const CLOUD_ASSETS = new Set(['/i18n.js', '/i18n-dict.js', '/react-18.3.1.min.js', '/react-dom-18.3.1.min.js', '/supabase-js-2.112.4.min.js', '/register-link.js', '/register-link-ui.js', '/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png', '/icon-new-task-192.png', '/ProjectHub-Setup.cmd', '/qa-app.ico', '/qa-new-task.ico']);
 // The install files of the Project Hub app (manifest, service worker, icons) hold no data, and the browser
 // fetches a manifest without cookies — so they are served before sign-in.
-const PUBLIC_ASSETS = new Set(['/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png', '/icon-new-task-192.png']);
+// The quick-access installer downloads its two icons without a browser session, so those are public too.
+const PUBLIC_ASSETS = new Set(['/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png', '/icon-new-task-192.png', '/qa-app.ico', '/qa-new-task.ico']);
+/* The quick-access installer and its icons live in tools/quick-access; the deploy copies them to the
+   site's root under these names, and locally they are served from where they are. */
+const QUICK_ACCESS_FILES = {
+  '/ProjectHub-Setup.cmd': ['tools/quick-access/ProjectHub-Setup.cmd', 'application/octet-stream'],
+  '/qa-app.ico': ['tools/quick-access/project-hub-cube.ico', 'image/x-icon'],
+  '/qa-new-task.ico': ['tools/quick-access/project-hub-cube-new-task.ico', 'image/x-icon']
+};
 const LOGIN_PAGES = new Set(['/login', '/login.html']);
 /* The register (KKarcDB on Supabase) that the page reads through KKarcDB.Api. Public values
    only — the anon key is meant for browsers. Null when unset; the page then shows no register. */
@@ -375,6 +383,15 @@ const server = http.createServer((req, res) => {
     }
   }
 
+  /* The page's version (its file's size and time), so a tab left open can tell a newer one was deployed. */
+  if (url.pathname === '/api/version') {
+    fs.stat(path.join(STATIC_ROOT, 'project_hub_01.html'), (err, st) => {
+      if (err) { sendJson(res, 404, { error: 'Not found' }); return; }
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ v: Math.floor(st.mtimeMs).toString(36) + '-' + st.size.toString(36) }));
+    });
+    return;
+  }
   if (url.pathname === '/api/me') { sendJson(res, 200, { name: user.name, email: user.email, mode: SITE_MODE }); return; }
   if (url.pathname === '/api/register-config') { sendJson(res, 200, registerConfig()); return; }
   if (url.pathname === '/api/snip' && SITE_MODE === 'local') { handleSnip(req, res); return; }
@@ -408,6 +425,19 @@ const server = http.createServer((req, res) => {
   if (url.pathname === '/') { redirect(res, '/project_hub_01'); return; }
   if (SITE_MODE === 'cloud') {
     if (!CLOUD_PAGE.test(url.pathname) && !CLOUD_ASSETS.has(url.pathname)) { sendJson(res, 404, { error: 'Not found' }); return; }
+  }
+  const qa = QUICK_ACCESS_FILES[url.pathname];
+  if (qa) {
+    const inRepo = path.join(STATIC_ROOT, qa[0]);
+    const file = fs.existsSync(inRepo) ? inRepo : path.join(STATIC_ROOT, url.pathname.slice(1));
+    fs.stat(file, (err, st) => {
+      if (err || !st.isFile()) { sendJson(res, 404, { error: 'Not found' }); return; }
+      const headers = { 'Content-Type': qa[1], 'Content-Length': st.size, 'Cache-Control': 'no-cache' };
+      if (url.pathname.endsWith('.cmd')) headers['Content-Disposition'] = 'attachment; filename="ProjectHub-Setup.cmd"';
+      res.writeHead(200, headers);
+      fs.createReadStream(file).pipe(res);
+    });
+    return;
   }
   if (serveGzipped(req, res, url.pathname)) return;
   // Local dev server: tell browsers to always revalidate so edited HTML/JS/CSS never
