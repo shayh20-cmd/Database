@@ -217,3 +217,41 @@ test('client: 404 is not-found; 5xx and a network failure are unreachable', asyn
     assert.deepStrictEqual(await c.get('/api/projects/x'), { state }, String(answer));
   }
 });
+
+// ── the sign-in round trip, in the order it really happens: supabase-js strips ?code= itself ──
+function withBrowser({ href, saved }, run) {
+  const calls = [];
+  const store = new Map(saved === undefined ? [] : [['register-return', saved]]);
+  const g = globalThis;
+  const keep = ['location', 'history', 'sessionStorage'].map(k => [k, Object.getOwnPropertyDescriptor(g, k)]);
+  Object.defineProperty(g, 'location', { value: { href, search: new URL(href).search, origin: new URL(href).origin, pathname: new URL(href).pathname }, configurable: true, writable: true });
+  Object.defineProperty(g, 'history', { value: { state: null, replaceState: (s, t, u) => calls.push(u) }, configurable: true, writable: true });
+  Object.defineProperty(g, 'sessionStorage', { value: { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v), removeItem: k => store.delete(k) }, configurable: true, writable: true });
+  return Promise.resolve(run({ calls, store })).finally(() => {
+    for (const [k, d] of keep) { if (d) Object.defineProperty(g, k, d); else delete g[k]; }
+  });
+}
+// supabase-js exchanges the code during getSession and removes it from the address first.
+function strippingSupabase() {
+  return () => ({
+    auth: {
+      getSession: async () => { location.href = location.href.replace(/[?&]code=[^&#]*/, ''); return { data: { session: { access_token: jwt({ sub: 's' }) } } }; },
+      refreshSession: async () => ({ data: { session: null } }),
+      signInWithOAuth: async () => ({ error: null }), signOut: async () => ({}), onAuthStateChange: () => {},
+    },
+  });
+}
+
+test('sign-in return: the saved address comes back even though supabase-js stripped the code first', () =>
+  withBrowser({ href: 'https://hub.example/project_hub_01?code=abc', saved: '?tab=contacts' }, async ({ calls, store }) => {
+    await RL.createRegisterClient(config, strippingSupabase(), fakeFetch([], [])).ready;
+    assert.deepStrictEqual(calls, ['/project_hub_01?tab=contacts']);
+    assert.strictEqual(store.has('register-return'), false, 'the saved address is used once');
+  }));
+
+test('sign-in return: a page load that is not a return clears a stale saved address and leaves the URL alone', () =>
+  withBrowser({ href: 'https://hub.example/project_hub_01', saved: '?old=1' }, async ({ calls, store }) => {
+    await RL.createRegisterClient(config, strippingSupabase(), fakeFetch([], [])).ready;
+    assert.deepStrictEqual(calls, []);
+    assert.strictEqual(store.has('register-return'), false);
+  }));

@@ -146,20 +146,25 @@
      refused, not-found, unreachable (spec §6). Only GET is ever sent. */
   function createRegisterClient(config, createSupabase, fetchImpl) {
     const doFetch = fetchImpl || ((url, init) => root.fetch(url, init));
+    // The address as the page opened, read before supabase-js runs: on a successful return it
+    // removes ?code= itself, which would hide that this load is a return at all.
+    const openedAt = typeof location === 'undefined' ? null : location.href;
     const sb = createSupabase(config.supabaseUrl, config.supabaseAnonKey, { auth: { flowType: 'pkce' } });
     const api = String(config.api).replace(/\/+$/, '');
     const accessToken = r => (r && r.data && r.data.session && r.data.session.access_token) || null;
 
     // getSession waits for supabase-js to exchange a returning sign-in's code; then the address
-    // is put back to what it was before Microsoft (browser only).
+    // is put back to what it was before Microsoft (browser only). The saved address is used once:
+    // any load clears it, so an abandoned sign-in cannot leak it into a later return.
     const ready = Promise.resolve(sb.auth.getSession()).then(() => {
-      if (typeof location === 'undefined' || typeof history === 'undefined') return;
+      if (openedAt === null || typeof history === 'undefined') return;
       let saved = null;
-      try { saved = sessionStorage.getItem(RETURN_KEY); } catch (e) { /* storage blocked */ }
-      const next = tidyReturnAddress(location.href, saved);
-      if (next === null) return;
-      try { sessionStorage.removeItem(RETURN_KEY); } catch (e) { /* storage blocked */ }
-      history.replaceState(history.state, '', next);
+      try {
+        saved = sessionStorage.getItem(RETURN_KEY);
+        sessionStorage.removeItem(RETURN_KEY);
+      } catch (e) { /* storage blocked */ }
+      const next = tidyReturnAddress(openedAt, saved);
+      if (next !== null) history.replaceState(history.state, '', next);
     }).catch(() => {});
 
     async function token() {
