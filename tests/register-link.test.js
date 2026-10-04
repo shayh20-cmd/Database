@@ -154,3 +154,66 @@ test('tidyReturnAddress: puts back the saved address and drops the one-time code
   assert.strictEqual(RL.tidyReturnAddress(base + '?error=access_denied&error_description=No', null), '/project_hub_01');
   assert.strictEqual(RL.tidyReturnAddress(base + '?x=1', '?y=2'), null, 'no sign-in return: leave the address alone');
 });
+
+// ── createRegisterClient, with stand-ins for supabase-js and fetch ──
+function fakeSupabase({ token = jwt({ sub: 'first' }), refreshed = jwt({ sub: 'second' }) } = {}) {
+  return () => ({
+    auth: {
+      getSession: async () => ({ data: { session: token ? { access_token: token } : null } }),
+      refreshSession: async () => ({ data: { session: refreshed ? { access_token: refreshed } : null } }),
+      signInWithOAuth: async () => ({ error: null }),
+      signOut: async () => ({ error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+    },
+  });
+}
+function fakeFetch(answers, seen) {
+  return async (url, init) => {
+    seen.push({ url, auth: init.headers.Authorization });
+    const a = answers.shift();
+    if (a === 'throw') throw new TypeError('Failed to fetch');
+    return { status: a, ok: a >= 200 && a < 300, json: async () => ({ answered: a }) };
+  };
+}
+const config = { supabaseUrl: 'https://x.supabase.co', supabaseAnonKey: 'anon', api: 'https://api.example/' };
+
+test('client: a GET carries the token to the API', async () => {
+  const seen = [];
+  const c = RL.createRegisterClient(config, fakeSupabase(), fakeFetch([200], seen));
+  assert.deepStrictEqual(await c.get('/api/projects/p1'), { state: 'ok', data: { answered: 200 } });
+  assert.deepStrictEqual(seen, [{ url: 'https://api.example/api/projects/p1', auth: 'Bearer ' + jwt({ sub: 'first' }) }]);
+});
+
+test('client: an expired token is refreshed once and the request retried', async () => {
+  const seen = [];
+  const c = RL.createRegisterClient(config, fakeSupabase(), fakeFetch([401, 200], seen));
+  assert.strictEqual((await c.get('/api/firms')).state, 'ok');
+  assert.deepStrictEqual(seen.map(s => s.auth), ['Bearer ' + jwt({ sub: 'first' }), 'Bearer ' + jwt({ sub: 'second' })]);
+});
+
+test('client: refused twice is "refused", with the subject of the token it last tried', async () => {
+  const c = RL.createRegisterClient(config, fakeSupabase(), fakeFetch([401, 401], []));
+  assert.deepStrictEqual(await c.get('/api/firms'), { state: 'refused', subject: 'second' });
+  const d = RL.createRegisterClient(config, fakeSupabase(), fakeFetch([403], []));
+  assert.deepStrictEqual(await d.get('/api/firms'), { state: 'refused', subject: 'first' });
+});
+
+test('client: a refresh that yields no session is "signed-out"', async () => {
+  const c = RL.createRegisterClient(config, fakeSupabase({ refreshed: null }), fakeFetch([401], []));
+  assert.deepStrictEqual(await c.get('/api/firms'), { state: 'signed-out' });
+});
+
+test('client: nobody signed in — no request at all', async () => {
+  const seen = [];
+  const c = RL.createRegisterClient(config, fakeSupabase({ token: null }), fakeFetch([200], seen));
+  assert.deepStrictEqual(await c.get('/api/firms'), { state: 'signed-out' });
+  assert.strictEqual(seen.length, 0);
+  assert.strictEqual(await c.token(), null);
+});
+
+test('client: 404 is not-found; 5xx and a network failure are unreachable', async () => {
+  for (const [answer, state] of [[404, 'not-found'], [500, 'unreachable'], [503, 'unreachable'], ['throw', 'unreachable']]) {
+    const c = RL.createRegisterClient(config, fakeSupabase(), fakeFetch([answer], []));
+    assert.deepStrictEqual(await c.get('/api/projects/x'), { state }, String(answer));
+  }
+});

@@ -138,11 +138,85 @@
     return url.pathname + (rest ? '?' + rest : '') + url.hash;
   }
 
-  // ── createRegisterClient is added here in Task 3 ──
+  const RETURN_KEY = 'register-return';
+
+  /* The register, through KKarcDB.Api, as the signed-in person (spec §1). `createSupabase` is
+     supabase-js's createClient and `fetchImpl` the browser's fetch — parameters so the tests can
+     stand in for both. Every answer is { state, data?, subject? }, state one of ok, signed-out,
+     refused, not-found, unreachable (spec §6). Only GET is ever sent. */
+  function createRegisterClient(config, createSupabase, fetchImpl) {
+    const doFetch = fetchImpl || ((url, init) => root.fetch(url, init));
+    const sb = createSupabase(config.supabaseUrl, config.supabaseAnonKey, { auth: { flowType: 'pkce' } });
+    const api = String(config.api).replace(/\/+$/, '');
+    const accessToken = r => (r && r.data && r.data.session && r.data.session.access_token) || null;
+
+    // getSession waits for supabase-js to exchange a returning sign-in's code; then the address
+    // is put back to what it was before Microsoft (browser only).
+    const ready = Promise.resolve(sb.auth.getSession()).then(() => {
+      if (typeof location === 'undefined' || typeof history === 'undefined') return;
+      let saved = null;
+      try { saved = sessionStorage.getItem(RETURN_KEY); } catch (e) { /* storage blocked */ }
+      const next = tidyReturnAddress(location.href, saved);
+      if (next === null) return;
+      try { sessionStorage.removeItem(RETURN_KEY); } catch (e) { /* storage blocked */ }
+      history.replaceState(history.state, '', next);
+    }).catch(() => {});
+
+    async function token() {
+      await ready;
+      return accessToken(await sb.auth.getSession());
+    }
+
+    async function get(path) {
+      let t = await token();
+      if (!t) return { state: 'signed-out' };
+      for (let attempt = 0; ; attempt++) {
+        let res;
+        try {
+          res = await doFetch(api + path, { headers: { Authorization: 'Bearer ' + t, Accept: 'application/json' } });
+        } catch (e) {
+          return { state: 'unreachable' };
+        }
+        if (res.status === 401 && attempt === 0) {
+          t = accessToken(await sb.auth.refreshSession());
+          if (!t) return { state: 'signed-out' };
+          continue;
+        }
+        if (res.status === 401 || res.status === 403) return { state: 'refused', subject: subjectOf(t) };
+        if (res.status === 404) return { state: 'not-found' };
+        if (!res.ok) return { state: 'unreachable' };
+        try {
+          return { state: 'ok', data: await res.json() };
+        } catch (e) {
+          return { state: 'unreachable' };
+        }
+      }
+    }
+
+    async function signIn() {
+      try { sessionStorage.setItem(RETURN_KEY, location.search); } catch (e) { /* storage blocked */ }
+      const r = await sb.auth.signInWithOAuth({
+        provider: 'azure',
+        options: { scopes: 'openid profile email', redirectTo: location.origin + location.pathname },
+      });
+      return r && r.error ? r.error.message : null;
+    }
+
+    return {
+      ready,
+      token,
+      get,
+      signIn,
+      signOut: () => sb.auth.signOut(),
+      // supabase-js must not be called from inside its own callback; listeners run a tick later.
+      onChange: listener => { sb.auth.onAuthStateChange(() => { setTimeout(listener, 0); }); },
+    };
+  }
 
   const api = {
     REGISTER_DISCIPLINE, NO_DISCIPLINE, STATUS_HE,
     matchProjects, hubDisciplineFor, buildConsultantRows, projectFacts, subjectOf, tidyReturnAddress,
+    createRegisterClient,
   };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.RegisterLink = api;
