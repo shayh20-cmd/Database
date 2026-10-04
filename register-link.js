@@ -138,6 +138,15 @@
     return url.pathname + (rest ? '?' + rest : '') + url.hash;
   }
 
+  /* A store entry after an answer (spec §7). A failed refetch keeps the data already shown —
+     a blip while the tab sat in the background must not blank the page — and keeps its old
+     `at`, so the next focus tries again. */
+  function nextEntry(old, answer, now) {
+    if (answer.state === 'ok') return { state: 'ok', data: answer.data, at: now };
+    if (old && old.state === 'ok') return Object.assign({}, old, { lastError: answer.state });
+    return { state: answer.state, subject: answer.subject, at: now };
+  }
+
   const RETURN_KEY = 'register-return';
 
   /* The register, through KKarcDB.Api, as the signed-in person (spec §1). `createSupabase` is
@@ -221,7 +230,7 @@
   const api = {
     REGISTER_DISCIPLINE, NO_DISCIPLINE, STATUS_HE,
     matchProjects, hubDisciplineFor, buildConsultantRows, projectFacts, subjectOf, tidyReturnAddress,
-    createRegisterClient,
+    nextEntry, createRegisterClient,
   };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.RegisterLink = api;

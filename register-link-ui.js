@@ -50,18 +50,14 @@
     return once('directory', () => Promise.all(['/api/persons', '/api/firms', '/api/tags'].map(p => client.get(p)))
       .then(([persons, firms, tags]) => {
         const bad = [persons, firms, tags].find(r => r.state !== 'ok');
-        set({ directory: bad
-          ? { state: bad.state, subject: bad.subject, at: Date.now() }
-          : { state: 'ok', persons: persons.data, firms: firms.data, tags: tags.data, at: Date.now() } });
+        const answer = bad || { state: 'ok', data: { persons: persons.data, firms: firms.data, tags: tags.data } };
+        set({ directory: RL.nextEntry(snap.directory, answer, Date.now()) });
       }));
   }
 
   function loadProject(id) {
     return once('project:' + id, () => client.get('/api/projects/' + encodeURIComponent(id)).then(r => {
-      const entry = r.state === 'ok'
-        ? { state: 'ok', project: r.data, at: Date.now() }
-        : { state: r.state, subject: r.subject, at: Date.now() };
-      set({ projects: Object.assign({}, snap.projects, { [id]: entry }) });
+      set({ projects: Object.assign({}, snap.projects, { [id]: RL.nextEntry(snap.projects[id], r, Date.now()) }) });
     }));
   }
 
@@ -117,7 +113,7 @@
     const d = s.directory;
     for (const e of [p, d]) if (e && e.state !== 'ok') return { kind: e.state, subject: e.subject };
     if (!p || !d) return { kind: 'loading' };
-    return { kind: 'ok', project: p.project };
+    return { kind: 'ok', project: p.data };
   }
 
   function useConsultantRows(data, hubDisciplines) {
@@ -126,7 +122,7 @@
     const p = id ? s.projects[id] : null;
     const d = s.directory;
     return useMemo(() => (s.signedIn && p && p.state === 'ok' && d && d.state === 'ok'
-      ? RL.buildConsultantRows(p.project.members, d.persons, d.firms, d.tags, hubDisciplines)
+      ? RL.buildConsultantRows(p.data.members, d.data.persons, d.data.firms, d.data.tags, hubDisciplines)
       : []), [s.signedIn, p, d, hubDisciplines]);
   }
 

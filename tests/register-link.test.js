@@ -255,3 +255,17 @@ test('sign-in return: a page load that is not a return clears a stale saved addr
     assert.deepStrictEqual(calls, []);
     assert.strictEqual(store.has('register-return'), false);
   }));
+
+test('nextEntry: a failed refetch keeps the data it already had, and stays due for another try', () => {
+  const good = { state: 'ok', data: { members: [1] }, at: 100 };
+  const kept = RL.nextEntry(good, { state: 'unreachable' }, 500);
+  assert.deepStrictEqual(kept, { state: 'ok', data: { members: [1] }, at: 100, lastError: 'unreachable' });
+  assert.deepStrictEqual(RL.nextEntry(good, { state: 'refused', subject: 's' }, 500).data, { members: [1] });
+});
+
+test('nextEntry: a first answer is stored as it came; a good answer replaces anything', () => {
+  assert.deepStrictEqual(RL.nextEntry(null, { state: 'refused', subject: 's' }, 7), { state: 'refused', subject: 's', at: 7 });
+  assert.deepStrictEqual(RL.nextEntry(undefined, { state: 'ok', data: 'x' }, 7), { state: 'ok', data: 'x', at: 7 });
+  assert.deepStrictEqual(RL.nextEntry({ state: 'unreachable', at: 1 }, { state: 'ok', data: 'y' }, 9), { state: 'ok', data: 'y', at: 9 });
+  assert.deepStrictEqual(RL.nextEntry({ state: 'ok', data: 'x', at: 1, lastError: 'unreachable' }, { state: 'ok', data: 'y' }, 9), { state: 'ok', data: 'y', at: 9 });
+});
