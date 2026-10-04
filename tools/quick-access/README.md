@@ -17,7 +17,10 @@ powershell -ExecutionPolicy Bypass -File tools\quick-access\Install-QuickAccess.
 - Right-click the desktop or the empty area inside a folder → **משימה חדשה ב-Project Hub**
   (inside a folder the folder's path goes into the task's note). On Windows 11 it's under
   *Show more options*.
-- Remove with `Uninstall-QuickAccess.ps1`.
+- A hidden scheduled task, **Project Hub keep-awake**, pings the site every 10 minutes,
+  Sunday–Thursday 07:00–19:00, so Azure's free tier doesn't put it to sleep (a sleeping site
+  takes seconds to half a minute to open). It runs only while this computer is on.
+- Remove with `Uninstall-QuickAccess.ps1` (it removes the scheduled task too).
 
 ## 2. Taskbar
 

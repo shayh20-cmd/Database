@@ -10,6 +10,9 @@ For the current user only (no admin rights, nothing outside the user's own profi
   - A right-click item "משימה חדשה ב-Project Hub" on the desktop background and on any folder's
     background. From a folder, the folder's path is filled in as the task's note.
     On Windows 11 it is under "Show more options" (Shift+F10), like every classic menu item.
+  - A scheduled task, "Project Hub keep-awake": Sunday–Thursday 07:00–19:00, every 10 minutes, one
+    quiet request to the site so Azure's free tier doesn't put it to sleep (waking it is what makes
+    a window slow to open). Hidden, no window; it only runs while this computer is on.
 The window opens in Chrome (or Edge if Chrome isn't installed) as a small app window, signed in
 with the browser's own session.
 
@@ -76,10 +79,20 @@ foreach ($e in $entries) {
     Set-ItemProperty -Path "$($e.Key)\command" -Name "(default)" -Value "`"$browser`" --app=`"$base`?$($e.Query)`" $window"
 }
 
+# 3. Keep the site awake during the work week (the free tier sleeps after ~20 idle minutes)
+$keepAlive = Join-Path $iconDir "keepalive.vbs"
+Copy-Item (Join-Path $PSScriptRoot "keepalive.vbs") $keepAlive -Force
+$action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "//B //Nologo `"$keepAlive`" `"$($Site.TrimEnd('/'))`""
+$trigger = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday, Monday, Tuesday, Wednesday, Thursday -At "07:00"
+$trigger.Repetition = (New-ScheduledTaskTrigger -Once -At "07:00" -RepetitionInterval (New-TimeSpan -Minutes 10) -RepetitionDuration (New-TimeSpan -Hours 12)).Repetition
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 2) -MultipleInstances IgnoreNew
+Register-ScheduledTask -TaskName "Project Hub keep-awake" -Action $action -Trigger $trigger -Settings $settings -Description "Keeps the Project Hub site on Azure awake during work hours" -Force | Out-Null
+
 Write-Host ""
 Write-Host "Project Hub quick access is installed (browser: $browser)" -ForegroundColor Green
 Write-Host "  $Hotkey  new task (the tab at the top switches to an update)"
 Write-Host "  Right-click the desktop or inside a folder → $label"
 Write-Host "  (Windows 11: under 'Show more options')"
+Write-Host "  Keep-awake: Sun-Thu 07:00-19:00, every 10 minutes (Task Scheduler: 'Project Hub keep-awake')"
 Write-Host "  Taskbar button: Start → Project Hub → right-click 'משימה חדשה' → Pin to taskbar"
 Write-Host ""

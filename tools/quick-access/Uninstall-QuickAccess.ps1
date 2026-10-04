@@ -1,10 +1,12 @@
 ﻿<#
 .SYNOPSIS
-Removes what Install-QuickAccess.ps1 added: the Start menu shortcuts and the right-click items.
+Removes what Install-QuickAccess.ps1 added: the Start menu shortcuts, the right-click items and the
+keep-awake scheduled task.
 #>
 $ErrorActionPreference = "Stop"
 $programs = Join-Path ([Environment]::GetFolderPath('Programs')) "Project Hub"
 if (Test-Path $programs) { Remove-Item -Recurse -Force $programs }
+Unregister-ScheduledTask -TaskName "Project Hub keep-awake" -Confirm:$false -ErrorAction SilentlyContinue
 $iconDir = Join-Path $env:LOCALAPPDATA "ProjectHub"
 if (Test-Path $iconDir) { Remove-Item -Recurse -Force $iconDir }
 foreach ($k in "HKCU:\Software\Classes\DesktopBackground\Shell\ProjectHubTask",
