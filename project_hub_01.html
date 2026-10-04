@@ -21,6 +21,7 @@ try{var h=document.documentElement;if(localStorage.getItem('appLang')==='en'){h.
 <script src="/supabase-js-2.112.4.min.js"></script>
 <script src="/register-link.js"></script>
 <script src="/register-link-ui.js"></script>
+<script>/* The register views are optional: if register-link-ui.js is missing or fails, the hub runs without them. */window.RegisterLinkUI=window.RegisterLinkUI||{useConsultantRows:function(){return[];},FactsCard:function(){return null;},ConsultantsNotice:function(){return null;},EditInHub:function(){return null;},AutoLink:function(){return null;}};</script>
 <style>
 :root{
   --bg:#F5F6F8;--surface:#fff;--surface-2:#FAFBFC;--border:#E8EAED;--border-strong:#D0D2D6;

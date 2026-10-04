@@ -73,7 +73,8 @@
       .then(r => (r.ok ? r.json() : null))
       .catch(() => null)
       .then(cfg => {
-        if (!cfg || !cfg.supabaseUrl || !cfg.supabaseAnonKey || !cfg.api || !window.supabase) { set({ config: 'off' }); return; }
+        // A missing supabase-js or register-link.js turns the register off rather than leaving it loading.
+        if (!cfg || !cfg.supabaseUrl || !cfg.supabaseAnonKey || !cfg.api || !window.supabase || !RL) { set({ config: 'off' }); return; }
         hubUrl = cfg.hubUrl ? String(cfg.hubUrl).replace(/\/+$/, '') : null;
         client = RL.createRegisterClient(cfg, window.supabase.createClient);
         const refresh = () => client.token().then(t => set(t
