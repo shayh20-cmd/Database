@@ -42,14 +42,12 @@ $browser = $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object
 if (-not $browser) { throw "Neither Chrome nor Edge was found." }
 $window = "--window-size=470,560"
 
-# the Project Hub icons (not Chrome's): the app, and the app with a "+" for a new task. Copied next to the
-# user's profile so they outlive the repo folder. (make-icons.py builds them.)
-$iconDir = Join-Path $env:LOCALAPPDATA "ProjectHub"
+# the Project Hub icons (not Chrome's): the app, and the app with a "+" for a new task (make-icons.py builds
+# them). Used from this folder: Explorer drew a blank page for the same icons copied under %LOCALAPPDATA%.
+$appIcon = Join-Path $PSScriptRoot "project-hub.ico"
+$icon = Join-Path $PSScriptRoot "project-hub-new-task.ico"
+$iconDir = Join-Path $env:LOCALAPPDATA "ProjectHub"   # the keep-awake script lives here
 New-Item -ItemType Directory -Path $iconDir -Force | Out-Null
-$appIcon = Join-Path $iconDir "project-hub.ico"
-$icon = Join-Path $iconDir "project-hub-new-task.ico"
-Copy-Item (Join-Path $PSScriptRoot "project-hub.ico") $appIcon -Force
-Copy-Item (Join-Path $PSScriptRoot "project-hub-new-task.ico") $icon -Force
 
 # 1. Start menu shortcuts. Each name starts with "Project Hub" so a Start search for it finds them
 #    (Windows search doesn't look at the folder's name). Older names are cleared first.

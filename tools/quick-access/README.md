@@ -6,7 +6,8 @@ Optional prefills: `title=`, `link=`, `folder=`.
 
 ## 1. Keyboard (anywhere in Windows) and right-click on the desktop / in folders
 
-Run once, per user (no admin rights):
+Run once, per user (no admin rights). The shortcuts take their icons from this folder, so run it
+from where the repo will stay (moving the folder later means running it again):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\quick-access\Install-QuickAccess.ps1
