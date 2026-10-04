@@ -42,28 +42,34 @@ $browser = $candidates | Where-Object { $_ -and (Test-Path $_) } | Select-Object
 if (-not $browser) { throw "Neither Chrome nor Edge was found." }
 $window = "--window-size=470,560"
 
-# the Project Hub icon with a "+" (not Chrome's), copied next to the user's profile so it outlives the repo folder
+# the Project Hub icons (not Chrome's): the app, and the app with a "+" for a new task. Copied next to the
+# user's profile so they outlive the repo folder. (make-icons.py builds them.)
 $iconDir = Join-Path $env:LOCALAPPDATA "ProjectHub"
 New-Item -ItemType Directory -Path $iconDir -Force | Out-Null
+$appIcon = Join-Path $iconDir "project-hub.ico"
 $icon = Join-Path $iconDir "project-hub-new-task.ico"
+Copy-Item (Join-Path $PSScriptRoot "project-hub.ico") $appIcon -Force
 Copy-Item (Join-Path $PSScriptRoot "project-hub-new-task.ico") $icon -Force
 
-# 1. Start menu shortcuts with hotkeys
+# 1. Start menu shortcuts. Each name starts with "Project Hub" so a Start search for it finds them
+#    (Windows search doesn't look at the folder's name). Older names are cleared first.
 $programs = Join-Path ([Environment]::GetFolderPath('Programs')) "Project Hub"
 New-Item -ItemType Directory -Path $programs -Force | Out-Null
+Get-ChildItem $programs -Filter *.lnk | Remove-Item -Force
 $shell = New-Object -ComObject WScript.Shell
-function New-QuickShortcut($name, $query, $hotkey) {
+function New-QuickShortcut($name, $query, $hotkey, $ico = $icon) {
     $lnk = $shell.CreateShortcut((Join-Path $programs "$name.lnk"))
     $lnk.TargetPath = $browser
-    $lnk.Arguments = "--app=`"$base`?$query`" $window"
+    $lnk.Arguments = if ($query) { "--app=`"$base`?$query`" $window" } else { "--app=`"$base`"" }
     $lnk.Hotkey = $hotkey
-    $lnk.IconLocation = "$icon,0"
-    $lnk.Description = "Project Hub — $name"
+    $lnk.IconLocation = "$ico,0"
+    $lnk.Description = $name
     $lnk.Save()
 }
-New-QuickShortcut "משימה חדשה" "quick=new" $Hotkey
-# no hotkey of its own: the quick window's tab switches to an update (this clears an older Ctrl+Alt+U)
-New-QuickShortcut "עדכון למשימה" "quick=update" ""
+New-QuickShortcut "Project Hub" "" "" $appIcon
+New-QuickShortcut "Project Hub - משימה חדשה" "quick=new" $Hotkey
+# no hotkey of its own: the quick window's tab switches to an update
+New-QuickShortcut "Project Hub - עדכון למשימה" "quick=update" ""
 
 # 2. Right-click: desktop background and folder background (current user only)
 $label = "משימה חדשה ב-Project Hub"
@@ -94,5 +100,5 @@ Write-Host "  $Hotkey  new task (the tab at the top switches to an update)"
 Write-Host "  Right-click the desktop or inside a folder → $label"
 Write-Host "  (Windows 11: under 'Show more options')"
 Write-Host "  Keep-awake: Sun-Thu 07:00-19:00, every 10 minutes (Task Scheduler: 'Project Hub keep-awake')"
-Write-Host "  Taskbar button: Start → Project Hub → right-click 'משימה חדשה' → Pin to taskbar"
+Write-Host "  Taskbar button: Start → search 'Project Hub' → right-click 'Project Hub - משימה חדשה' → Pin to taskbar"
 Write-Host ""

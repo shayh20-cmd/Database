@@ -24,7 +24,9 @@ powershell -ExecutionPolicy Bypass -File tools\quick-access\Install-QuickAccess.
 
 ## 2. Taskbar
 
-After the install above: Start → **Project Hub** → right-click **משימה חדשה** → *Pin to taskbar*.
+After the install above: Start → search **Project Hub** → right-click **Project Hub - משימה חדשה** →
+*Pin to taskbar*. (The search also finds **Project Hub**, the whole app, and
+**Project Hub - עדכון למשימה**.)
 The button carries the Project Hub icon with a green **+** and opens the quick window (its tab
 switches to an update). Windows doesn't let a script pin to the taskbar, so this step is by hand.
 
