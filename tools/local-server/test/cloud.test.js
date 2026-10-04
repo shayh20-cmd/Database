@@ -239,3 +239,44 @@ test('personal tasks: local mode keeps one list for the person at the machine', 
   await req('POST', '/api/personal', { port, body: { tasks: [{ id: 'x' }] } });
   assert.deepStrictEqual((await req('GET', '/api/personal', { port })).body.tasks, [{ id: 'x' }]);
 });
+
+test('register config: the four public values, behind the sign-in gate; the scripts are served', async (t) => {
+  const port = 3998;
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-data-'));
+  const root = makeSite();
+  const scripts = ['supabase-js-2.112.4.min.js', 'register-link.js', 'register-link-ui.js'];
+  for (const f of scripts) fs.writeFileSync(path.join(root, f), '// ' + f);
+  start(t, { port, root, env: {
+    DATA_DIR: data, SITE_MODE: 'cloud', WEBSITE_AUTH_ENABLED: 'True',
+    KK_SUPABASE_URL: ' https://abc.supabase.co ', KK_SUPABASE_ANON_KEY: 'anon-key',
+    KKARCDB_API: 'https://kkarcdb.azurewebsites.net', KK_HUB_URL: '',
+  } });
+  await wait(700);
+
+  assert.strictEqual((await req('GET', '/api/register-config', { port })).status, 401, 'no session, no config');
+
+  const headers = { 'x-ms-client-principal': principal({ name: 'דנה', preferred_username: 'dana@example.com' }) };
+  const cfg = await req('GET', '/api/register-config', { port, headers });
+  assert.strictEqual(cfg.status, 200);
+  assert.deepStrictEqual(cfg.body, {
+    supabaseUrl: 'https://abc.supabase.co', supabaseAnonKey: 'anon-key',
+    api: 'https://kkarcdb.azurewebsites.net', hubUrl: null,
+  });
+
+  for (const f of scripts) {
+    assert.strictEqual((await req('GET', '/' + f, { port, headers })).status, 200, f + ' is on the cloud allowlist');
+  }
+});
+
+test('register config: all null when the settings are unset', async (t) => {
+  const port = 3999;
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-data-'));
+  start(t, { port, root: makeSite(), env: {
+    DATA_DIR: data, SITE_MODE: '', WEBSITE_AUTH_ENABLED: '',
+    KK_SUPABASE_URL: '', KK_SUPABASE_ANON_KEY: '', KKARCDB_API: '', KK_HUB_URL: '',
+  } });
+  await wait(700);
+  const cfg = await req('GET', '/api/register-config', { port });
+  assert.strictEqual(cfg.status, 200);
+  assert.deepStrictEqual(cfg.body, { supabaseUrl: null, supabaseAnonKey: null, api: null, hubUrl: null });
+});
