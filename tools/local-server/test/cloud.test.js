@@ -201,3 +201,41 @@ test('cloud mode without WEBSITE_AUTH_ENABLED serves only a failing /health, and
     assert.strictEqual(r.status, 503, p + ' must not be served without confirmed authentication');
   }
 });
+
+test('personal tasks: each signed-in user reads and writes only their own list', async (t) => {
+  const port = 3996;
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-data-'));
+  start(t, { port, root: makeSite(), env: { DATA_DIR: data, SITE_MODE: 'cloud', WEBSITE_AUTH_ENABLED: 'true' } });
+  await wait(700);
+
+  assert.strictEqual((await req('GET', '/api/personal', { port })).status, 401, 'no session, no list');
+
+  const dana = { 'x-ms-client-principal': principal({ name: 'דנה', preferred_username: 'Dana@Example.com' }) };
+  const omer = { 'x-ms-client-principal': principal({ name: 'עומר', preferred_username: 'omer@example.com' }) };
+
+  const empty = await req('GET', '/api/personal', { port, headers: dana });
+  assert.strictEqual(empty.status, 200);
+  assert.deepStrictEqual(empty.body, {});
+
+  const post = await req('POST', '/api/personal', { port, headers: dana, body: { tasks: [{ id: 'a', title: 'להתקשר' }] } });
+  assert.strictEqual(post.body.ok, true);
+  assert.deepStrictEqual((await req('GET', '/api/personal', { port, headers: dana })).body.tasks, [{ id: 'a', title: 'להתקשר' }]);
+  assert.deepStrictEqual((await req('GET', '/api/personal', { port, headers: omer })).body, {}, "someone else's list stays unseen");
+
+  // the same person with different casing is the same list
+  const danaUpper = { 'x-ms-client-principal': principal({ name: 'דנה', preferred_username: 'DANA@EXAMPLE.COM' }) };
+  assert.strictEqual((await req('GET', '/api/personal', { port, headers: danaUpper })).body.tasks.length, 1);
+
+  const files = fs.readdirSync(path.join(data, 'personal'));
+  assert.strictEqual(files.length, 1);
+  assert.ok(!files[0].includes('@'), 'the file name does not carry the address');
+});
+
+test('personal tasks: local mode keeps one list for the person at the machine', async (t) => {
+  const port = 3997;
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-data-'));
+  start(t, { port, root: makeSite(), env: { DATA_DIR: data, SITE_MODE: '', WEBSITE_AUTH_ENABLED: '' } });
+  await wait(700);
+  await req('POST', '/api/personal', { port, body: { tasks: [{ id: 'x' }] } });
+  assert.deepStrictEqual((await req('GET', '/api/personal', { port })).body.tasks, [{ id: 'x' }]);
+});

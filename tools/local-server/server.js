@@ -62,6 +62,14 @@ const APPS = {
 const PROJECTS_DIR = path.join(DATA_DIR, 'projects');
 const PROJECT_ROUTE = /^\/api\/hub-project\/([a-z0-9]{4,24})$/;
 
+// Personal tasks: one list per signed-in person, found from the session rather than the
+// URL, so nobody can ask for someone else's. The file is named by a hash of the address.
+const PERSONAL_DIR = path.join(DATA_DIR, 'personal');
+function personalFileOf(user) {
+  const who = user && user.email ? String(user.email).trim().toLowerCase() : 'local';
+  return path.join(PERSONAL_DIR, require('crypto').createHash('sha256').update(who).digest('hex').slice(0, 32) + '.json');
+}
+
 function readJson(filePath) {
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -321,6 +329,10 @@ const server = http.createServer((req, res) => {
   const upMatch = url.pathname.match(UPLOAD_ROUTE);
   if (upMatch) {
     handleUpload(req, res, upMatch[1], url).catch(e => sendJson(res, 500, { error: e.message }));
+    return;
+  }
+  if (url.pathname === '/api/personal') {
+    handleJsonFile(req, res, personalFileOf(user)).catch(e => sendJson(res, 500, { error: e.message }));
     return;
   }
   const projMatch = url.pathname.match(PROJECT_ROUTE);
