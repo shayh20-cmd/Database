@@ -2,6 +2,7 @@
   tools/quick-access/project-hub-cube.ico           the app (Start menu "Project Hub")
   tools/quick-access/project-hub-cube-new-task.ico  the app with a green "+" (new task / the quick window)
   icon-192.png, icon-512.png                   the site's favicon and installed-app icon
+  icon-new-task-192.png                        the quick window's favicon (the cube with the "+")
   icon-512-maskable.png                        the same on a white tile, inside the maskable safe zone
 In the .ico files sizes up to 128 are classic 32-bit bitmaps and only 256 is PNG: Explorer and the
 taskbar draw a blank page for small PNG-only entries.  Run: python tools/quick-access/make-icons.py
@@ -91,5 +92,6 @@ if __name__ == '__main__':
     write_ico(with_plus(app), os.path.join(HERE, 'project-hub-cube-new-task.ico'))
     for n in (192, 512):
         app.resize((n, n), Image.LANCZOS).save(os.path.join(ROOT, f'icon-{n}.png'))
+    with_plus(app).resize((192, 192), Image.LANCZOS).save(os.path.join(ROOT, 'icon-new-task-192.png'))
     cube(inset=0.2, bg=(255, 255, 255, 255)).resize((512, 512), Image.LANCZOS).save(os.path.join(ROOT, 'icon-512-maskable.png'))
     print('icons written')

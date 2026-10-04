@@ -287,10 +287,10 @@ function principalFrom(req) {
 // serve-handler answers /page.html with a redirect to /page (cleanUrls), so both forms pass.
 // The two translation files the pages load are allowed by exact name; no other script is.
 const CLOUD_PAGE = /^\/[A-Za-z0-9_-]+(\.html)?$/;
-const CLOUD_ASSETS = new Set(['/i18n.js', '/i18n-dict.js', '/react-18.3.1.min.js', '/react-dom-18.3.1.min.js', '/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png']);
+const CLOUD_ASSETS = new Set(['/i18n.js', '/i18n-dict.js', '/react-18.3.1.min.js', '/react-dom-18.3.1.min.js', '/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png', '/icon-new-task-192.png']);
 // The install files of the Project Hub app (manifest, service worker, icons) hold no data, and the browser
 // fetches a manifest without cookies — so they are served before sign-in.
-const PUBLIC_ASSETS = new Set(['/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png']);
+const PUBLIC_ASSETS = new Set(['/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png', '/icon-new-task-192.png']);
 const LOGIN_PAGES = new Set(['/login', '/login.html']);
 
 /* Pages and scripts go out gzipped: Project Hub's page is ~1.3MB as text and ~0.3MB compressed,

@@ -12,7 +12,7 @@ try{var h=document.documentElement;if(localStorage.getItem('appLang')==='en'){h.
 </script>
 <title>PROJECT HUB</title>
 <link rel="manifest" href="/hub.webmanifest">
-<link rel="icon" href="/icon-192.png">
+<link rel="icon" href="/icon-192.png?v=cube">
 <meta name="theme-color" content="#2563EB">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -6895,6 +6895,10 @@ const QUICK_MODE = (() => {
 })();
 if (QUICK_MODE) document.documentElement.classList.add('quick-mode');
 if (QUICK_MODE) {
+  // the quick window's icon (title bar, taskbar) is the cube with a "+", like its pinned shortcut
+  try {
+    document.querySelector('link[rel="icon"]').href = '/icon-new-task-192.png?v=cube';
+  } catch {}
   // the quick window is small; Chrome ignores --window-size once it's running, so size it here (a normal tab ignores this)
   try {
     const qw = 470,
