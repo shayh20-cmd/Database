@@ -119,7 +119,7 @@ test('projectFacts: the register\'s details, costs only when the API sent them',
     { label: 'שם באנגלית', value: 'Beer Sheva Library', data: true },
     { label: 'סטטוס', value: 'פעיל', data: false },
     { label: 'לקוח', value: 'עיריית באר שבע', data: true },
-    { label: 'כתובת', value: 'רגר 1', data: true },
+    { label: 'כתובת הפרויקט', value: 'רגר 1', data: true },
     { label: 'שטח', value: '1,234 מ״ר', data: true },
     { label: 'שנת סיום', value: '2027', data: true },
     { label: 'היתר', value: '15.03.2025', data: true },
@@ -268,4 +268,11 @@ test('nextEntry: a first answer is stored as it came; a good answer replaces any
   assert.deepStrictEqual(RL.nextEntry(undefined, { state: 'ok', data: 'x' }, 7), { state: 'ok', data: 'x', at: 7 });
   assert.deepStrictEqual(RL.nextEntry({ state: 'unreachable', at: 1 }, { state: 'ok', data: 'y' }, 9), { state: 'ok', data: 'y', at: 9 });
   assert.deepStrictEqual(RL.nextEntry({ state: 'ok', data: 'x', at: 1, lastError: 'unreachable' }, { state: 'ok', data: 'y' }, 9), { state: 'ok', data: 'y', at: 9 });
+});
+
+test('hasConsultants: a project with any non-staff member has consultants to show', () => {
+  assert.strictEqual(RL.hasConsultants({ members: [{ isStaff: true }, { isStaff: false }] }), true);
+  assert.strictEqual(RL.hasConsultants({ members: [{ isStaff: true }] }), false);
+  assert.strictEqual(RL.hasConsultants({ members: [] }), false);
+  assert.strictEqual(RL.hasConsultants({}), false);
 });

@@ -1977,7 +1977,9 @@ Object.assign(HE_EN, {
 "עלות בפועל": "Actual cost",
 "הצעה": "Proposal",
 "לא פעיל": "Inactive",
-"בוטל": "Cancelled"
+"בוטל": "Cancelled",
+"כתובת הפרויקט": "Project address",
+"אין יועצים במאגר לפרויקט הזה": "No consultants in the register for this project"
 });
 
 window.I18N_HE_EN = HE_EN;

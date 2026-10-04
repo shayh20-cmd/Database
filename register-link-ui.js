@@ -206,8 +206,10 @@
   function ConsultantsNotice({ data, save, hubCode, colSpan }) {
     const s = useLinked(data);
     const status = statusOf(s, data.registerProjectId);
-    if (status.kind === 'ok') return null;
-    return h('tr', null, h('td', { colSpan, className: 'rl-cell' }, h(Notice, { data, save, hubCode, status })));
+    if (status.kind === 'ok' && RL.hasConsultants(status.project)) return null;
+    return h('tr', null, h('td', { colSpan, className: 'rl-cell' }, status.kind === 'ok'
+      ? line('אין יועצים במאגר לפרויקט הזה')
+      : h(Notice, { data, save, hubCode, status })));
   }
 
   function EditInHub({ data }) {

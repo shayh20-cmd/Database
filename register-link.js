@@ -84,6 +84,12 @@
       .map(({ rank, ...row }) => row);
   }
 
+  /* Whether the consultants table has anything from the register: every non-staff member
+     yields at least one row, so a project without one gets a line saying so instead. */
+  function hasConsultants(project) {
+    return ((project && project.members) || []).some(m => !m.isStaff);
+  }
+
   const dash = v => (v === null || v === undefined || v === '' ? '—' : String(v));
   const num = v => Number(v).toLocaleString('he-IL');
   const day = v => (v ? String(v).replace(/^(\d{4})-(\d{2})-(\d{2}).*$/, '$3.$2.$1') : '—');
@@ -99,7 +105,7 @@
       { label: 'שם באנגלית', value: dash(p.name), data: true },
       { label: 'סטטוס', value: STATUS_HE[p.status] || dash(p.status), data: false },
       { label: 'לקוח', value: dash(p.clientName), data: true },
-      { label: 'כתובת', value: dash(p.address), data: true },
+      { label: 'כתובת הפרויקט', value: dash(p.address), data: true },
       { label: 'שטח', value: p.areaM2 == null ? '—' : num(p.areaM2) + ' מ״ר', data: true },
       { label: 'שנת סיום', value: dash(p.endYear), data: true },
       { label: 'היתר', value: day(p.permitDate), data: true },
@@ -230,7 +236,7 @@
   const api = {
     REGISTER_DISCIPLINE, NO_DISCIPLINE, STATUS_HE,
     matchProjects, hubDisciplineFor, buildConsultantRows, projectFacts, subjectOf, tidyReturnAddress,
-    nextEntry, createRegisterClient,
+    nextEntry, hasConsultants, createRegisterClient,
   };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.RegisterLink = api;
