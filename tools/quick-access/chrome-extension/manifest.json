@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Project Hub — גישה מהירה",
+  "short_name": "Project Hub",
+  "version": "1.2.0",
+  "description": "לחצן ימני בכל דף: משימה חדשה או עדכון למשימה ב-Project Hub (KKARC)",
+  "permissions": [
+    "contextMenus"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Project Hub — משימה חדשה",
+    "default_icon": {
+      "16": "icon-16.png",
+      "32": "icon-32.png"
+    }
+  },
+  "icons": {
+    "16": "icon-16.png",
+    "32": "icon-32.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  }
+}

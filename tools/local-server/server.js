@@ -2,6 +2,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 
 /* Nothing here may exit or crash the process. On the free tier a process that exits is
    restarted until a restart quota disables the whole site — deployment endpoint and
@@ -286,8 +287,56 @@ function principalFrom(req) {
 // serve-handler answers /page.html with a redirect to /page (cleanUrls), so both forms pass.
 // The two translation files the pages load are allowed by exact name; no other script is.
 const CLOUD_PAGE = /^\/[A-Za-z0-9_-]+(\.html)?$/;
-const CLOUD_ASSETS = new Set(['/i18n.js', '/i18n-dict.js']);
+const CLOUD_ASSETS = new Set(['/i18n.js', '/i18n-dict.js', '/react-18.3.1.min.js', '/react-dom-18.3.1.min.js', '/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png', '/icon-new-task-192.png']);
+// The install files of the Project Hub app (manifest, service worker, icons) hold no data, and the browser
+// fetches a manifest without cookies — so they are served before sign-in.
+const PUBLIC_ASSETS = new Set(['/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png', '/icon-new-task-192.png']);
 const LOGIN_PAGES = new Set(['/login', '/login.html']);
+
+/* Pages and scripts go out gzipped: Project Hub's page is ~1.3MB as text and ~0.3MB compressed,
+   which is most of the time a quick window spends loading. serve-handler doesn't compress, so the
+   text files it would serve as-is are answered here instead (its redirects, e.g. /page.html →
+   /page, still go to it). Each compressed copy is kept until the file changes. A versioned
+   library file (react-18.3.1.min.js) never changes, so the browser keeps it for a year. */
+const GZIP_TYPES = {
+  '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8'
+};
+const gzipCache = new Map();
+function serveGzipped(req, res, pathname) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return false;
+  if (!/\bgzip\b/.test(req.headers['accept-encoding'] || '')) return false;
+  let rel;
+  try { rel = decodeURIComponent(pathname); } catch { return false; }
+  let ext = path.extname(rel).toLowerCase();
+  if (ext === '.html') return false; // serve-handler redirects it to the clean URL
+  if (!ext) { rel += '.html'; ext = '.html'; }
+  const type = GZIP_TYPES[ext];
+  if (!type) return false;
+  const file = path.resolve(STATIC_ROOT, '.' + rel);
+  if (!file.startsWith(path.resolve(STATIC_ROOT) + path.sep)) return false;
+  let st;
+  try { st = fs.statSync(file); } catch { return false; }
+  if (!st.isFile()) return false;
+  const etag = 'W/"gz-' + st.size.toString(36) + '-' + Math.floor(st.mtimeMs).toString(36) + '"';
+  const immutable = /-\d+\.\d+\.\d+\.min\.js$/.test(rel);
+  const headers = {
+    'Content-Type': type, 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding', ETag: etag,
+    'Last-Modified': st.mtime.toUTCString(),
+    'Cache-Control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache'
+  };
+  if (req.headers['if-none-match'] === etag) { res.writeHead(304, headers); res.end(); return true; }
+  let hit = gzipCache.get(file);
+  if (!hit || hit.etag !== etag) {
+    hit = { etag, body: zlib.gzipSync(fs.readFileSync(file), { level: 6 }) };
+    gzipCache.set(file, hit);
+  }
+  headers['Content-Length'] = hit.body.length;
+  res.writeHead(200, headers);
+  res.end(req.method === 'HEAD' ? undefined : hit.body);
+  return true;
+}
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
@@ -314,7 +363,7 @@ const server = http.createServer((req, res) => {
   const user = principalFrom(req);
   if (!user) {
     if (url.pathname.startsWith('/api/')) { sendJson(res, 401, { error: 'Sign in required' }); return; }
-    if (!LOGIN_PAGES.has(url.pathname)) {
+    if (!LOGIN_PAGES.has(url.pathname) && !PUBLIC_ASSETS.has(url.pathname)) {
       redirect(res, '/login?next=' + encodeURIComponent(url.pathname + url.search));
       return;
     }
@@ -353,6 +402,7 @@ const server = http.createServer((req, res) => {
   if (SITE_MODE === 'cloud') {
     if (!CLOUD_PAGE.test(url.pathname) && !CLOUD_ASSETS.has(url.pathname)) { sendJson(res, 404, { error: 'Not found' }); return; }
   }
+  if (serveGzipped(req, res, url.pathname)) return;
   // Local dev server: tell browsers to always revalidate so edited HTML/JS/CSS never
   // get served stale from the heuristic cache (serve-handler sends no cache headers).
   serveHandler(req, res, {
