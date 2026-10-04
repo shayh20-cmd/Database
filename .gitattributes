@@ -1,0 +1,2 @@
+# the quick-access installer is a Windows batch file and must keep CRLF line endings
+*.cmd text eol=crlf
