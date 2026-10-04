@@ -1,8 +1,10 @@
-"""Builds the Windows icons for the quick-access shortcuts from the app's icon-512.png:
-  project-hub.ico           the app icon (the whole app)
-  project-hub-new-task.ico  the app icon with a green "+" (new task / the quick window)
-Sizes up to 128 are stored as classic 32-bit bitmaps and only 256 as PNG: Explorer and the taskbar
-draw a blank page for small PNG-only entries.  Run: python tools/quick-access/make-icons.py
+"""Builds Project Hub's icons from its brand mark (the cube in the sidebar's BrandLockup):
+  tools/quick-access/project-hub-cube.ico           the app (Start menu "Project Hub")
+  tools/quick-access/project-hub-cube-new-task.ico  the app with a green "+" (new task / the quick window)
+  icon-192.png, icon-512.png                   the site's favicon and installed-app icon
+  icon-512-maskable.png                        the same on a white tile, inside the maskable safe zone
+In the .ico files sizes up to 128 are classic 32-bit bitmaps and only 256 is PNG: Explorer and the
+taskbar draw a blank page for small PNG-only entries.  Run: python tools/quick-access/make-icons.py
 """
 import io
 import os
@@ -14,14 +16,36 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 S = 1024
 
+# the mark's SVG (viewBox 0 0 64 64) and colours, as in project_hub_01.html's .brand-lockup CSS
+TOP = [(32, 6.2), (52.2, 17.9), (32, 29.6), (11.8, 17.9)]
+LEFT = [(9.9, 21.2), (30.1, 32.9), (30.1, 56.2), (9.9, 44.5)]
+RIGHT = [(33.9, 32.9), (54.1, 21.2), (54.1, 44.5), (33.9, 56.2)]
+NODE = (32, 31.8, 4.4)
+C_TOP, C_LEFT, C_RIGHT, C_STROKE = '#7cc4f5', '#1d63c9', '#0a2540', '#1d63c9'
+
+
+def cube(size=S, inset=0.0, bg=None):
+    """The mark on a transparent (or bg-coloured) square; inset shrinks it toward the centre."""
+    im = Image.new('RGBA', (size, size), bg or (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    # the mark spans x 9.9..54.1, y 6.2..56.2 — centre it and fill the square
+    span = 50.0
+    k = size * (1 - 2 * inset) / span
+    ox = size / 2 - 32 * k
+    oy = size / 2 - 31.2 * k
+    pt = lambda p: (ox + p[0] * k, oy + p[1] * k)
+    for poly, col in ((TOP, C_TOP), (LEFT, C_LEFT), (RIGHT, C_RIGHT)):
+        d.polygon([pt(p) for p in poly], fill=col)
+    cx, cy = pt(NODE[:2])
+    r = NODE[2] * k
+    w = 2.4 * k
+    d.ellipse([cx - r - w / 2, cy - r - w / 2, cx + r + w / 2, cy + r + w / 2], fill=C_STROKE)
+    d.ellipse([cx - r + w / 2, cy - r + w / 2, cx + r - w / 2, cy + r - w / 2], fill='white')
+    return im
+
 
 def base():
-    src = Image.open(os.path.join(ROOT, 'icon-512.png')).convert('RGBA').resize((S, S), Image.LANCZOS)
-    mask = Image.new('L', (S, S), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, S - 1, S - 1], radius=int(S * .22), fill=255)
-    im = Image.new('RGBA', (S, S), (0, 0, 0, 0))
-    im.paste(src, (0, 0), mask)
-    return im
+    return cube(inset=0.02)
 
 
 def with_plus(im):
@@ -63,6 +87,9 @@ def write_ico(im, path):
 
 if __name__ == '__main__':
     app = base()
-    write_ico(app, os.path.join(HERE, 'project-hub.ico'))
-    write_ico(with_plus(app), os.path.join(HERE, 'project-hub-new-task.ico'))
+    write_ico(app, os.path.join(HERE, 'project-hub-cube.ico'))
+    write_ico(with_plus(app), os.path.join(HERE, 'project-hub-cube-new-task.ico'))
+    for n in (192, 512):
+        app.resize((n, n), Image.LANCZOS).save(os.path.join(ROOT, f'icon-{n}.png'))
+    cube(inset=0.2, bg=(255, 255, 255, 255)).resize((512, 512), Image.LANCZOS).save(os.path.join(ROOT, 'icon-512-maskable.png'))
     print('icons written')

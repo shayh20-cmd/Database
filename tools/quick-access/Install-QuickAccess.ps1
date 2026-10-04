@@ -44,8 +44,8 @@ $window = "--window-size=470,560"
 
 # the Project Hub icons (not Chrome's): the app, and the app with a "+" for a new task (make-icons.py builds
 # them). Used from this folder: Explorer drew a blank page for the same icons copied under %LOCALAPPDATA%.
-$appIcon = Join-Path $PSScriptRoot "project-hub.ico"
-$icon = Join-Path $PSScriptRoot "project-hub-new-task.ico"
+$appIcon = Join-Path $PSScriptRoot "project-hub-cube.ico"
+$icon = Join-Path $PSScriptRoot "project-hub-cube-new-task.ico"
 $iconDir = Join-Path $env:LOCALAPPDATA "ProjectHub"   # the keep-awake script lives here
 New-Item -ItemType Directory -Path $iconDir -Force | Out-Null
 
