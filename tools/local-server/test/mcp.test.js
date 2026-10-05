@@ -128,3 +128,61 @@ test('connector: sign-in, then tools act as that person with their role and proj
   const ruth = await signIn(base, 'ruth@kkarc.com');
   assert.match((await ruth('get_project', { project: 'LDPB' })).error, /No project/);
 });
+
+test('connector: a meeting is recorded and its items become tasks, updates, subtasks and principles', async (t) => {
+  const port = 3996;
+  const base = 'http://127.0.0.1:' + port;
+  const { root, data } = makeSite();
+  const proc = spawn('node', [SERVER, root, '--port', String(port)], { stdio: 'ignore', env: { ...process.env, SITE_MODE: 'cloud', WEBSITE_AUTH_ENABLED: 'true', DATA_DIR: data } });
+  t.after(() => proc.kill());
+  for (let i = 0; i < 50; i++) { try { await fetch(base + '/health'); break; } catch { await wait(100); } }
+  const doc = () => JSON.parse(fs.readFileSync(path.join(data, 'projects', 'pabc123.json'), 'utf8'));
+  const dana = await signIn(base, 'dana@kkarc.com');
+
+  // a bad item stops the whole meeting before anything is written
+  let r = await dana('create_meeting', { project: 'LDPB', title: 'תיאום', items: [{ topic: 'א', action: 'task' }, { topic: 'ב', action: 'update', task: 'אין כזו' }] });
+  assert.match(r.error, /No task/);
+  assert.strictEqual((doc().meetings || []).length, 0);
+
+  r = await dana('create_meeting', {
+    project: 'LDPB', title: 'ישיבת תיאום יועצים', date: '2026-10-01', track: 'רישוי', participants: ['יואב', 'מהנדס העיר (עירייה)'],
+    items: [
+      { topic: 'להעביר תוכנית לוחות ליועץ', for: 'ELEC', action: 'task', due_date: '2026-10-20' },
+      { topic: 'היועץ קיבל את ההערות', action: 'update', task: 't1', update_status: 'comments', for: 'ELEC' },
+      { topic: 'לבדוק עומסים', action: 'subtask', task: 'תיאום חשמל' },
+      { topic: 'חזיתות בחיפוי אבן בלבד', for: 'ARCH', action: 'principle' },
+      { topic: 'הוצג לוח זמנים', for: 'לידיעה' }
+    ]
+  });
+  assert.ifError(r.error);
+  assert.deepStrictEqual(r.out.items.map(i => [i.number, i.action]), [['1', 'task'], ['2', 'update'], ['3', 'subtask'], ['4', 'principle'], ['5', 'none']]);
+  let d = doc();
+  const m = d.meetings[0];
+  assert.strictEqual(m.trackId, 'licensing');
+  assert.deepStrictEqual(m.participants.map(p => [p.name, p.role, p.isCustom]), [['יואב', '', false], ['מהנדס העיר', 'עירייה', true]]);
+  assert.deepStrictEqual(m.items.map(i => i.itemType), ['task', 'update', 'subtask', 'principle', null]);
+  assert.strictEqual(m.items[4].assignee, 'לידיעה');
+  const made = d.sheets[0].tasks.find(x => x.title === 'להעביר תוכנית לוחות ליועץ');
+  assert.deepStrictEqual([made.sourceMeetingId, made.sourceMeetingItemId, made.discipline, made.dueDate], [m.id, m.items[0].id, 'ELEC', '2026-10-20']);
+  const t1 = d.sheets[0].tasks.find(x => x.id === 't1');
+  assert.deepStrictEqual([t1.events[0].status, t1.events[0].date, t1.events[0].sourceMeetingId, t1.subtasks[0].title], ['comments', '2026-10-01', m.id, 'לבדוק עומסים']);
+  assert.ok(t1.activityLog.some(e => /מישיבה/.test(e.text)));
+  assert.deepStrictEqual([d.standalonePrinciples[0].discipline, d.standalonePrinciples[0].sourceMeetingItemId], ['ARCH', m.items[3].id]);
+
+  // the same meeting twice is refused; more items go through add_meeting_items and continue the numbering
+  r = await dana('create_meeting', { project: 'LDPB', title: 'ישיבת תיאום יועצים', date: '2026-10-01', items: [{ topic: 'x' }] });
+  assert.match(r.error, /already exists/);
+  r = await dana('add_meeting_items', { project: 'LDPB', meeting: 'תיאום יועצים', items: [{ topic: 'הגשה לוועדה', action: 'milestone', due_date: '2026-12-01' }] });
+  assert.ifError(r.error);
+  assert.strictEqual(r.out.items[0].number, '6');
+  assert.strictEqual(doc().licensingMilestones[0].date, '2026-12-01');
+
+  r = await dana('get_meeting', { project: 'LDPB', meeting: '2026-10-01' });
+  assert.strictEqual(r.out.items[0].task, 'להעביר תוכנית לוחות ליועץ');
+  assert.match(r.out.items[0].link, /task=/);
+  assert.strictEqual(r.out.items[1].became, 'עדכון');
+  r = await dana('list_meetings', { project: 'LDPB' });
+  assert.deepStrictEqual([r.out.count, r.out.meetings[0].items, r.out.meetings[0].acted_on], [1, 6, 5]);
+  r = await dana('get_task', { project: 'LDPB', task: 'לוחות ליועץ' });
+  assert.strictEqual(r.out.from_meeting, '2026-10-01 ישיבת תיאום יועצים');
+});

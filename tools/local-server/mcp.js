@@ -242,6 +242,185 @@ module.exports = function createMcp(ctx) {
 
   /* ── tools ── */
   const linkOf = (base, projId, sheetId, taskId) => `${base}/project_hub_01?project=${encodeURIComponent(projId)}&sheet=${encodeURIComponent(sheetId)}&task=${encodeURIComponent(taskId)}`;
+  /* ── building blocks shared by the task tools and the meeting tools ── */
+  const checkDates = (...ds) => { for (const d of ds) if (d && !ISO_DATE.test(d)) throw new ToolError(`Dates are YYYY-MM-DD, not "${d}"`); };
+  const pathOf = (st, s) => st ? st.track + ' › ' + st.name : s.name;
+  // a new task, the way the page's quick-add builds one; `extra` carries links such as sourceMeetingId
+  function buildTask(doc, x, c, extra) {
+    const discs = projList(doc, 'disciplines', c.reg), pris = projList(doc, 'priorities', c.reg);
+    const title = String(x.title || '').trim();
+    if (!title) throw new ToolError('Every task needs a title');
+    const st = findStage(doc, x.stage);
+    const sheet = doc.sheets.find(s => s.id === st.id);
+    const groups = sheet.groups || [];
+    const group = x.group ? groups.find(g => bare(g.name) === bare(x.group)) || groups.find(g => bare(g.name).includes(bare(x.group))) : groups[0];
+    if (x.group && !group) throw new ToolError(`No group "${x.group}" in ${st.name}. Groups: ` + groups.map(g => g.name).join(', '));
+    checkDates(x.start_date, x.due_date);
+    const start = x.start_date || todayISO();
+    let due = x.due_date || plusDays(start, 14);
+    if (due < start) due = start;
+    const people = pickPeople(doc, x.assignees);
+    const task = {
+      id: uid(), groupId: group ? group.id : null, title, statusId: 'N',
+      priority: pickOption(pris, x.priority, 'priority') || '',
+      discipline: pickOption(discs, x.discipline, 'discipline'),
+      startDate: start, dueDate: due, comment: String(x.note || '').trim(),
+      ...(x.description ? { description: esc(x.description).replace(/\n/g, '<br>') } : {}),
+      ...(x.mail_url ? { mails: [{ url: String(x.mail_url), added: todayISO() }] } : {}),
+      done: false, taskType: 'simple', fieldValues: {}, subtasks: [],
+      ...(people.length ? { assigneeIds: people } : {}),
+      ...(extra || {}),
+      activityLog: [logEntry(c.me, (extra && extra.sourceMeetingId) ? 'נוצרה מישיבה דרך Claude' : 'נוצרה דרך Claude')]
+    };
+    return { sheetId: st.id, path: st.track + ' › ' + st.name, task };
+  }
+  function addTasks(doc, plan) {
+    doc.sheets = doc.sheets.map(s => {
+      const add = plan.filter(x => x.sheetId === s.id).map(x => x.task);
+      return add.length ? { ...s, tasks: [...(s.tasks || []), ...add] } : s;
+    });
+  }
+  /* one task changed the way update_task describes; opts.eventExtra goes on a new update,
+     opts.why is logged before the field changes (e.g. which meeting asked for it) */
+  function changeTask(doc, t, args, c, opts = {}) {
+    const discs = projList(doc, 'disciplines', c.reg), pris = projList(doc, 'priorities', c.reg), sts = projList(doc, 'statuses', c.reg);
+    const n = { ...t };
+    const log = opts.why ? [opts.why] : [];
+    checkDates(args.start_date, args.due_date, args.add_update && args.add_update.date);
+    if (args.title && args.title.trim() !== t.title) { n.title = args.title.trim(); log.push(`כותרת שונתה ל"${n.title}"`); }
+    if (args.priority != null) { n.priority = pickOption(pris, args.priority, 'priority') || ''; log.push('עדיפות עודכנה'); }
+    if (args.discipline != null) { n.discipline = pickOption(discs, args.discipline, 'discipline'); log.push('תחום עודכן'); }
+    if (args.start_date) n.startDate = args.start_date;
+    if (args.due_date) n.dueDate = args.due_date;
+    if (args.start_date || args.due_date) { if (n.dueDate && n.startDate && n.dueDate < n.startDate) n.dueDate = n.startDate; log.push('תאריכים עודכנו'); }
+    if (args.note != null) { n.comment = String(args.note); log.push('הערה עודכנה'); }
+    if (args.assignees) { n.assigneeIds = pickPeople(doc, args.assignees); log.push('אחראים עודכנו'); }
+    if (args.add_mail_url) n.mails = [...(t.mails || (t.mail ? [t.mail] : [])), { url: String(args.add_mail_url), added: todayISO() }];
+    if (args.add_update) {
+      const u = args.add_update;
+      const evs = Object.keys(EV_STATUSES);
+      const ust = u.update_status ? (evs.find(k => k === u.update_status) || evs.find(k => norm(EV_STATUSES[k]) === norm(u.update_status))) : 'update';
+      if (!ust) throw new ToolError(`Unknown update status "${u.update_status}". Options: ` + evs.map(k => k + ' (' + EV_STATUSES[k] + ')').join(', '));
+      const lu = latestUpdate(t.events);
+      const owner = u.owner ? pickOption(discs, u.owner, 'discipline') : ((lu && lu.assignee) || t.discipline || '');
+      n.events = [...(t.events || []), { id: uid(), status: ust, assignee: owner || '', date: u.date || todayISO(), title: String(u.text).trim(), note: '', ...(u.mail_url ? { mail: { url: String(u.mail_url), added: todayISO() } } : {}), ...(opts.eventExtra || {}) }];
+    }
+    if (args.status) {
+      const sid = pickOption(sts, args.status, 'status');
+      n.statusId = sid; n.statusOverride = true; n.done = sid === 'C';
+      log.push(`סטטוס שונה ל"${(sts.find(x => x.id === sid) || {}).label}"`);
+    }
+    if (args.add_subtasks && args.add_subtasks.length) {
+      n.subtasks = [...(n.subtasks || []), ...args.add_subtasks.map(x => ({ id: uid(), title: String(x.title).trim(), done: false, statusId: 'N', priority: '', discipline: x.discipline ? pickOption(discs, x.discipline, 'discipline') : '', events: [] }))];
+      log.push(args.add_subtasks.length === 1 ? 'נוספה תת-משימה' : `נוספו ${args.add_subtasks.length} תתי-משימות`);
+    }
+    if (args.complete_subtasks && args.complete_subtasks.length) {
+      const subs = n.subtasks || [];
+      const ids = args.complete_subtasks.map(ref => {
+        const hit = subs.find(x => x.id === ref) || subs.find(x => bare(x.title) === bare(ref)) || subs.find(x => bare(x.title).includes(bare(ref)));
+        if (!hit) throw new ToolError(`No subtask "${ref}". Subtasks: ` + subs.map(x => x.title).join(' | '));
+        return hit.id;
+      });
+      n.subtasks = subs.map(x => ids.includes(x.id) ? { ...x, done: true, statusId: 'C' } : x);
+      log.push('תתי-משימות עודכנו');
+    }
+    if (log.length) n.activityLog = [...(t.activityLog || []), ...log.map(x => logEntry(c.me, x))];
+    return n;
+  }
+  const putTask = (doc, sheetId, n) => { doc.sheets = doc.sheets.map(sh => sh.id === sheetId ? { ...sh, tasks: sh.tasks.map(x => x.id === n.id ? n : x) } : sh); };
+
+  /* ── meetings, as the page's ישיבות screen keeps them ── */
+  const ITEM_ACTIONS = { none: null, task: 'משימה', update: 'עדכון', subtask: 'תת-משימה', principle: 'עקרון תכנון', milestone: 'אבן דרך' };
+  function findMeeting(doc, ref) {
+    const ms = doc.meetings || [];
+    const hit = ms.find(m => m.id === ref) || ms.filter(m => m.date === ref).length === 1 && ms.find(m => m.date === ref);
+    if (hit) return hit;
+    const loose = ms.filter(m => ref && bare(m.title).includes(bare(ref)));
+    if (loose.length === 1) return loose[0];
+    const list = ms.slice(-12).map(m => m.id + ' ' + (m.date || '') + ' ' + (m.title || '(ללא כותרת)')).join(' | ');
+    if (loose.length > 1) throw new ToolError(`"${ref}" matches ${loose.length} meetings; pass the meeting id. ` + list);
+    throw new ToolError(`No meeting "${ref}" in this project. Meetings: ` + (list || 'none'));
+  }
+  function findTrack(doc, ref) {
+    if (!ref) return null;
+    const tr = (doc.tracks || []).find(t => t.id === ref) || (doc.tracks || []).find(t => bare(t.label).includes(bare(ref)));
+    if (!tr) throw new ToolError(`No track "${ref}". Tracks: ` + (doc.tracks || []).map(t => t.label).join(', '));
+    return tr.id;
+  }
+  const topNumber = items => items.reduce((mx, it) => Math.max(mx, /^\d+$/.test(it.number || '') ? +it.number : 0), 0);
+  /* Writes a meeting's items into the meeting and carries out what each one asks for.
+     Runs inside writeProject: any bad item throws before anything is written. */
+  function applyItems(doc, meeting, items, c, base, proj) {
+    const discs = projList(doc, 'disciplines', c.reg);
+    const out = [];
+    const tasksToAdd = [];
+    let next = topNumber(meeting.items || []);
+    for (const x of items) {
+      const topic = String(x.topic || '').trim();
+      if (!topic) throw new ToolError('Every meeting item needs a topic');
+      checkDates(x.start_date, x.due_date);
+      const action = x.action || 'none';
+      if (!(action in ITEM_ACTIONS)) throw new ToolError(`Unknown action "${action}". Actions: ` + Object.keys(ITEM_ACTIONS).join(', '));
+      const forInfo = x.for && /^לידיעה$/.test(norm(x.for));
+      const disc = x.for && !forInfo ? pickOption(discs, x.for, 'discipline') : null;
+      const item = {
+        id: uid(), number: x.number ? String(x.number) : String(++next), topic,
+        assignee: forInfo ? 'לידיעה' : disc, startDate: x.start_date || '', dueDate: x.due_date || '',
+        itemType: null, createdTaskTrackId: null
+      };
+      const links = { sourceMeetingId: meeting.id, sourceMeetingItemId: item.id };
+      const res = { number: item.number, topic, action };
+      if (action === 'task') {
+        const plan = buildTask(doc, { title: x.title || topic, stage: x.stage, discipline: disc || undefined, priority: x.priority, start_date: x.start_date, due_date: x.due_date, assignees: x.assignees, note: x.note }, c, links);
+        tasksToAdd.push(plan);
+        Object.assign(item, { itemType: 'task', createdTaskTrackId: plan.sheetId, createdTaskId: plan.task.id, startDate: plan.task.startDate, dueDate: plan.task.dueDate });
+        Object.assign(res, { task: plan.task.title, stage: plan.path, due: plan.task.dueDate, link: linkOf(base, proj.id, plan.sheetId, plan.task.id) });
+      } else if (action === 'update' || action === 'subtask') {
+        if (!x.task) throw new ToolError(`Item "${topic}": an ${action} needs the existing task (id or title)`);
+        const { t, s, st } = findTask(doc, x.task);
+        const why = `${action === 'update' ? 'עודכנה' : 'נוספה תת-משימה'} מישיבה "${meeting.title || meeting.date}"`;
+        const meetDay = meeting.date && meeting.date <= todayISO() ? meeting.date : todayISO();
+        const n = action === 'update'
+          ? changeTask(doc, t, { add_update: { text: topic, update_status: x.update_status, owner: disc || undefined, date: meetDay } }, c, { eventExtra: links, why })
+          : changeTask(doc, t, { add_subtasks: [{ title: x.title || topic, discipline: disc || undefined }] }, c, { why });
+        putTask(doc, s.id, n);
+        Object.assign(item, { itemType: action, createdTaskTrackId: s.id, linkedTaskId: t.id });
+        Object.assign(res, { task: t.title, stage: pathOf(st, s), link: linkOf(base, proj.id, s.id, t.id) });
+      } else if (action === 'principle') {
+        const rec = { id: uid(), description: topic, discipline: disc || '', createdAt: meeting.date || todayISO(), ...links };
+        doc.standalonePrinciples = [...(doc.standalonePrinciples || []), rec];
+        Object.assign(item, { itemType: 'principle', linkedRecordId: rec.id, linkedRecordKind: 'principle' });
+      } else if (action === 'milestone') {
+        const rec = { id: uid(), title: x.title || topic, date: x.due_date || '', startDate: todayISO(), status: 'not_started', done: false, stageId: null };
+        doc.licensingMilestones = [...(doc.licensingMilestones || []), rec];
+        Object.assign(item, { itemType: 'milestone', linkedRecordId: rec.id, linkedRecordKind: 'milestone' });
+      }
+      meeting.items = [...(meeting.items || []), item];
+      out.push(res);
+    }
+    addTasks(doc, tasksToAdd);
+    return out;
+  }
+  const ITEM_SCHEMA = {
+    type: 'object',
+    properties: {
+      topic: { type: 'string', description: 'The item as written in the minutes' },
+      number: { type: 'string', description: 'Item number ("3", "3.1"); omit to number automatically' },
+      for: { type: 'string', description: 'Discipline that handles it, or "לידיעה" (for information)' },
+      start_date: { type: 'string', description: 'YYYY-MM-DD' },
+      due_date: { type: 'string', description: 'YYYY-MM-DD' },
+      action: { type: 'string', enum: Object.keys(ITEM_ACTIONS), description: 'What the item becomes: none (minutes only), task (new task), update (update on an existing task), subtask (subtask of an existing task), principle (planning principle), milestone' },
+      title: { type: 'string', description: 'Task / subtask / milestone title when it should differ from the topic' },
+      task: { type: 'string', description: 'For update / subtask: the existing task (id or unique part of its title)' },
+      update_status: { type: 'string', description: 'For update: missing | progress | sent | comments | response | update | approved' },
+      stage: { type: 'string', description: 'For task: "track › stage"; omit for the default stage' },
+      priority: { type: 'string', description: 'For task' },
+      assignees: { type: 'array', items: { type: 'string' }, description: 'For task: team member names' },
+      note: { type: 'string', description: 'For task: row comment' }
+    },
+    required: ['topic'], additionalProperties: false
+  };
+
   const TOOLS = [
     {
       name: 'list_projects',
@@ -354,6 +533,7 @@ module.exports = function createMcp(ctx) {
           mails: (t.mails || (t.mail ? [t.mail] : [])).map(m => m.url || m) || undefined,
           updates: evChrono(t.events).slice(-15).map(e => ({ date: e.date, status: EV_STATUSES[e.status] || e.status, owner: lbl(discs, e.assignee), title: e.title || undefined, note: e.note || undefined })),
           subtasks: (t.subtasks || []).map(x => ({ id: x.id, title: x.title, done: !!x.done, discipline: lbl(discs, x.discipline) })),
+          from_meeting: t.sourceMeetingId ? (m => m ? `${m.date || ''} ${m.title || ''}`.trim() : undefined)((doc.meetings || []).find(m => m.id === t.sourceMeetingId)) : undefined,
           link: linkOf(c.base, p.id, s.id, t.id)
         };
       }
@@ -394,37 +574,8 @@ module.exports = function createMcp(ctx) {
         canWrite(c.me);
         const p = findProject(c.me, c.reg, args.project);
         const made = writeProject(p, c.me, doc => {
-          const discs = projList(doc, 'disciplines', c.reg), pris = projList(doc, 'priorities', c.reg);
-          const plan = args.tasks.map(x => {
-            const title = String(x.title || '').trim();
-            if (!title) throw new ToolError('Every task needs a title');
-            const st = findStage(doc, x.stage);
-            const sheet = doc.sheets.find(s => s.id === st.id);
-            const groups = sheet.groups || [];
-            const group = x.group ? groups.find(g => bare(g.name) === bare(x.group)) || groups.find(g => bare(g.name).includes(bare(x.group))) : groups[0];
-            if (x.group && !group) throw new ToolError(`No group "${x.group}" in ${st.name}. Groups: ` + groups.map(g => g.name).join(', '));
-            for (const d of [x.start_date, x.due_date]) if (d && !ISO_DATE.test(d)) throw new ToolError(`Dates are YYYY-MM-DD, not "${d}"`);
-            const start = x.start_date || todayISO();
-            let due = x.due_date || plusDays(start, 14);
-            if (due < start) due = start;
-            const people = pickPeople(doc, x.assignees);
-            const task = {
-              id: uid(), groupId: group ? group.id : null, title, statusId: 'N',
-              priority: pickOption(pris, x.priority, 'priority') || '',
-              discipline: pickOption(discs, x.discipline, 'discipline'),
-              startDate: start, dueDate: due, comment: String(x.note || '').trim(),
-              ...(x.description ? { description: esc(x.description).replace(/\n/g, '<br>') } : {}),
-              ...(x.mail_url ? { mails: [{ url: String(x.mail_url), added: todayISO() }] } : {}),
-              done: false, taskType: 'simple', fieldValues: {}, subtasks: [],
-              ...(people.length ? { assigneeIds: people } : {}),
-              activityLog: [logEntry(c.me, 'נוצרה דרך Claude')]
-            };
-            return { sheetId: st.id, path: st.track + ' › ' + st.name, task };
-          });
-          doc.sheets = doc.sheets.map(s => {
-            const add = plan.filter(x => x.sheetId === s.id).map(x => x.task);
-            return add.length ? { ...s, tasks: [...(s.tasks || []), ...add] } : s;
-          });
+          const plan = args.tasks.map(x => buildTask(doc, x, c));
+          addTasks(doc, plan);
           return plan;
         });
         return {
@@ -473,52 +624,130 @@ module.exports = function createMcp(ctx) {
         const p = findProject(c.me, c.reg, args.project);
         const res = writeProject(p, c.me, doc => {
           const { t, s, st } = findTask(doc, args.task);
-          const discs = projList(doc, 'disciplines', c.reg), pris = projList(doc, 'priorities', c.reg), sts = projList(doc, 'statuses', c.reg);
-          const n = { ...t };
-          const log = [];
-          for (const d of [args.start_date, args.due_date, args.add_update && args.add_update.date]) if (d && !ISO_DATE.test(d)) throw new ToolError(`Dates are YYYY-MM-DD, not "${d}"`);
-          if (args.title && args.title.trim() !== t.title) { n.title = args.title.trim(); log.push(`כותרת שונתה ל"${n.title}"`); }
-          if (args.priority != null) { n.priority = pickOption(pris, args.priority, 'priority') || ''; log.push('עדיפות עודכנה'); }
-          if (args.discipline != null) { n.discipline = pickOption(discs, args.discipline, 'discipline'); log.push('תחום עודכן'); }
-          if (args.start_date) n.startDate = args.start_date;
-          if (args.due_date) n.dueDate = args.due_date;
-          if (args.start_date || args.due_date) { if (n.dueDate && n.startDate && n.dueDate < n.startDate) n.dueDate = n.startDate; log.push('תאריכים עודכנו'); }
-          if (args.note != null) { n.comment = String(args.note); log.push('הערה עודכנה'); }
-          if (args.assignees) { n.assigneeIds = pickPeople(doc, args.assignees); log.push('אחראים עודכנו'); }
-          if (args.add_mail_url) n.mails = [...(t.mails || (t.mail ? [t.mail] : [])), { url: String(args.add_mail_url), added: todayISO() }];
-          if (args.add_update) {
-            const u = args.add_update;
-            const evs = Object.keys(EV_STATUSES);
-            const ust = u.update_status ? (evs.find(k => k === u.update_status) || evs.find(k => norm(EV_STATUSES[k]) === norm(u.update_status))) : 'update';
-            if (!ust) throw new ToolError(`Unknown update status "${u.update_status}". Options: ` + evs.map(k => k + ' (' + EV_STATUSES[k] + ')').join(', '));
-            const lu = latestUpdate(t.events);
-            const owner = u.owner ? pickOption(discs, u.owner, 'discipline') : ((lu && lu.assignee) || t.discipline || '');
-            n.events = [...(t.events || []), { id: uid(), status: ust, assignee: owner || '', date: u.date || todayISO(), title: String(u.text).trim(), note: '', ...(u.mail_url ? { mail: { url: String(u.mail_url), added: todayISO() } } : {}) }];
-          }
-          if (args.status) {
-            const sid = pickOption(sts, args.status, 'status');
-            n.statusId = sid; n.statusOverride = true; n.done = sid === 'C';
-            log.push(`סטטוס שונה ל"${(sts.find(x => x.id === sid) || {}).label}"`);
-          }
-          if (args.add_subtasks && args.add_subtasks.length) {
-            n.subtasks = [...(n.subtasks || []), ...args.add_subtasks.map(x => ({ id: uid(), title: String(x.title).trim(), done: false, statusId: 'N', priority: '', discipline: x.discipline ? pickOption(discs, x.discipline, 'discipline') : '', events: [] }))];
-            log.push(args.add_subtasks.length === 1 ? 'נוספה תת-משימה' : `נוספו ${args.add_subtasks.length} תתי-משימות`);
-          }
-          if (args.complete_subtasks && args.complete_subtasks.length) {
-            const subs = n.subtasks || [];
-            const ids = args.complete_subtasks.map(ref => {
-              const hit = subs.find(x => x.id === ref) || subs.find(x => bare(x.title) === bare(ref)) || subs.find(x => bare(x.title).includes(bare(ref)));
-              if (!hit) throw new ToolError(`No subtask "${ref}". Subtasks: ` + subs.map(x => x.title).join(' | '));
-              return hit.id;
-            });
-            n.subtasks = subs.map(x => ids.includes(x.id) ? { ...x, done: true, statusId: 'C' } : x);
-            log.push('תתי-משימות עודכנו');
-          }
-          if (log.length) n.activityLog = [...(t.activityLog || []), ...log.map(x => logEntry(c.me, x))];
-          doc.sheets = doc.sheets.map(sh => sh.id === s.id ? { ...sh, tasks: sh.tasks.map(x => x.id === t.id ? n : x) } : sh);
+          const sts = projList(doc, 'statuses', c.reg);
+          const n = changeTask(doc, t, args, c);
+          putTask(doc, s.id, n);
           return { id: t.id, title: n.title, stage: st ? st.track + ' › ' + st.name : s.name, status: (sts.find(x => x.id === statusOf(n)) || {}).label, sheetId: s.id };
         });
         return { project: p.code + ' ' + p.name, updated: { ...res, sheetId: undefined, link: linkOf(c.base, p.id, res.sheetId, res.id) } };
+      }
+    },
+    {
+      name: 'list_meetings',
+      title: 'Meetings',
+      description: 'A project\'s meeting minutes (ישיבות), newest first: id, date, title, track and how many items became tasks, updates or principles.',
+      inputSchema: { type: 'object', properties: { project: { type: 'string' }, query: { type: 'string', description: 'Words in the title or items' }, limit: { type: 'integer', minimum: 1, maximum: 50, default: 15 } }, required: ['project'], additionalProperties: false },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      run(args, c) {
+        const p = findProject(c.me, c.reg, args.project);
+        const doc = readJson(p.file);
+        const words = bare(args.query || '').split(' ').filter(Boolean);
+        const trackLabel = id => ((doc.tracks || []).find(t => t.id === id) || {}).label;
+        const ms = (doc.meetings || []).filter(m => !words.length || words.every(w => bare([m.title, ...(m.items || []).map(i => i.topic)].join(' ')).includes(w)))
+          .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        const limit = Math.min(args.limit || 15, 50);
+        return {
+          project: p.code + ' ' + p.name,
+          count: ms.length,
+          meetings: ms.slice(0, limit).map(m => ({ id: m.id, date: m.date, title: m.title || '(ללא כותרת)', track: trackLabel(m.trackId), items: (m.items || []).length, acted_on: (m.items || []).filter(i => i.itemType).length }))
+        };
+      }
+    },
+    {
+      name: 'get_meeting',
+      title: 'Meeting minutes',
+      description: 'One meeting: participants and every item with what it became (task, update, subtask, principle, milestone) and links to the tasks.',
+      inputSchema: { type: 'object', properties: { project: { type: 'string' }, meeting: { type: 'string', description: 'Meeting id, its date (YYYY-MM-DD) or part of its title' } }, required: ['project', 'meeting'], additionalProperties: false },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      run(args, c) {
+        const p = findProject(c.me, c.reg, args.project);
+        const doc = readJson(p.file);
+        const m = findMeeting(doc, args.meeting);
+        const discs = projList(doc, 'disciplines', c.reg);
+        const taskById = {};
+        eachTask(doc, (t, s) => { taskById[t.id] = { t, s }; });
+        const linkedTask = it => {
+          const id = it.createdTaskId || it.linkedTaskId || (Object.values(taskById).find(x => x.t.sourceMeetingItemId === it.id) || {}).t?.id;
+          const hit = id && taskById[id];
+          return hit ? { task: hit.t.title, link: linkOf(c.base, p.id, hit.s.id, hit.t.id) } : {};
+        };
+        return {
+          id: m.id, date: m.date, title: m.title, track: ((doc.tracks || []).find(t => t.id === m.trackId) || {}).label,
+          participants: (m.participants || []).map(x => x.role ? `${x.name} (${x.role})` : x.name),
+          recorded_by: m.recordedBy || undefined, distribution: m.distribution || undefined,
+          items: (m.items || []).map(it => ({
+            number: it.number, topic: it.topic,
+            for: it.assignee === 'לידיעה' ? 'לידיעה' : ((discs.find(d => d.id === it.assignee) || {}).label || it.assignee || undefined),
+            start: it.startDate || undefined, due: it.dueDate || undefined,
+            became: it.itemType ? ITEM_ACTIONS[it.itemType] || it.itemType : undefined,
+            ...(it.itemType && ['task', 'update', 'subtask'].includes(it.itemType) ? linkedTask(it) : {})
+          }))
+        };
+      }
+    },
+    {
+      name: 'create_meeting',
+      title: 'Record a meeting',
+      description: 'Record a meeting\'s minutes in the project (it appears under ישיבות) and, in the same step, turn its items into new tasks, updates or subtasks on existing tasks, planning principles or milestones — each linked back to the meeting. Before calling: get_project, search_tasks for items that continue existing tasks, then show the user a numbered table (item, what it becomes, stage/task, discipline, due) and call only after they confirm. Items the user did not pick stay in the minutes with action "none".',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string' },
+          title: { type: 'string', description: 'Meeting subject' },
+          date: { type: 'string', description: 'YYYY-MM-DD, default today' },
+          track: { type: 'string', description: 'Track the meeting belongs to (e.g. מסלול רישוי); omit for general' },
+          participants: { type: 'array', items: { type: 'string' }, description: 'Names, optionally "name (role)"' },
+          recorded_by: { type: 'string', description: 'Default: the signed-in person' },
+          distribution: { type: 'string' },
+          items: { type: 'array', minItems: 1, maxItems: 80, items: ITEM_SCHEMA }
+        },
+        required: ['project', 'title', 'items'], additionalProperties: false
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      run(args, c) {
+        canWrite(c.me);
+        const p = findProject(c.me, c.reg, args.project);
+        checkDates(args.date);
+        const res = writeProject(p, c.me, doc => {
+          const date = args.date || todayISO();
+          const title = String(args.title || '').trim();
+          if ((doc.meetings || []).some(m => m.date === date && bare(m.title) === bare(title))) throw new ToolError(`A meeting "${title}" on ${date} already exists; use add_meeting_items to add to it.`);
+          const team = teamOf(doc);
+          const participants = (args.participants || []).map(raw => {
+            const mm = /^(.*?)\s*\((.*)\)\s*$/.exec(String(raw));
+            const name = (mm ? mm[1] : String(raw)).trim(), role = mm ? mm[2].trim() : '';
+            const member = team.find(x => bare(x.name) === bare(name));
+            return { id: uid(), name: member ? member.name : name, role: role || (member ? member.role : ''), isCustom: !member };
+          });
+          const meeting = { id: uid(), trackId: findTrack(doc, args.track), title, date, participants, items: [], recordedBy: args.recorded_by || c.me.name, distribution: args.distribution || '', createdAt: new Date().toISOString(), createdVia: 'claude' };
+          const items = applyItems(doc, meeting, args.items, c, c.base, p);
+          doc.meetings = [...(doc.meetings || []), meeting];
+          return { meeting, items };
+        });
+        return { project: p.code + ' ' + p.name, meeting: { id: res.meeting.id, date: res.meeting.date, title: res.meeting.title, where: 'ניהול תכנון › ישיבות' }, items: res.items };
+      }
+    },
+    {
+      name: 'add_meeting_items',
+      title: 'Add to a meeting',
+      description: 'Add items to an existing meeting\'s minutes, with the same actions as create_meeting (task, update, subtask, principle, milestone, none). Confirm with the user first.',
+      inputSchema: {
+        type: 'object',
+        properties: { project: { type: 'string' }, meeting: { type: 'string', description: 'Meeting id, date or part of its title' }, items: { type: 'array', minItems: 1, maxItems: 80, items: ITEM_SCHEMA } },
+        required: ['project', 'meeting', 'items'], additionalProperties: false
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      run(args, c) {
+        canWrite(c.me);
+        const p = findProject(c.me, c.reg, args.project);
+        const res = writeProject(p, c.me, doc => {
+          const found = findMeeting(doc, args.meeting);
+          const meeting = { ...found, items: [...(found.items || [])] };
+          const items = applyItems(doc, meeting, args.items, c, c.base, p);
+          doc.meetings = doc.meetings.map(m => m.id === meeting.id ? meeting : m);
+          return { meeting, items };
+        });
+        return { project: p.code + ' ' + p.name, meeting: { id: res.meeting.id, date: res.meeting.date, title: res.meeting.title }, items: res.items };
       }
     }
   ];
@@ -527,7 +756,7 @@ module.exports = function createMcp(ctx) {
     'Project Hub is the task manager of KKARC, an architecture office. Talk with the user in Hebrew.',
     'A project has tracks (מסלולים) with stages (שלבים); each stage is a task list. New tasks go to the project\'s default stage (usually "מסלול תכנון › משימות שוטפות") unless the user names another.',
     'Before adding or changing anything, call get_project for the project, map what the user said onto its real stages, disciplines (תחום), priorities and team, and show a short table of exactly what you will write. Write only after the user confirms. Never invent a project, stage, discipline or person — ask.',
-    'From a meeting summary: list the action items as numbered candidates (title, project, stage, discipline, owner, due) and let the user pick which to add.',
+    'From meeting minutes or a summary: work out the project, then read every item and propose what each becomes — a new task, an update or subtask on an existing task (search_tasks first), a planning principle (עקרון תכנון), a milestone, or minutes only. Show a numbered table and let the user change and pick; then record it all with one create_meeting call (or add_meeting_items for a meeting already in Project Hub), so the minutes and everything made from them stay linked.',
     'Progress on an existing task is recorded as an update (update_task.add_update), not by editing the title. An update\'s owner is a discipline — who holds the ball after this step.',
     'Dates are YYYY-MM-DD. Defaults: start today, due in 14 days. After writing, give the user the task links.'
   ].join('\n');
@@ -712,7 +941,7 @@ button.primary{background:#2563EB;border-color:#2563EB;color:#fff}.fine{font-siz
         return reply({
           protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: 'project-hub', title: 'Project Hub', version: '1.0.0' },
+          serverInfo: { name: 'project-hub', title: 'Project Hub', version: '1.1.0' },
           instructions: INSTRUCTIONS
         });
       }
