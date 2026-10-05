@@ -347,7 +347,7 @@ try {
     Copy-Item (Join-Path $root "tools/quick-access/ProjectHub-Setup.cmd") $stage
     Copy-Item (Join-Path $root "tools/quick-access/project-hub-cube.ico") (Join-Path $stage "qa-app.ico")
     Copy-Item (Join-Path $root "tools/quick-access/project-hub-cube-new-task.ico") (Join-Path $stage "qa-new-task.ico")
-    foreach ($f in "server.js", "package.json", "package-lock.json") {
+    foreach ($f in "server.js", "mcp.js", "package.json", "package-lock.json") {
         Copy-Item (Join-Path $root "tools/local-server/$f") (Join-Path $stage "tools/local-server")
     }
     Copy-Item (Join-Path $root "tools/local-server/node_modules") (Join-Path $stage "tools/local-server/node_modules") -Recurse

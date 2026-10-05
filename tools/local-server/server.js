@@ -346,6 +346,12 @@ function serveGzipped(req, res, pathname) {
   return true;
 }
 
+/* Project Hub as a Claude connector (MCP + OAuth); see mcp.js. */
+const mcp = require('./mcp')({
+  DATA_DIR, STATIC_ROOT, SITE_MODE, APPS, PROJECTS_DIR, LOCAL_USER_NAME,
+  readJson, writeJsonAtomic, sendJson, readRequestBody
+});
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const healthy = AUTH_CONFIRMED && !bootError;
@@ -365,6 +371,9 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (!healthy) { sendJson(res, 503, { error: 'Not serving; see /health' }); return; }
+
+  // The connector's discovery, registration, token and /mcp routes carry their own credentials.
+  if (mcp.handlePublic(req, res, url)) return;
 
   /* Easy Auth lets anonymous requests through (AllowAnonymous), so this is the gate. A visitor
      who is not signed in gets only the sign-in page, whose button starts Microsoft sign-in. */
@@ -386,6 +395,7 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+  if (url.pathname === '/oauth/authorize') { mcp.handleAuthorize(req, res, url, user); return; }
   if (url.pathname === '/api/me') { sendJson(res, 200, { name: user.name, email: user.email, mode: SITE_MODE }); return; }
   if (url.pathname === '/api/snip' && SITE_MODE === 'local') { handleSnip(req, res); return; }
   if (url.pathname === '/api/projects' && req.method === 'GET') {
