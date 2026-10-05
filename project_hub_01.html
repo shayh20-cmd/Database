@@ -561,9 +561,9 @@ button.pm-trigger:focus-visible{outline:2px solid var(--accent);outline-offset:2
 .hdr-right{margin-inline-start:auto;display:flex;align-items:center;gap:8px;}
 .avatar-stack{display:flex;padding-inline-end:6px;}
 .av{width:24px;height:24px;border-radius:50%;border:2px solid var(--surface);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;margin-inline-end:-6px;}
-.btn-share{background:var(--blue);color:#fff;border:none;border-radius:var(--radius-sm);padding:5px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:var(--transition);box-shadow:0 1px 3px rgba(99,102,241,.3);}
+.btn-share{white-space:nowrap;flex-shrink:0;background:var(--blue);color:#fff;border:none;border-radius:var(--radius-sm);padding:5px 16px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:var(--transition);box-shadow:0 1px 3px rgba(99,102,241,.3);}
 .btn-share:hover{filter:brightness(1.08);}
-.btn-claude{display:inline-flex;align-items:center;gap:5px;background:var(--surface);color:#C2603E;border:1px solid #E8B9A6;border-radius:var(--radius-sm);padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:var(--transition);}
+.btn-claude{white-space:nowrap;flex-shrink:0;display:inline-flex;align-items:center;gap:5px;background:var(--surface);color:#C2603E;border:1px solid #E8B9A6;border-radius:var(--radius-sm);padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:var(--transition);}
 .btn-claude:hover{background:#FBF1EC;border-color:#D97757;}
 .tds-claude{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;flex-shrink:0;border:1px solid transparent;background:none;border-radius:6px;color:#C2603E;cursor:pointer;}
 .tds-claude:hover{background:#FBF1EC;border-color:#E8B9A6;}
@@ -584,8 +584,8 @@ button.pm-trigger:focus-visible{outline:2px solid var(--accent);outline-offset:2
 .ca-raw{min-height:80px;font-size:12px;}
 .ca-foot{flex-wrap:wrap;align-items:center;}
 .ca-need{flex-basis:100%;font-size:11px;color:var(--text-3);margin-bottom:2px;}
-.ca-go{display:inline-flex;align-items:center;gap:4px;background:#C2603E;border-color:#C2603E;}
-.ca-go:hover{background:#A84E2F;border-color:#A84E2F;}
+.np-btn.primary.ca-go{display:inline-flex;align-items:center;gap:4px;background:#C2603E;border-color:#C2603E;color:#fff;}
+.np-btn.primary.ca-go:hover{background:#A84E2F;border-color:#A84E2F;}
 .ca-body.inline{display:flex;flex-direction:column;min-height:0;flex:1;}
 .ca-inner{display:flex;flex-direction:column;gap:12px;padding:4px 12px 10px;overflow:auto;}
 .ca-foot.inline{padding:10px 12px;border-top:1px solid var(--border);margin-top:auto;}
@@ -8996,7 +8996,7 @@ function ClaudeAsk({
     onClick: go
   }, i === 0 && h(ClaudeMark, {
     size: 13
-  }), i === 0 ? ' פתח ב' + label : label))));
+  }), i === 0 ? id === 'panel' ? ' העתק לחלונית בכרום' : ' פתח ב' + label : label))));
   if (inline) return body;
   return ReactDOM.createPortal(h("div", {
     className: "af-overlay",
