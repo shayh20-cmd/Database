@@ -287,7 +287,7 @@ function principalFrom(req) {
 // serve-handler answers /page.html with a redirect to /page (cleanUrls), so both forms pass.
 // The two translation files the pages load are allowed by exact name; no other script is.
 const CLOUD_PAGE = /^\/[A-Za-z0-9_-]+(\.html)?$/;
-const CLOUD_ASSETS = new Set(['/i18n.js', '/i18n-dict.js', '/react-18.3.1.min.js', '/react-dom-18.3.1.min.js', '/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png', '/icon-new-task-192.png', '/ProjectHub-Setup.cmd', '/qa-app.ico', '/qa-new-task.ico']);
+const CLOUD_ASSETS = new Set(['/i18n.js', '/i18n-dict.js', '/react-18.3.1.min.js', '/react-dom-18.3.1.min.js', '/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png', '/icon-new-task-192.png', '/ProjectHub-Setup.cmd', '/qa-app.ico', '/qa-new-task.ico', '/claude-hub-skill.zip']);
 // The install files of the Project Hub app (manifest, service worker, icons) hold no data, and the browser
 // fetches a manifest without cookies — so they are served before sign-in.
 // The quick-access installer downloads its two icons without a browser session, so those are public too.
@@ -297,7 +297,9 @@ const PUBLIC_ASSETS = new Set(['/hub.webmanifest', '/hub-sw.js', '/icon-192.png'
 const QUICK_ACCESS_FILES = {
   '/ProjectHub-Setup.cmd': ['tools/quick-access/ProjectHub-Setup.cmd', 'application/octet-stream'],
   '/qa-app.ico': ['tools/quick-access/project-hub-cube.ico', 'image/x-icon'],
-  '/qa-new-task.ico': ['tools/quick-access/project-hub-cube-new-task.ico', 'image/x-icon']
+  '/qa-new-task.ico': ['tools/quick-access/project-hub-cube-new-task.ico', 'image/x-icon'],
+  // the "hub" Claude skill, downloaded from Settings ← Claude (signed in) and uploaded to Claude
+  '/claude-hub-skill.zip': ['tools/claude-skill/hub.zip', 'application/zip']
 };
 const LOGIN_PAGES = new Set(['/login', '/login.html']);
 
@@ -438,6 +440,7 @@ const server = http.createServer((req, res) => {
       if (err || !st.isFile()) { sendJson(res, 404, { error: 'Not found' }); return; }
       const headers = { 'Content-Type': qa[1], 'Content-Length': st.size, 'Cache-Control': 'no-cache' };
       if (url.pathname.endsWith('.cmd')) headers['Content-Disposition'] = 'attachment; filename="ProjectHub-Setup.cmd"';
+      if (url.pathname.endsWith('.zip')) headers['Content-Disposition'] = 'attachment; filename="hub.zip"';
       res.writeHead(200, headers);
       fs.createReadStream(file).pipe(res);
     });

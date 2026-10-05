@@ -347,6 +347,8 @@ try {
     Copy-Item (Join-Path $root "tools/quick-access/ProjectHub-Setup.cmd") $stage
     Copy-Item (Join-Path $root "tools/quick-access/project-hub-cube.ico") (Join-Path $stage "qa-app.ico")
     Copy-Item (Join-Path $root "tools/quick-access/project-hub-cube-new-task.ico") (Join-Path $stage "qa-new-task.ico")
+    # the "hub" Claude skill, offered for download in Settings ← Claude
+    Copy-Item (Join-Path $root "tools/claude-skill/hub.zip") (Join-Path $stage "claude-hub-skill.zip")
     foreach ($f in "server.js", "mcp.js", "package.json", "package-lock.json") {
         Copy-Item (Join-Path $root "tools/local-server/$f") (Join-Path $stage "tools/local-server")
     }
