@@ -396,6 +396,7 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (url.pathname === '/oauth/authorize') { mcp.handleAuthorize(req, res, url, user); return; }
+  if (url.pathname.startsWith('/api/claude-connection')) { mcp.handleConnection(req, res, url, user); return; }
   if (url.pathname === '/api/me') { sendJson(res, 200, { name: user.name, email: user.email, mode: SITE_MODE }); return; }
   if (url.pathname === '/api/snip' && SITE_MODE === 'local') { handleSnip(req, res); return; }
   if (url.pathname === '/api/projects' && req.method === 'GET') {

@@ -853,8 +853,10 @@ module.exports = function createMcp(ctx) {
 
   function issueTokens(st, who, clientId) {
     const access = rand(32), refresh = rand(32), now = Date.now();
-    st.tokens[sha(access)] = { kind: 'access', who, client: clientId, exp: now + ACCESS_TTL };
-    st.tokens[sha(refresh)] = { kind: 'refresh', who, client: clientId, exp: now + REFRESH_TTL };
+    const since = st.since || now;
+    st.tokens[sha(access)] = { kind: 'access', who, client: clientId, exp: now + ACCESS_TTL, since };
+    st.tokens[sha(refresh)] = { kind: 'refresh', who, client: clientId, exp: now + REFRESH_TTL, since };
+    delete st.since;
     saveStore();
     return { access_token: access, token_type: 'Bearer', expires_in: Math.floor(ACCESS_TTL / 1000), refresh_token: refresh, scope: 'projects' };
   }
@@ -881,6 +883,7 @@ module.exports = function createMcp(ctx) {
       const t = st.tokens[key];
       if (!t || t.kind !== 'refresh' || t.exp < Date.now() || (f.client_id && f.client_id !== t.client)) return oauthError(res, 400, 'invalid_grant', 'The refresh token is unknown or expired');
       delete st.tokens[key];
+      st.since = t.since;
       res.setHeader('Cache-Control', 'no-store');
       return sendJson(res, 200, issueTokens(st, t.who, t.client));
     }
@@ -945,6 +948,27 @@ button.primary{background:#2563EB;border-color:#2563EB;color:#fff}.fine{font-siz
     res.end(html);
   }
 
+  /* ── a person's own connection, for Settings ← Claude ── */
+  let lastUseSave = 0;
+  const samePerson = (a, b) => a && b && (a.email ? String(a.email).toLowerCase() === String(b.email || '').toLowerCase() : !b.email && a.name === b.name);
+  function handleConnection(req, res, url, user) {
+    const st = loadStore();
+    const now = Date.now();
+    const mine = Object.entries(st.tokens).filter(([, t]) => t.exp > now && samePerson(t.who, user));
+    if (url.pathname === '/api/claude-connection' && req.method === 'GET') {
+      const used = mine.map(([, t]) => t.used || 0).reduce((a, b) => Math.max(a, b), 0);
+      const since = mine.map(([, t]) => t.since || 0).filter(Boolean).reduce((a, b) => Math.min(a, b), Infinity);
+      res.setHeader('Cache-Control', 'no-store');
+      return sendJson(res, 200, { connected: mine.length > 0, since: since === Infinity ? null : since, lastUsed: used || null });
+    }
+    if (url.pathname === '/api/claude-connection/revoke' && req.method === 'POST') {
+      for (const [k] of mine) delete st.tokens[k];
+      saveStore();
+      return sendJson(res, 200, { ok: true, revoked: mine.length });
+    }
+    return sendJson(res, 405, { error: 'Method not allowed' });
+  }
+
   /* ── /mcp ── */
   function bearerUser(req) {
     const m = /^Bearer\s+(.+)$/i.exec(req.headers.authorization || '');
@@ -952,6 +976,9 @@ button.primary{background:#2563EB;border-color:#2563EB;color:#fff}.fine{font-siz
     const st = loadStore();
     const t = st.tokens[sha(m[1].trim())];
     if (!t || t.kind !== 'access' || t.exp < Date.now()) return null;
+    // "last used", for the person's own connection status; written at most every ten minutes
+    t.used = Date.now();
+    if (!lastUseSave || t.used - lastUseSave > 10 * 60 * 1000) { lastUseSave = t.used; saveStore(); }
     return t.who;
   }
   async function handleRpc(msg, c) {
@@ -1037,5 +1064,5 @@ button.primary{background:#2563EB;border-color:#2563EB;color:#fff}.fine{font-siz
     try { authorize(req, res, url, user); } catch (e) { console.error('authorize', e); if (!res.headersSent) sendJson(res, 500, { error: 'server_error' }); }
   }
 
-  return { handlePublic, handleAuthorize, _test: { identify, projectsFor, projList, stagesOf, findStage, officeData } };
+  return { handlePublic, handleAuthorize, handleConnection, _test: { identify, projectsFor, projList, stagesOf, findStage, officeData } };
 };

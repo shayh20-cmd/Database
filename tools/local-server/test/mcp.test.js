@@ -209,3 +209,27 @@ test('connector: delete_task removes a task by id and keeps a copy on the server
   const copy = JSON.parse(fs.readFileSync(path.join(data, 'deleted', 'pabc123', kept[0]), 'utf8'));
   assert.deepStrictEqual([copy.task.id, copy.sheetId, copy.deletedBy], ['t1', 'home', 'דנה (Claude)']);
 });
+
+test('connector: a person sees their own connection and can disconnect it', async (t) => {
+  const port = 3998;
+  const base = 'http://127.0.0.1:' + port;
+  const { root, data } = makeSite();
+  const proc = spawn('node', [SERVER, root, '--port', String(port)], { stdio: 'ignore', env: { ...process.env, SITE_MODE: 'cloud', WEBSITE_AUTH_ENABLED: 'true', DATA_DIR: data } });
+  t.after(() => proc.kill());
+  for (let i = 0; i < 50; i++) { try { await fetch(base + '/health'); break; } catch { await wait(100); } }
+  const as = email => ({ 'x-ms-client-principal': principal(email) });
+  const status = async email => (await fetch(base + '/api/claude-connection', { headers: as(email) })).json();
+
+  assert.deepStrictEqual(await status('dana@kkarc.com'), { connected: false, since: null, lastUsed: null });
+  assert.strictEqual((await fetch(base + '/api/claude-connection')).status, 401, 'needs the Microsoft session');
+  const dana = await signIn(base, 'dana@kkarc.com');
+  assert.ifError((await dana('list_projects', {})).error);
+  let st = await status('dana@kkarc.com');
+  assert.ok(st.connected && st.since && st.lastUsed);
+  assert.strictEqual((await status('yoav@kkarc.com')).connected, false, 'only your own connection');
+
+  const r = await (await fetch(base + '/api/claude-connection/revoke', { method: 'POST', headers: as('dana@kkarc.com') })).json();
+  assert.strictEqual(r.revoked, 2, 'access and refresh token');
+  assert.strictEqual((await status('dana@kkarc.com')).connected, false);
+  await assert.rejects(dana('list_projects', {}), 'the old token no longer works');
+});
