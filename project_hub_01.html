@@ -395,7 +395,12 @@ button.pm-trigger:focus-visible{outline:2px solid var(--accent);outline-offset:2
 .fl-empty{padding:26px 16px;text-align:center;font-size:12.5px;color:var(--text-3);}
 .fl-opts{display:flex;flex-direction:column;gap:6px;}
 .fl-opt{display:flex;align-items:center;gap:8px;}
-.fl-opt-wrap{display:flex;flex-direction:column;gap:6px;}
+.fl-opt-wrap{display:flex;flex-direction:column;gap:6px;border-radius:8px;border-top:2px solid transparent;transition:background .12s;}
+.fl-opt-wrap.dragging{opacity:.45;}
+.fl-opt-wrap.drop{border-top-color:var(--accent);background:var(--bg);}
+.fl-grip{flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:18px;height:26px;border:none;background:none;border-radius:5px;padding:0;color:var(--text-3);cursor:grab;}
+.fl-grip:hover,.fl-grip:focus-visible{color:var(--text);background:var(--bg);}
+.fl-grip:active{cursor:grabbing;}
 .fl-dot-btn{width:18px;height:18px;border-radius:50%;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--border-strong);cursor:pointer;padding:0;flex-shrink:0;}
 .fl-dot-btn:hover{transform:scale(1.1);}
 .fl-swatches{display:flex;flex-wrap:wrap;gap:5px;padding:6px 26px 2px 0;}
@@ -2145,7 +2150,7 @@ canvas.addEventListener('mousedown',onDown);canvas.addEventListener('mousemove',
                 font-size:${10+annSize*2}px;font-weight:600;white-space:nowrap;pointer-events:none;`;const wrap=imgSel.el.parentElement;if(wrap?.classList.contains('tds-img-wrap')){wrap.style.position='relative';wrap.appendChild(span);}saveDesc();setAnnMode(null);}}),document.body))),document.body);}/* ══════════════════════════════════════
    Edit Field Modal
 ══════════════════════════════════════ */function EditFieldModal({field,isBuiltin,onSave,onDelete,onClose,effLists}){const{priorities,disciplines,statuses}=useContext(ListsCtx);/* Seed from the real project lists passed in (effLists); context can be the default under TemplateView, which would drop custom options on save. */const _EL={priorities:(effLists&&effLists.priorities)||priorities,disciplines:(effLists&&effLists.disciplines)||disciplines,statuses:(effLists&&effLists.statuses)||statuses};const[title,setTitle]=useState(field.title||field.label||'');const[type,setType]=useState(field.type||'single-select');const[delayThreshold,setDelayThreshold]=useState(field.delayThreshold??'');const[options,setOptions]=useState(()=>{// Seed built-in list fields from the live effective lists (so edits round-trip)
-if(field.id==='__priority')return _EL.priorities.map(p=>({id:p.id,label:p.label,color:p.color}));if(field.id==='__discipline')return _EL.disciplines.map(d=>({id:d.id,label:d.label,color:d.color}));if(field.id==='__status')return _EL.statuses.map(s=>({id:s.id,label:s.label,color:s.color}));if(field.options)return field.options;return[];});const[showTypeMenu,setShowTypeMenu]=useState(false);const[colorPickFor,setColorPickFor]=useState(null);const typeMenuRef=useRef(null);useEffect(()=>{if(!showTypeMenu&&colorPickFor===null)return;const h=e=>{if(typeMenuRef.current&&!typeMenuRef.current.contains(e.target))setShowTypeMenu(false);if(colorPickFor!==null&&!e.target.closest('.color-picker-pop')&&!e.target.closest('.opt-color-btn'))setColorPickFor(null);};document.addEventListener('mousedown',h);return()=>document.removeEventListener('mousedown',h);},[showTypeMenu,colorPickFor]);const needsOptions=['single-select','multi-select'].includes(type)||['__status','__priority','__discipline'].includes(field.id);const addOption=()=>setOptions(prev=>[...prev,{id:uid(),label:'',color:OPTION_COLORS[prev.length%OPTION_COLORS.length]}]);const updateOpt=(id,key,val)=>setOptions(prev=>prev.map(o=>o.id===id?{...o,[key]:val}:o));const deleteOpt=id=>setOptions(prev=>prev.filter(o=>o.id!==id));const moveOpt=(id,dir)=>setOptions(prev=>{const idx=prev.findIndex(o=>o.id===id);const next=idx+dir;if(next<0||next>=prev.length)return prev;const arr=[...prev];[arr[idx],arr[next]]=[arr[next],arr[idx]];return arr;});const handleSave=()=>{if(!title.trim())return;const thresh=delayThreshold===''?null:parseInt(delayThreshold,10);onSave({...field,title:title.trim(),type,options:needsOptions?options.filter(o=>o.label.trim()):[],...(field.id==='__owner_status'?{delayThreshold:isNaN(thresh)?null:thresh}:{})});};const selectedFT=FIELD_TYPES.find(f=>f.id===type);return/*#__PURE__*/React.createElement("div",{className:"af-overlay",onClick:onClose},/*#__PURE__*/React.createElement("div",{className:"ef-box",onClick:e=>e.stopPropagation()},/*#__PURE__*/React.createElement("div",{className:"ef-hdr"},/*#__PURE__*/React.createElement("div",null,/*#__PURE__*/React.createElement("div",{className:"ef-title"},isBuiltin?`ערוך שדה: ${field.label}`:'ערוך שדה')),/*#__PURE__*/React.createElement("button",{className:"af-close",onClick:onClose},"×")),/*#__PURE__*/React.createElement("div",{className:"ef-body"},/*#__PURE__*/React.createElement("div",{className:"ef-row"},/*#__PURE__*/React.createElement("div",{style:{flex:1}},/*#__PURE__*/React.createElement("div",{className:"af-label"},"שם השדה *"),/*#__PURE__*/React.createElement("input",{className:"af-input",value:title,onChange:e=>setTitle(e.target.value),disabled:isBuiltin,style:{background:isBuiltin?'var(--bg)':undefined,color:isBuiltin?'var(--text-2)':undefined},onKeyDown:e=>{if(e.key==='Enter')handleSave();}})),/*#__PURE__*/React.createElement("div",{style:{width:168}},/*#__PURE__*/React.createElement("div",{className:"af-label"},"סוג שדה"),/*#__PURE__*/React.createElement("div",{className:"af-type-wrap",ref:typeMenuRef},/*#__PURE__*/React.createElement("button",{className:"af-type-btn",onClick:()=>{if(!isBuiltin)setShowTypeMenu(o=>!o);},style:{cursor:isBuiltin?'default':undefined}},/*#__PURE__*/React.createElement("span",{className:"af-type-icon"},selectedFT?.icon||'○'),/*#__PURE__*/React.createElement("span",{className:"af-type-label"},FIELD_TYPE_LABEL[type]||type),!isBuiltin&&/*#__PURE__*/React.createElement("span",{style:{color:'var(--text-3)',fontSize:10}},"▾")),showTypeMenu&&/*#__PURE__*/React.createElement("div",{className:"af-type-menu"},FIELD_TYPES.map(ft=>/*#__PURE__*/React.createElement("div",{key:ft.id,className:`af-type-opt${ft.id===type?' sel':''}`,onClick:()=>{setType(ft.id);setShowTypeMenu(false);}},/*#__PURE__*/React.createElement("span",{className:"af-type-icon"},ft.icon),ft.label,ft.id===type&&/*#__PURE__*/React.createElement("span",{style:{marginInlineStart:'auto',color:'var(--blue)'}},"✓"))))))),field.id==='__owner_status'&&/*#__PURE__*/React.createElement("div",null,/*#__PURE__*/React.createElement("div",{className:"af-label"},"סף עיכוב (ימים)"),/*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',gap:10}},/*#__PURE__*/React.createElement("input",{type:"number",min:"1",max:"365",className:"af-input",style:{width:90,textAlign:'center'},placeholder:"—",value:delayThreshold,onChange:e=>setDelayThreshold(e.target.value),onKeyDown:e=>{if(e.key==='Enter')handleSave();}}),/*#__PURE__*/React.createElement("span",{style:{fontSize:12,color:'var(--text-2)'}},delayThreshold?`אם עברו יותר מ-${delayThreshold} ימים — יסומן באדום`:'השאר ריק להשבתת סימון עיכוב')),delayThreshold&&/*#__PURE__*/React.createElement("div",{style:{marginTop:6,display:'flex',alignItems:'center',gap:7,fontSize:12,color:'var(--text-2)'}},/*#__PURE__*/React.createElement("span",null,"תצוגה מקדימה:"),/*#__PURE__*/React.createElement("span",{style:{display:'inline-flex',alignItems:'center',gap:4,padding:'3px 9px',borderRadius:20,background:'rgba(239,68,68,.1)',border:'2px solid #EF4444',color:'var(--danger-text)',fontSize:12,fontWeight:700}},delayThreshold,"+ ",/*#__PURE__*/React.createElement("span",{style:{fontWeight:400,fontSize:11,opacity:.8}},"י׳")))),needsOptions&&/*#__PURE__*/React.createElement("div",null,/*#__PURE__*/React.createElement("div",{className:"af-label",style:{marginBottom:8}},"אפשרויות *"),/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirection:'column'}},options.map((opt,idx)=>/*#__PURE__*/React.createElement("div",{key:opt.id,className:"opt-row"},/*#__PURE__*/React.createElement("div",{className:"opt-move"},/*#__PURE__*/React.createElement("button",{className:"opt-move-btn",disabled:idx===0,onClick:()=>moveOpt(opt.id,-1),title:"הזז למעלה"},"▲"),/*#__PURE__*/React.createElement("button",{className:"opt-move-btn",disabled:idx===options.length-1,onClick:()=>moveOpt(opt.id,1),title:"הזז למטה"},"▼")),/*#__PURE__*/React.createElement("div",{style:{position:'relative',flexShrink:0}},/*#__PURE__*/React.createElement("button",{className:"opt-color-btn",style:{background:opt.color||'#ccc',borderRadius:5},onClick:()=>setColorPickFor(colorPickFor===opt.id?null:opt.id)}),colorPickFor===opt.id&&/*#__PURE__*/React.createElement("div",{className:"color-picker-pop"},OPTION_COLORS.map(c=>{const tc=scaleColorSaturation(c,currentThemeSatFactor());return/*#__PURE__*/React.createElement("button",{key:c,className:`color-swatch${c===opt.color?' selected':''}`,style:{background:tc},onClick:()=>{updateOpt(opt.id,'color',tc);setColorPickFor(null);}});}))),/*#__PURE__*/React.createElement("input",{className:"opt-input",value:opt.label,placeholder:"שם האפשרות...",onChange:e=>updateOpt(opt.id,'label',e.target.value)}),/*#__PURE__*/React.createElement("button",{className:"opt-del",onClick:()=>deleteOpt(opt.id)},"×"))),/*#__PURE__*/React.createElement("button",{className:"opt-add-btn",onClick:addOption},/*#__PURE__*/React.createElement("span",{style:{fontSize:15,color:'var(--accent)',lineHeight:1}},"+")," הוסף אפשרות")))),/*#__PURE__*/React.createElement("div",{className:"ef-footer"},!isBuiltin&&onDelete&&/*#__PURE__*/React.createElement("button",{className:"ef-delete",onClick:()=>{onDelete(field.id);onClose();}},"מחק שדה"),/*#__PURE__*/React.createElement("div",{style:{marginInlineStart:'auto',display:'flex',gap:8}},/*#__PURE__*/React.createElement("button",{className:"af-cancel",onClick:onClose},"ביטול"),/*#__PURE__*/React.createElement("button",{className:"af-save",disabled:!title.trim(),onClick:handleSave},"שמור שינויים")))));}/* ══════════════════════════════════════
+if(field.id==='__priority')return _EL.priorities.map(p=>({id:p.id,label:p.label,color:p.color}));if(field.id==='__discipline')return _EL.disciplines.map(d=>({id:d.id,label:d.label,color:d.color}));if(field.id==='__status')return _EL.statuses.map(s=>({id:s.id,label:s.label,color:s.color}));if(field.options)return field.options;return[];});const[showTypeMenu,setShowTypeMenu]=useState(false);const[colorPickFor,setColorPickFor]=useState(null);const typeMenuRef=useRef(null);useEffect(()=>{if(!showTypeMenu&&colorPickFor===null)return;const h=e=>{if(typeMenuRef.current&&!typeMenuRef.current.contains(e.target))setShowTypeMenu(false);if(colorPickFor!==null&&!e.target.closest('.color-picker-pop')&&!e.target.closest('.opt-color-btn'))setColorPickFor(null);};document.addEventListener('mousedown',h);return()=>document.removeEventListener('mousedown',h);},[showTypeMenu,colorPickFor]);const needsOptions=['single-select','multi-select'].includes(type)||['__status','__priority','__discipline'].includes(field.id);const addOption=()=>setOptions(prev=>[...prev,{id:uid(),label:'',color:OPTION_COLORS[prev.length%OPTION_COLORS.length]}]);const updateOpt=(id,key,val)=>setOptions(prev=>prev.map(o=>o.id===id?{...o,[key]:val}:o));const deleteOpt=id=>setOptions(prev=>prev.filter(o=>o.id!==id));const[efDrag,setEfDrag]=useState({});useEffect(()=>{if(efDrag.armed==null||efDrag.from!=null)return;const off=()=>setEfDrag({});window.addEventListener('mouseup',off);return()=>window.removeEventListener('mouseup',off);},[efDrag]);const moveOpt=(id,dir)=>setOptions(prev=>{const idx=prev.findIndex(o=>o.id===id);const next=idx+dir;if(next<0||next>=prev.length)return prev;const arr=[...prev];[arr[idx],arr[next]]=[arr[next],arr[idx]];return arr;});const handleSave=()=>{if(!title.trim())return;const thresh=delayThreshold===''?null:parseInt(delayThreshold,10);onSave({...field,title:title.trim(),type,options:needsOptions?options.filter(o=>o.label.trim()):[],...(field.id==='__owner_status'?{delayThreshold:isNaN(thresh)?null:thresh}:{})});};const selectedFT=FIELD_TYPES.find(f=>f.id===type);return/*#__PURE__*/React.createElement("div",{className:"af-overlay",onClick:onClose},/*#__PURE__*/React.createElement("div",{className:"ef-box",onClick:e=>e.stopPropagation()},/*#__PURE__*/React.createElement("div",{className:"ef-hdr"},/*#__PURE__*/React.createElement("div",null,/*#__PURE__*/React.createElement("div",{className:"ef-title"},isBuiltin?`ערוך שדה: ${field.label}`:'ערוך שדה')),/*#__PURE__*/React.createElement("button",{className:"af-close",onClick:onClose},"×")),/*#__PURE__*/React.createElement("div",{className:"ef-body"},/*#__PURE__*/React.createElement("div",{className:"ef-row"},/*#__PURE__*/React.createElement("div",{style:{flex:1}},/*#__PURE__*/React.createElement("div",{className:"af-label"},"שם השדה *"),/*#__PURE__*/React.createElement("input",{className:"af-input",value:title,onChange:e=>setTitle(e.target.value),disabled:isBuiltin,style:{background:isBuiltin?'var(--bg)':undefined,color:isBuiltin?'var(--text-2)':undefined},onKeyDown:e=>{if(e.key==='Enter')handleSave();}})),/*#__PURE__*/React.createElement("div",{style:{width:168}},/*#__PURE__*/React.createElement("div",{className:"af-label"},"סוג שדה"),/*#__PURE__*/React.createElement("div",{className:"af-type-wrap",ref:typeMenuRef},/*#__PURE__*/React.createElement("button",{className:"af-type-btn",onClick:()=>{if(!isBuiltin)setShowTypeMenu(o=>!o);},style:{cursor:isBuiltin?'default':undefined}},/*#__PURE__*/React.createElement("span",{className:"af-type-icon"},selectedFT?.icon||'○'),/*#__PURE__*/React.createElement("span",{className:"af-type-label"},FIELD_TYPE_LABEL[type]||type),!isBuiltin&&/*#__PURE__*/React.createElement("span",{style:{color:'var(--text-3)',fontSize:10}},"▾")),showTypeMenu&&/*#__PURE__*/React.createElement("div",{className:"af-type-menu"},FIELD_TYPES.map(ft=>/*#__PURE__*/React.createElement("div",{key:ft.id,className:`af-type-opt${ft.id===type?' sel':''}`,onClick:()=>{setType(ft.id);setShowTypeMenu(false);}},/*#__PURE__*/React.createElement("span",{className:"af-type-icon"},ft.icon),ft.label,ft.id===type&&/*#__PURE__*/React.createElement("span",{style:{marginInlineStart:'auto',color:'var(--blue)'}},"✓"))))))),field.id==='__owner_status'&&/*#__PURE__*/React.createElement("div",null,/*#__PURE__*/React.createElement("div",{className:"af-label"},"סף עיכוב (ימים)"),/*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',gap:10}},/*#__PURE__*/React.createElement("input",{type:"number",min:"1",max:"365",className:"af-input",style:{width:90,textAlign:'center'},placeholder:"—",value:delayThreshold,onChange:e=>setDelayThreshold(e.target.value),onKeyDown:e=>{if(e.key==='Enter')handleSave();}}),/*#__PURE__*/React.createElement("span",{style:{fontSize:12,color:'var(--text-2)'}},delayThreshold?`אם עברו יותר מ-${delayThreshold} ימים — יסומן באדום`:'השאר ריק להשבתת סימון עיכוב')),delayThreshold&&/*#__PURE__*/React.createElement("div",{style:{marginTop:6,display:'flex',alignItems:'center',gap:7,fontSize:12,color:'var(--text-2)'}},/*#__PURE__*/React.createElement("span",null,"תצוגה מקדימה:"),/*#__PURE__*/React.createElement("span",{style:{display:'inline-flex',alignItems:'center',gap:4,padding:'3px 9px',borderRadius:20,background:'rgba(239,68,68,.1)',border:'2px solid #EF4444',color:'var(--danger-text)',fontSize:12,fontWeight:700}},delayThreshold,"+ ",/*#__PURE__*/React.createElement("span",{style:{fontWeight:400,fontSize:11,opacity:.8}},"י׳")))),needsOptions&&/*#__PURE__*/React.createElement("div",null,/*#__PURE__*/React.createElement("div",{className:"af-label",style:{marginBottom:8}},"אפשרויות *"),/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirection:'column'}},options.map((opt,idx)=>/*#__PURE__*/React.createElement("div",{key:opt.id,className:"opt-row"+(efDrag.over===idx&&efDrag.from!==idx?" opt-row-drop":""),draggable:efDrag.armed===idx,onDragStart:e=>{e.dataTransfer.effectAllowed="move";try{e.dataTransfer.setData("text/plain",String(idx));}catch{}setEfDrag(d=>({...d,from:idx}));},onDragOver:e=>{if(efDrag.from==null)return;e.preventDefault();if(efDrag.over!==idx)setEfDrag(d=>({...d,over:idx}));},onDragEnter:e=>{if(efDrag.from==null)return;e.preventDefault();if(efDrag.over!==idx)setEfDrag(d=>({...d,over:idx}));},onDrop:e=>{e.preventDefault();const f=efDrag.from;setEfDrag({});if(f==null||f===idx)return;setOptions(p=>{const a=[...p];const[m]=a.splice(f,1);a.splice(idx,0,m);return a;});},onDragEnd:()=>setEfDrag({}),style:{opacity:efDrag.from===idx?.5:1}},options.length>1&&React.createElement("span",{className:"opt-drag-handle",title:"גרור לשינוי סדר",onMouseDown:()=>setEfDrag({armed:idx})},"⠿"),/*#__PURE__*/React.createElement("div",{className:"opt-move"},/*#__PURE__*/React.createElement("button",{className:"opt-move-btn",disabled:idx===0,onClick:()=>moveOpt(opt.id,-1),title:"הזז למעלה"},"▲"),/*#__PURE__*/React.createElement("button",{className:"opt-move-btn",disabled:idx===options.length-1,onClick:()=>moveOpt(opt.id,1),title:"הזז למטה"},"▼")),/*#__PURE__*/React.createElement("div",{style:{position:'relative',flexShrink:0}},/*#__PURE__*/React.createElement("button",{className:"opt-color-btn",style:{background:opt.color||'#ccc',borderRadius:5},onClick:()=>setColorPickFor(colorPickFor===opt.id?null:opt.id)}),colorPickFor===opt.id&&/*#__PURE__*/React.createElement("div",{className:"color-picker-pop"},OPTION_COLORS.map(c=>{const tc=scaleColorSaturation(c,currentThemeSatFactor());return/*#__PURE__*/React.createElement("button",{key:c,className:`color-swatch${c===opt.color?' selected':''}`,style:{background:tc},onClick:()=>{updateOpt(opt.id,'color',tc);setColorPickFor(null);}});}))),/*#__PURE__*/React.createElement("input",{className:"opt-input",value:opt.label,placeholder:"שם האפשרות...",onChange:e=>updateOpt(opt.id,'label',e.target.value)}),/*#__PURE__*/React.createElement("button",{className:"opt-del",onClick:()=>deleteOpt(opt.id)},"×"))),/*#__PURE__*/React.createElement("button",{className:"opt-add-btn",onClick:addOption},/*#__PURE__*/React.createElement("span",{style:{fontSize:15,color:'var(--accent)',lineHeight:1}},"+")," הוסף אפשרות")))),/*#__PURE__*/React.createElement("div",{className:"ef-footer"},!isBuiltin&&onDelete&&/*#__PURE__*/React.createElement("button",{className:"ef-delete",onClick:()=>{onDelete(field.id);onClose();}},"מחק שדה"),/*#__PURE__*/React.createElement("div",{style:{marginInlineStart:'auto',display:'flex',gap:8}},/*#__PURE__*/React.createElement("button",{className:"af-cancel",onClick:onClose},"ביטול"),/*#__PURE__*/React.createElement("button",{className:"af-save",disabled:!title.trim(),onClick:handleSave},"שמור שינויים")))));}/* ══════════════════════════════════════
    Add Field Modal
 ══════════════════════════════════════ */function AddFieldModal({onSave,onClose,fieldToEdit,initialType}){const[title,setTitle]=useState(fieldToEdit?.title||'');const[type,setType]=useState(fieldToEdit?.type||initialType||'single-select');const[showTypeMenu,setShowTypeMenu]=useState(false);const menuRef=useRef(null);useEffect(()=>{if(!showTypeMenu)return;const h=e=>{if(menuRef.current&&!menuRef.current.contains(e.target))setShowTypeMenu(false);};document.addEventListener('mousedown',h);return()=>document.removeEventListener('mousedown',h);},[showTypeMenu]);const selectedType=FIELD_TYPES.find(f=>f.id===type)||FIELD_TYPES[0];const handleSave=()=>{if(!title.trim())return;onSave({...(fieldToEdit||{}),title:title.trim(),type});};return/*#__PURE__*/React.createElement("div",{className:"af-overlay",onClick:onClose},/*#__PURE__*/React.createElement("div",{className:"af-box",onClick:e=>e.stopPropagation()},/*#__PURE__*/React.createElement("div",{className:"af-hdr"},/*#__PURE__*/React.createElement("span",{className:"af-title"},fieldToEdit?'ערוך שדה':'הוסף שדה'),/*#__PURE__*/React.createElement("button",{className:"af-close",onClick:onClose},"×")),!fieldToEdit&&/*#__PURE__*/React.createElement("div",{className:"af-tabs"},/*#__PURE__*/React.createElement("button",{className:"af-tab active"},"צור חדש"),/*#__PURE__*/React.createElement("button",{className:"af-tab"},"בחר מהספרייה")),/*#__PURE__*/React.createElement("div",{className:"af-body"},/*#__PURE__*/React.createElement("div",null,/*#__PURE__*/React.createElement("div",{className:"af-label"},"שם השדה *"),/*#__PURE__*/React.createElement("input",{className:"af-input",autoFocus:true,placeholder:"עדיפות, שלב, סטטוס...",value:title,onChange:e=>setTitle(e.target.value),onKeyDown:e=>{if(e.key==='Enter')handleSave();if(e.key==='Escape')onClose();}})),/*#__PURE__*/React.createElement("div",null,/*#__PURE__*/React.createElement("div",{className:"af-label"},"סוג שדה"),/*#__PURE__*/React.createElement("div",{className:"af-type-wrap",ref:menuRef},/*#__PURE__*/React.createElement("button",{className:"af-type-btn",onClick:()=>setShowTypeMenu(o=>!o)},/*#__PURE__*/React.createElement("span",{className:"af-type-icon"},selectedType.icon),/*#__PURE__*/React.createElement("span",{className:"af-type-label"},selectedType.label),/*#__PURE__*/React.createElement("span",{style:{color:'var(--text-3)',fontSize:10}},"▾")),showTypeMenu&&/*#__PURE__*/React.createElement("div",{className:"af-type-menu"},FIELD_TYPES.map(ft=>/*#__PURE__*/React.createElement("div",{key:ft.id,className:`af-type-opt${ft.id===type?' sel':''}`,onClick:()=>{setType(ft.id);setShowTypeMenu(false);}},/*#__PURE__*/React.createElement("span",{className:"af-type-icon"},ft.icon),ft.label,ft.id===type&&/*#__PURE__*/React.createElement("span",{style:{marginInlineStart:'auto',color:'var(--blue)'}},"✓"))))))),/*#__PURE__*/React.createElement("div",{className:"af-footer"},/*#__PURE__*/React.createElement("button",{className:"af-save",disabled:!title.trim(),onClick:handleSave},fieldToEdit?'שמור':'צור שדה'),/*#__PURE__*/React.createElement("button",{className:"af-cancel",onClick:onClose},"ביטול"))));}/* ══════════════════════════════════════
    Edit List Modal  (Priority / Discipline)
@@ -6994,6 +6999,7 @@ async function loadProjectRegistry() {
         ...(reg.officeRoles || {})
       };
       ph01Override = reg.ph01 || null;
+      applyOfficeLists(reg.library);
       applyStaffProfiles(reg.staffProfiles);
       showProfileName();
       list = (reg.projects || []).filter(p => p.visibility === 'shared' || p.ownerId === CURRENT_USER.id);
@@ -10775,6 +10781,64 @@ const BUILTIN_LIST_OF = {
   __priority: 'priorities',
   __discipline: 'disciplines'
 };
+/* A project without a list of its own follows the office library. The library's
+   built-in lists are poured into PRIORITIES / DISCIPLINES / STATUSES in place, so
+   every `doc.priorities || PRIORITIES` across the app reads them. */
+const BASE_LISTS = {
+  statuses: STATUSES.map(o => ({
+    ...o
+  })),
+  priorities: PRIORITIES.map(o => ({
+    ...o
+  })),
+  disciplines: DISCIPLINES.map(o => ({
+    ...o
+  }))
+};
+const LIVE_LISTS = {
+  statuses: STATUSES,
+  priorities: PRIORITIES,
+  disciplines: DISCIPLINES
+};
+const optBg = c => /^var\(--[\w-]+\)$/.test(c || '') ? c.slice(0, -1) + '-bg)' : hexBg(c);
+function applyOfficeLists(library) {
+  const fields = library && library.fields || [];
+  Object.entries(BUILTIN_LIST_OF).forEach(([key, listKey]) => {
+    const base = BASE_LISTS[listKey];
+    const f = fields.find(x => x.builtinKey === key && libScope(x) === 'office');
+    let next = f ? libOptions(f).map(o => {
+      const b = base.find(x => x.id === o.id);
+      return b && b.color === o.color ? {
+        ...b,
+        label: o.label
+      } : {
+        id: o.id,
+        label: o.label,
+        color: o.color,
+        bg: optBg(o.color)
+      };
+    }) : base;
+    /* statuses drive logic by id — a library list that lost one is ignored */
+    if (!next.length || listKey === 'statuses' && !base.every(b => next.some(n => n.id === b.id))) next = base;
+    LIVE_LISTS[listKey].splice(0, LIVE_LISTS[listKey].length, ...next);
+  });
+}
+/* tasks in a project whose value is missing from a list — they'd lose their chip */
+function listOrphans(doc, listKey, list) {
+  const prop = {
+    statuses: 'statusId',
+    priorities: 'priority',
+    disciplines: 'discipline'
+  }[listKey];
+  const ids = new Set(list.map(o => o.id));
+  let n = 0;
+  (doc.sheets || []).forEach(sh => (sh.tasks || []).forEach(t => {
+    [t, ...(t.subtasks || [])].forEach(x => {
+      if (x[prop] && !ids.has(x[prop])) n++;
+    });
+  }));
+  return n;
+}
 function seedLibraryFromProject(doc) {
   const by = {
     id: CURRENT_USER.id,
@@ -10854,6 +10918,7 @@ function useOfficeLibrary() {
           automations: [],
           ...reg.library
         });
+        applyOfficeLists(reg.library);
       } catch {
         setErr('לא ניתן לטעון את ספריית המשרד');
       }
@@ -10876,6 +10941,7 @@ function useOfficeLibrary() {
         _ts: Date.now()
       });
       setLib(next);
+      applyOfficeLists(next);
     } catch {
       setErr('השינוי בספרייה לא נשמר — בדוק שהשרת המקומי פועל');
     }
@@ -11333,11 +11399,15 @@ function FieldTypeGlyph({
 const libScope = f => f.scope || 'office';
 const libCreatorId = f => f.createdBy && f.createdBy.id || null;
 const libCreatorName = f => f.createdBy && f.createdBy.name || f.savedBy || '';
+const labelId = l => 'o' + [...l].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7).toString(36);
 const libOptions = f => (f.options || []).map((o, i) => typeof o === 'string' ? {
+  ...(f.builtinKey && o ? {
+    id: labelId(o)
+  } : {}),
   label: o,
   color: OPTION_COLORS[i % OPTION_COLORS.length]
 } : {
-  id: o.id,
+  id: o.id || (f.builtinKey && o.label ? labelId(o.label) : undefined),
   label: o.label,
   color: o.color || OPTION_COLORS[i % OPTION_COLORS.length]
 }).filter(o => o.label);
@@ -11348,16 +11418,74 @@ const fixedOptionSet = f => f.builtinKey === '__status';
 function OptionRow({
   opt,
   index,
+  count,
   fixed,
   onChange,
-  onRemove
+  onRemove,
+  onMove,
+  drag
 }) {
   const [picking, setPicking] = useState(false);
   return /*#__PURE__*/React.createElement("div", {
-    className: "fl-opt-wrap"
+    className: 'fl-opt-wrap' + (drag.over === index && drag.from !== index ? ' drop' : '') + (drag.from === index ? ' dragging' : ''),
+    draggable: drag.armed === index,
+    onDragStart: e => {
+      e.dataTransfer.effectAllowed = 'move';
+      try {
+        e.dataTransfer.setData('text/plain', String(index));
+      } catch {}
+      drag.start(index);
+    },
+    onDragOver: e => {
+      if (drag.from == null) return;
+      e.preventDefault();
+      drag.hover(index);
+    },
+    onDragEnter: e => {
+      if (drag.from == null) return;
+      e.preventDefault();
+      drag.hover(index);
+    },
+    onDrop: e => {
+      e.preventDefault();
+      drag.drop(index);
+    },
+    onDragEnd: drag.end
   }, /*#__PURE__*/React.createElement("div", {
     className: "fl-opt"
-  }, /*#__PURE__*/React.createElement("button", {
+  }, count > 1 && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "fl-grip",
+    title: "גרור לשינוי הסדר (או חצים למעלה/למטה)",
+    "aria-label": `הזז את ${opt.label || 'האפשרות'} — חצים למעלה ולמטה`,
+    onMouseDown: () => drag.arm(index),
+    onMouseUp: () => drag.arm(null),
+    onKeyDown: e => {
+      if (e.key === 'ArrowUp' && index > 0) {
+        e.preventDefault();
+        onMove(index, index - 1);
+      } else if (e.key === 'ArrowDown' && index < count - 1) {
+        e.preventDefault();
+        onMove(index, index + 1);
+      }
+    }
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: "10",
+    height: "14",
+    viewBox: "0 0 10 14",
+    fill: "currentColor",
+    "aria-hidden": "true"
+  }, [2, 7, 12].flatMap(y => [/*#__PURE__*/React.createElement("circle", {
+    key: 'a' + y,
+    cx: "2.5",
+    cy: y,
+    r: "1.3"
+  }), /*#__PURE__*/React.createElement("circle", {
+    key: 'b' + y,
+    cx: "7.5",
+    cy: y,
+    r: "1.3"
+  })]))), /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "fl-dot-btn",
     style: {
@@ -11415,18 +11543,64 @@ function FieldEditorModal({
   const [type, setType] = useState(initial.type || 'single-select');
   const [desc, setDesc] = useState(initial.desc || '');
   const [scope, setScope] = useState(initial.scope || (allowProject ? 'project' : canOffice ? 'office' : 'personal'));
-  const [opts, setOpts] = useState(() => libOptions(initial).length ? libOptions(initial) : [{
+  /* _k keeps each row's identity (and its open swatches) while rows move */
+  const [opts, setOpts] = useState(() => (libOptions(initial).length ? libOptions(initial) : [{
     label: '',
     color: OPTION_COLORS[0]
   }, {
     label: '',
     color: OPTION_COLORS[1]
-  }]);
+  }]).map(o => ({
+    ...o,
+    _k: uid()
+  })));
   const [tried, setTried] = useState(false);
+  const [dragFrom, setDragFrom] = useState(null);
+  const [dragOver, setDragOver] = useState(null);
+  const [armed, setArmed] = useState(null);
+  /* a press on the grip that never became a drag lets go of the row */
+  useEffect(() => {
+    if (armed == null) return;
+    const off = () => setArmed(null);
+    window.addEventListener('mouseup', off);
+    return () => window.removeEventListener('mouseup', off);
+  }, [armed]);
+  const moveOpt = (from, to) => setOpts(p => {
+    if (from === to || from == null || to == null) return p;
+    const a = [...p];
+    const [m] = a.splice(from, 1);
+    a.splice(to, 0, m);
+    return a;
+  });
+  const drag = {
+    from: dragFrom,
+    over: dragOver,
+    armed,
+    arm: setArmed,
+    start: setDragFrom,
+    hover: i => setDragOver(i),
+    drop: i => {
+      moveOpt(dragFrom, i);
+      setDragFrom(null);
+      setDragOver(null);
+      setArmed(null);
+    },
+    end: () => {
+      setDragFrom(null);
+      setDragOver(null);
+      setArmed(null);
+    }
+  };
   const isSelect = SELECT_TYPES.includes(type);
   const fixed = fixedOptionSet(initial);
-  const cleanOpts = opts.map(o => ({
+  const cleanOpts = opts.map(({
+    _k,
+    ...o
+  }) => ({
     ...o,
+    ...(o.id ? {} : {
+      id: uid()
+    }),
     label: o.label.trim()
   })).filter(o => o.label);
   const errs = {
@@ -11513,10 +11687,13 @@ function FieldEditorModal({
   }, "אפשרויות וגוונים"), /*#__PURE__*/React.createElement("div", {
     className: "fl-opts"
   }, opts.map((o, i) => /*#__PURE__*/React.createElement(OptionRow, {
-    key: o.id || i,
+    key: o._k,
     opt: o,
     index: i,
+    count: opts.length,
     fixed: fixed,
+    drag: drag,
+    onMove: moveOpt,
     onChange: next => setOpts(p => p.map((x, j) => j === i ? next : x)),
     onRemove: () => setOpts(p => p.filter((_, j) => j !== i))
   })), !fixed && /*#__PURE__*/React.createElement("button", {
@@ -11524,7 +11701,8 @@ function FieldEditorModal({
     className: "fl-opt-add",
     onClick: () => setOpts(p => [...p, {
       label: '',
-      color: OPTION_COLORS[p.length % OPTION_COLORS.length]
+      color: OPTION_COLORS[p.length % OPTION_COLORS.length],
+      _k: uid()
     }])
   }, "+ הוסף אפשרות")), fixed && /*#__PURE__*/React.createElement("div", {
     className: "fl-note"
@@ -11574,7 +11752,7 @@ function FieldEditorModal({
     className: "fl-note"
   }, "רק Super Admin יכול להוסיף שדות לספריית המשרד")), initial.id && /*#__PURE__*/React.createElement("div", {
     className: "fl-note"
-  }, "השינוי מעדכן את הספרייה. פרויקטים שכבר משתמשים בשדה לא משתנים עד שמוסיפים או מחילים את השדה עליהם מחדש.")), /*#__PURE__*/React.createElement("div", {
+  }, BUILTIN_LIST_OF[initial.builtinKey] ? 'פרויקטים בלי רשימה משלהם מתעדכנים מיד. פרויקט עם רשימה משלו מתעדכן רק אחרי "החל על פרויקט".' : 'השינוי מעדכן את הספרייה. פרויקטים שכבר משתמשים בשדה לא משתנים עד שמוסיפים או מחילים את השדה עליהם מחדש.')), /*#__PURE__*/React.createElement("div", {
     className: "np-foot"
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
@@ -11655,18 +11833,8 @@ function ProjectChips({
 
 /* a built-in list is "in" a project when that project's list already matches the library */
 const sameOptions = (a, b) => a.length === b.length && a.every((o, i) => o.label === b[i].label && (o.color || '') === (b[i].color || ''));
-const listInSync = (f, doc) => {
-  const key = BUILTIN_LIST_OF[f.builtinKey];
-  const lists = {
-    statuses: doc.statuses || STATUSES,
-    priorities: doc.priorities || PRIORITIES,
-    disciplines: doc.disciplines || DISCIPLINES
-  };
-  return sameOptions(libOptions(f), lists[key].map(o => ({
-    label: o.label,
-    color: o.color
-  })));
-};
+/* a project follows the office list unless it keeps a list of its own */
+const listInSync = (f, doc) => !doc[BUILTIN_LIST_OF[f.builtinKey]];
 function AddToProjectMenu({
   f,
   entries,
@@ -11703,7 +11871,7 @@ function AddToProjectMenu({
   const addable = entries.filter(({
     doc
   }) => !present(doc));
-  const label = busy ? 'שומר…' : !addable.length ? listField ? 'תואם בכל הפרויקטים' : 'מופיע בכל הפרויקטים' : picked.size ? `${listField ? 'החל על' : 'הוסף ל'}־${picked.size} פרויקטים` : 'בחר פרויקטים';
+  const label = busy ? 'שומר…' : !addable.length ? listField ? 'כל הפרויקטים לפי המשרד' : 'מופיע בכל הפרויקטים' : picked.size ? `${listField ? 'החל על' : 'הוסף ל'}־${picked.size} פרויקטים` : 'בחר פרויקטים';
   return /*#__PURE__*/React.createElement("div", {
     className: "fl-usage",
     ref: ref
@@ -11717,7 +11885,7 @@ function AddToProjectMenu({
     "aria-label": listField ? 'החלת הרשימה על פרויקטים' : 'הוספת השדה לפרויקטים'
   }, /*#__PURE__*/React.createElement("div", {
     className: "pm-head"
-  }, /*#__PURE__*/React.createElement("span", null, listField ? 'איפה הרשימה כבר תואמת לספרייה' : 'איפה השדה מופיע')), entries.map(({
+  }, /*#__PURE__*/React.createElement("span", null, listField ? 'אילו פרויקטים מתעדכנים מהספרייה' : 'איפה השדה מופיע')), entries.map(({
     p,
     doc
   }) => {
@@ -11741,10 +11909,10 @@ function AddToProjectMenu({
       className: "pm-name"
     }, p.name), /*#__PURE__*/React.createElement("span", {
       className: "fl-row-state"
-    }, has ? listField ? 'תואם' : 'מופיע' : ''));
+    }, has ? listField ? 'לפי המשרד' : 'מופיע' : listField ? 'רשימה משלו' : ''));
   }), listField && /*#__PURE__*/React.createElement("div", {
     className: "fl-note fl-apply-note"
-  }, "החלה מחליפה את רשימת האפשרויות בפרויקט ברשימה מהספרייה"), /*#__PURE__*/React.createElement("div", {
+  }, "החלה מבטלת את הרשימה הפרטית של הפרויקט — מעכשיו הוא מתעדכן אוטומטית מהספרייה"), /*#__PURE__*/React.createElement("div", {
     className: "fl-apply-foot"
   }, /*#__PURE__*/React.createElement("button", {
     className: "np-btn",
@@ -11842,15 +12010,12 @@ function FieldLibrary({
     const listKey = f.builtinKey && BUILTIN_LIST_OF[f.builtinKey];
     try {
       if (listKey) {
-        const opts = libOptions(f).map(o => ({
-          id: o.id || uid(),
-          label: o.label,
-          color: o.color,
-          bg: hexBg(o.color)
-        }));
+        const doc = (entries.find(e => e.p.id === p.id) || {}).doc;
+        const lost = doc ? listOrphans(doc, listKey, LIVE_LISTS[listKey]) : 0;
+        if (lost && !(await askConfirm(`ב"${p.name}" יש ${lost} משימות עם ערך שלא קיים ברשימת המשרד. אחרי ההחלה הערך שלהן לא יוצג.\n\nלהחיל בכל זאת?`))) return;
         await write(p, d => ({
           ...d,
-          [listKey]: opts
+          [listKey]: undefined
         }));
       } else {
         await write(p, d => fieldInDoc(f, d) ? d : {
