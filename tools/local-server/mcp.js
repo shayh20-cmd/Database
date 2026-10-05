@@ -633,6 +633,29 @@ module.exports = function createMcp(ctx) {
       }
     },
     {
+      name: 'delete_task',
+      title: 'Delete a task',
+      description: 'Delete one task (with its subtasks and updates) from a project. Only when the user asked for a deletion: first show them exactly which task (title, stage, id) and get an explicit yes for that task. A copy is kept on the server, so a mistaken delete can be restored by an administrator.',
+      inputSchema: { type: 'object', properties: { project: { type: 'string' }, task: { type: 'string', description: 'Task id — use the id, not a title, so the right task goes' } }, required: ['project', 'task'], additionalProperties: false },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+      run(args, c) {
+        canWrite(c.me);
+        const p = findProject(c.me, c.reg, args.project);
+        const gone = writeProject(p, c.me, doc => {
+          let hit = null;
+          eachTask(doc, (t, s, st) => { if (t.id === args.task) hit = { t, s, st }; });
+          if (!hit) throw new ToolError(`No task with id "${args.task}" in this project. Find it with search_tasks and pass its id.`);
+          const at = new Date().toISOString();
+          const dir = path.join(DATA_DIR, 'deleted', p.id);
+          fs.mkdirSync(dir, { recursive: true });
+          writeJsonAtomic(path.join(dir, at.replace(/[:.]/g, '-') + '-' + hit.t.id + '.json'), { project: { id: p.id, code: p.code, name: p.name }, sheetId: hit.s.id, stage: pathOf(hit.st, hit.s), deletedBy: c.me.name + ' (Claude)', at, task: hit.t });
+          doc.sheets = doc.sheets.map(sh => sh.id === hit.s.id ? { ...sh, tasks: sh.tasks.filter(x => x.id !== hit.t.id) } : sh);
+          return { id: hit.t.id, title: hit.t.title, stage: pathOf(hit.st, hit.s), subtasks: (hit.t.subtasks || []).length };
+        });
+        return { project: p.code + ' ' + p.name, deleted: gone, kept_copy: true };
+      }
+    },
+    {
       name: 'list_meetings',
       title: 'Meetings',
       description: 'A project\'s meeting minutes (ישיבות), newest first: id, date, title, track and how many items became tasks, updates or principles.',
@@ -758,6 +781,7 @@ module.exports = function createMcp(ctx) {
     'Before adding or changing anything, call get_project for the project, map what the user said onto its real stages, disciplines (תחום), priorities and team, and show a short table of exactly what you will write. Write only after the user confirms. Never invent a project, stage, discipline or person — ask.',
     'From meeting minutes or a summary: work out the project, then read every item and propose what each becomes — a new task, an update or subtask on an existing task (search_tasks first), a planning principle (עקרון תכנון), a milestone, or minutes only. Show a numbered table and let the user change and pick; then record it all with one create_meeting call (or add_meeting_items for a meeting already in Project Hub), so the minutes and everything made from them stay linked.',
     'Progress on an existing task is recorded as an update (update_task.add_update), not by editing the title. An update\'s owner is a discipline — who holds the ball after this step.',
+    'Delete only when the user asked to delete: name the exact task (title, stage, id), get an explicit yes, then call delete_task with the id. Never delete to "clean up" on your own.',
     'Dates are YYYY-MM-DD. Defaults: start today, due in 14 days. After writing, give the user the task links.'
   ].join('\n');
 
@@ -941,7 +965,7 @@ button.primary{background:#2563EB;border-color:#2563EB;color:#fff}.fine{font-siz
         return reply({
           protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: 'project-hub', title: 'Project Hub', version: '1.1.0' },
+          serverInfo: { name: 'project-hub', title: 'Project Hub', version: '1.2.0' },
           instructions: INSTRUCTIONS
         });
       }

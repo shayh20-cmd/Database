@@ -186,3 +186,26 @@ test('connector: a meeting is recorded and its items become tasks, updates, subt
   r = await dana('get_task', { project: 'LDPB', task: 'לוחות ליועץ' });
   assert.strictEqual(r.out.from_meeting, '2026-10-01 ישיבת תיאום יועצים');
 });
+
+test('connector: delete_task removes a task by id and keeps a copy on the server', async (t) => {
+  const port = 3997;
+  const base = 'http://127.0.0.1:' + port;
+  const { root, data } = makeSite();
+  const proc = spawn('node', [SERVER, root, '--port', String(port)], { stdio: 'ignore', env: { ...process.env, SITE_MODE: 'cloud', WEBSITE_AUTH_ENABLED: 'true', DATA_DIR: data } });
+  t.after(() => proc.kill());
+  for (let i = 0; i < 50; i++) { try { await fetch(base + '/health'); break; } catch { await wait(100); } }
+  const doc = () => JSON.parse(fs.readFileSync(path.join(data, 'projects', 'pabc123.json'), 'utf8'));
+
+  const yoav = await signIn(base, 'yoav@kkarc.com');
+  assert.match((await yoav('delete_task', { project: 'LDPB', task: 't1' })).error, /viewer/);
+  const dana = await signIn(base, 'dana@kkarc.com');
+  assert.match((await dana('delete_task', { project: 'LDPB', task: 'תיאום חשמל' })).error, /No task with id/, 'a title is not enough');
+  const r = await dana('delete_task', { project: 'LDPB', task: 't1' });
+  assert.ifError(r.error);
+  assert.strictEqual(r.out.deleted.title, 'תיאום חשמל');
+  assert.ok(!doc().sheets[0].tasks.some(x => x.id === 't1'));
+  const kept = fs.readdirSync(path.join(data, 'deleted', 'pabc123'));
+  assert.strictEqual(kept.length, 1);
+  const copy = JSON.parse(fs.readFileSync(path.join(data, 'deleted', 'pabc123', kept[0]), 'utf8'));
+  assert.deepStrictEqual([copy.task.id, copy.sheetId, copy.deletedBy], ['t1', 'home', 'דנה (Claude)']);
+});
