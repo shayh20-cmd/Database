@@ -58,7 +58,7 @@ To start with the demo project rather than an empty one, upload the JSON from th
 machine that has it:
 
 ```powershell
-.\Deploy-Azure.ps1 -Name kkarc-hub -Seed C:\Users\Omega\Database\data\project_hub_01.json
+.\Deploy-Azure.ps1 -Name kkarc-hub -Seed "C:\Users\Omega\Claude Projects\project-hub\data\project_hub_01.json"
 ```
 
 Attachments (pasted screenshots, Outlook messages) are not carried over by the seed.

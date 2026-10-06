@@ -44,7 +44,7 @@ resources; use it for a page or server change once the site exists.
 .\Deploy-Azure.ps1 -Name kkarc-hub
 
 .EXAMPLE
-.\Deploy-Azure.ps1 -Name kkarc-hub -Seed C:\Users\Omega\Database\data\project_hub_01.json
+.\Deploy-Azure.ps1 -Name kkarc-hub -Seed "C:\Users\Omega\Claude Projects\project-hub\data\project_hub_01.json"
 #>
 [CmdletBinding()]
 param(

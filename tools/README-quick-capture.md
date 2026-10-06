@@ -15,7 +15,7 @@
 `Project Hub Server.lnk` בתיקיית ההפעלה, מריץ ממוזער:
 
 ```
-node "C:\Users\Omega\Database\tools\local-server\server.js" "C:\Users\Omega\Database" --port 3403
+node "C:\Users\Omega\Claude Projects\project-hub\tools\local-server\server.js" "C:\Users\Omega\Claude Projects\project-hub" --port 3403
 ```
 
 בלי זה חלון הלכידה נפתח ומציג **"השרת לא פעיל"** (מה שנכתב בשדה לא נמחק).
