@@ -110,8 +110,8 @@ node tools/local-server/server.js . --port 3000
 ```
 
 Install the server's one dependency first: `cd tools/local-server && npm install`.
-`.claude/launch.json` points at `C:\Users\Omega\Database` (another machine); fix its paths
-before using `preview_start`.
+`.claude/launch.json` has preview configs (`project-hub`, `planning-dashboard`,
+`spec-creator`, `funday`) with repo-relative paths, so it works on any machine; keep it that way.
 
 Tests use `node:test`. Node 24 needs glob patterns, not bare directories:
 
