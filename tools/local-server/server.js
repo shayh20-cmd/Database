@@ -287,7 +287,7 @@ function principalFrom(req) {
 // serve-handler answers /page.html with a redirect to /page (cleanUrls), so both forms pass.
 // The two translation files the pages load are allowed by exact name; no other script is.
 const CLOUD_PAGE = /^\/[A-Za-z0-9_-]+(\.html)?$/;
-const CLOUD_ASSETS = new Set(['/i18n.js', '/i18n-dict.js', '/react-18.3.1.min.js', '/react-dom-18.3.1.min.js', '/supabase-js-2.112.4.min.js', '/register-link.js', '/register-link-ui.js', '/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png', '/icon-new-task-192.png', '/ProjectHub-Setup.cmd', '/qa-app.ico', '/qa-new-task.ico']);
+const CLOUD_ASSETS = new Set(['/i18n.js', '/i18n-dict.js', '/react-18.3.1.min.js', '/react-dom-18.3.1.min.js', '/supabase-js-2.112.4.min.js', '/register-link.js', '/register-link-ui.js', '/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png', '/icon-new-task-192.png', '/ProjectHub-Setup.cmd', '/qa-app.ico', '/qa-new-task.ico', '/claude-hub-skill.zip']);
 // The install files of the Project Hub app (manifest, service worker, icons) hold no data, and the browser
 // fetches a manifest without cookies — so they are served before sign-in.
 // The quick-access installer downloads its two icons without a browser session, so those are public too.
@@ -297,7 +297,9 @@ const PUBLIC_ASSETS = new Set(['/hub.webmanifest', '/hub-sw.js', '/icon-192.png'
 const QUICK_ACCESS_FILES = {
   '/ProjectHub-Setup.cmd': ['tools/quick-access/ProjectHub-Setup.cmd', 'application/octet-stream'],
   '/qa-app.ico': ['tools/quick-access/project-hub-cube.ico', 'image/x-icon'],
-  '/qa-new-task.ico': ['tools/quick-access/project-hub-cube-new-task.ico', 'image/x-icon']
+  '/qa-new-task.ico': ['tools/quick-access/project-hub-cube-new-task.ico', 'image/x-icon'],
+  // the "hub" Claude skill, downloaded from Settings ← Claude (signed in) and uploaded to Claude
+  '/claude-hub-skill.zip': ['tools/claude-skill/hub.zip', 'application/zip']
 };
 const LOGIN_PAGES = new Set(['/login', '/login.html']);
 /* The register (KKarcDB on Supabase) that the page reads through KKarcDB.Api. Public values
@@ -352,6 +354,12 @@ function serveGzipped(req, res, pathname) {
   return true;
 }
 
+/* Project Hub as a Claude connector (MCP + OAuth); see mcp.js. */
+const mcp = require('./mcp')({
+  DATA_DIR, STATIC_ROOT, SITE_MODE, APPS, PROJECTS_DIR, LOCAL_USER_NAME,
+  readJson, writeJsonAtomic, sendJson, readRequestBody
+});
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const healthy = AUTH_CONFIRMED && !bootError;
@@ -371,6 +379,9 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (!healthy) { sendJson(res, 503, { error: 'Not serving; see /health' }); return; }
+
+  // The connector's discovery, registration, token and /mcp routes carry their own credentials.
+  if (mcp.handlePublic(req, res, url)) return;
 
   /* Easy Auth lets anonymous requests through (AllowAnonymous), so this is the gate. A visitor
      who is not signed in gets only the sign-in page, whose button starts Microsoft sign-in. */
@@ -392,6 +403,8 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+  if (url.pathname === '/oauth/authorize') { mcp.handleAuthorize(req, res, url, user); return; }
+  if (url.pathname.startsWith('/api/claude-connection')) { mcp.handleConnection(req, res, url, user); return; }
   if (url.pathname === '/api/me') { sendJson(res, 200, { name: user.name, email: user.email, mode: SITE_MODE }); return; }
   if (url.pathname === '/api/register-config') { sendJson(res, 200, registerConfig()); return; }
   if (url.pathname === '/api/snip' && SITE_MODE === 'local') { handleSnip(req, res); return; }
@@ -434,6 +447,7 @@ const server = http.createServer((req, res) => {
       if (err || !st.isFile()) { sendJson(res, 404, { error: 'Not found' }); return; }
       const headers = { 'Content-Type': qa[1], 'Content-Length': st.size, 'Cache-Control': 'no-cache' };
       if (url.pathname.endsWith('.cmd')) headers['Content-Disposition'] = 'attachment; filename="ProjectHub-Setup.cmd"';
+      if (url.pathname.endsWith('.zip')) headers['Content-Disposition'] = 'attachment; filename="hub.zip"';
       res.writeHead(200, headers);
       fs.createReadStream(file).pipe(res);
     });
