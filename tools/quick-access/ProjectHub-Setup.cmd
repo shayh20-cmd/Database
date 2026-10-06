@@ -40,14 +40,19 @@ try {
     New-Item -ItemType Directory -Force -Path $programs | Out-Null
     Get-ChildItem $programs -Filter *.lnk | Remove-Item -Force
     $shell = New-Object -ComObject WScript.Shell
+    # WScript.Shell saves through the machine's ANSI code page, so on a Windows whose "language for
+    # non-Unicode programs" isn't Hebrew a Hebrew name turns into '?' and the save fails. Save under an
+    # ASCII name, then rename (PowerShell keeps Unicode).
     function New-HubShortcut($name, $query, $hotkey, $ico) {
-        $l = $shell.CreateShortcut((Join-Path $programs "$name.lnk"))
+        $tmp = Join-Path $programs ("ph-" + [guid]::NewGuid().ToString('N') + '.lnk')
+        $l = $shell.CreateShortcut($tmp)
         $l.TargetPath = $browser
         $l.Arguments = if ($query) { "--app=`"$base`?$query`" --window-size=470,560" } else { "--app=`"$base`"" }
         $l.Hotkey = $hotkey
         $l.IconLocation = "$ico,0"
         $l.Description = $name
         $l.Save()
+        Move-Item -LiteralPath $tmp -Destination (Join-Path $programs "$name.lnk") -Force
     }
     New-HubShortcut 'Project Hub' '' '' $appIcon
     New-HubShortcut 'Project Hub - משימה חדשה' 'quick=new' 'CTRL+ALT+Q' $icon
