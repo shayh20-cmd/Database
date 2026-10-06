@@ -96,7 +96,8 @@
   const COSTS = [['predicted', 'עלות צפויה'], ['evaluated', 'עלות מוערכת'], ['contractor', 'עלות קבלן'], ['real', 'עלות בפועל']];
 
   /* The "From the register" card's rows (spec §3). `data` marks a value that is the register's
-     own text, which the page's translator must leave alone. Costs only when the API sent them:
+     own text, which the page's translator must leave alone; the area is a number and a unit, so
+     the unit is translated. Costs only when the API sent them:
      it sends null to whoever may not see them. */
   function projectFacts(p) {
     const facts = [
@@ -106,7 +107,7 @@
       { label: 'סטטוס', value: STATUS_HE[p.status] || dash(p.status), data: false },
       { label: 'לקוח', value: dash(p.clientName), data: true },
       { label: 'כתובת הפרויקט', value: dash(p.address), data: true },
-      { label: 'שטח', value: p.areaM2 == null ? '—' : num(p.areaM2) + ' מ״ר', data: true },
+      { label: 'שטח', value: p.areaM2 == null ? '—' : num(p.areaM2) + ' מ״ר', data: false },
       { label: 'שנת סיום', value: dash(p.endYear), data: true },
       { label: 'היתר', value: day(p.permitDate), data: true },
       { label: 'טופס 4', value: day(p.tofes4Date), data: true },
