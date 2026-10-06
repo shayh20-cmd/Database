@@ -8956,7 +8956,7 @@ function NewTaskModal({
   const [projectId, setProjectId] = useState(() => (projects.find(p => p.id === ACTIVE_PROJECT_ID) || projects[0] || {}).id || PERSONAL_PICK);
   const personalPick = projectId === PERSONAL_PICK;
   const [title, setTitle] = useState(initialTitle);
-  const [note, setNote] = useState(initialNote);
+  const [note, setNote] = useState(initialNote); /* the quick window keeps the note under אפשרויות נוספות, unless it arrives filled (a link or a folder) */ const [noteInMore] = useState(() => !!extras && !initialNote);
   const [mails, setMails] = useState(() => initialMail ? [{
     id: uid(),
     ...initialMail
@@ -9160,7 +9160,7 @@ function NewTaskModal({
     className: "np-err"
   }, loadErr) : !doc ? 'טוען…' : stage ? /*#__PURE__*/React.createElement(React.Fragment, null, "\u05EA\u05D9\u05DB\u05E0\u05E1 \u05DC: ", stageTrack && stageTrack.label || 'ניהול תכנון', " \u203A ", stage.name || 'שלב') : /*#__PURE__*/React.createElement("span", {
     className: "np-err"
-  }, "בפרויקט הזה אין משימות שוטפות"))), /*#__PURE__*/React.createElement("textarea", {
+  }, "בפרויקט הזה אין משימות שוטפות"))), !noteInMore && /*#__PURE__*/React.createElement("textarea", {
     className: "af-input nt-note",
     rows: note ? 2 : 1,
     value: note,
@@ -9185,7 +9185,15 @@ function NewTaskModal({
     onClick: () => setMore(v => !v)
   }, more ? '▾' : '▸', " \u05D0\u05E4\u05E9\u05E8\u05D5\u05D9\u05D5\u05EA \u05E0\u05D5\u05E1\u05E4\u05D5\u05EA"), more && (doc || personalPick) && /*#__PURE__*/React.createElement("div", {
     className: "nt-more-body"
-  }, !personalPick && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, noteInMore && React.createElement("div", null, React.createElement("div", {
+    className: "af-label"
+  }, "הערה"), React.createElement("textarea", {
+    className: "af-input nt-note",
+    rows: note ? 2 : 1,
+    value: note,
+    placeholder: "הערה (לא חובה)",
+    onChange: e => setNote(e.target.value)
+  })), !personalPick && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "af-label"
   }, "\u05DE\u05E1\u05DC\u05D5\u05DC / \u05E9\u05DC\u05D1"), /*#__PURE__*/React.createElement("select", {
     className: "af-input",
