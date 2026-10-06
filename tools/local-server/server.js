@@ -287,7 +287,7 @@ function principalFrom(req) {
 // serve-handler answers /page.html with a redirect to /page (cleanUrls), so both forms pass.
 // The two translation files the pages load are allowed by exact name; no other script is.
 const CLOUD_PAGE = /^\/[A-Za-z0-9_-]+(\.html)?$/;
-const CLOUD_ASSETS = new Set(['/i18n.js', '/i18n-dict.js', '/react-18.3.1.min.js', '/react-dom-18.3.1.min.js', '/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png', '/icon-new-task-192.png', '/ProjectHub-Setup.cmd', '/qa-app.ico', '/qa-new-task.ico', '/claude-hub-skill.zip']);
+const CLOUD_ASSETS = new Set(['/i18n.js', '/i18n-dict.js', '/react-18.3.1.min.js', '/react-dom-18.3.1.min.js', '/supabase-js-2.112.4.min.js', '/register-link.js', '/register-link-ui.js', '/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png', '/icon-new-task-192.png', '/ProjectHub-Setup.cmd', '/qa-app.ico', '/qa-new-task.ico', '/claude-hub-skill.zip']);
 // The install files of the Project Hub app (manifest, service worker, icons) hold no data, and the browser
 // fetches a manifest without cookies — so they are served before sign-in.
 // The quick-access installer downloads its two icons without a browser session, so those are public too.
@@ -302,6 +302,12 @@ const QUICK_ACCESS_FILES = {
   '/claude-hub-skill.zip': ['tools/claude-skill/hub.zip', 'application/zip']
 };
 const LOGIN_PAGES = new Set(['/login', '/login.html']);
+/* The register (KKarcDB on Supabase) that the page reads through KKarcDB.Api. Public values
+   only — the anon key is meant for browsers. Null when unset; the page then shows no register. */
+function registerConfig() {
+  const v = name => (process.env[name] || '').trim() || null;
+  return { supabaseUrl: v('KK_SUPABASE_URL'), supabaseAnonKey: v('KK_SUPABASE_ANON_KEY'), api: v('KKARCDB_API'), hubUrl: v('KK_HUB_URL') };
+}
 
 /* Pages and scripts go out gzipped: Project Hub's page is ~1.3MB as text and ~0.3MB compressed,
    which is most of the time a quick window spends loading. serve-handler doesn't compress, so the
@@ -400,6 +406,7 @@ const server = http.createServer((req, res) => {
   if (url.pathname === '/oauth/authorize') { mcp.handleAuthorize(req, res, url, user); return; }
   if (url.pathname.startsWith('/api/claude-connection')) { mcp.handleConnection(req, res, url, user); return; }
   if (url.pathname === '/api/me') { sendJson(res, 200, { name: user.name, email: user.email, mode: SITE_MODE }); return; }
+  if (url.pathname === '/api/register-config') { sendJson(res, 200, registerConfig()); return; }
   if (url.pathname === '/api/snip' && SITE_MODE === 'local') { handleSnip(req, res); return; }
   if (url.pathname === '/api/projects' && req.method === 'GET') {
     handleProjectList(res);
