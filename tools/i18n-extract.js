@@ -13,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 
 const HEBREW = /[֐-׿]/;
-const FILES = ['home_dashboard.html', 'planning_dashboard.html', 'project_hub.html', 'project_hub_01.html'];
+const FILES = ['home_dashboard.html', 'planning_dashboard.html', 'project_hub.html', 'project_hub_01.html', 'register-link.js', 'register-link-ui.js'];
 // Strings deliberately absent from the dictionary (seed data, dev-only, single letters).
 const IGNORE = new Set((() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'i18n-ignore.json'), 'utf8')); } catch { return []; } })());
 const DICT = 'i18n-dict.js';
@@ -51,13 +51,27 @@ function unescapeLiteral(raw) {
 
 /* Walks character by character so quotes nested inside a differently quoted
    literal ("שלום" within '...') don't terminate it early. A regex cannot do
-   this reliably across three quote styles with escapes. */
+   this reliably across three quote styles with escapes.
+   Comments are skipped: an apostrophe in one ("doesn't") would otherwise open
+   a string that swallows the real literals after it, and Hebrew in a comment
+   never renders. A `//` or `/*` right after a backslash is the end of a regex
+   such as /https?:\/\//, not a comment. */
 function extractHebrewLiterals(source) {
   const found = [];
   const seen = new Set();
   let i = 0;
   while (i < source.length) {
     const ch = source[i];
+    if (ch === '/' && (source[i + 1] === '*' || source[i + 1] === '/') && source[i - 1] !== '\\') {
+      const end = source[i + 1] === '*' ? source.indexOf('*/', i + 2) : source.indexOf('\n', i + 2);
+      i = end < 0 ? source.length : end + (source[i + 1] === '*' ? 2 : 1);
+      continue;
+    }
+    if (ch === '<' && source.startsWith('<!--', i)) {
+      const end = source.indexOf('-->', i + 4);
+      i = end < 0 ? source.length : end + 3;
+      continue;
+    }
     if (ch === "'" || ch === '"' || ch === '`') {
       const quote = ch;
       let j = i + 1;
@@ -90,7 +104,8 @@ function loadDict(dictSource) {
 }
 
 /* Mirrors i18n.js buildRegex()/tr() exactly: longest key first, with Hebrew
-   boundary lookarounds so a key never matches inside a larger Hebrew word.
+   boundary lookarounds so a key never matches inside a larger Hebrew word, and
+   nothing translated between U+2068 and U+2069 (data the page isolated).
    If the engine's matching ever changes, change it here too. */
 function buildTranslator(dict) {
   const keys = Object.keys(dict).sort((a, b) => b.length - a.length);
@@ -100,7 +115,8 @@ function buildTranslator(dict) {
     '(?<![\\u0590-\\u05FF])(?:' + keys.map(esc).join('|') + ')(?![\\u0590-\\u05FF])',
     'g'
   );
-  return s => s.replace(rx, m => (Object.prototype.hasOwnProperty.call(dict, m) ? dict[m] : m));
+  const run = s => s.replace(rx, m => (Object.prototype.hasOwnProperty.call(dict, m) ? dict[m] : m));
+  return s => s.split(/(\u2068[^\u2069]*\u2069)/).map((part, i) => (i % 2 ? part : run(part))).join('');
 }
 
 /* A literal is a gap only if Hebrew SURVIVES translation. `residual` is the

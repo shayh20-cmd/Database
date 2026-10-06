@@ -33,6 +33,21 @@ assert.deepStrictEqual(
   ['שלום ${name}'],
   'template literals are captured verbatim'
 );
+assert.deepStrictEqual(
+  extractHebrewLiterals(`/* it doesn't map "תשתיות" */ x('שלום')`),
+  ['שלום'],
+  'a block comment is skipped, and its apostrophe opens no string'
+);
+assert.deepStrictEqual(
+  extractHebrewLiterals("a(1);// don't 'הערה'\nb('שלום')"),
+  ['שלום'],
+  'a line comment is skipped to the end of its line'
+);
+assert.deepStrictEqual(
+  extractHebrewLiterals("const u='https://x.co/שלום';const r=/^https?:\\/\\//;c('עולם')"),
+  ['https://x.co/שלום', 'עולם'],
+  'slashes inside a string or at the end of a regex are not comments'
+);
 
 /* loadDict */
 const dictSrc = `
@@ -60,6 +75,11 @@ assert.strictEqual(
   'a longer literal is covered by a shorter key — THE case exact-matching gets wrong'
 );
 assert.strictEqual(tr('חדש'), 'חדש', 'unknown text is left alone');
+assert.strictEqual(
+  tr('שלום \u2068שלום עולם\u2069 עולם'),
+  'Hello \u2068שלום עולם\u2069 World',
+  'text between U+2068 and U+2069 is data and stays as typed'
+);
 
 /* findUntranslated */
 assert.deepStrictEqual(

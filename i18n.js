@@ -1,7 +1,7 @@
 /* ─────────────────────────────────────────────────────────────
    i18n.js — runtime Hebrew ⇄ English translation + RTL/LTR flip
    Shared by: home_dashboard.html, planning_dashboard.html,
-              project_hub.html
+              project_hub.html, project_hub_01.html
 
    REQUIRES i18n-dict.js to be loaded FIRST (provides window.I18N_HE_EN).
 
@@ -53,8 +53,24 @@ function buildRegex() {
   var esc = function (s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); };
   RX = new RegExp('(?<![\\u0590-\\u05FF])(?:' + keys.map(esc).join('|') + ')(?![\\u0590-\\u05FF])', 'g');
 }
-function tr(s) {
+function trRun(s) {
   return s.replace(RX, function (m) { return HE_EN.hasOwnProperty(m) ? HE_EN[m] : m; });
+}
+/* Text between U+2068 and U+2069 (first-strong isolate … pop isolate) is data
+   the page put inside a sentence — a task title in a tooltip, a project name in
+   a toast — and is left as typed. The marks are invisible, and they keep the
+   Hebrew in its own direction inside the English sentence. Pages add them in
+   English only, so Hebrew renders exactly as before. */
+var DATA_RUN = /\u2068[^\u2069]*\u2069/g;
+function tr(s) {
+  if (s.indexOf('\u2068') < 0) return trRun(s);
+  var out = '', last = 0, m;
+  DATA_RUN.lastIndex = 0;
+  while ((m = DATA_RUN.exec(s))) {
+    out += trRun(s.slice(last, m.index)) + m[0];
+    last = m.index + m[0].length;
+  }
+  return out + trRun(s.slice(last));
 }
 
 /* A page holding only demo data may ask for that data to be translated too, by
@@ -183,12 +199,34 @@ function setLang(l) {
   try { window.dispatchEvent(new CustomEvent('i18n:change', { detail: { lang: lang } })); } catch (e) {}
 }
 
+/* For text a page builds in code, which the pass over the page never sees: a
+   native dialog, initials, a number inside a sentence. t(s) translates s the
+   way the page's text is translated. t(template, vars) translates the whole
+   template, then fills its {name} slots from vars — so the English can put
+   them in another order: t('לפני {m} ד׳', { m: 5 }) is '5 min ago' in English
+   and 'לפני 5 ד׳' in Hebrew. The values in vars go in as they are. */
+function t(s, vars) {
+  var out = s == null ? '' : String(s);
+  if (lang === 'en' && HE_RX.test(out)) {
+    if (!RX) buildRegex();
+    out = tr(out);
+  }
+  if (vars) {
+    out = out.replace(/\{(\w+)\}/g, function (m, k) {
+      return Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : m;
+    });
+  }
+  return out;
+}
+
 /* Public API for pages that render their own control. `i18n:change` fires on
-   window after every switch so a React component can re-read get(). */
+   window after every switch so a React component can re-read get() and
+   rebuild what it made with t(). */
 window.I18N = {
   get: function () { return lang; },
   set: setLang,
-  toggle: function () { setLang(lang === 'en' ? 'he' : 'en'); }
+  toggle: function () { setLang(lang === 'en' ? 'he' : 'en'); },
+  t: t
 };
 
 /* ── Observer ── */
@@ -219,6 +257,11 @@ function boot() {
   startObserver();
   /* React 18 createRoot renders async — re-run once shortly after load */
   setTimeout(function () { applyTitle(); walk(document.body); }, 60);
+  /* A page that rendered before this file loaded built its t() text in Hebrew;
+     one that listens for i18n:change rebuilds it now. */
+  if (lang === 'en') {
+    try { window.dispatchEvent(new CustomEvent('i18n:change', { detail: { lang: lang } })); } catch (e) {}
+  }
 }
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', boot);

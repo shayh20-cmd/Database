@@ -18,17 +18,28 @@ How that maps onto the code today:
 - `node tools/i18n-extract.js` lists Hebrew that would still render untranslated. Run it
   after adding text.
 - `i18n.js` matches by **substring**, so a single Hebrew letter or a fragment that occurs
-  inside other words must never become a key. Text built in code (initials, a letter taken
-  from a label, numbers spliced mid-string) can't be reached by the dictionary and needs a
-  language check in the code (`localStorage.appLang === 'en'`).
+  inside other words must never become a key. A key only matches inside a longer string when
+  it starts and ends with a Hebrew letter (the engine refuses a match with Hebrew right next
+  to it), so give a fragment like `"השינוי נשמר"` its own key rather than `"השינוי נשמר — "`.
+- Text built in code never reaches the page pass — native dialogs, initials, a number in the
+  middle of a sentence, a Hebrew prefix glued to a name. In `project_hub_01.html` it goes
+  through `tx()` (i18n.js's `I18N.t`): `tx('לפני {m} ד׳', { m })` translates the whole
+  template from the dictionary, then fills the `{slots}`, so the English can reorder them
+  (`"לפני {m} ד׳": "{m} min ago"`). Hebrew output is unchanged.
 - User-entered data (task titles, project names, notes) is never translated: containers
   matching `USER_DATA_SEL` in `i18n.js`, or carrying `data-i18n-skip`. A new component that
-  renders stored data needs one of the two.
+  renders stored data needs one of the two. Data inside a sentence (a tooltip, a toast, a
+  confirmation) goes through `asTyped()`, which in English wraps it in invisible U+2068/U+2069
+  isolate marks that the engine leaves alone. Structure names that ship with Hebrew defaults
+  (tracks, stages, boards, built-in fields, the office roster) go through `nameForLang()` /
+  `nameIn()`: English when the dictionary knows the whole name, as typed otherwise.
 - Switching language also flips `dir` (RTL ⇄ LTR). Use logical CSS (`inset-inline-start`,
   `margin-inline-end`, `text-align: start`) rather than left/right, and check both directions.
 - Only `project_hub_01.html`, `project_hub.html`, `planning_dashboard.html` and
-  `home_dashboard.html` load `i18n.js`. `login.html`, `capture.html`, `site_note.html` and
-  the spec creator are Hebrew-only and need the same treatment when their text changes.
+  `home_dashboard.html` load `i18n.js`. `login.html` is served before sign-in, when
+  `i18n-dict.js` isn't, so it carries its own few strings (`HE_EN` in its script) and follows
+  `appLang`; add both languages there. `capture.html`, `site_note.html` and the spec creator
+  are Hebrew-only and need the same treatment when their text changes.
 
 ## What is live and what is frozen
 

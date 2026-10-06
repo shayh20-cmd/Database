@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Project Hub · כניסה</title>
+<script>
+/* Before first paint: the language the hub saved (localStorage appLang, the key i18n.js uses)
+   sets the direction, so an English reader never sees the page flip from RTL. */
+try{if(localStorage.getItem('appLang')==='en'){document.documentElement.dir='ltr';document.documentElement.lang='en';}}catch(e){}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800&display=swap" rel="stylesheet">
@@ -91,12 +96,18 @@ form{margin-top:34px;display:flex;flex-direction:column;gap:26px}
 .field label{display:block;font-size:14px;font-weight:500;color:var(--blue-700);margin-bottom:4px}
 .field .ctl{position:relative;display:flex;align-items:center;border-bottom:1.5px solid var(--line);transition:border-color .2s}
 .field .ctl:focus-within{border-color:var(--blue-600)}
-.field .ctl::after{content:"";position:absolute;bottom:-1.5px;right:0;height:2px;width:0;background:var(--blue-600);transition:width .35s ease}
+.field .ctl::after{content:"";position:absolute;bottom:-1.5px;inset-inline-start:0;height:2px;width:0;background:var(--blue-600);transition:width .35s ease}
 .field .ctl:focus-within::after{width:100%}
-.field input{flex:1;border:0;outline:0;background:transparent;font:inherit;font-size:16px;color:var(--ink);padding:9px 0 9px 8px;min-width:0}
+.field input{flex:1;border:0;outline:0;background:transparent;font:inherit;font-size:16px;color:var(--ink);padding-block:9px;padding-inline:0 8px;min-width:0}
 .field input::placeholder{color:#9db0c9}
 .field input[type=email]{direction:ltr;text-align:right}
 .field input[type=email]:not(:placeholder-shown){text-align:left}
+html[dir="ltr"] .field input[type=email]{text-align:left}
+/* the blue shape behind the hero is drawn for the hero on the right; English puts the hero on the
+   left, so the shape is mirrored and the illustration moves to the hero's inner edge */
+html[dir="ltr"] .card .shape{transform:scaleX(-1)}
+@media (min-width:861px){html[dir="ltr"] .illus{left:auto;right:-4%}}
+.lang-link{background:none;border:0;padding:0;font:inherit;cursor:pointer}
 .field .ico{width:20px;height:20px;color:var(--sky-400);flex:none}
 .field .eye{background:none;border:0;padding:4px;cursor:pointer;color:var(--muted);display:flex;border-radius:6px}
 .field .eye:focus-visible{outline:2px solid var(--blue-600)}
@@ -288,7 +299,7 @@ form{margin-top:34px;display:flex;flex-direction:column;gap:26px}
 
     <div class="foot">
       <span>© <span id="yr"></span> Project Hub</span>
-      <nav><a class="link" href="#">עזרה</a><a class="link" href="#">צור קשר</a></nav>
+      <nav><a class="link" href="#">עזרה</a><a class="link" href="#">צור קשר</a><button type="button" class="link lang-link" id="langLink">English</button></nav>
     </div>
   </section>
 </main>
@@ -299,6 +310,56 @@ form{margin-top:34px;display:flex;flex-direction:column;gap:26px}
   const intro = $('intro'), introLogo = $('introLogo'), brand = $('brandLogo'), body = document.body;
   const KEY = 'projecthub.remember';
   $('yr').textContent = new Date().getFullYear();
+
+  /* ---- language ----
+     The hub takes its English from i18n-dict.js, which is served only after sign-in, so this
+     page carries its own few strings. It follows the language the hub saved (appLang), and the
+     link in the footer switches it for both. */
+  const HE_EN = {
+    'Project Hub · כניסה': 'Project Hub · Sign in',
+    'ניהול פרויקטים לאדריכלות ובנייה': 'Project management for architecture and construction',
+    'דלג ›': 'Skip ›',
+    'מחשב נייד שממנו עולים בניינים, עגורן, שרטוט, עצים וגרפים': 'A laptop with buildings, a crane, a drawing, trees and charts rising from it',
+    'תכנון · פיקוח · מסמכים · רגולציה — במקום אחד': 'Design · supervision · documents · regulation — in one place',
+    'כניסה למערכת': 'Sign in',
+    'ברוכים הבאים — היכנסו עם חשבון Microsoft של המשרד': 'Welcome — sign in with your office Microsoft account',
+    'כתובת מייל': 'Email address',
+    'נא להזין כתובת מייל תקינה': 'Enter a valid email address',
+    'זכור אותי במחשב זה': 'Remember me on this computer',
+    'כניסה עם Microsoft': 'Sign in with Microsoft',
+    'שרת מקומי — הכניסה ללא Microsoft': 'Local server — sign-in without Microsoft',
+    'עזרה': 'Help',
+    'צור קשר': 'Contact us'
+  };
+  const heTitle = document.title, heText = new Map(), heAttr = new Map();
+  const isEn = () => { try { return localStorage.getItem('appLang') === 'en'; } catch { return false; } };
+  function applyLang(en) {
+    const html = document.documentElement;
+    html.dir = en ? 'ltr' : 'rtl';
+    html.lang = en ? 'en' : 'he';
+    document.title = en ? HE_EN[heTitle] || heTitle : heTitle;
+    const w = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    for (let n; (n = w.nextNode());) {
+      const he = heText.has(n) ? heText.get(n) : n.nodeValue;
+      const key = he.trim();
+      if (!HE_EN[key]) continue;
+      heText.set(n, he);
+      n.nodeValue = en ? he.replace(key, HE_EN[key]) : he;
+    }
+    body.querySelectorAll('[aria-label]').forEach(el => {
+      const he = heAttr.has(el) ? heAttr.get(el) : el.getAttribute('aria-label');
+      if (!HE_EN[he]) return;
+      heAttr.set(el, he);
+      el.setAttribute('aria-label', en ? HE_EN[he] : he);
+    });
+    $('langLink').textContent = en ? 'עברית' : 'English';
+  }
+  if (isEn()) applyLang(true);
+  $('langLink').addEventListener('click', () => {
+    const en = !isEn();
+    try { localStorage.setItem('appLang', en ? 'en' : 'he'); } catch {}
+    applyLang(en);
+  });
 
   /* ---- remember me (LocalStorage) ---- */
   const store = {
