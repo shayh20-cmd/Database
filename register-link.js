@@ -237,6 +237,55 @@
       .sort((a, b) => nameIn(a, lang).localeCompare(nameIn(b, lang), locale(lang)));
   }
 
+  const blank = v => {
+    const s = String(v == null ? '' : v).trim();
+    return s === '' ? null : s;
+  };
+
+  /* What + New consultant and + New firm send: trimmed, blanks as null, and the consultant Kind. */
+  function newContactBody(form) {
+    return {
+      name: blank(form.name), firmId: form.firmId || null, email: blank(form.email), mobile: blank(form.mobile),
+      tags: { kind: ['consultant'], discipline: (form.disciplines || []).slice() },
+    };
+  }
+  function newFirmBody(form) {
+    return { name: blank(form.name), tags: { kind: ['consultant'], discipline: (form.disciplines || []).slice() } };
+  }
+
+  /* The directory with one record changed as the register now has it — shown at once while the
+     re-read is on its way. */
+  function withEdit(data, list, id, patch) {
+    if (!data || !Array.isArray(data[list])) return data;
+    return Object.assign({}, data, { [list]: data[list].map(x => (x.id === id ? Object.assign({}, x, patch) : x)) });
+  }
+
+  /* The line a failed write shows (spec §2), a template for the page's translator. */
+  const WRITE_TEXT = {
+    changed: 'השדה שונה בינתיים על ידי מישהו אחר. הערך עכשיו: {value}',
+    not_a_contact: 'זה משתמש במאגר, לא איש קשר — עריכה ב-KK Hub',
+    invalid_value: 'המאגר לא קיבל את הערך',
+    rejected: 'המאגר סירב לשינוי',
+    'not-found': 'הרשומה לא נמצאה במאגר — ייתכן שמוזגה',
+    refused: 'אין הרשאה לשנות את המאגר',
+    'signed-out': 'החיבור למאגר פג — התחבר שוב',
+    unreachable: 'המאגר לא עונה — השינוי לא נשמר',
+  };
+  function writeErrorOf(answer) {
+    if (!answer || answer.state === 'ok') return null;
+    if (answer.state === 'changed') {
+      const c = answer.current;
+      const value = Array.isArray(c) ? (c.length ? c.join(', ') : '—') : c == null || c === '' ? '—' : String(c);
+      return { text: WRITE_TEXT.changed, vars: { value }, detail: null };
+    }
+    if (answer.state === 'rejected') {
+      if (answer.code === 'not_a_contact') return { text: WRITE_TEXT.not_a_contact, vars: null, detail: null };
+      const text = answer.code === 'invalid_value' ? WRITE_TEXT.invalid_value : WRITE_TEXT.rejected;
+      return { text, vars: null, detail: answer.error || null };
+    }
+    return { text: WRITE_TEXT[answer.state] || WRITE_TEXT.unreachable, vars: null, detail: null };
+  }
+
   const RETURN_KEY = 'register-return';
 
   /* The register, through KKarcDB.Api, as the signed-in person (spec §1). `createSupabase` is
@@ -357,6 +406,7 @@
     nextEntry, hasConsultants, createRegisterClient,
     isConsultant, consultantFirms, nameIn, tagLabel, canEditRegister, editablePerson, disciplineChoices,
     firmChoices, firmConsultantCount, filterConsultants, filterFirms,
+    blank, newContactBody, newFirmBody, withEdit, writeErrorOf,
   };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.RegisterLink = api;

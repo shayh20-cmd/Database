@@ -456,3 +456,49 @@ test('filterFirms: consultant firms, searched across names, disciplines and cont
   assert.deepStrictEqual(ids({ q: 'חשמל', lang: 'he' }), ['f1']);
   assert.deepStrictEqual(ids({ q: 'client', lang: 'en' }), [], 'not a consultant firm');
 });
+
+test('blank: trims, and empty means null', () => {
+  assert.strictEqual(RL.blank('  x  '), 'x');
+  for (const v of ['', '   ', null, undefined]) assert.strictEqual(RL.blank(v), null, JSON.stringify(v));
+});
+
+test('newContactBody: trimmed, blanks as null, Kind consultant, the chosen disciplines', () => {
+  assert.deepStrictEqual(RL.newContactBody({ name: '  Avi ', firmId: 'f1', email: ' ', mobile: '050', disciplines: ['fire'] }), {
+    name: 'Avi', firmId: 'f1', email: null, mobile: '050', tags: { kind: ['consultant'], discipline: ['fire'] },
+  });
+  const bare = RL.newContactBody({ name: 'B', firmId: '' });
+  assert.strictEqual(bare.firmId, null, 'no firm');
+  assert.deepStrictEqual(bare.tags, { kind: ['consultant'], discipline: [] });
+});
+
+test('newFirmBody: the name, and Kind consultant with the chosen disciplines', () => {
+  assert.deepStrictEqual(RL.newFirmBody({ name: ' Alpha ', disciplines: ['fire', 'hvac'] }),
+    { name: 'Alpha', tags: { kind: ['consultant'], discipline: ['fire', 'hvac'] } });
+});
+
+test('withEdit: one record changed, the rest and the input untouched', () => {
+  const data = { persons: [{ id: 'p1', mobile: '1' }, { id: 'p2', mobile: '2' }], firms: [] };
+  const next = RL.withEdit(data, 'persons', 'p2', { mobile: '9' });
+  assert.deepStrictEqual(next.persons, [{ id: 'p1', mobile: '1' }, { id: 'p2', mobile: '9' }]);
+  assert.strictEqual(data.persons[1].mobile, '2', 'not mutated');
+  assert.strictEqual(next.firms, data.firms, 'the other list is the same object');
+  assert.strictEqual(RL.withEdit(null, 'persons', 'p1', {}), null);
+});
+
+test('writeErrorOf: a sentence per failure, with the other person\'s value for changed', () => {
+  assert.strictEqual(RL.writeErrorOf({ state: 'ok' }), null);
+  assert.deepStrictEqual(RL.writeErrorOf({ state: 'changed', current: '052' }).vars, { value: '052' });
+  assert.deepStrictEqual(RL.writeErrorOf({ state: 'changed', current: null }).vars, { value: '—' });
+  assert.deepStrictEqual(RL.writeErrorOf({ state: 'changed', current: ['fire', 'hvac'] }).vars, { value: 'fire, hvac' });
+  const user = RL.writeErrorOf({ state: 'rejected', code: 'not_a_contact', error: 'Users are edited on Users.' });
+  assert.ok(user.text.includes('KK Hub'));
+  assert.strictEqual(user.detail, null, 'our own sentence says it all');
+  assert.strictEqual(RL.writeErrorOf({ state: 'rejected', code: 'invalid_value', error: 'name is required' }).detail, 'name is required');
+  const other = RL.writeErrorOf({ state: 'rejected', code: 'last_admin', error: 'Keep one admin.' });
+  assert.strictEqual(other.text, RL.writeErrorOf({ state: 'rejected', code: null, error: null }).text, 'the general sentence');
+  assert.strictEqual(other.detail, 'Keep one admin.');
+  for (const state of ['not-found', 'refused', 'signed-out', 'unreachable', 'something-new']) {
+    const e = RL.writeErrorOf({ state });
+    assert.ok(e && /[֐-׿]/.test(e.text) && e.detail === null, state);
+  }
+});
