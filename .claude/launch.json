@@ -5,8 +5,8 @@
       "name": "planning-dashboard",
       "runtimeExecutable": "node",
       "runtimeArgs": [
-        "C:\\Users\\Omega\\Claude Projects\\project-hub\\tools\\local-server\\server.js",
-        "C:\\Users\\Omega\\Claude Projects\\project-hub",
+        "tools/local-server/server.js",
+        ".",
         "--port",
         "3400"
       ],
@@ -16,8 +16,8 @@
       "name": "project-hub",
       "runtimeExecutable": "node",
       "runtimeArgs": [
-        "C:\\Users\\Omega\\Claude Projects\\project-hub\\tools\\local-server\\server.js",
-        "C:\\Users\\Omega\\Claude Projects\\project-hub"
+        "tools/local-server/server.js",
+        "."
       ],
       "port": 3403,
       "autoPort": true
@@ -26,8 +26,8 @@
       "name": "spec-creator",
       "runtimeExecutable": "node",
       "runtimeArgs": [
-        "C:\\Users\\Omega\\Claude Projects\\project-hub\\tools\\local-server\\server.js",
-        "C:\\Users\\Omega\\Claude Projects\\project-hub",
+        "tools/local-server/server.js",
+        ".",
         "--port",
         "3404"
       ],
@@ -38,8 +38,8 @@
       "name": "funday",
       "runtimeExecutable": "node",
       "runtimeArgs": [
-        "C:\\Users\\Omega\\Claude Projects\\project-hub\\tools\\local-server\\server.js",
-        "C:\\Users\\Omega\\Claude Projects\\project-hub\\.claude\\worktrees\\fun-day-vote\\funday\\public",
+        "tools/local-server/server.js",
+        "funday/public",
         "--port",
         "3410"
       ],
@@ -50,7 +50,7 @@
       "name": "drawing-app",
       "runtimeExecutable": "node",
       "runtimeArgs": [
-        "C:\\Users\\Omega\\Claude Projects\\project-hub\\tools\\local-server\\server.js",
+        "tools/local-server/server.js",
         "C:\\Users\\Omega\\Claude Projects\\drawing-app",
         "--port",
         "3411"
