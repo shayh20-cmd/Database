@@ -244,7 +244,7 @@ test('register config: the four public values, behind the sign-in gate; the scri
   const port = 3998;
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-data-'));
   const root = makeSite();
-  const scripts = ['supabase-js-2.112.4.min.js', 'register-link.js', 'register-link-ui.js'];
+  const scripts = ['supabase-js-2.112.4.min.js', 'register-link.js', 'register-link-ui.js', 'register-directory-ui.js'];
   for (const f of scripts) fs.writeFileSync(path.join(root, f), '// ' + f);
   start(t, { port, root, env: {
     DATA_DIR: data, SITE_MODE: 'cloud', WEBSITE_AUTH_ENABLED: 'True',

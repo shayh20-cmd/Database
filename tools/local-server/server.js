@@ -287,7 +287,7 @@ function principalFrom(req) {
 // serve-handler answers /page.html with a redirect to /page (cleanUrls), so both forms pass.
 // The two translation files the pages load are allowed by exact name; no other script is.
 const CLOUD_PAGE = /^\/[A-Za-z0-9_-]+(\.html)?$/;
-const CLOUD_ASSETS = new Set(['/i18n.js', '/i18n-dict.js', '/react-18.3.1.min.js', '/react-dom-18.3.1.min.js', '/supabase-js-2.112.4.min.js', '/register-link.js', '/register-link-ui.js', '/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png', '/icon-new-task-192.png', '/ProjectHub-Setup.cmd', '/qa-app.ico', '/qa-new-task.ico', '/claude-hub-skill.zip']);
+const CLOUD_ASSETS = new Set(['/i18n.js', '/i18n-dict.js', '/react-18.3.1.min.js', '/react-dom-18.3.1.min.js', '/supabase-js-2.112.4.min.js', '/register-link.js', '/register-link-ui.js', '/register-directory-ui.js', '/hub.webmanifest', '/hub-sw.js', '/icon-192.png', '/icon-512.png', '/icon-512-maskable.png', '/icon-new-task-192.png', '/ProjectHub-Setup.cmd', '/qa-app.ico', '/qa-new-task.ico', '/claude-hub-skill.zip']);
 // The install files of the Project Hub app (manifest, service worker, icons) hold no data, and the browser
 // fetches a manifest without cookies — so they are served before sign-in.
 // The quick-access installer downloads its two icons without a browser session, so those are public too.
