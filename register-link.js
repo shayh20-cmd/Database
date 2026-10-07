@@ -271,19 +271,23 @@
     'signed-out': 'החיבור למאגר פג — התחבר שוב',
     unreachable: 'המאגר לא עונה — השינוי לא נשמר',
   };
-  function writeErrorOf(answer) {
+  /* `format` puts the other person's value in words (a firm id → its name, codes → labels);
+     `who` names the record, since the line sits above a long table. */
+  function writeErrorOf(answer, format, who) {
     if (!answer || answer.state === 'ok') return null;
+    const named = o => Object.assign(o, { who: who || null });
     if (answer.state === 'changed') {
       const c = answer.current;
-      const value = Array.isArray(c) ? (c.length ? c.join(', ') : '—') : c == null || c === '' ? '—' : String(c);
-      return { text: WRITE_TEXT.changed, vars: { value }, detail: null };
+      const empty = c == null || c === '' || (Array.isArray(c) && !c.length);
+      const value = empty ? '—' : format ? format(c) : Array.isArray(c) ? c.join(', ') : String(c);
+      return named({ text: WRITE_TEXT.changed, vars: { value }, detail: null });
     }
     if (answer.state === 'rejected') {
-      if (answer.code === 'not_a_contact') return { text: WRITE_TEXT.not_a_contact, vars: null, detail: null };
+      if (answer.code === 'not_a_contact') return named({ text: WRITE_TEXT.not_a_contact, vars: null, detail: null });
       const text = answer.code === 'invalid_value' ? WRITE_TEXT.invalid_value : WRITE_TEXT.rejected;
-      return { text, vars: null, detail: answer.error || null };
+      return named({ text, vars: null, detail: answer.error || null });
     }
-    return { text: WRITE_TEXT[answer.state] || WRITE_TEXT.unreachable, vars: null, detail: null };
+    return named({ text: WRITE_TEXT[answer.state] || WRITE_TEXT.unreachable, vars: null, detail: null });
   }
 
   const RETURN_KEY = 'register-return';

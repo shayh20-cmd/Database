@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8"/>
+<title>register-directory harness</title>
+<!-- Browser checks for register-directory-ui.js (Settings → Consultants and Firms), run against a
+     stand-in register store — no network, nothing reaches the register. Open it through the local
+     server: http://localhost:3000/tests/register-directory-harness.html — the title reads
+     "PASS n/n" or "FAIL …", and the list below says which check failed. -->
+<style>
+:root{--bg:#F5F6F8;--surface:#fff;--surface-2:#FAFBFC;--border:#E8EAED;--text:#1E1F21;--text-2:#6D6E6F;--text-3:#6B7280;--accent:#2563EB}
+body{font-family:system-ui,sans-serif;background:var(--bg);margin:0}
+.st-main{height:420px;overflow-y:auto;border-bottom:2px solid #ccc}
+.st-table{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow-x:auto}
+.st-tr{display:grid;gap:12px;align-items:center;padding:9px 16px;border-top:1px solid var(--border)}
+#out{font:12px ui-monospace,monospace;padding:12px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div class="st-main" id="host"></div>
+<pre id="out">running…</pre>
+<script src="/react-18.3.1.min.js"></script>
+<script src="/react-dom-18.3.1.min.js"></script>
+<script src="/register-link.js"></script>
+<script>
+/* The stand-in for register-link-ui.js's store: the same members register-directory-ui.js uses. */
+window.H = (function () {
+  const listeners = new Set();
+  const H = { snap: null, calls: [], answer: null };
+  H.set = patch => { H.snap = Object.assign({}, H.snap, patch); listeners.forEach(l => l()); };
+  H.setData = fn => { const d = H.snap.directory; H.set({ directory: Object.assign({}, d, { data: fn(d.data) }) }); };
+  const subscribe = l => { listeners.add(l); return () => listeners.delete(l); };
+  window.RegisterLinkUI = {
+    useDirectory: () => React.useSyncExternalStore(subscribe, () => H.snap),
+    directoryStatus: s => ({ kind: 'ok', data: s.directory.data }),
+    DirectoryNotice: () => null,
+    hubLink: p => 'https://hub.example' + p,
+    retryMe: () => { H.calls.push(['retryMe']); },
+    write: (method, path, body, local) => {
+      H.calls.push([method, path, body, local]);
+      return Promise.resolve(H.answer ? H.answer(method, path, body, local) : { state: 'ok', data: null }).then(r => {
+        if (r.state === 'ok' && local) H.setData(d => RegisterLink.withEdit(d, local.list, local.id, local.patch));
+        return r;
+      });
+    },
+  };
+  return H;
+})();
+</script>
+<script src="/register-directory-ui.js"></script>
+<script>
+(async function () {
+  const RD = window.RegisterDirectoryUI;
+  const host = document.getElementById('host');
+  const tick = (ms = 40) => new Promise(r => setTimeout(r, ms));
+  const deferred = () => { let resolve; const p = new Promise(r => { resolve = r; }); return { p, resolve }; };
+  const setValue = (el, v) => {
+    const proto = el.tagName === 'SELECT' ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, v);
+    el.dispatchEvent(new Event(el.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
+  };
+  const key = (el, k) => el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
+  const blur = el => el.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+  const fresh = () => ({
+    tags: [
+      { typeCode: 'discipline', code: 'structural', nameEn: 'Structural', nameHe: 'קונסטרוקציה', sortOrder: 20 },
+      { typeCode: 'discipline', code: 'fire', nameEn: 'Fire safety', nameHe: 'כבאות', sortOrder: 80 },
+      { typeCode: 'kind', code: 'consultant', nameEn: 'Consultant', nameHe: 'יועץ', sortOrder: 10 }],
+    firms: [
+      { id: 'f1', name: 'Struct Ltd', nameHe: 'קונס', tags: { kind: ['consultant'], discipline: ['structural'] } },
+      { id: 'f2', name: 'Alpha Fire', nameHe: null, tags: { kind: ['consultant'], discipline: ['fire'] } }],
+    persons: [
+      { id: 'p1', name: 'Avi Levi', nameHe: 'אבי לוי', firmId: 'f1', mobile: '050-1234567', phone: null,
+        email: 'avraham.levi.longname@some-consulting-company.co.il', tags: { kind: ['consultant'], discipline: ['structural'] }, isContact: true, projectCount: 2 },
+      { id: 'p2', name: 'Beni', nameHe: null, firmId: 'f2', tags: { kind: ['consultant'] }, isContact: true, projectCount: 0 }],
+  });
+  let root = null;
+  const mount = (me = { state: 'ok', data: { role: 'editor' } }) => {
+    if (root) root.unmount();
+    H.calls = []; H.answer = null;
+    H.snap = { config: 'on', signedIn: true, directory: { state: 'ok', data: fresh() }, me, projects: {} };
+    root = ReactDOM.createRoot(host);
+    root.render(React.createElement(RD.ConsultantsSettings, { officeRole: 'editor', firmId: null, onClearFirm: () => {} }));
+    return tick();
+  };
+  const row = id => [...host.querySelectorAll('.st-tr.rd-c')].find(r => r.querySelector('a.rd-link') && r.querySelector('a.rd-link').href.endsWith('open=' + id));
+  const cell = (id, i) => row(id).querySelectorAll('.rd-cell')[i]; // 0 names, 1 firm, 2 disciplines, 3 mobile, 4 phone, 5 email
+  const writes = () => H.calls.filter(c => c[0] !== 'retryMe');
+
+  const checks = [];
+  const check = (name, fn) => checks.push({ name, fn });
+  const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
+
+  check('was is the value the person saw when editing began, even if a re-read lands meanwhile', async () => {
+    await mount();
+    cell('p1', 3).querySelector('.rd-edit').click(); await tick();
+    H.setData(d => RegisterLink.withEdit(d, 'persons', 'p1', { mobile: '050-9999999' })); await tick();
+    const input = cell('p1', 3).querySelector('input');
+    setValue(input, '052-1111111'); key(input, 'Enter'); await tick();
+    const w = writes();
+    assert(w.length === 1, 'one write, got ' + w.length);
+    assert(w[0][2].was === '050-1234567', 'was should be 050-1234567, got ' + w[0][2].was);
+  });
+
+  check('a save shows the new value at once, and a failure puts the old one back with a line that stays in view', async () => {
+    await mount();
+    const pending = deferred();
+    H.answer = () => pending.p;
+    cell('p1', 3).querySelector('.rd-edit').click(); await tick();
+    const input = cell('p1', 3).querySelector('input');
+    setValue(input, '052-2222222'); key(input, 'Enter'); await tick();
+    assert(cell('p1', 3).innerText.includes('052-2222222'), 'pending value not shown: ' + cell('p1', 3).innerText);
+    pending.resolve({ state: 'unreachable' }); await tick(80);
+    assert(cell('p1', 3).innerText.includes('050-1234567'), 'old value not back: ' + cell('p1', 3).innerText);
+    const line = host.querySelector('.np-err');
+    assert(line, 'no failure line');
+    assert(getComputedStyle(line).position === 'sticky', 'failure line is not sticky: ' + getComputedStyle(line).position);
+  });
+
+  check('the firm list saves on a mouse pick, but arrow keys only choose — the save waits for Enter or leaving', async () => {
+    await mount();
+    cell('p1', 1).querySelector('.rd-edit').click(); await tick();
+    let sel = cell('p1', 1).querySelector('select');
+    setValue(sel, 'f2'); await tick();
+    assert(writes().length === 0, 'a keyboard change saved at once');
+    blur(sel); await tick();
+    assert(writes().length === 1 && writes()[0][2].field === 'firmId' && writes()[0][2].value === 'f2', 'leaving did not save the chosen firm: ' + JSON.stringify(writes()));
+    cell('p1', 1).querySelector('.rd-edit').click(); await tick();
+    sel = cell('p1', 1).querySelector('select');
+    sel.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    setValue(sel, 'f1'); await tick();
+    assert(writes().length === 2 && writes()[1][2].value === 'f1', 'a mouse pick did not save: ' + JSON.stringify(writes()));
+  });
+
+  check('in Hebrew a consultant with no Hebrew name shows the other name on top, not a dash', async () => {
+    await mount();
+    const top = cell('p2', 0).querySelector('.rd-val');
+    assert(top.innerText.trim() === 'Beni', 'top line is "' + top.innerText.trim() + '"');
+  });
+
+  check('when the register cannot say who this is, a line says so and offers to ask again', async () => {
+    await mount({ state: 'unreachable', at: Date.now() });
+    const note = [...host.querySelectorAll('.fl-note')].find(n => n.querySelector('button'));
+    assert(note, 'no line with a retry button');
+    note.querySelector('button').click(); await tick();
+    assert(H.calls.some(c => c[0] === 'retryMe'), 'retry did not ask again');
+  });
+
+  check('a cut-off value can be read whole on hover', async () => {
+    await mount();
+    const val = cell('p1', 5).querySelector('.rd-val');
+    assert(val.title === 'avraham.levi.longname@some-consulting-company.co.il', 'title is "' + val.title + '"');
+  });
+
+  check('the disciplines checklist opens outside the table, so the table cannot clip it', async () => {
+    await mount();
+    cell('p1', 2).querySelector('.rd-edit').click(); await tick();
+    const pop = document.querySelector('.rd-pop');
+    assert(pop, 'no checklist');
+    assert(!pop.closest('.st-table'), 'checklist is inside the table');
+    assert(getComputedStyle(pop).position === 'fixed', 'checklist is ' + getComputedStyle(pop).position);
+    [...pop.querySelectorAll('button')].find(b => b.innerText === 'ביטול').click(); await tick();
+  });
+
+  check('changed meanwhile names the consultant and shows the other firm by name, not its id', async () => {
+    await mount();
+    H.answer = () => ({ state: 'changed', current: 'f2' });
+    cell('p1', 1).querySelector('.rd-edit').click(); await tick();
+    const sel = cell('p1', 1).querySelector('select');
+    sel.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    setValue(sel, ''); await tick(80);
+    const line = host.querySelector('.np-err');
+    assert(line, 'no line');
+    assert(line.innerText.includes('Alpha Fire') && !line.innerText.includes('f2'), 'line: ' + line.innerText);
+    assert(line.innerText.includes('אבי לוי'), 'consultant not named: ' + line.innerText);
+  });
+
+  const results = [];
+  for (const c of checks) {
+    try { await c.fn(); results.push('PASS  ' + c.name); } catch (e) { results.push('FAIL  ' + c.name + '\n      ' + e.message); }
+  }
+  if (root) root.unmount();
+  const failed = results.filter(r => r.startsWith('FAIL')).length;
+  document.title = failed ? 'FAIL ' + failed + '/' + results.length : 'PASS ' + results.length + '/' + results.length;
+  document.getElementById('out').textContent = results.join('\n');
+  window.__results = results;
+})();
+</script>
+</body>
+</html>

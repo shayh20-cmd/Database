@@ -502,3 +502,16 @@ test('writeErrorOf: a sentence per failure, with the other person\'s value for c
     assert.ok(e && /[֐-׿]/.test(e.text) && e.detail === null, state);
   }
 });
+
+test('writeErrorOf: a formatter puts the other person\'s value in words, and the record is named', () => {
+  const firmName = id => ({ f1: 'Struct Ltd' })[id] || '?';
+  const e = RL.writeErrorOf({ state: 'changed', current: 'f1' }, firmName, 'Avi Levi');
+  assert.deepStrictEqual(e.vars, { value: 'Struct Ltd' }, 'a firm id becomes its name');
+  assert.strictEqual(e.who, 'Avi Levi');
+  const labels = codes => codes.map(c => ({ fire: 'כבאות', hvac: 'מיזוג' })[c]).join(', ');
+  assert.deepStrictEqual(RL.writeErrorOf({ state: 'changed', current: ['fire', 'hvac'] }, labels).vars, { value: 'כבאות, מיזוג' }, 'codes become labels');
+  assert.deepStrictEqual(RL.writeErrorOf({ state: 'changed', current: null }, firmName).vars, { value: '—' }, 'cleared meanwhile');
+  assert.deepStrictEqual(RL.writeErrorOf({ state: 'changed', current: [] }, labels).vars, { value: '—' }, 'all cleared meanwhile');
+  assert.strictEqual(RL.writeErrorOf({ state: 'unreachable' }, null, 'Avi').who, 'Avi', 'every failure names the record');
+  assert.strictEqual(RL.writeErrorOf({ state: 'unreachable' }).who, null);
+});

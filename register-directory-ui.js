@@ -27,7 +27,9 @@
     '.rd-link{color:var(--text-3);text-decoration:none;font-size:14px}',
     '.rd-link:hover{color:var(--accent)}',
     '.rd-pick{position:relative}',
-    '.rd-pop{position:absolute;inset-inline-start:0;top:100%;z-index:50;margin-top:4px;width:240px;max-height:300px;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.16);padding:6px}',
+    '.rd-pop{position:fixed;z-index:10000;width:240px;max-height:300px;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.16);padding:6px}',
+    '.rd-msg{position:sticky;top:0;z-index:6}',
+    '.rd-pending{opacity:.6}',
     '.rd-pop label{display:flex;align-items:center;gap:6px;padding:4px 6px;font-size:12.5px;border-radius:5px;cursor:pointer;color:var(--text)}',
     '.rd-pop label:hover{background:var(--bg)}',
     '.rd-pop-h{font-size:10.5px;font-weight:700;color:var(--text-3);padding:6px 6px 2px}',
@@ -58,25 +60,49 @@
   // Register data: names, numbers, discipline names. The page's translator leaves it alone.
   const SKIP = { 'data-i18n-skip': '' };
   // Register data inside a translated sentence: in English, isolate marks keep the translator off it.
-  const asData = v => (curLang() === 'en' ? '⁨' + v + '⁩' : v);
+  const ISO = [String.fromCharCode(0x2068), String.fromCharCode(0x2069)];
+  const asData = v => (curLang() === 'en' ? ISO[0] + v + ISO[1] : v);
   const EMPTY = { persons: [], firms: [], tags: [] };
   const FIELD_LABEL = { mobile: 'נייד', phone: 'טלפון', email: 'מייל', address: 'כתובת המשרד' };
   const dash = v => (v == null || v === '' ? '—' : v);
 
   /* ── cells ── */
 
+  /* A save in flight: the new value shows at once, and the cell goes back to the register's value
+     when the answer comes — a success has patched the store by then, a failure has said why. */
+  function usePending() {
+    const [pending, setPending] = useState(undefined);
+    const live = useRef(true);
+    useEffect(() => () => { live.current = false; }, []);
+    const track = (next, save) => {
+      setPending(next);
+      Promise.resolve(save()).finally(() => { if (live.current) setPending(undefined); });
+    };
+    return [pending, track];
+  }
+
   /* Turns into an input on click (spec §3): Enter or leaving the field saves, Escape cancels, an
-     unchanged value sends nothing, a required field left blank is put back. `onSave` gets the
-     trimmed text or null. The value sits in a <bdi>, so a phone number keeps its order in Hebrew. */
+     unchanged value sends nothing, a required field left blank is put back. `onSave(value, was)`
+     gets the trimmed text or null, and what the cell showed when editing began — a re-read that
+     lands meanwhile must not move `was`. The value sits in a <bdi>, so a phone number keeps its
+     order in Hebrew, and the whole value is the tooltip, for when the cell cuts it off. */
   function EditableText({ value, canEdit, onSave, required, label, dir }) {
     const [draft, setDraft] = useState(null);
+    const [pending, track] = usePending();
     const done = useRef(false);
-    const shown = h('bdi', Object.assign({ dir: dir || 'auto' }, SKIP), dash(value));
-    if (!canEdit) return h('span', { className: 'rd-val' }, shown);
+    const seen = useRef(null);
+    const current = pending !== undefined ? pending : value;
+    const shown = h('bdi', Object.assign({ dir: dir || 'auto' }, SKIP), dash(current));
+    if (!canEdit) return h('span', { className: 'rd-val', title: current ? String(current) : undefined }, shown);
     if (draft === null) {
-      const start = () => { done.current = false; setDraft(value || ''); };
+      const start = () => {
+        done.current = false;
+        seen.current = current == null || current === '' ? null : current;
+        setDraft(current || '');
+      };
       return h('span', {
-        className: 'rd-val rd-edit' + (value ? '' : ' rd-muted'), role: 'button', tabIndex: 0, title: label,
+        className: 'rd-val rd-edit' + (current ? '' : ' rd-muted') + (pending !== undefined ? ' rd-pending' : ''),
+        role: 'button', tabIndex: 0, title: current ? String(current) : label,
         onClick: start, onKeyDown: e => { if (e.key === 'Enter') start(); },
       }, shown);
     }
@@ -84,9 +110,10 @@
       if (done.current) return;
       done.current = true;
       const next = RL.blank(draft);
+      const was = seen.current;
       setDraft(null);
-      if (next === RL.blank(value) || (required && next === null)) return;
-      onSave(next);
+      if (next === RL.blank(was) || (required && next === null)) return;
+      track(next, () => onSave(next, was));
     };
     return h('input', {
       className: 'rd-input', autoFocus: true, value: draft, dir: dir || 'auto', 'aria-label': label,
@@ -98,43 +125,94 @@
     });
   }
 
-  /* The firm as text until clicked, like the other cells: a list per row would put every firm
-     in the register into every row (500 rows × 500 firms). `inline` keeps the list open, for the
-     new-consultant form. */
+  /* The firm as text until clicked, like the other cells: a list per row would put every firm in
+     the register into every row (500 rows × 500 firms). A mouse pick saves at once; arrow keys only
+     choose — on Windows a closed list changes on every arrow press — and the choice is saved with
+     Enter or on leaving the list. `inline` is an always-open list for the new-consultant form,
+     whose choice is the form's own until Create. */
   function FirmSelect({ value, choices, canEdit, onSave, label, inline }) {
     const [open, setOpen] = useState(false);
-    const current = choices.find(c => c.id === value);
+    const [chosen, setChosen] = useState(null); // a keyboard choice waiting for Enter or leaving
+    const [pending, track] = usePending();
+    const seen = useRef(null);
+    const byMouse = useRef(false);
+    const done = useRef(false);
+    const currentId = pending !== undefined ? pending : value;
+    const current = choices.find(c => c.id === currentId);
     const text = h('bdi', SKIP, current ? current.label : '—');
-    if (!canEdit) return h('span', { className: 'rd-val' }, text);
-    if (!open && !inline) {
+    if (!canEdit) return h('span', { className: 'rd-val', title: current ? current.label : undefined }, text);
+    const options = [h('option', { key: '', value: '' }, 'ללא משרד')]
+      .concat(choices.map(c => h('option', Object.assign({ key: c.id, value: c.id }, SKIP), c.label)));
+    if (inline) {
+      return h('select', { className: 'rd-select', value: value || '', 'aria-label': label, onChange: e => onSave(e.target.value || null) }, options);
+    }
+    if (!open) {
+      const start = () => { seen.current = currentId || null; done.current = false; byMouse.current = false; setChosen(null); setOpen(true); };
       return h('span', {
-        className: 'rd-val rd-edit' + (current ? '' : ' rd-muted'), role: 'button', tabIndex: 0, title: label,
-        onClick: () => setOpen(true), onKeyDown: e => { if (e.key === 'Enter') setOpen(true); },
+        className: 'rd-val rd-edit' + (current ? '' : ' rd-muted') + (pending !== undefined ? ' rd-pending' : ''),
+        role: 'button', tabIndex: 0, title: current ? current.label : label,
+        onClick: start, onKeyDown: e => { if (e.key === 'Enter') start(); },
       }, text);
     }
+    const finish = next => {
+      if (done.current) return;
+      done.current = true;
+      const was = seen.current;
+      setOpen(false);
+      setChosen(null);
+      if (next !== was) track(next, () => onSave(next, was));
+    };
+    const cancel = () => { done.current = true; setOpen(false); setChosen(null); };
     return h('select', {
-      className: 'rd-select', value: value || '', 'aria-label': label, autoFocus: !inline,
-      onBlur: () => setOpen(false),
-      onKeyDown: e => { if (e.key === 'Escape') setOpen(false); },
-      onChange: e => { const next = e.target.value || null; setOpen(false); if (next !== (value || null)) onSave(next); },
-    },
-    h('option', { value: '' }, 'ללא משרד'),
-    choices.map(c => h('option', Object.assign({ key: c.id, value: c.id }, SKIP), c.label)));
+      className: 'rd-select', autoFocus: true, value: chosen !== null ? chosen : seen.current || '', 'aria-label': label,
+      onMouseDown: () => { byMouse.current = true; },
+      onChange: e => { const v = e.target.value; if (byMouse.current) finish(v || null); else setChosen(v); },
+      onKeyDown: e => {
+        if (e.key === 'Enter') { e.preventDefault(); finish((chosen !== null ? chosen : seen.current || '') || null); return; }
+        if (e.key === 'Escape') { cancel(); return; }
+        byMouse.current = false;
+      },
+      onBlur: () => { if (chosen !== null) finish(chosen || null); else cancel(); },
+    }, options);
   }
 
-  /* The disciplines checklist (spec §3): the firm's first, then the rest; saved with Save. */
+  /* The disciplines checklist (spec §3): the firm's first, then the rest; saved with Save. It opens
+     in a layer of its own, fixed under the cell, so the table's scrolling cannot clip it; scrolling
+     the page closes it. */
   function DisciplinePicker({ codes, choices, canEdit, onSave, label }) {
     const [picked, setPicked] = useState(null); // the codes being picked; null while closed
+    const [pos, setPos] = useState(null);
+    const [pending, track] = usePending();
+    const seen = useRef([]);
+    const anchor = useRef(null);
+    const pop = useRef(null);
+    const isOpen = !!picked;
+    useEffect(() => {
+      if (!isOpen) return undefined;
+      const onScroll = e => { if (!pop.current || !pop.current.contains(e.target)) setPicked(null); };
+      window.addEventListener('scroll', onScroll, true);
+      return () => window.removeEventListener('scroll', onScroll, true);
+    }, [isOpen]);
+    const currentCodes = pending !== undefined ? pending : codes;
     const byCode = new Map(choices.map(c => [c.code, c.label]));
-    const shown = codes.length ? codes.map(c => byCode.get(c) || c).join(', ') : '—';
+    const shown = currentCodes.length ? currentCodes.map(c => byCode.get(c) || c).join(', ') : '—';
     const text = h('bdi', SKIP, shown);
-    if (!canEdit) return h('span', { className: 'rd-val' }, text);
-    const open = () => setPicked(codes.slice());
+    if (!canEdit) return h('span', { className: 'rd-val', title: currentCodes.length ? shown : undefined }, text);
+    const open = () => {
+      const r = anchor.current.getBoundingClientRect();
+      const top = r.bottom + 304 > window.innerHeight ? Math.max(8, r.top - 304) : r.bottom + 4;
+      setPos(document.documentElement.dir === 'rtl'
+        ? { top, right: Math.max(8, window.innerWidth - r.right) }
+        : { top, left: Math.max(8, r.left) });
+      seen.current = currentCodes.slice();
+      setPicked(currentCodes.slice());
+    };
     const toggle = code => setPicked(p => (p.includes(code) ? p.filter(c => c !== code) : p.concat([code])));
     const save = () => {
       const next = choices.map(c => c.code).filter(c => picked.includes(c)).concat(picked.filter(c => !byCode.has(c)));
+      const was = seen.current;
       setPicked(null);
-      if (next.length !== codes.length || next.some(c => !codes.includes(c))) onSave(next);
+      if (next.length !== was.length || next.some(c => !was.includes(c))) track(next, () => onSave(next, was));
     };
     const group = (title, list) => (list.length
       ? [h('div', { key: 'h:' + title, className: 'rd-pop-h' }, title)].concat(list.map(c => h('label', { key: c.code },
@@ -144,41 +222,50 @@
     const firmFirst = choices.some(c => c.ofFirm);
     return h('div', { className: 'rd-pick' },
       h('span', {
-        className: 'rd-val rd-edit' + (codes.length ? '' : ' rd-muted'), role: 'button', tabIndex: 0, title: label,
+        ref: anchor, className: 'rd-val rd-edit' + (currentCodes.length ? '' : ' rd-muted') + (pending !== undefined ? ' rd-pending' : ''),
+        role: 'button', tabIndex: 0, title: currentCodes.length ? shown : label,
         onClick: () => (picked ? setPicked(null) : open()), onKeyDown: e => { if (e.key === 'Enter') open(); },
       }, text),
-      picked && h('div', {
-        className: 'rd-pop', role: 'dialog', 'aria-label': label,
+      picked && ReactDOM.createPortal(h('div', {
+        ref: pop, className: 'rd-pop', role: 'dialog', 'aria-label': label, style: pos || undefined,
         onKeyDown: e => { if (e.key === 'Escape') setPicked(null); },
       },
       group('תחומי המשרד', choices.filter(c => c.ofFirm)),
       group(firmFirst ? 'שאר התחומים' : 'תחומים', choices.filter(c => !c.ofFirm)),
       h('div', { className: 'rd-pop-foot' },
         h('button', { type: 'button', className: 'rl-btn', onClick: () => setPicked(null) }, 'ביטול'),
-        h('button', { type: 'button', className: 'rl-btn', onClick: save }, 'שמירה'))));
+        h('button', { type: 'button', className: 'rl-btn', onClick: save }, 'שמירה'))), document.body));
   }
 
   /* ── shared by both sections ── */
   const canEditOf = (s, officeRole) => !!(s.me && s.me.state === 'ok' && RL.canEditRegister(s.me.data.role, officeRole));
 
+  // `describe` — { who, format } — names the record and puts the other person's value in words.
   function useEditor() {
     const [msg, setMsg] = useState(null);
-    const run = (method, path, body, local) => UI.write(method, path, body, local).then(r => {
-      setMsg(RL.writeErrorOf(r));
+    const run = (method, path, body, local, describe) => UI.write(method, path, body, local).then(r => {
+      setMsg(RL.writeErrorOf(r, describe && describe.format, describe && describe.who));
       return r;
     });
     return { msg, run };
   }
 
+  // Sticky at the top of the scrolling page: a failed save far down a 500-row list stays in view.
   function Message({ msg }) {
     if (!msg) return null;
     const vars = msg.vars ? Object.fromEntries(Object.entries(msg.vars).map(([k, v]) => [k, asData(v)])) : null;
-    return h('div', { className: 'np-err pj-err', role: 'alert' }, t(msg.text, vars),
+    return h('div', { className: 'np-err pj-err rd-msg', role: 'alert' },
+      msg.who ? h('b', SKIP, msg.who + ' — ') : null,
+      t(msg.text, vars),
       msg.detail ? h('span', SKIP, ' — ' + msg.detail) : null);
   }
 
-  // Why the tables have no inputs — once the register has said who this is.
+  // Why the tables have no inputs — once the register has said who this is, or failed to.
   function ReadOnlyLine({ s, officeRole }) {
+    if (s.me && s.me.state !== 'ok') {
+      return h('div', { className: 'fl-note' }, 'לא ניתן לקרוא מהמאגר את הרשאות העריכה', ' ',
+        h('button', { type: 'button', className: 'rl-btn', onClick: () => { if (UI.retryMe) UI.retryMe(); } }, 'נסה שוב'));
+    }
     const me = s.me && s.me.state === 'ok' ? s.me.data : null;
     if (!me) return null;
     if (officeRole === 'viewer') return h('div', { className: 'fl-note' }, 'צפייה בלבד — ברמת Viewer אין הרשאת עריכה');
@@ -194,25 +281,32 @@
     return href ? h('a', { className: 'rd-link', href, target: '_blank', rel: 'noopener', title: 'פתיחה ב-KK Hub', 'aria-label': 'פתיחה ב-KK Hub' }, '↗') : null;
   };
 
+  // A discipline list as the page's language names it, for the changed-meanwhile line.
+  const labelsFor = choices => codes => codes.map(c => (choices.find(x => x.code === c) || {}).label || c).join(', ');
+
   /* ── Consultants ── */
   function ConsultantRow({ p, d, lang, firmById, baseFirmChoices, canEdit, run }) {
     const editable = RL.editablePerson(p, canEdit);
     const firm = p.firmId ? firmById.get(p.firmId) : null;
-    const patch = field => value => run('PATCH', '/api/contacts/' + p.id,
-      { field, value, was: p[field] == null ? null : p[field] },
-      { list: 'persons', id: p.id, patch: { [field]: value } });
-    const saveFirm = id => {
+    const who = RL.nameIn(p, lang);
+    const firmName = id => { const f = id ? firmById.get(id) : null; return f ? RL.nameIn(f, lang) : '—'; };
+    const patch = field => (value, was) => run('PATCH', '/api/contacts/' + p.id, { field, value, was },
+      { list: 'persons', id: p.id, patch: { [field]: value } }, { who });
+    const saveFirm = (id, was) => {
       const f = id ? firmById.get(id) : null;
-      run('PATCH', '/api/contacts/' + p.id, { field: 'firmId', value: id, was: p.firmId || null },
-        { list: 'persons', id: p.id, patch: { firmId: id, firmName: f ? f.name : null } });
+      return run('PATCH', '/api/contacts/' + p.id, { field: 'firmId', value: id, was },
+        { list: 'persons', id: p.id, patch: { firmId: id, firmName: f ? f.name : null } }, { who, format: firmName });
     };
     const codes = (p.tags && p.tags.discipline) || [];
-    const saveDisciplines = next => run('PUT', '/api/persons/' + p.id + '/tags/discipline', { codes: next, was: codes },
-      { list: 'persons', id: p.id, patch: { tags: Object.assign({}, p.tags, { discipline: next }) } });
+    const discChoices = RL.disciplineChoices(d.tags, firm, lang);
+    const saveDisciplines = (next, was) => run('PUT', '/api/persons/' + p.id + '/tags/discipline', { codes: next, was },
+      { list: 'persons', id: p.id, patch: { tags: Object.assign({}, p.tags, { discipline: next }) } }, { who, format: labelsFor(discChoices) });
     const firmChoices = p.firmId && !baseFirmChoices.some(c => c.id === p.firmId)
       ? RL.firmChoices(d.firms, p.firmId, lang) : baseFirmChoices;
-    // The page's language's name on top, the other beneath; both editable.
-    const names = lang === 'en' ? [['name', 'שם באנגלית'], ['nameHe', 'שם בעברית']] : [['nameHe', 'שם בעברית'], ['name', 'שם באנגלית']];
+    // The page's language's name on top, the other beneath; both editable. Hebrew shows nameHe ||
+    // name (spec §4): with no Hebrew name the English one goes on top, and the empty line beneath.
+    const heFirst = [['nameHe', 'שם בעברית'], ['name', 'שם באנגלית']];
+    const names = lang === 'en' || !p.nameHe ? heFirst.slice().reverse() : heFirst;
     const nameCell = ([field, label]) => h(EditableText, { value: p[field], label, canEdit: editable, required: field === 'name', onSave: patch(field) });
     return h('div', { className: 'st-tr rd-c', role: 'row' },
       h('span', { className: 'rd-cell', role: 'cell' },
@@ -222,7 +316,7 @@
       h('span', { className: 'rd-cell', role: 'cell' },
         h(FirmSelect, { value: p.firmId, choices: firmChoices, canEdit: editable, onSave: saveFirm, label: 'משרד היועץ' })),
       h('span', { className: 'rd-cell', role: 'cell' },
-        h(DisciplinePicker, { codes, choices: RL.disciplineChoices(d.tags, firm, lang), canEdit: editable, onSave: saveDisciplines, label: 'תחומים' })),
+        h(DisciplinePicker, { codes, choices: discChoices, canEdit: editable, onSave: saveDisciplines, label: 'תחומים' })),
       ['mobile', 'phone', 'email'].map(field => h('span', { key: field, className: 'rd-cell', role: 'cell' },
         h(EditableText, { value: p[field], label: FIELD_LABEL[field], canEdit: editable, onSave: patch(field), dir: 'ltr' }))),
       h('span', { className: 'rd-cell rd-muted', role: 'cell' }, String(p.projectCount || 0)),
@@ -237,12 +331,12 @@
     const create = () => {
       if (!RL.blank(f.name) || busy) return;
       setBusy(true);
-      run('POST', '/api/contacts', RL.newContactBody(f)).then(r => {
+      run('POST', '/api/contacts', RL.newContactBody(f), null, { who: RL.blank(f.name) }).then(r => {
         if (r.state !== 'ok') { setBusy(false); return; }
         // POST /api/contacts takes no Hebrew name: it follows as an edit of the new contact.
         const id = r.data && r.data.id;
         const he = RL.blank(f.nameHe);
-        (id && he ? run('PATCH', '/api/contacts/' + id, { field: 'nameHe', value: he, was: null }) : Promise.resolve()).then(onDone);
+        (id && he ? run('PATCH', '/api/contacts/' + id, { field: 'nameHe', value: he, was: null }, null, { who: RL.blank(f.name) }) : Promise.resolve()).then(onDone);
       });
     };
     const input = (key, label, extra) => h('label', null, label,
@@ -299,12 +393,13 @@
 
   /* ── Firms ── */
   function FirmRow({ f, d, lang, canEdit, run, onShowFirm }) {
-    const patch = field => value => run('PATCH', '/api/firms/' + f.id,
-      { field, value, was: f[field] == null ? null : f[field] },
-      { list: 'firms', id: f.id, patch: { [field]: value } });
+    const who = RL.nameIn(f, lang);
+    const patch = field => (value, was) => run('PATCH', '/api/firms/' + f.id, { field, value, was },
+      { list: 'firms', id: f.id, patch: { [field]: value } }, { who });
     const codes = (f.tags && f.tags.discipline) || [];
-    const saveDisciplines = next => run('PUT', '/api/firms/' + f.id + '/tags/discipline', { codes: next, was: codes },
-      { list: 'firms', id: f.id, patch: { tags: Object.assign({}, f.tags, { discipline: next }) } });
+    const discChoices = RL.disciplineChoices(d.tags, null, lang);
+    const saveDisciplines = (next, was) => run('PUT', '/api/firms/' + f.id + '/tags/discipline', { codes: next, was },
+      { list: 'firms', id: f.id, patch: { tags: Object.assign({}, f.tags, { discipline: next }) } }, { who, format: labelsFor(discChoices) });
     const count = RL.firmConsultantCount(f.id, d.persons);
     return h('div', { className: 'st-tr rd-f', role: 'row' },
       h('span', { className: 'rd-cell', role: 'cell' },
@@ -312,7 +407,7 @@
         h(EditableText, { value: f.name, label: 'שם באנגלית', canEdit, required: true, onSave: patch('name') }),
         f.nameHe ? h('span', { className: 'rd-sub' }, h('bdi', SKIP, f.nameHe)) : null),
       h('span', { className: 'rd-cell', role: 'cell' },
-        h(DisciplinePicker, { codes, choices: RL.disciplineChoices(d.tags, null, lang), canEdit, onSave: saveDisciplines, label: 'תחומים' })),
+        h(DisciplinePicker, { codes, choices: discChoices, canEdit, onSave: saveDisciplines, label: 'תחומים' })),
       ['phone', 'email', 'address'].map(field => h('span', { key: field, className: 'rd-cell', role: 'cell' },
         h(EditableText, { value: f[field], label: FIELD_LABEL[field], canEdit, onSave: patch(field), dir: field === 'address' ? 'auto' : 'ltr' }))),
       h('span', { role: 'cell' },
@@ -326,7 +421,7 @@
     const create = () => {
       if (!RL.blank(f.name) || busy) return;
       setBusy(true);
-      run('POST', '/api/firms', RL.newFirmBody(f)).then(r => { if (r.state === 'ok') onDone(); else setBusy(false); });
+      run('POST', '/api/firms', RL.newFirmBody(f), null, { who: RL.blank(f.name) }).then(r => { if (r.state === 'ok') onDone(); else setBusy(false); });
     };
     return h('div', { className: 'rd-form', role: 'group', 'aria-label': 'משרד חדש' },
       h('label', null, 'שם באנגלית',

@@ -40,6 +40,8 @@ test('Settings → Consultants in English', () => {
     'פתיחה ב-KK Hub': 'Open in KK Hub',
     'צפייה בלבד — עריכת המאגר דורשת הרשאת Editor במאגר': 'View only — editing the register needs the Editor role in the register',
     'המאגר לא זמין באתר הזה': 'The register isn\'t available on this site',
+    'לא ניתן לקרוא מהמאגר את הרשאות העריכה': 'Couldn\'t read your editing permissions from the register',
+    'נסה שוב': 'Try again',
   });
 });
 

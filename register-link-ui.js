@@ -99,6 +99,7 @@
     window.addEventListener('focus', () => {
       if (snap.config !== 'on' || !snap.signedIn) return;
       if (stale(snap.directory)) loadDirectory();
+      if (snap.me && snap.me.state !== 'ok') loadMe();
       Object.keys(snap.projects).forEach(id => { if (stale(snap.projects[id])) loadProject(id); });
     });
   }
@@ -300,9 +301,13 @@
 
   const hubLink = path => (hubUrl ? hubUrl + path : null);
 
+  // A failed /api/me is forgotten, so useDirectory asks again (a cold start must not leave
+  // Settings read-only until a reload).
+  const retryMe = () => { if (snap.me && snap.me.state !== 'ok') set({ me: null }); };
+
   window.RegisterLinkUI = {
     useConsultantRows, FactsCard, ConsultantsNotice, EditInHub, AutoLink,
-    useDirectory, directoryStatus, DirectoryNotice, write, hubLink,
+    useDirectory, directoryStatus, DirectoryNotice, write, hubLink, retryMe,
   };
   boot();
 })();

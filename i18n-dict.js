@@ -2469,6 +2469,7 @@ Object.assign(HE_EN, {
 "החיבור למאגר פג — התחבר שוב": "The register sign-in has expired — sign in again",
 "המאגר לא עונה — השינוי לא נשמר": "The register isn't answering — the change wasn't saved",
 "המאגר לא זמין באתר הזה": "The register isn't available on this site",
+"לא ניתן לקרוא מהמאגר את הרשאות העריכה": "Couldn't read your editing permissions from the register",
 "משרדי יועצים": "Firms",
 "{n} משרדי יועצים במאגר": "{n} firms in the register",
 "חיפוש לפי שם, תחום, טלפון, מייל או כתובת": "Search by name, discipline, phone, email or address",

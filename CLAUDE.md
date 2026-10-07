@@ -141,6 +141,11 @@ python -m unittest tools/spec-seed/test_reference.py tools/spec-seed/test_parser
 Run one file with `node --test tests/merge.test.js`, or one test with
 `--test-name-pattern="<name>"`.
 
+Settings → Consultants and Firms (`register-directory-ui.js`) have browser checks against a
+stand-in register store: with the local server running, open
+`/tests/register-directory-harness.html`; the tab title reads `PASS n/n` or `FAIL …`. Nothing
+reaches the register.
+
 Most files in `tests/` are **mirrors**: they copy pure functions out of
 `project_hub_01.html` or `capture.html` (marked `MIRROR … keep in sync`) because the HTML
 can't be `require`d. When you change one of those functions in the page, update its copy in
