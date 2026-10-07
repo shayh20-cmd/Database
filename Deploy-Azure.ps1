@@ -346,7 +346,7 @@ $zip = "$stage.zip"
 try {
     Step "Packaging..."
     New-Item -ItemType Directory -Path (Join-Path $stage "tools/local-server") -Force | Out-Null
-    foreach ($f in "project_hub_01.html", "login.html", "i18n.js", "i18n-dict.js", "react-18.3.1.min.js", "react-dom-18.3.1.min.js", "supabase-js-2.112.4.min.js", "register-link.js", "register-link-ui.js", "hub.webmanifest", "hub-sw.js", "icon-192.png", "icon-512.png", "icon-512-maskable.png", "icon-new-task-192.png") {
+    foreach ($f in "project_hub_01.html", "login.html", "i18n.js", "i18n-dict.js", "react-18.3.1.min.js", "react-dom-18.3.1.min.js", "supabase-js-2.112.4.min.js", "register-link.js", "register-link-ui.js", "register-directory-ui.js", "hub.webmanifest", "hub-sw.js", "icon-192.png", "icon-512.png", "icon-512-maskable.png", "icon-new-task-192.png") {
         Copy-Item (Join-Path $root $f) $stage
     }
     # the quick-access installer and its icons, at the site's root under the names it downloads them by

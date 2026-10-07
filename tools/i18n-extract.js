@@ -13,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 
 const HEBREW = /[֐-׿]/;
-const FILES = ['home_dashboard.html', 'planning_dashboard.html', 'project_hub.html', 'project_hub_01.html', 'register-link.js', 'register-link-ui.js'];
+const FILES = ['home_dashboard.html', 'planning_dashboard.html', 'project_hub.html', 'project_hub_01.html', 'register-link.js', 'register-link-ui.js', 'register-directory-ui.js'];
 // Strings deliberately absent from the dictionary (seed data, dev-only, single letters).
 const IGNORE = new Set((() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'i18n-ignore.json'), 'utf8')); } catch { return []; } })());
 const DICT = 'i18n-dict.js';

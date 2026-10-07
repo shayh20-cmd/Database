@@ -89,7 +89,7 @@ disables the site (and its logs) until the hour turns.
 
 The page reads a project's details and its consultants from the register — KKarcDB's
 database on Supabase — through KKarcDB.Api, signed in to Supabase with Microsoft in the
-browser. Read-only: nothing is written to the register from here. Design:
+browser. Projects are read-only from here; Settings → Consultants and Firms edit the register's consultants and firms, for people whose register role is editor, manager or admin. Design:
 `docs/superpowers/specs/2026-10-04-register-link-design.md`.
 
 Four app settings, all public values (`KK_SUPABASE_URL` and `KK_SUPABASE_ANON_KEY` are the

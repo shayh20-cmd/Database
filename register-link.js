@@ -1,4 +1,5 @@
-/* Project Hub ↔ the register (KKarcDB on Supabase), read-only.
+/* Project Hub ↔ the register (KKarcDB on Supabase). Reads projects, people, firms and tags; writes
+   consultants and firms only (docs/superpowers/specs/2026-10-07-settings-consultants-firms-design.md).
    Spec: docs/superpowers/specs/2026-10-04-register-link-design.md.
    Pure functions first — tests/register-link.test.js requires this file under Node. The client
    at the end needs supabase-js and, for the sign-in round trip, a browser. */
@@ -154,12 +155,147 @@
     return { state: answer.state, subject: answer.subject, at: now };
   }
 
+  /* ── Settings: the register's consultants and firms (2026-10-07 design §2) ── */
+  const tagsOf = (x, type) => ((x && x.tags) || {})[type] || [];
+  const locale = lang => (lang === 'en' ? 'en' : 'he');
+
+  /* A person or a firm the register calls a consultant. */
+  const isConsultant = x => tagsOf(x, 'kind').includes('consultant');
+  const consultantFirms = firms => (firms || []).filter(isConsultant);
+
+  /* The name for the page's language, the other one when that is missing. */
+  function nameIn(x, lang) {
+    const v = lang === 'en' ? x && (x.name || x.nameHe) : x && (x.nameHe || x.name);
+    return String(v || '').trim();
+  }
+
+  function tagLabel(tag, lang) {
+    return (lang === 'en' ? tag.nameEn || tag.nameHe : tag.nameHe || tag.nameEn) || tag.code;
+  }
+
+  const EDIT_ROLES = ['editor', 'manager', 'admin'];
+  function canEditRegister(role, officeRole) {
+    return EDIT_ROLES.includes(role) && officeRole !== 'viewer';
+  }
+
+  /* A register user is not a contact: the API edits users only on its admin pages. */
+  function editablePerson(person, canEdit) {
+    return !!canEdit && !!person && person.isContact !== false;
+  }
+
+  /* The discipline checklist: the firm's disciplines first, then the rest, each part in the
+     register's order. */
+  function disciplineChoices(tags, firm, lang) {
+    const mine = new Set(tagsOf(firm, 'discipline'));
+    const all = (tags || []).filter(t => t.typeCode === 'discipline').slice()
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || String(a.code).localeCompare(String(b.code)));
+    const choice = t => ({ code: t.code, label: tagLabel(t, lang), ofFirm: mine.has(t.code) });
+    return all.filter(t => mine.has(t.code)).concat(all.filter(t => !mine.has(t.code))).map(choice);
+  }
+
+  /* The firm list's choices: the consultant firms, and the current firm when it is not one, so
+     the list can always hold the value it shows. */
+  function firmChoices(firms, currentFirmId, lang) {
+    const list = consultantFirms(firms);
+    const current = currentFirmId && !list.some(f => f.id === currentFirmId)
+      ? (firms || []).find(f => f.id === currentFirmId) : null;
+    return (current ? list.concat([current]) : list)
+      .map(f => ({ id: f.id, label: nameIn(f, lang) }))
+      .sort((a, b) => a.label.localeCompare(b.label, locale(lang)));
+  }
+
+  function firmConsultantCount(firmId, persons) {
+    return (persons || []).filter(p => p.firmId === firmId && isConsultant(p)).length;
+  }
+
+  const needleOf = q => String(q == null ? '' : q).trim().toLowerCase();
+  const hit = (needle, values) => !needle || values.some(v => String(v == null ? '' : v).toLowerCase().includes(needle));
+  function disciplineWords(x, tags) {
+    const codes = new Set(tagsOf(x, 'discipline'));
+    return (tags || []).filter(t => t.typeCode === 'discipline' && codes.has(t.code)).flatMap(t => [t.code, t.nameHe, t.nameEn]);
+  }
+
+  function filterConsultants(persons, firms, tags, opts) {
+    const { q, firmId, lang } = opts || {};
+    const firmById = new Map((firms || []).map(f => [f.id, f]));
+    const needle = needleOf(q);
+    return (persons || [])
+      .filter(p => isConsultant(p) && (!firmId || p.firmId === firmId))
+      .filter(p => {
+        const firm = firmById.get(p.firmId) || {};
+        return hit(needle, [p.name, p.nameHe, firm.name, firm.nameHe, p.firmName, p.phone, p.mobile, p.email]
+          .concat(disciplineWords(p, tags)));
+      })
+      .sort((a, b) => nameIn(a, lang).localeCompare(nameIn(b, lang), locale(lang)));
+  }
+
+  function filterFirms(firms, tags, opts) {
+    const { q, lang } = opts || {};
+    const needle = needleOf(q);
+    return consultantFirms(firms)
+      .filter(f => hit(needle, [f.name, f.nameHe, f.phone, f.email, f.address].concat(disciplineWords(f, tags))))
+      .sort((a, b) => nameIn(a, lang).localeCompare(nameIn(b, lang), locale(lang)));
+  }
+
+  const blank = v => {
+    const s = String(v == null ? '' : v).trim();
+    return s === '' ? null : s;
+  };
+
+  /* What + New consultant and + New firm send: trimmed, blanks as null, and the consultant Kind. */
+  function newContactBody(form) {
+    return {
+      name: blank(form.name), firmId: form.firmId || null, email: blank(form.email), mobile: blank(form.mobile),
+      tags: { kind: ['consultant'], discipline: (form.disciplines || []).slice() },
+    };
+  }
+  function newFirmBody(form) {
+    return { name: blank(form.name), tags: { kind: ['consultant'], discipline: (form.disciplines || []).slice() } };
+  }
+
+  /* The directory with one record changed as the register now has it — shown at once while the
+     re-read is on its way. */
+  function withEdit(data, list, id, patch) {
+    if (!data || !Array.isArray(data[list])) return data;
+    return Object.assign({}, data, { [list]: data[list].map(x => (x.id === id ? Object.assign({}, x, patch) : x)) });
+  }
+
+  /* The line a failed write shows (spec §2), a template for the page's translator. */
+  const WRITE_TEXT = {
+    changed: 'השדה שונה בינתיים על ידי מישהו אחר. הערך עכשיו: {value}',
+    not_a_contact: 'זה משתמש במאגר, לא איש קשר — עריכה ב-KK Hub',
+    invalid_value: 'המאגר לא קיבל את הערך',
+    rejected: 'המאגר סירב לשינוי',
+    'not-found': 'הרשומה לא נמצאה במאגר — ייתכן שמוזגה',
+    refused: 'אין הרשאה לשנות את המאגר',
+    'signed-out': 'החיבור למאגר פג — התחבר שוב',
+    unreachable: 'המאגר לא עונה — השינוי לא נשמר',
+  };
+  /* `format` puts the other person's value in words (a firm id → its name, codes → labels);
+     `who` names the record, since the line sits above a long table. */
+  function writeErrorOf(answer, format, who) {
+    if (!answer || answer.state === 'ok') return null;
+    const named = o => Object.assign(o, { who: who || null });
+    if (answer.state === 'changed') {
+      const c = answer.current;
+      const empty = c == null || c === '' || (Array.isArray(c) && !c.length);
+      const value = empty ? '—' : format ? format(c) : Array.isArray(c) ? c.join(', ') : String(c);
+      return named({ text: WRITE_TEXT.changed, vars: { value }, detail: null });
+    }
+    if (answer.state === 'rejected') {
+      if (answer.code === 'not_a_contact') return named({ text: WRITE_TEXT.not_a_contact, vars: null, detail: null });
+      const text = answer.code === 'invalid_value' ? WRITE_TEXT.invalid_value : WRITE_TEXT.rejected;
+      return named({ text, vars: null, detail: answer.error || null });
+    }
+    return named({ text: WRITE_TEXT[answer.state] || WRITE_TEXT.unreachable, vars: null, detail: null });
+  }
+
   const RETURN_KEY = 'register-return';
 
   /* The register, through KKarcDB.Api, as the signed-in person (spec §1). `createSupabase` is
      supabase-js's createClient and `fetchImpl` the browser's fetch — parameters so the tests can
      stand in for both. Every answer is { state, data?, subject? }, state one of ok, signed-out,
-     refused, not-found, unreachable (spec §6). Only GET is ever sent. */
+     refused, not-found, unreachable (spec §6). get reads; send writes, with POST, PATCH or PUT only. */
   function createRegisterClient(config, createSupabase, fetchImpl) {
     const doFetch = fetchImpl || ((url, init) => root.fetch(url, init));
     // The address as the page opened, read before supabase-js runs: on a successful return it
@@ -188,30 +324,63 @@
       return accessToken(await sb.auth.getSession());
     }
 
-    async function get(path) {
+    // One request with the token, refreshed and retried once on 401. Gives the response, or the
+    // answer that ends it: signed-out, refused, not-found or unreachable.
+    async function call(path, init) {
       let t = await token();
-      if (!t) return { state: 'signed-out' };
+      if (!t) return { answer: { state: 'signed-out' } };
       for (let attempt = 0; ; attempt++) {
         let res;
         try {
-          res = await doFetch(api + path, { headers: { Authorization: 'Bearer ' + t, Accept: 'application/json' } });
+          const headers = Object.assign({ Authorization: 'Bearer ' + t, Accept: 'application/json' }, init && init.headers);
+          res = await doFetch(api + path, Object.assign({}, init, { headers }));
         } catch (e) {
-          return { state: 'unreachable' };
+          return { answer: { state: 'unreachable' } };
         }
         if (res.status === 401 && attempt === 0) {
           t = accessToken(await sb.auth.refreshSession());
-          if (!t) return { state: 'signed-out' };
+          if (!t) return { answer: { state: 'signed-out' } };
           continue;
         }
-        if (res.status === 401 || res.status === 403) return { state: 'refused', subject: subjectOf(t) };
-        if (res.status === 404) return { state: 'not-found' };
-        if (!res.ok) return { state: 'unreachable' };
-        try {
-          return { state: 'ok', data: await res.json() };
-        } catch (e) {
-          return { state: 'unreachable' };
-        }
+        if (res.status === 401 || res.status === 403) return { answer: { state: 'refused', subject: subjectOf(t) } };
+        if (res.status === 404) return { answer: { state: 'not-found' } };
+        return { res };
       }
+    }
+
+    async function get(path) {
+      const { res, answer } = await call(path);
+      if (answer) return answer;
+      if (!res.ok) return { state: 'unreachable' };
+      try {
+        return { state: 'ok', data: await res.json() };
+      } catch (e) {
+        return { state: 'unreachable' };
+      }
+    }
+
+    /* A write (2026-10-07 design §1): POST, PATCH or PUT only. A 409 `changed` brings what the
+       other person saved; another 409 or a 400 is the register refusing the value. */
+    const WRITES = ['POST', 'PATCH', 'PUT'];
+    async function send(method, path, body) {
+      if (!WRITES.includes(method)) throw new Error('register-link: only POST, PATCH and PUT are sent, not ' + method);
+      const { res, answer } = await call(path, {
+        method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body === undefined ? null : body),
+      });
+      if (answer) return answer;
+      if (res.ok) {
+        let data = null;
+        try { data = await res.json(); } catch (e) { /* 204: nothing to read */ }
+        return { state: 'ok', data };
+      }
+      if (res.status === 409 || res.status === 400) {
+        let b = null;
+        try { b = await res.json(); } catch (e) { /* no body */ }
+        b = b || {};
+        if (res.status === 409 && b.code === 'changed') return { state: 'changed', current: b.current === undefined ? null : b.current };
+        return { state: 'rejected', code: b.code || null, error: b.error || null };
+      }
+      return { state: 'unreachable' };
     }
 
     async function signIn() {
@@ -227,6 +396,7 @@
       ready,
       token,
       get,
+      send,
       signIn,
       signOut: () => sb.auth.signOut(),
       // supabase-js must not be called from inside its own callback; listeners run a tick later.
@@ -238,6 +408,9 @@
     REGISTER_DISCIPLINE, NO_DISCIPLINE, STATUS_HE,
     matchProjects, hubDisciplineFor, buildConsultantRows, projectFacts, subjectOf, tidyReturnAddress,
     nextEntry, hasConsultants, createRegisterClient,
+    isConsultant, consultantFirms, nameIn, tagLabel, canEditRegister, editablePerson, disciplineChoices,
+    firmChoices, firmConsultantCount, filterConsultants, filterFirms,
+    blank, newContactBody, newFirmBody, withEdit, writeErrorOf,
   };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.RegisterLink = api;

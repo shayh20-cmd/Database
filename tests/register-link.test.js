@@ -276,3 +276,242 @@ test('hasConsultants: a project with any non-staff member has consultants to sho
   assert.strictEqual(RL.hasConsultants({ members: [] }), false);
   assert.strictEqual(RL.hasConsultants({}), false);
 });
+
+// ── writes (spec 2026-10-07 §1) ──
+function fakeWriteFetch(answers, seen) {
+  return async (url, init) => {
+    seen.push({ url, method: init.method, auth: init.headers.Authorization, type: init.headers['Content-Type'], body: init.body });
+    const a = answers.shift();
+    if (a === 'throw') throw new TypeError('Failed to fetch');
+    return {
+      status: a.status, ok: a.status >= 200 && a.status < 300,
+      json: async () => { if (a.body === undefined) throw new SyntaxError('Unexpected end of JSON input'); return a.body; },
+    };
+  };
+}
+
+test('send: a PATCH carries the token, the method and the JSON body; 204 is ok with no data', async () => {
+  const seen = [];
+  const c = RL.createRegisterClient(config, fakeSupabase(), fakeWriteFetch([{ status: 204 }], seen));
+  const r = await c.send('PATCH', '/api/contacts/p1', { field: 'mobile', value: '050', was: null });
+  assert.deepStrictEqual(r, { state: 'ok', data: null });
+  assert.deepStrictEqual(seen, [{
+    url: 'https://api.example/api/contacts/p1', method: 'PATCH', auth: 'Bearer ' + jwt({ sub: 'first' }),
+    type: 'application/json', body: JSON.stringify({ field: 'mobile', value: '050', was: null }),
+  }]);
+});
+
+test('send: a POST answers with what the API returned', async () => {
+  const c = RL.createRegisterClient(config, fakeSupabase(), fakeWriteFetch([{ status: 200, body: { id: 'n1' } }], []));
+  assert.deepStrictEqual(await c.send('POST', '/api/firms', { name: 'X', tags: {} }), { state: 'ok', data: { id: 'n1' } });
+});
+
+test('send: an expired token is refreshed once and the write retried', async () => {
+  const seen = [];
+  const c = RL.createRegisterClient(config, fakeSupabase(), fakeWriteFetch([{ status: 401 }, { status: 204 }], seen));
+  assert.strictEqual((await c.send('PUT', '/api/firms/f1/tags/discipline', { codes: [], was: [] })).state, 'ok');
+  assert.deepStrictEqual(seen.map(s => [s.method, s.auth]), [
+    ['PUT', 'Bearer ' + jwt({ sub: 'first' })], ['PUT', 'Bearer ' + jwt({ sub: 'second' })],
+  ]);
+});
+
+test('send: 409 changed carries what the other person saved', async () => {
+  const c = RL.createRegisterClient(config, fakeSupabase(),
+    fakeWriteFetch([{ status: 409, body: { code: 'changed', error: 'x', current: '052' } }], []));
+  assert.deepStrictEqual(await c.send('PATCH', '/api/contacts/p1', {}), { state: 'changed', current: '052' });
+  const d = RL.createRegisterClient(config, fakeSupabase(),
+    fakeWriteFetch([{ status: 409, body: { code: 'changed', error: 'x', current: null } }], []));
+  assert.deepStrictEqual(await d.send('PATCH', '/api/contacts/p1', {}), { state: 'changed', current: null }, 'cleared meanwhile');
+});
+
+test('send: other 409s and 400s are rejected, with the API\'s code and message', async () => {
+  for (const [status, body] of [
+    [409, { code: 'not_a_contact', error: 'Users are edited on Users.' }],
+    [400, { code: 'invalid_value', error: 'name is required' }],
+  ]) {
+    const c = RL.createRegisterClient(config, fakeSupabase(), fakeWriteFetch([{ status, body }], []));
+    assert.deepStrictEqual(await c.send('PATCH', '/api/contacts/p1', {}), { state: 'rejected', code: body.code, error: body.error }, String(status));
+  }
+  const e = RL.createRegisterClient(config, fakeSupabase(), fakeWriteFetch([{ status: 400 }], []));
+  assert.deepStrictEqual(await e.send('POST', '/api/contacts', {}), { state: 'rejected', code: null, error: null }, 'a 400 with no body');
+});
+
+test('send: 403 refused, 404 not-found, 5xx and a network failure unreachable, no session signed-out', async () => {
+  for (const [answer, expected] of [
+    [{ status: 403 }, { state: 'refused', subject: 'first' }],
+    [{ status: 404 }, { state: 'not-found' }],
+    [{ status: 500 }, { state: 'unreachable' }],
+    ['throw', { state: 'unreachable' }],
+  ]) {
+    const c = RL.createRegisterClient(config, fakeSupabase(), fakeWriteFetch([answer], []));
+    assert.deepStrictEqual(await c.send('PATCH', '/api/firms/f1', {}), expected, JSON.stringify(answer));
+  }
+  const seen = [];
+  const n = RL.createRegisterClient(config, fakeSupabase({ token: null }), fakeWriteFetch([{ status: 204 }], seen));
+  assert.deepStrictEqual(await n.send('PATCH', '/api/firms/f1', {}), { state: 'signed-out' });
+  assert.strictEqual(seen.length, 0);
+});
+
+test('send: only POST, PATCH and PUT — anything else throws, and nothing is sent', async () => {
+  const seen = [];
+  const c = RL.createRegisterClient(config, fakeSupabase(), fakeWriteFetch([{ status: 204 }], seen));
+  for (const m of ['GET', 'DELETE', 'patch']) await assert.rejects(c.send(m, '/api/firms/f1', {}), /POST, PATCH and PUT/, m);
+  assert.strictEqual(seen.length, 0);
+});
+
+// ── Settings: consultants and firms (spec 2026-10-07 §2) ──
+const dTags = [
+  { typeCode: 'discipline', code: 'structural', nameEn: 'Structural', nameHe: 'קונסטרוקציה', sortOrder: 20 },
+  { typeCode: 'discipline', code: 'electrical', nameEn: 'Electrical', nameHe: 'חשמל', sortOrder: 30 },
+  { typeCode: 'discipline', code: 'fire', nameEn: 'Fire safety', nameHe: 'כבאות', sortOrder: 80 },
+  { typeCode: 'kind', code: 'consultant', nameEn: 'Consultant', nameHe: 'יועץ', sortOrder: 10 },
+];
+const dFirms = [
+  { id: 'f1', name: 'Struct Ltd', nameHe: 'קונס', tags: { kind: ['consultant'], discipline: ['electrical', 'structural'] }, phone: '03-1', email: 's@x', address: 'Haifa' },
+  { id: 'f2', name: 'Alpha Fire', nameHe: null, tags: { kind: ['consultant'], discipline: ['fire'] } },
+  { id: 'f3', name: 'Client Inc', nameHe: 'הלקוח', tags: { kind: ['client'] } },
+];
+const dPersons = [
+  { id: 'p1', name: 'Avi Levi', nameHe: 'אבי לוי', firmId: 'f1', mobile: '050-1', email: 'avi@x', tags: { kind: ['consultant'], discipline: ['structural'] }, isContact: true },
+  { id: 'p2', name: 'Beni', nameHe: null, firmId: 'f2', tags: { kind: ['consultant'] }, isContact: true },
+  { id: 'p3', name: 'Cli', nameHe: 'קלי', firmId: 'f3', tags: { kind: ['client'] }, isContact: true },
+  { id: 'p4', name: 'Dana', nameHe: 'דנה', firmId: 'f3', tags: { kind: ['consultant'], discipline: ['fire'] }, isContact: false },
+  { id: 'p5', name: 'Staff', firmId: null, tags: { kind: ['internal'] }, isContact: false },
+];
+
+test('isConsultant and consultantFirms: by the kind/consultant tag, people and firms alike', () => {
+  assert.deepStrictEqual(dPersons.filter(RL.isConsultant).map(p => p.id), ['p1', 'p2', 'p4']);
+  assert.deepStrictEqual(RL.consultantFirms(dFirms).map(f => f.id), ['f1', 'f2']);
+  assert.strictEqual(RL.isConsultant({}), false, 'no tags at all');
+  assert.deepStrictEqual(RL.consultantFirms(null), []);
+});
+
+test('canEditRegister: an editing register role, and not a hub Viewer', () => {
+  for (const role of ['editor', 'manager', 'admin']) assert.strictEqual(RL.canEditRegister(role, 'editor'), true, role);
+  assert.strictEqual(RL.canEditRegister('reader', 'superadmin'), false, 'a register reader');
+  assert.strictEqual(RL.canEditRegister(null, 'editor'), false, 'role not known yet');
+  assert.strictEqual(RL.canEditRegister('admin', 'viewer'), false, 'a hub Viewer');
+});
+
+test('editablePerson: a contact, when the screen may edit — never a register user', () => {
+  assert.strictEqual(RL.editablePerson(dPersons[0], true), true);
+  assert.strictEqual(RL.editablePerson(dPersons[0], false), false);
+  assert.strictEqual(RL.editablePerson(dPersons[3], true), false, 'Dana is a user (isContact false)');
+});
+
+test('nameIn: the language\'s own name first, the other when it is missing', () => {
+  assert.strictEqual(RL.nameIn(dPersons[0], 'he'), 'אבי לוי');
+  assert.strictEqual(RL.nameIn(dPersons[0], 'en'), 'Avi Levi');
+  assert.strictEqual(RL.nameIn(dPersons[1], 'he'), 'Beni', 'no Hebrew name');
+  assert.strictEqual(RL.nameIn({ name: '', nameHe: 'רק עברית' }, 'en'), 'רק עברית');
+  assert.strictEqual(RL.nameIn(null, 'he'), '');
+});
+
+test('tagLabel: the register\'s own name in each language, the code when it has none', () => {
+  assert.strictEqual(RL.tagLabel(dTags[2], 'he'), 'כבאות');
+  assert.strictEqual(RL.tagLabel(dTags[2], 'en'), 'Fire safety');
+  assert.strictEqual(RL.tagLabel({ code: 'acoustics', nameEn: null, nameHe: null }, 'he'), 'acoustics');
+});
+
+test('disciplineChoices: the firm\'s disciplines first, each part in the register\'s order', () => {
+  assert.deepStrictEqual(RL.disciplineChoices(dTags, dFirms[0], 'en'), [
+    { code: 'structural', label: 'Structural', ofFirm: true },
+    { code: 'electrical', label: 'Electrical', ofFirm: true },
+    { code: 'fire', label: 'Fire safety', ofFirm: false },
+  ]);
+  const none = RL.disciplineChoices(dTags, null, 'he');
+  assert.deepStrictEqual(none.map(c => c.label), ['קונסטרוקציה', 'חשמל', 'כבאות'], 'no firm: all, in order');
+  assert.ok(!none.some(c => c.code === 'consultant'), 'kind tags are not disciplines');
+});
+
+test('firmChoices: consultant firms by name, plus the current firm when it is not one', () => {
+  assert.deepStrictEqual(RL.firmChoices(dFirms, 'f1', 'en'), [{ id: 'f2', label: 'Alpha Fire' }, { id: 'f1', label: 'Struct Ltd' }]);
+  assert.deepStrictEqual(RL.firmChoices(dFirms, 'f3', 'en').map(f => f.id), ['f2', 'f3', 'f1'], 'Client Inc kept for Dana');
+  assert.deepStrictEqual(RL.firmChoices(dFirms, null, 'en').map(f => f.id), ['f2', 'f1']);
+  assert.deepStrictEqual(RL.firmChoices(dFirms, 'gone', 'en').map(f => f.id), ['f2', 'f1'], 'a firm the register no longer has');
+});
+
+test('firmConsultantCount: the firm\'s consultants only', () => {
+  assert.strictEqual(RL.firmConsultantCount('f1', dPersons), 1);
+  assert.strictEqual(RL.firmConsultantCount('f3', dPersons), 1, 'Dana counts; the client does not');
+  assert.strictEqual(RL.firmConsultantCount('none', dPersons), 0);
+});
+
+test('filterConsultants: consultants only, by firm, searched across names, firm, disciplines and contacts', () => {
+  const ids = opts => RL.filterConsultants(dPersons, dFirms, dTags, opts).map(p => p.id);
+  assert.deepStrictEqual(ids({ lang: 'en' }), ['p1', 'p2', 'p4'], 'Avi Levi, Beni, Dana');
+  assert.deepStrictEqual(ids({ firmId: 'f1', lang: 'en' }), ['p1']);
+  assert.deepStrictEqual(ids({ q: 'קונס', lang: 'he' }), ['p1'], 'the firm\'s Hebrew name');
+  assert.deepStrictEqual(ids({ q: 'fire SAFETY', lang: 'en' }), ['p4'], 'a discipline, any case');
+  assert.deepStrictEqual(ids({ q: 'כבאות', lang: 'he' }), ['p4'], 'a discipline in Hebrew');
+  assert.deepStrictEqual(ids({ q: '050-1', lang: 'en' }), ['p1']);
+  assert.deepStrictEqual(ids({ q: '  ', lang: 'en' }), ['p1', 'p2', 'p4'], 'a blank search is no search');
+  assert.deepStrictEqual(RL.filterConsultants(null, null, null, {}), []);
+});
+
+test('filterFirms: consultant firms, searched across names, disciplines and contacts', () => {
+  const ids = opts => RL.filterFirms(dFirms, dTags, opts).map(f => f.id);
+  assert.deepStrictEqual(ids({ lang: 'en' }), ['f2', 'f1']);
+  assert.deepStrictEqual(ids({ q: 'haifa', lang: 'en' }), ['f1'], 'the address');
+  assert.deepStrictEqual(ids({ q: 'חשמל', lang: 'he' }), ['f1']);
+  assert.deepStrictEqual(ids({ q: 'client', lang: 'en' }), [], 'not a consultant firm');
+});
+
+test('blank: trims, and empty means null', () => {
+  assert.strictEqual(RL.blank('  x  '), 'x');
+  for (const v of ['', '   ', null, undefined]) assert.strictEqual(RL.blank(v), null, JSON.stringify(v));
+});
+
+test('newContactBody: trimmed, blanks as null, Kind consultant, the chosen disciplines', () => {
+  assert.deepStrictEqual(RL.newContactBody({ name: '  Avi ', firmId: 'f1', email: ' ', mobile: '050', disciplines: ['fire'] }), {
+    name: 'Avi', firmId: 'f1', email: null, mobile: '050', tags: { kind: ['consultant'], discipline: ['fire'] },
+  });
+  const bare = RL.newContactBody({ name: 'B', firmId: '' });
+  assert.strictEqual(bare.firmId, null, 'no firm');
+  assert.deepStrictEqual(bare.tags, { kind: ['consultant'], discipline: [] });
+});
+
+test('newFirmBody: the name, and Kind consultant with the chosen disciplines', () => {
+  assert.deepStrictEqual(RL.newFirmBody({ name: ' Alpha ', disciplines: ['fire', 'hvac'] }),
+    { name: 'Alpha', tags: { kind: ['consultant'], discipline: ['fire', 'hvac'] } });
+});
+
+test('withEdit: one record changed, the rest and the input untouched', () => {
+  const data = { persons: [{ id: 'p1', mobile: '1' }, { id: 'p2', mobile: '2' }], firms: [] };
+  const next = RL.withEdit(data, 'persons', 'p2', { mobile: '9' });
+  assert.deepStrictEqual(next.persons, [{ id: 'p1', mobile: '1' }, { id: 'p2', mobile: '9' }]);
+  assert.strictEqual(data.persons[1].mobile, '2', 'not mutated');
+  assert.strictEqual(next.firms, data.firms, 'the other list is the same object');
+  assert.strictEqual(RL.withEdit(null, 'persons', 'p1', {}), null);
+});
+
+test('writeErrorOf: a sentence per failure, with the other person\'s value for changed', () => {
+  assert.strictEqual(RL.writeErrorOf({ state: 'ok' }), null);
+  assert.deepStrictEqual(RL.writeErrorOf({ state: 'changed', current: '052' }).vars, { value: '052' });
+  assert.deepStrictEqual(RL.writeErrorOf({ state: 'changed', current: null }).vars, { value: '—' });
+  assert.deepStrictEqual(RL.writeErrorOf({ state: 'changed', current: ['fire', 'hvac'] }).vars, { value: 'fire, hvac' });
+  const user = RL.writeErrorOf({ state: 'rejected', code: 'not_a_contact', error: 'Users are edited on Users.' });
+  assert.ok(user.text.includes('KK Hub'));
+  assert.strictEqual(user.detail, null, 'our own sentence says it all');
+  assert.strictEqual(RL.writeErrorOf({ state: 'rejected', code: 'invalid_value', error: 'name is required' }).detail, 'name is required');
+  const other = RL.writeErrorOf({ state: 'rejected', code: 'last_admin', error: 'Keep one admin.' });
+  assert.strictEqual(other.text, RL.writeErrorOf({ state: 'rejected', code: null, error: null }).text, 'the general sentence');
+  assert.strictEqual(other.detail, 'Keep one admin.');
+  for (const state of ['not-found', 'refused', 'signed-out', 'unreachable', 'something-new']) {
+    const e = RL.writeErrorOf({ state });
+    assert.ok(e && /[֐-׿]/.test(e.text) && e.detail === null, state);
+  }
+});
+
+test('writeErrorOf: a formatter puts the other person\'s value in words, and the record is named', () => {
+  const firmName = id => ({ f1: 'Struct Ltd' })[id] || '?';
+  const e = RL.writeErrorOf({ state: 'changed', current: 'f1' }, firmName, 'Avi Levi');
+  assert.deepStrictEqual(e.vars, { value: 'Struct Ltd' }, 'a firm id becomes its name');
+  assert.strictEqual(e.who, 'Avi Levi');
+  const labels = codes => codes.map(c => ({ fire: 'כבאות', hvac: 'מיזוג' })[c]).join(', ');
+  assert.deepStrictEqual(RL.writeErrorOf({ state: 'changed', current: ['fire', 'hvac'] }, labels).vars, { value: 'כבאות, מיזוג' }, 'codes become labels');
+  assert.deepStrictEqual(RL.writeErrorOf({ state: 'changed', current: null }, firmName).vars, { value: '—' }, 'cleared meanwhile');
+  assert.deepStrictEqual(RL.writeErrorOf({ state: 'changed', current: [] }, labels).vars, { value: '—' }, 'all cleared meanwhile');
+  assert.strictEqual(RL.writeErrorOf({ state: 'unreachable' }, null, 'Avi').who, 'Avi', 'every failure names the record');
+  assert.strictEqual(RL.writeErrorOf({ state: 'unreachable' }).who, null);
+});

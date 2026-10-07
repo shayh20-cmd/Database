@@ -85,10 +85,13 @@ focus, and merge other people's saves. `/api/version` is the deployed page's ver
 and mtime of `project_hub_01.html`), used to offer a refresh after a deploy. Other routes: `/api/upload/<app>` and `/data/attachments/…` (attachments), `/api/hub-project/<id>`,
 `/api/projects`, `/api/personal`, `/api/me`, `/api/register-config`, `/api/snip` (local only).
 
-**The register.** `register-link.js` is a read-only client for KKarcDB.Api (KKarcDB on
-Supabase) using a Supabase token; `register-link-ui.js` renders the facts card, consultants
-and link picker inside the hub. Nothing is written to the register from here. Its four app
-settings and the outside changes it depends on are in `docs/azure.md`.
+**The register.** `register-link.js` is the client for KKarcDB.Api (KKarcDB on Supabase), signed
+in with a Supabase token. `register-link-ui.js` renders the facts card, the consultants table and
+the link picker inside a project, all read-only, and holds the shared register store.
+`register-directory-ui.js` renders Settings → Consultants and Firms, which **write** the
+register's consultants and firms (Kind = consultant) through the API's own endpoints. The
+register's role decides who may edit there: editor, manager or admin. Its four app settings and
+the outside changes it depends on are in `docs/azure.md`.
 
 **Other parts of the repo:**
 
@@ -110,8 +113,8 @@ node tools/local-server/server.js . --port 3000
 ```
 
 Install the server's one dependency first: `cd tools/local-server && npm install`.
-`.claude/launch.json` points at `C:\Users\Omega\Claude Projects\project-hub` (the main machine); on another machine fix its paths
-before using `preview_start`.
+`.claude/launch.json` has preview configs (`project-hub`, `planning-dashboard`,
+`spec-creator`, `funday`) with repo-relative paths, so it works on any machine; keep it that way.
 
 Tests use `node:test`. Node 24 needs glob patterns, not bare directories:
 
@@ -137,6 +140,11 @@ python -m unittest tools/spec-seed/test_reference.py tools/spec-seed/test_parser
 
 Run one file with `node --test tests/merge.test.js`, or one test with
 `--test-name-pattern="<name>"`.
+
+Settings → Consultants and Firms (`register-directory-ui.js`) have browser checks against a
+stand-in register store: with the local server running, open
+`/tests/register-directory-harness.html`; the tab title reads `PASS n/n` or `FAIL …`. Nothing
+reaches the register.
 
 Most files in `tests/` are **mirrors**: they copy pure functions out of
 `project_hub_01.html` or `capture.html` (marked `MIRROR … keep in sync`) because the HTML

@@ -1,8 +1,9 @@
 /* Project Hub's register views (spec §§2–7): one store that every component showing register
    data shares, and those components. Loaded after React, supabase-js and register-link.js; the
-   page reaches it as window.RegisterLinkUI. Read-only: the one thing saved is the hub's own
-   registerProjectId, through the page's save() — undefined means never linked, null means a
-   person unlinked it (auto-linking leaves that alone). */
+   page reaches it as window.RegisterLinkUI. The project views are read-only: the one thing they
+   save is the hub's own registerProjectId, through the page's save() — undefined means never
+   linked, null means a person unlinked it (auto-linking leaves that alone). Settings' consultants
+   and firms write through `write` below (2026-10-07 design). */
 (function () {
   'use strict';
   const h = React.createElement;
@@ -32,7 +33,8 @@
   /* ── the store ── */
   let client = null;
   let hubUrl = null;
-  let snap = { config: 'loading', signedIn: false, directory: null, projects: {} };
+  let recheck = () => Promise.resolve();
+  let snap = { config: 'loading', signedIn: false, directory: null, projects: {}, me: null };
   const listeners = new Set();
   const set = patch => { snap = Object.assign({}, snap, patch); listeners.forEach(l => l()); };
   const subscribe = l => { listeners.add(l); return () => listeners.delete(l); };
@@ -53,6 +55,17 @@
         const answer = bad || { state: 'ok', data: { persons: persons.data, firms: firms.data, tags: tags.data } };
         set({ directory: RL.nextEntry(snap.directory, answer, Date.now()) });
       }));
+  }
+
+  // After a write: a read already on its way may predate it, so wait for it and read again.
+  function reloadDirectory() {
+    const pending = inflight.directory;
+    return pending ? pending.then(loadDirectory, loadDirectory) : loadDirectory();
+  }
+
+  // Who is signed in, for whether Settings may edit (2026-10-07 design §1). Once per sign-in.
+  function loadMe() {
+    return once('me', () => client.get('/api/me').then(r => set({ me: RL.nextEntry(snap.me, r, Date.now()) })));
   }
 
   function loadProject(id) {
@@ -77,15 +90,16 @@
         if (!cfg || !cfg.supabaseUrl || !cfg.supabaseAnonKey || !cfg.api || !window.supabase || !RL) { set({ config: 'off' }); return; }
         hubUrl = cfg.hubUrl ? String(cfg.hubUrl).replace(/\/+$/, '') : null;
         client = RL.createRegisterClient(cfg, window.supabase.createClient);
-        const refresh = () => client.token().then(t => set(t
-          ? { config: 'on', signedIn: true }
-          : { config: 'on', signedIn: false, directory: null, projects: {} }));
-        client.onChange(refresh);
-        refresh();
+        recheck = () => client.token().then(t => set(t
+          ? { config: 'on', signedIn: true, me: snap.signedIn ? snap.me : null }
+          : { config: 'on', signedIn: false, directory: null, projects: {}, me: null }));
+        client.onChange(recheck);
+        recheck();
       });
     window.addEventListener('focus', () => {
       if (snap.config !== 'on' || !snap.signedIn) return;
       if (stale(snap.directory)) loadDirectory();
+      if (snap.me && snap.me.state !== 'ok') loadMe();
       Object.keys(snap.projects).forEach(id => { if (stale(snap.projects[id])) loadProject(id); });
     });
   }
@@ -125,6 +139,29 @@
     return useMemo(() => (s.signedIn && p && p.state === 'ok' && d && d.state === 'ok'
       ? RL.buildConsultantRows(p.data.members, d.data.persons, d.data.firms, d.data.tags, hubDisciplines)
       : []), [s.signedIn, p, d, hubDisciplines]);
+  }
+
+  /* Settings' consultants and firms: the shared directory, and who is signed in. */
+  function useDirectory() {
+    const s = useStore();
+    const haveDirectory = !!s.directory;
+    const haveMe = !!s.me;
+    useEffect(() => {
+      if (s.config !== 'on' || !s.signedIn) return;
+      if (!haveDirectory) loadDirectory();
+      if (!haveMe) loadMe();
+    }, [s.config, s.signedIn, haveDirectory, haveMe]);
+    return s;
+  }
+
+  function directoryStatus(s) {
+    if (s.config === 'loading') return { kind: 'loading' };
+    if (s.config === 'off') return { kind: 'off' };
+    if (!s.signedIn) return { kind: 'signed-out' };
+    const d = s.directory;
+    if (!d) return { kind: 'loading' };
+    if (d.state !== 'ok') return { kind: d.state === 'refused' || d.state === 'signed-out' ? d.state : 'unreachable', subject: d.subject };
+    return { kind: 'ok', data: d.data };
   }
 
   /* ── components ── */
@@ -242,6 +279,35 @@
     return null;
   }
 
-  window.RegisterLinkUI = { useConsultantRows, FactsCard, ConsultantsNotice, EditInHub, AutoLink };
+  /* A write to the register (2026-10-07 design §2). `local` — { list, id, patch } — is applied at
+     once on success, so a cell does not flick back while the directory is re-read. */
+  function write(method, path, body, local) {
+    if (!client) return Promise.resolve({ state: 'unreachable' });
+    return client.send(method, path, body).then(r => {
+      const d = snap.directory;
+      if (r.state === 'ok' && local && d && d.state === 'ok') {
+        set({ directory: Object.assign({}, d, { data: RL.withEdit(d.data, local.list, local.id, local.patch) }) });
+      }
+      if (r.state === 'signed-out') recheck();
+      if (r.state === 'ok' || r.state === 'changed' || r.state === 'not-found') reloadDirectory();
+      return r;
+    });
+  }
+
+  // The project notice, for the directory's states (loading, off, signed-out, refused, unreachable).
+  function DirectoryNotice({ status }) {
+    return h(Notice, { data: {}, save: () => {}, hubCode: '', status });
+  }
+
+  const hubLink = path => (hubUrl ? hubUrl + path : null);
+
+  // A failed /api/me is forgotten, so useDirectory asks again (a cold start must not leave
+  // Settings read-only until a reload).
+  const retryMe = () => { if (snap.me && snap.me.state !== 'ok') set({ me: null }); };
+
+  window.RegisterLinkUI = {
+    useConsultantRows, FactsCard, ConsultantsNotice, EditInHub, AutoLink,
+    useDirectory, directoryStatus, DirectoryNotice, write, hubLink, retryMe,
+  };
   boot();
 })();
