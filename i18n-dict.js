@@ -2468,7 +2468,14 @@ Object.assign(HE_EN, {
 "אין הרשאה לשנות את המאגר": "You don't have permission to change the register",
 "החיבור למאגר פג — התחבר שוב": "The register sign-in has expired — sign in again",
 "המאגר לא עונה — השינוי לא נשמר": "The register isn't answering — the change wasn't saved",
-"המאגר לא זמין באתר הזה": "The register isn't available on this site"
+"המאגר לא זמין באתר הזה": "The register isn't available on this site",
+"משרדי יועצים": "Firms",
+"{n} משרדי יועצים במאגר": "{n} firms in the register",
+"חיפוש לפי שם, תחום, טלפון, מייל או כתובת": "Search by name, discipline, phone, email or address",
+"משרד חדש": "New firm",
+"משרד יועצים": "Firm",
+"לא נמצאו משרדי יועצים": "No firms found",
+"הצגת היועצים של המשרד": "Show the firm's consultants"
 });
 
 window.I18N_HE_EN = HE_EN;

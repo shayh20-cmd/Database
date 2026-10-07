@@ -14230,6 +14230,10 @@ function OfficeSettingsView({
     label: 'יועצים',
     icon: 'consultants'
   }, {
+    id: 'firms',
+    label: 'משרדי יועצים',
+    icon: 'building'
+  }, {
     id: 'library',
     label: 'ספרייה',
     icon: 'template'
@@ -14257,7 +14261,10 @@ function OfficeSettingsView({
     key: s.id,
     className: 'st-nav-item' + (section === s.id ? ' on' : ''),
     "aria-current": section === s.id ? 'page' : undefined,
-    onClick: () => setSection(s.id)
+    onClick: () => {
+      setSection(s.id);
+      setFirmFilter(null);
+    }
   }, /*#__PURE__*/React.createElement(Ic, {
     n: s.icon,
     size: 14
@@ -14269,6 +14276,12 @@ function OfficeSettingsView({
     officeRole: myOfficeRole(),
     firmId: firmFilter,
     onClearFirm: () => setFirmFilter(null)
+  }), section === 'firms' && React.createElement(RegisterDirectoryUI.FirmsSettings, {
+    officeRole: myOfficeRole(),
+    onShowFirm: id => {
+      setFirmFilter(id);
+      setSection('consultants');
+    }
   }), section === 'library' && /*#__PURE__*/React.createElement(OfficeLibraryView, {
     data: data,
     save: save

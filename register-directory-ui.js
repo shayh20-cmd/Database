@@ -284,5 +284,76 @@
         rows.map(p => h(ConsultantRow, { key: p.id, p, d, lang, firmById, baseFirmChoices, canEdit, run }))));
   }
 
-  window.RegisterDirectoryUI = { ConsultantsSettings };
+  /* ── Firms ── */
+  function FirmRow({ f, d, lang, canEdit, run, onShowFirm }) {
+    const patch = field => value => run('PATCH', '/api/firms/' + f.id,
+      { field, value, was: f[field] == null ? null : f[field] },
+      { list: 'firms', id: f.id, patch: { [field]: value } });
+    const codes = (f.tags && f.tags.discipline) || [];
+    const saveDisciplines = next => run('PUT', '/api/firms/' + f.id + '/tags/discipline', { codes: next, was: codes },
+      { list: 'firms', id: f.id, patch: { tags: Object.assign({}, f.tags, { discipline: next }) } });
+    const count = RL.firmConsultantCount(f.id, d.persons);
+    return h('div', { className: 'st-tr rd-f', role: 'row' },
+      h('span', { className: 'rd-cell', role: 'cell' },
+        // The API edits a firm's main name only; a Hebrew name the register holds is shown beneath.
+        h(EditableText, { value: f.name, label: 'שם באנגלית', canEdit, required: true, onSave: patch('name') }),
+        f.nameHe ? h('span', { className: 'rd-sub' }, h('bdi', SKIP, f.nameHe)) : null),
+      h('span', { className: 'rd-cell', role: 'cell' },
+        h(DisciplinePicker, { codes, choices: RL.disciplineChoices(d.tags, null, lang), canEdit, onSave: saveDisciplines, label: 'תחומים' })),
+      ['phone', 'email', 'address'].map(field => h('span', { key: field, className: 'rd-cell', role: 'cell' },
+        h(EditableText, { value: f[field], label: FIELD_LABEL[field], canEdit, onSave: patch(field), dir: field === 'address' ? 'auto' : 'ltr' }))),
+      h('span', { role: 'cell' },
+        h('button', { type: 'button', className: 'rl-btn', title: 'הצגת היועצים של המשרד', onClick: () => onShowFirm(f.id) }, String(count))),
+      h('span', { role: 'cell' }, hubAnchor('/team/?tab=firms&open=' + encodeURIComponent(f.id))));
+  }
+
+  function NewFirm({ d, lang, run, onDone }) {
+    const [f, setF] = useState({ name: '', disciplines: [] });
+    const [busy, setBusy] = useState(false);
+    const create = () => {
+      if (!RL.blank(f.name) || busy) return;
+      setBusy(true);
+      run('POST', '/api/firms', RL.newFirmBody(f)).then(r => { if (r.state === 'ok') onDone(); else setBusy(false); });
+    };
+    return h('div', { className: 'rd-form', role: 'group', 'aria-label': 'משרד חדש' },
+      h('label', null, 'שם באנגלית',
+        h('input', { className: 'af-input', autoFocus: true, dir: 'auto', value: f.name, onChange: e => { const v = e.target.value; setF(o => Object.assign({}, o, { name: v })); } })),
+      h('div', { className: 'rd-form-l' }, 'תחומים',
+        h(DisciplinePicker, { codes: f.disciplines, choices: RL.disciplineChoices(d.tags, null, lang), canEdit: true, label: 'תחומים', onSave: v => setF(o => Object.assign({}, o, { disciplines: v })) })),
+      h('div', { className: 'rd-form-foot' },
+        h('button', { type: 'button', className: 'rl-btn', disabled: busy || !RL.blank(f.name), onClick: create }, 'יצירה'),
+        h('button', { type: 'button', className: 'rl-btn', onClick: onDone }, 'ביטול')));
+  }
+
+  function FirmsSettings({ officeRole, onShowFirm }) {
+    const s = UI.useDirectory();
+    const lang = useLang();
+    const [q, setQ] = useState('');
+    const [adding, setAdding] = useState(false);
+    const { msg, run } = useEditor();
+    const status = UI.directoryStatus(s);
+    const d = status.kind === 'ok' ? status.data : EMPTY;
+    const rows = useMemo(() => RL.filterFirms(d.firms, d.tags, { q, lang }), [d, q, lang]);
+    const canEdit = canEditOf(s, officeRole);
+    const head = h('div', { className: 'st-head' },
+      h('div', null,
+        h('h2', { className: 'st-h2' }, 'משרדי יועצים'),
+        h('div', { className: 'st-sub' }, status.kind === 'ok'
+          ? t('{n} משרדי יועצים במאגר', { n: RL.consultantFirms(d.firms).length })
+          : 'מהמאגר (KKarcDB)')),
+      h('div', { className: 'rd-tools' },
+        h('input', { className: 'af-input st-search', placeholder: 'חיפוש לפי שם, תחום, טלפון, מייל או כתובת', value: q, onChange: e => setQ(e.target.value) }),
+        canEdit && !adding ? h('button', { type: 'button', className: 'rl-btn', onClick: () => setAdding(true) }, '+ משרד חדש') : null));
+    if (status.kind !== 'ok') return h('div', { className: 'st-section' }, head, h(UI.DirectoryNotice, { status }));
+    return h('div', { className: 'st-section' }, head,
+      h(ReadOnlyLine, { s, officeRole }),
+      h(Message, { msg }),
+      adding ? h(NewFirm, { d, lang, run, onDone: () => setAdding(false) }) : null,
+      h('div', { className: 'st-table', role: 'table', 'aria-label': 'משרדי יועצים' },
+        headers('rd-f', ['משרד יועצים', 'תחומים', 'טלפון', 'מייל', 'כתובת המשרד', 'יועצים', '']),
+        rows.length === 0 ? h('div', { className: 'pm-none' }, 'לא נמצאו משרדי יועצים') : null,
+        rows.map(f => h(FirmRow, { key: f.id, f, d, lang, canEdit, run, onShowFirm }))));
+  }
+
+  window.RegisterDirectoryUI = { ConsultantsSettings, FirmsSettings };
 })();

@@ -55,3 +55,17 @@ test('a failed write\'s lines in English', () => {
     'המאגר לא עונה — השינוי לא נשמר': 'The register isn\'t answering — the change wasn\'t saved',
   });
 });
+
+test('Settings → Firms in English, never "Office" or "URL"', () => {
+  expectAll({
+    'משרדי יועצים': 'Firms',
+    '{n} משרדי יועצים במאגר': '{n} firms in the register',
+    'חיפוש לפי שם, תחום, טלפון, מייל או כתובת': 'Search by name, discipline, phone, email or address',
+    '+ משרד חדש': '+ New firm',
+    'משרד חדש': 'New firm',
+    'משרד יועצים': 'Firm',
+    'כתובת המשרד': 'Address',
+    'לא נמצאו משרדי יועצים': 'No firms found',
+    'הצגת היועצים של המשרד': 'Show the firm\'s consultants',
+  });
+});
