@@ -155,6 +155,88 @@
     return { state: answer.state, subject: answer.subject, at: now };
   }
 
+  /* ── Settings: the register's consultants and firms (2026-10-07 design §2) ── */
+  const tagsOf = (x, type) => ((x && x.tags) || {})[type] || [];
+  const locale = lang => (lang === 'en' ? 'en' : 'he');
+
+  /* A person or a firm the register calls a consultant. */
+  const isConsultant = x => tagsOf(x, 'kind').includes('consultant');
+  const consultantFirms = firms => (firms || []).filter(isConsultant);
+
+  /* The name for the page's language, the other one when that is missing. */
+  function nameIn(x, lang) {
+    const v = lang === 'en' ? x && (x.name || x.nameHe) : x && (x.nameHe || x.name);
+    return String(v || '').trim();
+  }
+
+  function tagLabel(tag, lang) {
+    return (lang === 'en' ? tag.nameEn || tag.nameHe : tag.nameHe || tag.nameEn) || tag.code;
+  }
+
+  const EDIT_ROLES = ['editor', 'manager', 'admin'];
+  function canEditRegister(role, officeRole) {
+    return EDIT_ROLES.includes(role) && officeRole !== 'viewer';
+  }
+
+  /* A register user is not a contact: the API edits users only on its admin pages. */
+  function editablePerson(person, canEdit) {
+    return !!canEdit && !!person && person.isContact !== false;
+  }
+
+  /* The discipline checklist: the firm's disciplines first, then the rest, each part in the
+     register's order. */
+  function disciplineChoices(tags, firm, lang) {
+    const mine = new Set(tagsOf(firm, 'discipline'));
+    const all = (tags || []).filter(t => t.typeCode === 'discipline').slice()
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || String(a.code).localeCompare(String(b.code)));
+    const choice = t => ({ code: t.code, label: tagLabel(t, lang), ofFirm: mine.has(t.code) });
+    return all.filter(t => mine.has(t.code)).concat(all.filter(t => !mine.has(t.code))).map(choice);
+  }
+
+  /* The firm list's choices: the consultant firms, and the current firm when it is not one, so
+     the list can always hold the value it shows. */
+  function firmChoices(firms, currentFirmId, lang) {
+    const list = consultantFirms(firms);
+    const current = currentFirmId && !list.some(f => f.id === currentFirmId)
+      ? (firms || []).find(f => f.id === currentFirmId) : null;
+    return (current ? list.concat([current]) : list)
+      .map(f => ({ id: f.id, label: nameIn(f, lang) }))
+      .sort((a, b) => a.label.localeCompare(b.label, locale(lang)));
+  }
+
+  function firmConsultantCount(firmId, persons) {
+    return (persons || []).filter(p => p.firmId === firmId && isConsultant(p)).length;
+  }
+
+  const needleOf = q => String(q == null ? '' : q).trim().toLowerCase();
+  const hit = (needle, values) => !needle || values.some(v => String(v == null ? '' : v).toLowerCase().includes(needle));
+  function disciplineWords(x, tags) {
+    const codes = new Set(tagsOf(x, 'discipline'));
+    return (tags || []).filter(t => t.typeCode === 'discipline' && codes.has(t.code)).flatMap(t => [t.code, t.nameHe, t.nameEn]);
+  }
+
+  function filterConsultants(persons, firms, tags, opts) {
+    const { q, firmId, lang } = opts || {};
+    const firmById = new Map((firms || []).map(f => [f.id, f]));
+    const needle = needleOf(q);
+    return (persons || [])
+      .filter(p => isConsultant(p) && (!firmId || p.firmId === firmId))
+      .filter(p => {
+        const firm = firmById.get(p.firmId) || {};
+        return hit(needle, [p.name, p.nameHe, firm.name, firm.nameHe, p.firmName, p.phone, p.mobile, p.email]
+          .concat(disciplineWords(p, tags)));
+      })
+      .sort((a, b) => nameIn(a, lang).localeCompare(nameIn(b, lang), locale(lang)));
+  }
+
+  function filterFirms(firms, tags, opts) {
+    const { q, lang } = opts || {};
+    const needle = needleOf(q);
+    return consultantFirms(firms)
+      .filter(f => hit(needle, [f.name, f.nameHe, f.phone, f.email, f.address].concat(disciplineWords(f, tags))))
+      .sort((a, b) => nameIn(a, lang).localeCompare(nameIn(b, lang), locale(lang)));
+  }
+
   const RETURN_KEY = 'register-return';
 
   /* The register, through KKarcDB.Api, as the signed-in person (spec §1). `createSupabase` is
@@ -273,6 +355,8 @@
     REGISTER_DISCIPLINE, NO_DISCIPLINE, STATUS_HE,
     matchProjects, hubDisciplineFor, buildConsultantRows, projectFacts, subjectOf, tidyReturnAddress,
     nextEntry, hasConsultants, createRegisterClient,
+    isConsultant, consultantFirms, nameIn, tagLabel, canEditRegister, editablePerson, disciplineChoices,
+    firmChoices, firmConsultantCount, filterConsultants, filterFirms,
   };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.RegisterLink = api;
