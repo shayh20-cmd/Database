@@ -98,12 +98,25 @@
     });
   }
 
-  function FirmSelect({ value, choices, canEdit, onSave, label }) {
+  /* The firm as text until clicked, like the other cells: a list per row would put every firm
+     in the register into every row (500 rows × 500 firms). `inline` keeps the list open, for the
+     new-consultant form. */
+  function FirmSelect({ value, choices, canEdit, onSave, label, inline }) {
+    const [open, setOpen] = useState(false);
     const current = choices.find(c => c.id === value);
-    if (!canEdit) return h('span', { className: 'rd-val' }, h('bdi', SKIP, current ? current.label : '—'));
+    const text = h('bdi', SKIP, current ? current.label : '—');
+    if (!canEdit) return h('span', { className: 'rd-val' }, text);
+    if (!open && !inline) {
+      return h('span', {
+        className: 'rd-val rd-edit' + (current ? '' : ' rd-muted'), role: 'button', tabIndex: 0, title: label,
+        onClick: () => setOpen(true), onKeyDown: e => { if (e.key === 'Enter') setOpen(true); },
+      }, text);
+    }
     return h('select', {
-      className: 'rd-select', value: value || '', 'aria-label': label,
-      onChange: e => { const next = e.target.value || null; if (next !== (value || null)) onSave(next); },
+      className: 'rd-select', value: value || '', 'aria-label': label, autoFocus: !inline,
+      onBlur: () => setOpen(false),
+      onKeyDown: e => { if (e.key === 'Escape') setOpen(false); },
+      onChange: e => { const next = e.target.value || null; setOpen(false); if (next !== (value || null)) onSave(next); },
     },
     h('option', { value: '' }, 'ללא משרד'),
     choices.map(c => h('option', Object.assign({ key: c.id, value: c.id }, SKIP), c.label)));
@@ -238,7 +251,7 @@
       input('name', 'שם באנגלית', { autoFocus: true, required: true, dir: 'auto' }),
       input('nameHe', 'שם בעברית', { dir: 'auto' }),
       h('label', null, 'משרד היועץ',
-        h(FirmSelect, { value: f.firmId || null, choices: RL.firmChoices(d.firms, f.firmId, lang), canEdit: true, label: 'משרד היועץ', onSave: v => put('firmId', v || '') })),
+        h(FirmSelect, { value: f.firmId || null, choices: RL.firmChoices(d.firms, f.firmId, lang), canEdit: true, inline: true, label: 'משרד היועץ', onSave: v => put('firmId', v || '') })),
       h('div', { className: 'rd-form-l' }, 'תחומים',
         h(DisciplinePicker, { codes: f.disciplines, choices: RL.disciplineChoices(d.tags, firm, lang), canEdit: true, label: 'תחומים', onSave: v => put('disciplines', v) })),
       input('mobile', 'נייד', { dir: 'ltr' }),
