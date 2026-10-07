@@ -98,8 +98,11 @@ re-reads persons, firms and tags, so the open project's consultants table follow
 
 ## 3. The screens
 
-Settings' menu becomes: **צוות · יועצים · משרדים · ספרייה · גרפיקה · גישה מהירה · Claude**
-(English: Team · Consultants · Firms · Library · Graphics · Quick access · Claude).
+Settings' menu becomes: **צוות · יועצים · משרדי יועצים · ספרייה · גרפיקה · גישה מהירה · Claude**
+(English: Team · Consultants · Firms · Library · Graphics · Quick access · Claude). Not plain
+*משרדים*: the dictionary already translates `משרד`/`משרדים` as "Office(s)" — the office a member
+of staff sits in — and `כתובת` as "URL", so these screens use their own longer phrases
+(`משרדי יועצים`, `משרד היועץ`, `כתובת המשרד`).
 
 ### Consultants
 
