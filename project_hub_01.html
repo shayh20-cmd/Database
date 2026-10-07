@@ -236,6 +236,9 @@ button.pm-trigger:focus-visible{outline:2px solid var(--accent);outline-offset:2
 .stg-menu-item:hover{background:var(--bg);}
 .stg-menu-item.on{background:rgba(99,102,241,.1);font-weight:600;}
 .stg-menu-empty{font-size:11px;color:var(--text-3);padding:3px 8px;}
+.ab-target{display:flex;align-items:center;gap:4px;margin-top:8px;font-size:11.5px;color:var(--text-3);}
+.ab-target-opt{border:1px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:999px;padding:2px 9px;font-size:11.5px;font-family:inherit;cursor:pointer;}
+.ab-target-opt.on{border-color:var(--accent);color:var(--accent);background:rgba(37,99,235,.08);font-weight:600;}
 .ab-save-pop{position:absolute;top:calc(100% + 6px);inset-inline-end:0;z-index:61;width:250px;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-lg);text-align:start;}
 .ab-save-title{font-size:12.5px;font-weight:700;color:var(--text);padding:2px 6px 0;}
 .ab-save-sub{font-size:11px;color:var(--text-3);padding:0 6px 6px;}
@@ -2328,6 +2331,24 @@ const AUTO_ACTIONS=[
 {id:'set-field',label:'קבע ערך שדה מותאם',cat:'שדות'},
 {id:'set-startdate',label:'קבע תאריך התחלה',cat:'תאריכים'},
 {id:'set-duedate',label:'קבע תאריך יעד',cat:'תאריכים'}];
+/* the builder's two first steps. Each event is a stored trigger type, so existing rules read as they are.
+   target 'subtask' (rule.target) runs a rule on each subtask instead of on tasks. */
+const AUTO_SUBJECTS=[
+{id:'task',label:'משימה',cat:'משימה',events:[['task-added','נוצרה'],['task-moved','הועברה לקבוצה'],['task-completed','הושלמה'],['subtasks-completed','כל תתי-המשימות הושלמו']]},
+{id:'subtask',label:'תת-משימה',cat:'משימה',target:'subtask',events:[['task-added','נוצרה'],['task-completed','הושלמה']]},
+{id:'status',label:'סטטוס',cat:'שדות',both:true,events:[['status-changed','השתנה']]},
+{id:'priority',label:'עדיפות',cat:'שדות',both:true,events:[['priority-changed','השתנתה']]},
+{id:'discipline',label:'תחום',cat:'שדות',both:true,events:[['discipline-changed','השתנה']]},
+{id:'assignee',label:'אחראי',cat:'שדות',both:true,events:[['assignee-changed','השתנה']]},
+{id:'field',label:'שדה מותאם',cat:'שדות',events:[['field-changed','השתנה']]},
+{id:'duedate',label:'תאריך יעד',cat:'תאריכים ועדכונים',both:true,events:[['duedate-changed','השתנה'],['duedate-approaching','מתקרב'],['task-overdue','עבר (באיחור)']]},
+{id:'update',label:'עדכון',cat:'תאריכים ועדכונים',both:true,events:[['update-stale','תקוע מעל מספר ימים']]}];
+/* target and filter of a stored rule; an older "סוג המשימה הוא: תת-משימה" condition means target subtask */
+/* a days box shows its default — store it too, so the rule says what the screen shows */
+const autoDefaultParams=t=>t==='update-stale'?{days:'14'}:t==='duedate-approaching'?{days:'3'}:{};
+const autoRuleShape=rule=>{const c=rule&&rule.condition;const legacySub=!!c&&c.type==='tasktype-is'&&(c.params||{}).tasktype==='subtask';return{target:rule&&rule.target==='subtask'||legacySub?'subtask':'task',condition:legacySub?null:c||null};};
+const autoSubjectOf=(type,target)=>{if(target==='subtask'&&(type==='task-added'||type==='task-completed'))return'subtask';const s=AUTO_SUBJECTS.find(x=>x.id!=='subtask'&&x.events.some(([t])=>t===type));return s?s.id:null;};
+const autoTriggerText=rule=>{const type=rule.trigger&&rule.trigger.type;const sh=autoRuleShape(rule);const s=AUTO_SUBJECTS.find(x=>x.id===autoSubjectOf(type,sh.target));const ev=s&&(s.events.find(([t])=>t===type)||[])[1];const txt=s&&ev?s.label+' '+ev:autoOptionLabel(AUTO_TRIGGERS,type);return sh.target==='subtask'&&s&&s.id!=='subtask'?txt+' (בתתי-משימות)':txt;};
 const autoOptionLabel=(list,type)=>(list.find(o=>o.id===type)||{}).label||type||'';
 const autoStaffList=data=>(data.staff&&data.staff.length?data.staff:OFFICE_STAFF);
 /* scope: 'all' | {views:[viewId],stages:[sheetId]} - a rule runs on a task that sits in one of
@@ -2346,28 +2367,29 @@ const autoAllSubsDone=t=>{const s=t.subtasks||[];return s.length>0&&s.every(x=>x
 const autoRuleInScope=(rule,sheetId)=>{const sc=autoNormScope(rule.scope);return sc==='all'||sc.views.length>0||sc.stages.includes(sheetId);};
 const autoRuleOnStage=(rule,sheetId)=>{const sc=autoNormScope(rule.scope);return sc==='all'||sc.stages.includes(sheetId);};
 const autoCapLog=log=>{const plainMax=200,dedMax=500;let plainCount=0,dedCount=0;const out=[];for(let i=log.length-1;i>=0;i--){const e=log[i];if(e.dedupeKey){if(dedCount>=dedMax)continue;dedCount++;}else{if(plainCount>=plainMax)continue;plainCount++;}out.push(e);}return out.reverse();};
-function automationSummary(rule){const t=autoOptionLabel(AUTO_TRIGGERS,rule.trigger&&rule.trigger.type);const c=rule.condition?autoOptionLabel(AUTO_CONDITIONS,rule.condition.type):null;const a=(rule.actions||[]).map(x=>autoOptionLabel(AUTO_ACTIONS,x.type)).join(', ');return c?tx('כאשר {t} ← בדוק ש{c} ← {a}',{t:tx(t),c:tx(c),a:tx(a)}):tx('כאשר {t} ← {a}',{t:tx(t),a:tx(a)});}
+function automationSummary(rule){const t=autoTriggerText(rule);const sc=autoRuleShape(rule).condition;const c=sc?autoOptionLabel(AUTO_CONDITIONS,sc.type):null;const a=(rule.actions||[]).map(x=>autoOptionLabel(AUTO_ACTIONS,x.type)).join(', ');return c?tx('כאשר {t} ← בדוק ש{c} ← {a}',{t:tx(t),c:tx(c),a:tx(a)}):tx('כאשר {t} ← {a}',{t:tx(t),a:tx(a)});}
+const autoAssignees=t=>t.assigneeIds||(t.assigneeId?[t.assigneeId]:[]);
 function autoMatchTrigger(trg,prev,next,sheet){const p=trg.params||{};switch(trg.type){
 case 'task-added':return !prev;
 case 'task-moved':{if(!prev||prev.groupId===next.groupId)return false;return !p.group||autoGroupName(sheet,next)===p.group;}
-case 'task-completed':return !!prev&&getMostRecentEventStatus(prev)!=='C'&&getMostRecentEventStatus(next)==='C';
+case 'task-completed':return !!prev&&taskStatusEff(prev)!=='C'&&taskStatusEff(next)==='C';
 case 'subtasks-completed':return !!prev&&!autoAllSubsDone(prev)&&autoAllSubsDone(next);
-case 'status-changed':{if(!prev)return false;const ps=getMostRecentEventStatus(prev),ns=getMostRecentEventStatus(next);if(ps===ns)return false;return !p.status||ns===p.status;}
+case 'status-changed':{if(!prev)return false;/* the status the row shows: a manual status wins over the updates' */const ps=taskStatusEff(prev),ns=taskStatusEff(next);if(ps===ns)return false;return !p.status||ns===p.status;}
 case 'priority-changed':{if(!prev||prev.priority===next.priority)return false;return !p.priority||next.priority===p.priority;}
 case 'discipline-changed':{if(!prev||prev.discipline===next.discipline)return false;return !p.discipline||next.discipline===p.discipline;}
-case 'assignee-changed':{if(!prev||(prev.assigneeId||'')===(next.assigneeId||''))return false;return !p.staff||next.assigneeId===p.staff;}
+case 'assignee-changed':{if(!prev)return false;const a=autoAssignees(prev),b=autoAssignees(next);if(JSON.stringify(a)===JSON.stringify(b))return false;return !p.staff||b.includes(p.staff)&&!a.includes(p.staff);}
 case 'field-changed':{if(!prev||!p.field)return false;return JSON.stringify((prev.fieldValues||{})[p.field]??null)!==JSON.stringify((next.fieldValues||{})[p.field]??null);}
 case 'duedate-changed':return !!prev&&(prev.dueDate||'')!==(next.dueDate||'');
 default:return false;}}
 /* a rule whose condition is "סוג המשימה הוא: תת-משימה" runs on subtasks (each one on its own) instead of tasks */
-const autoForSubs=rule=>!!rule.condition&&rule.condition.type==='tasktype-is'&&(rule.condition.params||{}).tasktype==='subtask';
+const autoForSubs=rule=>autoRuleShape(rule).target==='subtask';
 function autoEvalCondition(cond,task,sheet,isSub){if(!cond||!cond.type)return true;const p=cond.params||{};switch(cond.type){
 case 'in-group':return autoGroupName(sheet,task)===p.group;
 case 'tasktype-is':return (isSub?'subtask':(task.taskType||'simple'))===p.tasktype;
-case 'status-is':return getMostRecentEventStatus(task)===p.status;
+case 'status-is':return taskStatusEff(task)===p.status;
 case 'priority-is':return task.priority===p.priority;
 case 'discipline-is':return task.discipline===p.discipline;
-case 'assignee-is':return (task.assigneeId||'')===p.staff;
+case 'assignee-is':return autoAssignees(task).includes(p.staff);
 case 'field-is':return JSON.stringify((task.fieldValues||{})[p.field]??null)===JSON.stringify(p.value??null);
 case 'duedate-is':{const d=task.dueDate||'';if(p.mode==='empty')return !d;if(!d)return false;return p.mode==='before'?d<p.date:p.mode==='after'?d>p.date:false;}
 default:return true;}}
@@ -2379,7 +2401,7 @@ case 'add-update':return{...task,events:[...(task.events||[]),{id:uid(),status:'
 case 'set-status':return p.status?{...task,statusId:p.status,statusOverride:true,done:p.status==='C'?true:task.done}:task;
 case 'set-priority':return p.priority?{...task,priority:p.priority}:task;
 case 'set-discipline':return p.discipline?{...task,discipline:p.discipline}:task;
-case 'set-assignee':return p.staff?{...task,assigneeId:p.staff}:task;
+case 'set-assignee':return p.staff?{...task,assigneeIds:[p.staff],assigneeId:p.staff}:task;
 case 'set-field':return p.field?{...task,fieldValues:{...(task.fieldValues||{}),[p.field]:p.value}}:task;
 case 'set-startdate':{let d='';if(p.mode==='relative'){const dt=new Date();dt.setDate(dt.getDate()+(parseInt(p.days)||0));d=dt.toISOString().slice(0,10);}else{d=p.date||'';}return d?{...task,startDate:d}:task;}
 case 'set-duedate':{let d='';if(p.mode==='relative'){const dt=new Date();dt.setDate(dt.getDate()+(parseInt(p.days)||0));d=dt.toISOString().slice(0,10);}else{d=p.date||'';}return d?{...task,dueDate:d}:task;}
@@ -5666,7 +5688,7 @@ case 'update-stale':return React.createElement(AutoTextInput,{type:'number',valu
 case 'field-changed':return React.createElement(AutoSelect,{value:p.field,onChange:v=>set('field',v),options:fieldOpts,placeholder:'— בחר שדה —'});
 case 'field-is':case 'set-field':return React.createElement(React.Fragment,null,React.createElement(AutoSelect,{value:p.field,onChange:v=>setParams({...p,field:v,value:''}),options:fieldOptsNoMulti,placeholder:'— בחר שדה —'}),p.field&&(fieldDef&&fieldDef.type==='single-select'?React.createElement(AutoSelect,{value:p.value,onChange:v=>set('value',v),options:(fieldDef.options||[]).map(o=>({v:o.label??String(o),l:o.label??String(o)})),placeholder:'— בחר ערך —'}):React.createElement(AutoTextInput,{value:p.value,onChange:v=>set('value',v),placeholder:'ערך'})));
 case 'duedate-is':return React.createElement(React.Fragment,null,React.createElement(AutoSelect,{value:p.mode,onChange:v=>set('mode',v),options:[{v:'before',l:'לפני תאריך'},{v:'after',l:'אחרי תאריך'},{v:'empty',l:'ריק'}],placeholder:'— בחר —'}),p.mode&&p.mode!=='empty'&&React.createElement(AutoTextInput,{type:'date',value:p.date,onChange:v=>set('date',v)}));
-case 'tasktype-is':return React.createElement(AutoSelect,{value:p.tasktype,onChange:v=>set('tasktype',v),options:[{v:'simple',l:'פשוטה'},{v:'process',l:'תהליך'},{v:'subtask',l:'תת-משימה'}],placeholder:'— בחר —'});
+case 'tasktype-is':return React.createElement(AutoSelect,{value:p.tasktype,onChange:v=>set('tasktype',v),options:[{v:'simple',l:'פשוטה'},{v:'process',l:'תהליך'}],placeholder:'— בחר —'});
 case 'set-startdate':case 'set-duedate':return React.createElement(React.Fragment,null,React.createElement(AutoSelect,{value:p.mode,onChange:v=>set('mode',v),options:[{v:'absolute',l:'תאריך מסוים'},{v:'relative',l:'מספר ימים מהיום'}],placeholder:'— בחר —'}),p.mode==='absolute'&&React.createElement(AutoTextInput,{type:'date',value:p.date,onChange:v=>set('date',v)}),p.mode==='relative'&&React.createElement(AutoTextInput,{type:'number',value:p.days??7,onChange:v=>set('days',v),placeholder:'מספר ימים'}));
 case 'add-update':return React.createElement(AutoTextInput,{value:p.note,onChange:v=>set('note',v),placeholder:'טקסט העדכון'});
 case 'add-subtask':return React.createElement(AutoTextInput,{value:p.title,onChange:v=>set('title',v),placeholder:'שם תת-המשימה'});
@@ -5680,23 +5702,33 @@ function AutomationBuilder({data,save,rule,onClose,offerLibrary=false}){
 const[savePop,setSavePop]=useState(false);const[saveErr,setSaveErr]=useState('');const[saving,setSaving]=useState(false);
 const[name,setName]=useState(rule?rule.name:'');
 const[scope,setScope]=useState(rule?autoNormScope(rule.scope):'all');
+/* a rule opens split into its steps: what it watches (subject), what happened (event), filters, actions */
+const init=rule?autoRuleShape(rule):{target:'task',condition:null};
+const[subject,setSubject]=useState(()=>rule&&rule.trigger?autoSubjectOf(rule.trigger.type,init.target):null);
+const[target,setTarget]=useState(init.target);
 const[trigger,setTrigger]=useState(rule?rule.trigger:null);
-const[condition,setCondition]=useState(rule?rule.condition:null);
+const[condition,setCondition]=useState(init.condition);
 const[actions,setActions]=useState(rule?rule.actions:[]);
-const[picker,setPicker]=useState('trigger');
+const[picker,setPicker]=useState(rule?null:'subject');
 const[search,setSearch]=useState('');
-const listSheets=(data.sheets||[]).filter(s=>s.type==='list');
-const valid=!!(trigger&&trigger.type&&actions.length&&(scope==='all'||scope.views.length+scope.stages.length>0));
-const buildRule=()=>({id:rule?rule.id:uid(),name:name.trim()||'אוטומציה ללא שם',enabled:rule?rule.enabled!==false:true,scope,trigger,condition,actions});const commit=r=>{const autos=data.automations||[];save({...data,automations:rule?autos.map(x=>x.id===r.id?r:x):[...autos,r]});onClose();};const doSave=()=>{if(!valid)return;commit(buildRule());};const saveTo=async where=>{if(!valid||saving)return;const r=buildRule();if(where!=='project'){setSaving(true);setSaveErr('');try{await saveRuleToLibrary(r,where);}catch{setSaving(false);setSaveErr('הספרייה לא נשמרה — בדוק שהשרת המקומי פועל');return;}}commit(r);};
-const pickerList=picker==='trigger'?AUTO_TRIGGERS:picker==='condition'?AUTO_CONDITIONS:AUTO_ACTIONS;
-const cats=[...new Set(pickerList.map(o=>o.cat))];
-const pick=o=>{if(picker==='trigger')setTrigger({type:o.id,params:{}});else if(picker==='condition')setCondition({type:o.id,params:{}});else setActions(a=>[...a,{type:o.id,params:{}}]);setSearch('');};
+const subj=AUTO_SUBJECTS.find(s=>s.id===subject)||null;
+const valid=!!(subj&&trigger&&trigger.type&&actions.length&&(scope==='all'||scope.views.length+scope.stages.length>0));
+const buildRule=()=>{const r={id:rule?rule.id:uid(),name:name.trim()||'אוטומציה ללא שם',enabled:rule?rule.enabled!==false:true,scope,trigger,condition,actions};if(target==='subtask')r.target='subtask';return r;};const commit=r=>{const autos=data.automations||[];save({...data,automations:rule?autos.map(x=>x.id===r.id?r:x):[...autos,r]});onClose();};const doSave=()=>{if(!valid)return;commit(buildRule());};const saveTo=async where=>{if(!valid||saving)return;const r=buildRule();if(where!=='project'){setSaving(true);setSaveErr('');try{await saveRuleToLibrary(r,where);}catch{setSaving(false);setSaveErr('הספרייה לא נשמרה — בדוק שהשרת המקומי פועל');return;}}commit(r);};
+/* choosing a subject keeps the event when it still fits; one event only — choose it straight away */
+const pickSubject=s=>{setSubject(s.id);setTarget(s.target||(s.both?target:'task'));const keep=trigger&&s.events.some(([t])=>t===trigger.type);if(!keep)setTrigger(s.events.length===1?{type:s.events[0][0],params:autoDefaultParams(s.events[0][0])}:null);setPicker(keep||s.events.length===1?null:'event');setSearch('');};
+const pickEvent=t=>{setTrigger(trigger&&trigger.type===t?trigger:{type:t,params:autoDefaultParams(t)});setPicker(null);setSearch('');};
+const pickerItems=picker==='subject'?AUTO_SUBJECTS.map(s=>({id:s.id,label:s.label,cat:s.cat,on:()=>pickSubject(s)})):picker==='event'?(subj?subj.events.map(([t,l])=>({id:t,label:l,cat:subj.label,on:()=>pickEvent(t)})):[]):picker==='condition'?AUTO_CONDITIONS.map(o=>({id:o.id,label:o.label,cat:o.cat,on:()=>{setCondition({type:o.id,params:{}});setSearch('');}})):AUTO_ACTIONS.map(o=>({id:o.id,label:o.label,cat:o.cat,on:()=>{setActions(a=>[...a,{type:o.id,params:{}}]);setSearch('');}}));
+const cats=[...new Set(pickerItems.map(o=>o.cat))];
 const stopClick=e=>e.stopPropagation();
-const card=(key,title,body,onRemove)=>React.createElement("div",{onClick:()=>setPicker(key),style:{width:250,flexShrink:0,background:'var(--surface)',border:`1.5px solid ${picker===key?'var(--accent)':'var(--border)'}`,borderRadius:10,padding:'14px 16px',cursor:'pointer',boxShadow:picker===key?'0 2px 10px rgba(37,99,235,.14)':'0 1px 3px rgba(0,0,0,.05)',position:'relative'}},React.createElement("div",{style:{fontSize:11,fontWeight:700,color:'var(--text-3)',marginBottom:6}},title),body,onRemove&&React.createElement("button",{onClick:e=>{e.stopPropagation();onRemove();},title:'הסר',style:{position:'absolute',top:8,insetInlineEnd:8,background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',fontSize:13}},'✕'));
-const connector=React.createElement("div",{style:{width:34,height:2,background:'var(--border-strong)',flexShrink:0,alignSelf:'center'}});
-const triggerBody=trigger?React.createElement("div",null,React.createElement("div",{style:{fontSize:13,fontWeight:600,color:'var(--text)'}},autoOptionLabel(AUTO_TRIGGERS,trigger.type)),React.createElement("div",{onClick:stopClick},React.createElement(AutoParamControls,{type:trigger.type,params:trigger.params,setParams:np=>setTrigger({...trigger,params:np}),data,scope}))):React.createElement("div",{style:{color:'var(--text-3)',fontSize:12.5}},'+ בחר טריגר');
+const card=(key,title,body,onRemove)=>React.createElement("div",{onClick:()=>{if(key==='event'&&!subj)return;setPicker(key);},style:{width:230,flexShrink:0,background:'var(--surface)',border:`1.5px solid ${picker===key?'var(--accent)':'var(--border)'}`,borderRadius:10,padding:'14px 16px',cursor:key==='event'&&!subj?'default':'pointer',boxShadow:picker===key?'0 2px 10px rgba(37,99,235,.14)':'0 1px 3px rgba(0,0,0,.05)',position:'relative',opacity:key==='event'&&!subj?.55:1}},React.createElement("div",{style:{fontSize:11,fontWeight:700,color:'var(--text-3)',marginBottom:6}},title),body,onRemove&&React.createElement("button",{onClick:e=>{e.stopPropagation();onRemove();},title:'הסר',style:{position:'absolute',top:8,insetInlineEnd:8,background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',fontSize:13}},'✕'));
+const connector=React.createElement("div",{style:{width:26,height:2,background:'var(--border-strong)',flexShrink:0,alignSelf:'center'}});
+const placeholder=t=>React.createElement("div",{style:{color:'var(--text-3)',fontSize:12.5}},t);
+const subjectBody=subj?React.createElement("div",null,React.createElement("div",{style:{fontSize:13,fontWeight:600,color:'var(--text)'}},subj.label),subj.both&&React.createElement("div",{onClick:stopClick,className:"ab-target",role:"radiogroup","aria-label":"חל על"},React.createElement("span",null,"חל על"),[['task','משימות'],['subtask','תתי-משימות']].map(([v,l])=>React.createElement("button",{key:v,type:"button",role:"radio","aria-checked":target===v,className:'ab-target-opt'+(target===v?' on':''),onClick:()=>setTarget(v)},l)))):placeholder('+ משימה, סטטוס, תאריך…');
+const eventLabel=subj&&trigger?((subj.events.find(([t])=>t===trigger.type)||[])[1]||autoOptionLabel(AUTO_TRIGGERS,trigger.type)):'';
+const eventBody=subj&&trigger?React.createElement("div",null,React.createElement("div",{style:{fontSize:13,fontWeight:600,color:'var(--text)'}},eventLabel),React.createElement("div",{onClick:stopClick},React.createElement(AutoParamControls,{type:trigger.type,params:trigger.params,setParams:np=>setTrigger({...trigger,params:np}),data,scope}))):placeholder(subj?'+ בחר מה קרה':'בחר קודם טריגר');
 const condBody=condition?React.createElement("div",null,React.createElement("div",{style:{fontSize:13,fontWeight:600,color:'var(--text)'}},autoOptionLabel(AUTO_CONDITIONS,condition.type)),React.createElement("div",{onClick:stopClick},React.createElement(AutoParamControls,{type:condition.type,params:condition.params,setParams:np=>setCondition({...condition,params:np}),data,scope}))):null;
-const actionsBody=actions.length?React.createElement("div",null,actions.map((a,i)=>React.createElement("div",{key:i,style:{borderTop:i>0?'1px solid var(--border)':'none',paddingTop:i>0?8:0,marginTop:i>0?8:0}},React.createElement("div",{style:{display:'flex',alignItems:'center',gap:6}},React.createElement("span",{style:{fontSize:13,fontWeight:600,color:'var(--text)',flex:1}},autoOptionLabel(AUTO_ACTIONS,a.type)),React.createElement("button",{onClick:e=>{e.stopPropagation();setActions(actions.filter((_,j)=>j!==i));},title:'הסר פעולה',style:{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',fontSize:12}},'✕')),React.createElement("div",{onClick:stopClick},React.createElement(AutoParamControls,{type:a.type,params:a.params,setParams:np=>setActions(actions.map((x,j)=>j===i?{...x,params:np}:x)),data,scope})))),React.createElement("div",{style:{color:'var(--accent)',fontSize:11.5,marginTop:10,fontWeight:600}},'+ הוסף פעולה נוספת')):React.createElement("div",{style:{color:'var(--text-3)',fontSize:12.5}},'+ בחר פעולה');
+const actionsBody=actions.length?React.createElement("div",null,actions.map((a,i)=>React.createElement("div",{key:i,style:{borderTop:i>0?'1px solid var(--border)':'none',paddingTop:i>0?8:0,marginTop:i>0?8:0}},React.createElement("div",{style:{display:'flex',alignItems:'center',gap:6}},React.createElement("span",{style:{fontSize:13,fontWeight:600,color:'var(--text)',flex:1}},autoOptionLabel(AUTO_ACTIONS,a.type)),React.createElement("button",{onClick:e=>{e.stopPropagation();setActions(actions.filter((_,j)=>j!==i));},title:'הסר פעולה',style:{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',fontSize:12}},'✕')),React.createElement("div",{onClick:stopClick},React.createElement(AutoParamControls,{type:a.type,params:a.params,setParams:np=>setActions(actions.map((x,j)=>j===i?{...x,params:np}:x)),data,scope})))),React.createElement("div",{style:{color:'var(--accent)',fontSize:11.5,marginTop:10,fontWeight:600}},'+ הוסף פעולה נוספת')):placeholder('+ בחר פעולה');
+const PICK_HEAD={subject:['כאשר...','על מה האוטומציה מסתכלת'],event:['מה קרה...',subj?'מה צריך לקרות ל'+subj.label:''],condition:['רק אם...','סינון: האוטומציה פועלת רק כשזה מתקיים'],action:['תעשה...','בחר פעולה שתתבצע']};
 return React.createElement("div",{style:{display:'flex',height:'100%',overflow:'hidden'}},
 React.createElement("div",{style:{flex:1,overflow:'auto',padding:'20px 24px'}},
 React.createElement("div",{style:{display:'flex',alignItems:'center',gap:10,marginBottom:8,flexWrap:'wrap'}},
@@ -5707,19 +5739,21 @@ React.createElement("button",{onClick:onClose,style:{padding:'8px 16px',fontSize
 React.createElement("span",{style:{position:'relative',display:'inline-flex'}},React.createElement("button",{onClick:()=>{if(!valid)return;if(offerLibrary){setSaveErr('');setSavePop(p=>!p);}else doSave();},"aria-haspopup":offerLibrary?'menu':undefined,"aria-expanded":offerLibrary?savePop:undefined,disabled:!valid,style:{padding:'8px 18px',fontSize:12.5,borderRadius:7,border:'none',background:valid?'var(--accent)':'var(--border)',color:valid?'#fff':'var(--text-3)',cursor:valid?'pointer':'not-allowed',fontFamily:'inherit',fontWeight:600}},'שמירה'),savePop&&React.createElement(React.Fragment,null,React.createElement("div",{style:{position:'fixed',inset:0,zIndex:60},onClick:()=>setSavePop(false)}),React.createElement("div",{className:"ab-save-pop",role:"menu"},React.createElement("div",{className:"ab-save-title"},"איפה לשמור את האוטומציה?"),React.createElement("div",{className:"ab-save-sub"},"היא תתווסף לפרויקט בכל מקרה"),React.createElement("button",{role:"menuitem",className:"ab-save-opt",disabled:!isSuperAdmin()||saving,title:isSuperAdmin()?'':'רק Super Admin יכול לשמור בספריית המשרד',onClick:()=>saveTo('office')},React.createElement("span",{className:"ab-save-name"},"ספריית המשרד"),React.createElement("span",{className:"ab-save-desc"},isSuperAdmin()?'זמינה לכל הפרויקטים במשרד':'רק Super Admin')),React.createElement("button",{role:"menuitem",className:"ab-save-opt",disabled:saving,onClick:()=>saveTo('personal')},React.createElement("span",{className:"ab-save-name"},"הספרייה שלי"),React.createElement("span",{className:"ab-save-desc"},"לשימוש שלך בפרויקטים אחרים")),React.createElement("button",{role:"menuitem",className:"ab-save-opt ab-save-plain",disabled:saving,onClick:()=>saveTo('project')},React.createElement("span",{className:"ab-save-name"},"רק בפרויקט הזה")),saveErr&&React.createElement("div",{className:"ab-save-err",role:"alert"},saveErr)))))),
 scope!=='all'&&React.createElement(AutoScopePicker,{data,scope,setScope}),
 React.createElement("div",{style:{display:'flex',alignItems:'flex-start',marginTop:18}},
-card('trigger','כאשר...',triggerBody),
+card('subject','כאשר...',subjectBody),
 connector,
-condition?card('condition','תבדוק ש...',condBody,()=>{setCondition(null);if(picker==='condition')setPicker(null);}):React.createElement("button",{onClick:()=>setPicker('condition'),style:{alignSelf:'center',flexShrink:0,padding:'8px 14px',fontSize:12,borderRadius:8,border:'1.5px dashed var(--border-strong)',background:'none',color:'var(--text-2)',cursor:'pointer',fontFamily:'inherit'}},'+ תנאי'),
+card('event','מה קרה...',eventBody),
+connector,
+condition?card('condition','רק אם...',condBody,()=>{setCondition(null);if(picker==='condition')setPicker(null);}):React.createElement("button",{onClick:()=>setPicker('condition'),title:'סינון אופציונלי — האוטומציה תפעל רק כשהוא מתקיים',style:{alignSelf:'center',flexShrink:0,padding:'8px 12px',fontSize:12,borderRadius:8,border:'1.5px dashed var(--border-strong)',background:'none',color:'var(--text-2)',cursor:'pointer',fontFamily:'inherit'}},'+ רק אם…'),
 connector,
 card('action','תעשה...',actionsBody))),
 picker&&React.createElement("div",{style:{width:300,flexShrink:0,borderInlineStart:'1px solid var(--border)',background:'var(--surface)',display:'flex',flexDirection:'column',overflow:'hidden'}},
 React.createElement("div",{style:{display:'flex',alignItems:'center',padding:'14px 16px 6px'}},
 React.createElement("div",{style:{flex:1}},
-React.createElement("div",{style:{fontSize:13.5,fontWeight:700,color:'var(--text)'}},picker==='trigger'?'כאשר...':picker==='condition'?'תבדוק ש...':'תעשה...'),
-React.createElement("div",{style:{fontSize:11,color:'var(--text-3)',marginTop:2}},picker==='trigger'?'בחר טריגר שמפעיל את החוק':picker==='condition'?'הוסף תנאי שחייב להתקיים':'בחר פעולה שתתבצע')),
+React.createElement("div",{style:{fontSize:13.5,fontWeight:700,color:'var(--text)'}},PICK_HEAD[picker][0]),
+React.createElement("div",{style:{fontSize:11,color:'var(--text-3)',marginTop:2}},PICK_HEAD[picker][1])),
 React.createElement("button",{onClick:()=>setPicker(null),style:{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',fontSize:14}},'✕')),
-React.createElement("div",{style:{padding:'8px 16px'}},React.createElement("input",{value:search,onChange:e=>setSearch(e.target.value),placeholder:'חיפוש...',style:{width:'100%',padding:'7px 10px',border:'1px solid var(--border)',borderRadius:7,fontSize:12,fontFamily:'inherit',background:'var(--bg)',color:'var(--text)',boxSizing:'border-box'}})),
-React.createElement("div",{style:{flex:1,overflow:'auto',padding:'0 8px 14px'}},cats.map(cat=>{const opts=pickerList.filter(o=>o.cat===cat&&(!search.trim()||o.label.includes(search.trim())));if(!opts.length)return null;return React.createElement("div",{key:cat},React.createElement("div",{style:{fontSize:10.5,fontWeight:700,color:'var(--text-3)',padding:'10px 8px 4px',letterSpacing:.4}},cat),opts.map(o=>React.createElement("button",{key:o.id,onClick:()=>pick(o),style:{display:'block',width:'100%',textAlign:'start',padding:'8px 10px',border:'none',background:'none',borderRadius:7,fontSize:12.5,fontFamily:'inherit',color:'var(--text)',cursor:'pointer'},onMouseEnter:e=>e.currentTarget.style.background='var(--bg)',onMouseLeave:e=>e.currentTarget.style.background='none'},o.label)));}))));}
+pickerItems.length>6&&React.createElement("div",{style:{padding:'8px 16px'}},React.createElement("input",{value:search,onChange:e=>setSearch(e.target.value),placeholder:'חיפוש...',style:{width:'100%',padding:'7px 10px',border:'1px solid var(--border)',borderRadius:7,fontSize:12,fontFamily:'inherit',background:'var(--bg)',color:'var(--text)',boxSizing:'border-box'}})),
+React.createElement("div",{style:{flex:1,overflow:'auto',padding:'0 8px 14px'}},cats.map(cat=>{const opts=pickerItems.filter(o=>o.cat===cat&&(!search.trim()||o.label.includes(search.trim())));if(!opts.length)return null;return React.createElement("div",{key:cat},React.createElement("div",{style:{fontSize:10.5,fontWeight:700,color:'var(--text-3)',padding:'10px 8px 4px',letterSpacing:.4}},cat),opts.map(o=>{const on=picker==='subject'?subject===o.id:picker==='event'?!!trigger&&trigger.type===o.id:false;return React.createElement("button",{key:o.id,onClick:o.on,"aria-pressed":on,style:{display:'block',width:'100%',textAlign:'start',padding:'8px 10px',border:'none',background:on?'rgba(37,99,235,.08)':'none',borderRadius:7,fontSize:12.5,fontFamily:'inherit',color:on?'var(--accent)':'var(--text)',fontWeight:on?600:400,cursor:'pointer'},onMouseEnter:e=>{if(!on)e.currentTarget.style.background='var(--bg)';},onMouseLeave:e=>{if(!on)e.currentTarget.style.background='none';}},o.label);}));}))));}
 /* ══════════════════════════════════════
    Template View — track/stage hierarchy editor
 ══════════════════════════════════════ */function ThemeTab(){const[activeTheme,setActiveTheme]=useState(()=>{try{return localStorage.getItem('pm_theme')||'default';}catch{return'default';}});const pick=id=>{applyTheme(id);setActiveTheme(id);};const[,forceTick]=useState(0);useEffect(()=>{const on=()=>forceTick(x=>x+1);window.addEventListener('i18n:change',on);window.addEventListener('appearance:change',on);return()=>{window.removeEventListener('i18n:change',on);window.removeEventListener('appearance:change',on);};},[]);const curLang=(window.I18N&&window.I18N.get&&window.I18N.get())||'he';const curAppearance=getAppearance();const optBtn=(active,onClick,label,skip)=>/*#__PURE__*/React.createElement("button",{onClick,style:{padding:'8px 16px',borderRadius:8,cursor:'pointer',fontFamily:'inherit',fontSize:12,fontWeight:600,border:active?'2px solid var(--accent)':'1px solid var(--border)',background:'var(--surface)',color:'var(--text)'},...(skip?{'data-i18n-skip':''}:{})},label);return/*#__PURE__*/React.createElement("div",{style:{padding:24,maxWidth:640}},/*#__PURE__*/React.createElement("div",{style:{fontSize:13,fontWeight:700,color:'var(--text)',marginBottom:4}},"ערכת צבעים"),/*#__PURE__*/React.createElement("div",{style:{fontSize:12,color:'var(--text-3)',marginBottom:16}},"בחר את עוצמת הצבע הדומיננטי בכל המערכת"),/*#__PURE__*/React.createElement("div",{style:{fontSize:13,fontWeight:700,color:'var(--text)',marginBottom:4}},"שפה"),/*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:8,marginBottom:16}},optBtn(curLang==='he',()=>{if(curLang!=='he')window.I18N&&window.I18N.toggle();},"עברית",true),optBtn(curLang==='en',()=>{if(curLang!=='en')window.I18N&&window.I18N.toggle();},"English",true)),/*#__PURE__*/React.createElement("div",{style:{fontSize:13,fontWeight:700,color:'var(--text)',marginBottom:4}},"מראה"),/*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:8,marginBottom:16}},optBtn(curAppearance==='light',()=>applyAppearance('light'),"בהיר",false),optBtn(curAppearance==='dark',()=>applyAppearance('dark'),"כהה",false)),/*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:14}},THEMES.map(th=>/*#__PURE__*/React.createElement("button",{key:th.id,onClick:()=>pick(th.id),style:{display:'flex',flexDirection:'column',alignItems:'center',gap:8,padding:'16px 20px',borderRadius:10,cursor:'pointer',fontFamily:'inherit',border:activeTheme===th.id?`2px solid ${th.vars['--accent']}`:'1px solid var(--border)',background:'var(--surface)',minWidth:130}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:4}},/*#__PURE__*/React.createElement("div",{style:{width:22,height:22,borderRadius:'50%',background:th.vars['--accent']}}),/*#__PURE__*/React.createElement("div",{style:{width:22,height:22,borderRadius:'50%',background:th.vars['--blue']}})),/*#__PURE__*/React.createElement("span",{style:{fontSize:12,fontWeight:600,color:'var(--text)'}},th.label),activeTheme===th.id?/*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:th.vars['--accent'],fontWeight:700}},"✓ פעיל"):/*#__PURE__*/React.createElement("span",{style:{fontSize:10,color:'var(--text-3)'}},"—")))));}
@@ -10932,7 +10966,7 @@ const fieldTypeLabel = type => (FIELD_TYPES.find(t => t.id === type) || {}).labe
 const fieldTypeIcon = type => (FIELD_TYPES.find(t => t.id === type) || {}).icon || '·';
 const optionLabels = f => (f.options || []).map(o => typeof o === 'string' ? o : o.label).filter(Boolean);
 const ruleSummary = rule => {
-  const t = autoOptionLabel(AUTO_TRIGGERS, rule.trigger && rule.trigger.type);
+  const t = autoTriggerText(rule);
   const a = (rule.actions || []).map(x => autoOptionLabel(AUTO_ACTIONS, x.type)).join(' · ');
   return `כאשר ${t} ← ${a || '—'}`;
 };
@@ -13694,6 +13728,9 @@ function FieldLibrary({
    carry no stage scope — stages belong to one project — so they are added to a
    project as "כל הפרויקט". */
 const libRuleOf = r => ({
+  ...(r.target === 'subtask' ? {
+    target: 'subtask'
+  } : {}),
   trigger: clone(r.trigger),
   condition: clone(r.condition || null),
   actions: clone(r.actions || [])
