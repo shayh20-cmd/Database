@@ -2296,7 +2296,8 @@ const AUTO_TRIGGERS=[
 {id:'field-changed',label:'שדה מותאם השתנה',cat:'שדות'},
 {id:'duedate-changed',label:'תאריך יעד השתנה',cat:'תאריכים'},
 {id:'duedate-approaching',label:'תאריך יעד מתקרב',cat:'תאריכים'},
-{id:'task-overdue',label:'משימה באיחור',cat:'תאריכים'}];
+{id:'task-overdue',label:'משימה באיחור',cat:'תאריכים'},
+{id:'update-stale',label:'עדכון תקוע מעל מספר ימים',cat:'תאריכים'}];
 const AUTO_CONDITIONS=[
 {id:'in-group',label:'נמצאת בקבוצה',cat:'משימה'},
 {id:'tasktype-is',label:'סוג המשימה הוא',cat:'משימה'},
@@ -2349,9 +2350,11 @@ case 'assignee-changed':{if(!prev||(prev.assigneeId||'')===(next.assigneeId||'')
 case 'field-changed':{if(!prev||!p.field)return false;return JSON.stringify((prev.fieldValues||{})[p.field]??null)!==JSON.stringify((next.fieldValues||{})[p.field]??null);}
 case 'duedate-changed':return !!prev&&(prev.dueDate||'')!==(next.dueDate||'');
 default:return false;}}
-function autoEvalCondition(cond,task,sheet){if(!cond||!cond.type)return true;const p=cond.params||{};switch(cond.type){
+/* a rule whose condition is "סוג המשימה הוא: תת-משימה" runs on subtasks (each one on its own) instead of tasks */
+const autoForSubs=rule=>!!rule.condition&&rule.condition.type==='tasktype-is'&&(rule.condition.params||{}).tasktype==='subtask';
+function autoEvalCondition(cond,task,sheet,isSub){if(!cond||!cond.type)return true;const p=cond.params||{};switch(cond.type){
 case 'in-group':return autoGroupName(sheet,task)===p.group;
-case 'tasktype-is':return (task.taskType||'simple')===p.tasktype;
+case 'tasktype-is':return (isSub?'subtask':(task.taskType||'simple'))===p.tasktype;
 case 'status-is':return getMostRecentEventStatus(task)===p.status;
 case 'priority-is':return task.priority===p.priority;
 case 'discipline-is':return task.discipline===p.discipline;
@@ -2376,7 +2379,7 @@ default:return task;}}
    triggers and conditions are evaluated against the user's change, not other
    rules' output (no chaining, no loops by design). Time-based triggers are
    skipped here — they run once per load via runTimeBasedAutomations below. */
-function runAutomations(prevData,nextData){const rules=(nextData.automations||[]).filter(r=>r.enabled&&r.trigger&&r.trigger.type&&(r.actions||[]).length&&r.trigger.type!=='duedate-approaching'&&r.trigger.type!=='task-overdue');if(!rules.length)return nextData;
+function runAutomations(prevData,nextData){const rules=(nextData.automations||[]).filter(r=>r.enabled&&r.trigger&&r.trigger.type&&(r.actions||[]).length&&r.trigger.type!=='duedate-approaching'&&r.trigger.type!=='task-overdue'&&r.trigger.type!=='update-stale');if(!rules.length)return nextData;const subRules=rules.filter(autoForSubs);
 const prevTasks={};(prevData&&prevData.sheets||[]).forEach(s=>{if(s.type==='list')(s.tasks||[]).forEach(t=>{prevTasks[t.id]=t;});});
 let log=[...(nextData.automationLog||[])];let fired=false;
 const sheets=(nextData.sheets||[]).map(sheet=>{if(sheet.type!=='list')return sheet;let changed=false;
@@ -2387,24 +2390,30 @@ if(!autoMatchTrigger(rule.trigger,prev,task,sheet))return;
 if(!autoEvalCondition(rule.condition,task,sheet))return;
 (rule.actions||[]).forEach(a=>{cur=autoApplyAction(a,cur,sheet);});
 log.push({id:uid(),ruleId:rule.id,taskId:cur.id,at:Date.now(),dedupeKey:''});fired=true;});
+if(subRules.length&&(cur.subtasks||[]).length){const prevSubs={};((prev&&prev.subtasks)||[]).forEach(x=>{prevSubs[x.id]=x;});const subs=cur.subtasks;const ns=subs.map(sub=>{const ps=prevSubs[sub.id]||null;if(ps===sub)return sub;let cs=sub;subRules.forEach(rule=>{if(!autoRuleInScope(rule,sheet.id))return;if(!autoTaskInScope(nextData,rule,sheet,task))return;if(!autoMatchTrigger(rule.trigger,ps,sub,sheet))return;if(!autoEvalCondition(rule.condition,sub,sheet,true))return;(rule.actions||[]).forEach(a=>{if(a.type!=='move-to-group')cs=autoApplyAction(a,cs,sheet);});log.push({id:uid(),ruleId:rule.id,taskId:sub.id,at:Date.now(),dedupeKey:''});fired=true;});return cs;});if(ns.some((x,i)=>x!==subs[i]))cur={...cur,subtasks:ns};}
 if(cur!==task)changed=true;return cur;});
 return changed?{...sheet,tasks:newTasks}:sheet;});
 if(!fired)return nextData;return{...nextData,sheets,automationLog:autoCapLog(log)};}
 /* Date-based triggers — evaluated once per app load. Dedupe: a rule fires at
    most once per (rule, task, dueDate value); changing the due date re-arms it. */
-function runTimeBasedAutomations(data){const rules=(data.automations||[]).filter(r=>r.enabled&&r.trigger&&(r.trigger.type==='duedate-approaching'||r.trigger.type==='task-overdue')&&(r.actions||[]).length);if(!rules.length)return{changed:false,data};
+function runTimeBasedAutomations(data){const TIMED=['duedate-approaching','task-overdue','update-stale'];const rules=(data.automations||[]).filter(r=>r.enabled&&r.trigger&&TIMED.includes(r.trigger.type)&&(r.actions||[]).length);if(!rules.length)return{changed:false,data};
 const today=todayISO();let log=[...(data.automationLog||[])];const seen=new Set(log.map(e=>e.dedupeKey).filter(Boolean));let fired=false;
+/* the key a firing is remembered by, or null when the rule doesn't apply to this task today.
+   Due dates: once per due date. Stuck update: once per update cycle (a new update re-arms it). */
+const timeKey=(rule,node)=>{const tp=rule.trigger.params||{};
+if(rule.trigger.type==='update-stale'){if(taskStatusEff(node)==='C')return null;const n=parseInt(tp.days);const days=updateDelayOf(node,isNaN(n)?14:n,today);if(days==null)return null;const evs=node.events||[];const st=evCountStart(evs)||evCurrent(evs)||{};return `${rule.id}|${node.id}|stale|${st.date||''}`;}
+const due=node.dueDate||'';if(!due||node.done)return null;
+if(rule.trigger.type==='duedate-approaching'){const days=parseInt(tp.days)||3;const dt=new Date(due);if(isNaN(dt))return null;dt.setDate(dt.getDate()-days);const from=dt.toISOString().slice(0,10);if(today<from||today>due)return null;}
+else if(due>=today)return null;
+return `${rule.id}|${node.id}|${due}`;};
+const fire=(rule,node,sheet,isSub)=>{const key=timeKey(rule,node);if(!key||seen.has(key))return node;if(!autoEvalCondition(rule.condition,node,sheet,isSub))return node;
+let n=node;(rule.actions||[]).forEach(a=>{if(!(isSub&&a.type==='move-to-group'))n=autoApplyAction(a,n,sheet);});
+seen.add(key);log.push({id:uid(),ruleId:rule.id,taskId:node.id,at:Date.now(),dedupeKey:key});fired=true;return n;};
 const sheets=(data.sheets||[]).map(sheet=>{if(sheet.type!=='list')return sheet;let changed=false;
 const newTasks=(sheet.tasks||[]).map(task=>{let cur=task;
-rules.forEach(rule=>{if(!autoRuleInScope(rule,sheet.id))return;
-const due=cur.dueDate||'';if(!due||cur.done)return;
-if(rule.trigger.type==='duedate-approaching'){const days=parseInt(rule.trigger.params&&rule.trigger.params.days)||3;const dt=new Date(due);if(isNaN(dt))return;dt.setDate(dt.getDate()-days);const from=dt.toISOString().slice(0,10);if(today<from||today>due)return;}
-else{if(due>=today)return;}
-const key=`${rule.id}|${cur.id}|${due}`;if(seen.has(key))return;
-if(!autoTaskInScope(data,rule,sheet,cur))return;
-if(!autoEvalCondition(rule.condition,cur,sheet))return;
-(rule.actions||[]).forEach(a=>{cur=autoApplyAction(a,cur,sheet);});
-seen.add(key);log.push({id:uid(),ruleId:rule.id,taskId:cur.id,at:Date.now(),dedupeKey:key});fired=true;});
+rules.forEach(rule=>{if(!autoRuleInScope(rule,sheet.id))return;if(!autoTaskInScope(data,rule,sheet,cur))return;
+if(autoForSubs(rule)){const subs=cur.subtasks||[];const ns=subs.map(x=>fire(rule,x,sheet,true));if(ns.some((x,i)=>x!==subs[i]))cur={...cur,subtasks:ns};}
+else cur=fire(rule,cur,sheet,false);});
 if(cur!==task)changed=true;return cur;});
 return changed?{...sheet,tasks:newTasks}:sheet;});
 if(!fired)return{changed:false,data};return{changed:true,data:{...data,sheets,automationLog:autoCapLog(log)}};}
@@ -5644,10 +5653,11 @@ case 'discipline-is':case 'set-discipline':return React.createElement(AutoSelect
 case 'assignee-changed':return React.createElement(AutoSelect,{value:p.staff,onChange:v=>set('staff',v),options:staffOpts,placeholder:'כל אחראי'});
 case 'assignee-is':case 'set-assignee':return React.createElement(AutoSelect,{value:p.staff,onChange:v=>set('staff',v),options:staffOpts,placeholder:'— בחר אחראי —'});
 case 'duedate-approaching':return React.createElement(AutoTextInput,{type:'number',value:p.days??3,onChange:v=>set('days',v),placeholder:'מספר ימים לפני'});
+case 'update-stale':return React.createElement(AutoTextInput,{type:'number',value:p.days??14,onChange:v=>set('days',v),placeholder:'ימים בלי התקדמות בעדכון'});
 case 'field-changed':return React.createElement(AutoSelect,{value:p.field,onChange:v=>set('field',v),options:fieldOpts,placeholder:'— בחר שדה —'});
 case 'field-is':case 'set-field':return React.createElement(React.Fragment,null,React.createElement(AutoSelect,{value:p.field,onChange:v=>setParams({...p,field:v,value:''}),options:fieldOptsNoMulti,placeholder:'— בחר שדה —'}),p.field&&(fieldDef&&fieldDef.type==='single-select'?React.createElement(AutoSelect,{value:p.value,onChange:v=>set('value',v),options:(fieldDef.options||[]).map(o=>({v:o.label??String(o),l:o.label??String(o)})),placeholder:'— בחר ערך —'}):React.createElement(AutoTextInput,{value:p.value,onChange:v=>set('value',v),placeholder:'ערך'})));
 case 'duedate-is':return React.createElement(React.Fragment,null,React.createElement(AutoSelect,{value:p.mode,onChange:v=>set('mode',v),options:[{v:'before',l:'לפני תאריך'},{v:'after',l:'אחרי תאריך'},{v:'empty',l:'ריק'}],placeholder:'— בחר —'}),p.mode&&p.mode!=='empty'&&React.createElement(AutoTextInput,{type:'date',value:p.date,onChange:v=>set('date',v)}));
-case 'tasktype-is':return React.createElement(AutoSelect,{value:p.tasktype,onChange:v=>set('tasktype',v),options:[{v:'simple',l:'פשוטה'},{v:'process',l:'תהליך'}],placeholder:'— בחר —'});
+case 'tasktype-is':return React.createElement(AutoSelect,{value:p.tasktype,onChange:v=>set('tasktype',v),options:[{v:'simple',l:'פשוטה'},{v:'process',l:'תהליך'},{v:'subtask',l:'תת-משימה'}],placeholder:'— בחר —'});
 case 'set-startdate':case 'set-duedate':return React.createElement(React.Fragment,null,React.createElement(AutoSelect,{value:p.mode,onChange:v=>set('mode',v),options:[{v:'absolute',l:'תאריך מסוים'},{v:'relative',l:'מספר ימים מהיום'}],placeholder:'— בחר —'}),p.mode==='absolute'&&React.createElement(AutoTextInput,{type:'date',value:p.date,onChange:v=>set('date',v)}),p.mode==='relative'&&React.createElement(AutoTextInput,{type:'number',value:p.days??7,onChange:v=>set('days',v),placeholder:'מספר ימים'}));
 case 'add-update':return React.createElement(AutoTextInput,{value:p.note,onChange:v=>set('note',v),placeholder:'טקסט העדכון'});
 case 'add-subtask':return React.createElement(AutoTextInput,{value:p.title,onChange:v=>set('title',v),placeholder:'שם תת-המשימה'});
@@ -7914,8 +7924,10 @@ function MyTasksTable({
       const r = await fetch(url);
       if (!r.ok) throw new Error('load');
       const etag = r.headers.get('etag');
-      const next = {
-        ...mutate(migrateData(await r.json())),
+      const fresh = migrateData(await r.json());
+        /* the project's automations run on these changes, as they would inside the project */
+        const next = {
+        ...runAutomations(fresh, mutate(fresh)),
         _ts: Date.now()
       };
       const w = await fetch(url, {
@@ -9106,7 +9118,7 @@ function NewTaskModal({
       const st = pickStage(fresh);
       if (!st) throw new Error('stage');
       await postJson(projectEndpointOf(projectId), {
-        ...addTo(fresh, st, newId),
+        ...runAutomations(fresh, addTo(fresh, st, newId)),
         _ts: Date.now()
       });
       finish(undefined, {
