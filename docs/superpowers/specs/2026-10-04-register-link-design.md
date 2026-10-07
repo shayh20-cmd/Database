@@ -1,5 +1,7 @@
 # Project Hub reads the register — design
 
+> Decisions 1 and 4 are partly reversed for people and firms by `2026-10-07-settings-consultants-firms-design.md`: Settings now edits the register's consultants and firms.
+
 **Date:** 2026-10-04
 **Status:** agreed with Daniel on 2026-10-04, section by section. Not yet planned.
 

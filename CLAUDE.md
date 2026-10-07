@@ -85,10 +85,13 @@ focus, and merge other people's saves. `/api/version` is the deployed page's ver
 and mtime of `project_hub_01.html`), used to offer a refresh after a deploy. Other routes: `/api/upload/<app>` and `/data/attachments/…` (attachments), `/api/hub-project/<id>`,
 `/api/projects`, `/api/personal`, `/api/me`, `/api/register-config`, `/api/snip` (local only).
 
-**The register.** `register-link.js` is a read-only client for KKarcDB.Api (KKarcDB on
-Supabase) using a Supabase token; `register-link-ui.js` renders the facts card, consultants
-and link picker inside the hub. Nothing is written to the register from here. Its four app
-settings and the outside changes it depends on are in `docs/azure.md`.
+**The register.** `register-link.js` is the client for KKarcDB.Api (KKarcDB on Supabase), signed
+in with a Supabase token. `register-link-ui.js` renders the facts card, the consultants table and
+the link picker inside a project, all read-only, and holds the shared register store.
+`register-directory-ui.js` renders Settings → Consultants and Firms, which **write** the
+register's consultants and firms (Kind = consultant) through the API's own endpoints. The
+register's role decides who may edit there: editor, manager or admin. Its four app settings and
+the outside changes it depends on are in `docs/azure.md`.
 
 **Other parts of the repo:**
 
