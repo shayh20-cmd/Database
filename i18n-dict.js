@@ -2441,7 +2441,34 @@ Object.assign(HE_EN, {
 "כאשר {t} ← {a}": "When {t} → {a}",
 
 /* ── The register card ── */
-"מ״ר": "sqm"
+"מ״ר": "sqm",
+
+/* ── Settings: consultants and firms (register-directory-ui.js, register-link.js) ── */
+"{n} יועצים במאגר": "{n} consultants in the register",
+"מהמאגר (KKarcDB)": "From the register (KKarcDB)",
+"חיפוש לפי שם, משרד, תחום, טלפון או מייל": "Search by name, firm, discipline, phone or email",
+"יועץ חדש": "New consultant",
+"משרד היועץ": "Firm",
+"תחומים": "Disciplines",
+"כתובת המשרד": "Address",
+"לא נמצאו יועצים": "No consultants found",
+"משתמש במאגר נערך ב-KK Hub": "A register user is edited in KK Hub",
+"משתמש במאגר": "Register user",
+"הצגת כל היועצים": "Show all consultants",
+"ללא משרד": "No firm",
+"תחומי המשרד": "The firm's disciplines",
+"שאר התחומים": "Other disciplines",
+"יצירה": "Create",
+"צפייה בלבד — עריכת המאגר דורשת הרשאת Editor במאגר": "View only — editing the register needs the Editor role in the register",
+"השדה שונה בינתיים על ידי מישהו אחר. הערך עכשיו: {value}": "Someone else changed this field meanwhile. It now reads: {value}",
+"זה משתמש במאגר, לא איש קשר — עריכה ב-KK Hub": "This is a register user, not a contact — edit them in KK Hub",
+"המאגר לא קיבל את הערך": "The register didn't accept the value",
+"המאגר סירב לשינוי": "The register refused the change",
+"הרשומה לא נמצאה במאגר — ייתכן שמוזגה": "The record wasn't found in the register — it may have been merged",
+"אין הרשאה לשנות את המאגר": "You don't have permission to change the register",
+"החיבור למאגר פג — התחבר שוב": "The register sign-in has expired — sign in again",
+"המאגר לא עונה — השינוי לא נשמר": "The register isn't answering — the change wasn't saved",
+"המאגר לא זמין באתר הזה": "The register isn't available on this site"
 });
 
 window.I18N_HE_EN = HE_EN;

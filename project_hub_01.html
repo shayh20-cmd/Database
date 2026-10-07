@@ -21,7 +21,8 @@ try{var h=document.documentElement;if(localStorage.getItem('appLang')==='en'){h.
 <script src="/supabase-js-2.112.4.min.js"></script>
 <script src="/register-link.js"></script>
 <script src="/register-link-ui.js"></script>
-<script>/* The register views are optional: if register-link-ui.js is missing or fails, the hub runs without them. */window.RegisterLinkUI=window.RegisterLinkUI||{useConsultantRows:function(){return[];},FactsCard:function(){return null;},ConsultantsNotice:function(){return null;},EditInHub:function(){return null;},AutoLink:function(){return null;}};</script>
+<script src="/register-directory-ui.js"></script>
+<script>window.RegisterDirectoryUI=window.RegisterDirectoryUI||(function(){var off=function(){return React.createElement('div',{className:'st-section'},React.createElement('div',{className:'rl-line'},'המאגר לא זמין באתר הזה'));};return{ConsultantsSettings:off,FirmsSettings:off};})();/* The register views are optional: if register-link-ui.js is missing or fails, the hub runs without them. */window.RegisterLinkUI=window.RegisterLinkUI||{useConsultantRows:function(){return[];},FactsCard:function(){return null;},ConsultantsNotice:function(){return null;},EditInHub:function(){return null;},AutoLink:function(){return null;}};</script>
 <style>
 :root{
   --bg:#F5F6F8;--surface:#fff;--surface-2:#FAFBFC;--border:#E8EAED;--border-strong:#D0D2D6;
@@ -14214,6 +14215,7 @@ function OfficeSettingsView({
   save
 }) {
   const [section, setSection] = useState(() => SETTINGS_OPEN_AT && SETTINGS_OPEN_AT.section || 'team');
+  const [firmFilter, setFirmFilter] = useState(null); // Settings → Firms → a firm's consultants
   useEffect(() => {
     const go = () => SETTINGS_OPEN_AT && setSection(SETTINGS_OPEN_AT.section);
     window.addEventListener('ph:go-settings', go);
@@ -14222,6 +14224,10 @@ function OfficeSettingsView({
   const SECTIONS = [{
     id: 'team',
     label: 'צוות',
+    icon: 'consultants'
+  }, {
+    id: 'consultants',
+    label: 'יועצים',
     icon: 'consultants'
   }, {
     id: 'library',
@@ -14259,6 +14265,10 @@ function OfficeSettingsView({
     className: "st-main"
   }, section === 'team' && /*#__PURE__*/React.createElement(OfficeTeamView, {
     data: data
+  }), section === 'consultants' && React.createElement(RegisterDirectoryUI.ConsultantsSettings, {
+    officeRole: myOfficeRole(),
+    firmId: firmFilter,
+    onClearFirm: () => setFirmFilter(null)
   }), section === 'library' && /*#__PURE__*/React.createElement(OfficeLibraryView, {
     data: data,
     save: save
