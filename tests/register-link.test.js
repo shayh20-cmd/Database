@@ -276,3 +276,85 @@ test('hasConsultants: a project with any non-staff member has consultants to sho
   assert.strictEqual(RL.hasConsultants({ members: [] }), false);
   assert.strictEqual(RL.hasConsultants({}), false);
 });
+
+// ── writes (spec 2026-10-07 §1) ──
+function fakeWriteFetch(answers, seen) {
+  return async (url, init) => {
+    seen.push({ url, method: init.method, auth: init.headers.Authorization, type: init.headers['Content-Type'], body: init.body });
+    const a = answers.shift();
+    if (a === 'throw') throw new TypeError('Failed to fetch');
+    return {
+      status: a.status, ok: a.status >= 200 && a.status < 300,
+      json: async () => { if (a.body === undefined) throw new SyntaxError('Unexpected end of JSON input'); return a.body; },
+    };
+  };
+}
+
+test('send: a PATCH carries the token, the method and the JSON body; 204 is ok with no data', async () => {
+  const seen = [];
+  const c = RL.createRegisterClient(config, fakeSupabase(), fakeWriteFetch([{ status: 204 }], seen));
+  const r = await c.send('PATCH', '/api/contacts/p1', { field: 'mobile', value: '050', was: null });
+  assert.deepStrictEqual(r, { state: 'ok', data: null });
+  assert.deepStrictEqual(seen, [{
+    url: 'https://api.example/api/contacts/p1', method: 'PATCH', auth: 'Bearer ' + jwt({ sub: 'first' }),
+    type: 'application/json', body: JSON.stringify({ field: 'mobile', value: '050', was: null }),
+  }]);
+});
+
+test('send: a POST answers with what the API returned', async () => {
+  const c = RL.createRegisterClient(config, fakeSupabase(), fakeWriteFetch([{ status: 200, body: { id: 'n1' } }], []));
+  assert.deepStrictEqual(await c.send('POST', '/api/firms', { name: 'X', tags: {} }), { state: 'ok', data: { id: 'n1' } });
+});
+
+test('send: an expired token is refreshed once and the write retried', async () => {
+  const seen = [];
+  const c = RL.createRegisterClient(config, fakeSupabase(), fakeWriteFetch([{ status: 401 }, { status: 204 }], seen));
+  assert.strictEqual((await c.send('PUT', '/api/firms/f1/tags/discipline', { codes: [], was: [] })).state, 'ok');
+  assert.deepStrictEqual(seen.map(s => [s.method, s.auth]), [
+    ['PUT', 'Bearer ' + jwt({ sub: 'first' })], ['PUT', 'Bearer ' + jwt({ sub: 'second' })],
+  ]);
+});
+
+test('send: 409 changed carries what the other person saved', async () => {
+  const c = RL.createRegisterClient(config, fakeSupabase(),
+    fakeWriteFetch([{ status: 409, body: { code: 'changed', error: 'x', current: '052' } }], []));
+  assert.deepStrictEqual(await c.send('PATCH', '/api/contacts/p1', {}), { state: 'changed', current: '052' });
+  const d = RL.createRegisterClient(config, fakeSupabase(),
+    fakeWriteFetch([{ status: 409, body: { code: 'changed', error: 'x', current: null } }], []));
+  assert.deepStrictEqual(await d.send('PATCH', '/api/contacts/p1', {}), { state: 'changed', current: null }, 'cleared meanwhile');
+});
+
+test('send: other 409s and 400s are rejected, with the API\'s code and message', async () => {
+  for (const [status, body] of [
+    [409, { code: 'not_a_contact', error: 'Users are edited on Users.' }],
+    [400, { code: 'invalid_value', error: 'name is required' }],
+  ]) {
+    const c = RL.createRegisterClient(config, fakeSupabase(), fakeWriteFetch([{ status, body }], []));
+    assert.deepStrictEqual(await c.send('PATCH', '/api/contacts/p1', {}), { state: 'rejected', code: body.code, error: body.error }, String(status));
+  }
+  const e = RL.createRegisterClient(config, fakeSupabase(), fakeWriteFetch([{ status: 400 }], []));
+  assert.deepStrictEqual(await e.send('POST', '/api/contacts', {}), { state: 'rejected', code: null, error: null }, 'a 400 with no body');
+});
+
+test('send: 403 refused, 404 not-found, 5xx and a network failure unreachable, no session signed-out', async () => {
+  for (const [answer, expected] of [
+    [{ status: 403 }, { state: 'refused', subject: 'first' }],
+    [{ status: 404 }, { state: 'not-found' }],
+    [{ status: 500 }, { state: 'unreachable' }],
+    ['throw', { state: 'unreachable' }],
+  ]) {
+    const c = RL.createRegisterClient(config, fakeSupabase(), fakeWriteFetch([answer], []));
+    assert.deepStrictEqual(await c.send('PATCH', '/api/firms/f1', {}), expected, JSON.stringify(answer));
+  }
+  const seen = [];
+  const n = RL.createRegisterClient(config, fakeSupabase({ token: null }), fakeWriteFetch([{ status: 204 }], seen));
+  assert.deepStrictEqual(await n.send('PATCH', '/api/firms/f1', {}), { state: 'signed-out' });
+  assert.strictEqual(seen.length, 0);
+});
+
+test('send: only POST, PATCH and PUT — anything else throws, and nothing is sent', async () => {
+  const seen = [];
+  const c = RL.createRegisterClient(config, fakeSupabase(), fakeWriteFetch([{ status: 204 }], seen));
+  for (const m of ['GET', 'DELETE', 'patch']) await assert.rejects(c.send(m, '/api/firms/f1', {}), /POST, PATCH and PUT/, m);
+  assert.strictEqual(seen.length, 0);
+});

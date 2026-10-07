@@ -1,4 +1,5 @@
-/* Project Hub ↔ the register (KKarcDB on Supabase), read-only.
+/* Project Hub ↔ the register (KKarcDB on Supabase). Reads projects, people, firms and tags; writes
+   consultants and firms only (docs/superpowers/specs/2026-10-07-settings-consultants-firms-design.md).
    Spec: docs/superpowers/specs/2026-10-04-register-link-design.md.
    Pure functions first — tests/register-link.test.js requires this file under Node. The client
    at the end needs supabase-js and, for the sign-in round trip, a browser. */
@@ -159,7 +160,7 @@
   /* The register, through KKarcDB.Api, as the signed-in person (spec §1). `createSupabase` is
      supabase-js's createClient and `fetchImpl` the browser's fetch — parameters so the tests can
      stand in for both. Every answer is { state, data?, subject? }, state one of ok, signed-out,
-     refused, not-found, unreachable (spec §6). Only GET is ever sent. */
+     refused, not-found, unreachable (spec §6). get reads; send writes, with POST, PATCH or PUT only. */
   function createRegisterClient(config, createSupabase, fetchImpl) {
     const doFetch = fetchImpl || ((url, init) => root.fetch(url, init));
     // The address as the page opened, read before supabase-js runs: on a successful return it
@@ -188,30 +189,63 @@
       return accessToken(await sb.auth.getSession());
     }
 
-    async function get(path) {
+    // One request with the token, refreshed and retried once on 401. Gives the response, or the
+    // answer that ends it: signed-out, refused, not-found or unreachable.
+    async function call(path, init) {
       let t = await token();
-      if (!t) return { state: 'signed-out' };
+      if (!t) return { answer: { state: 'signed-out' } };
       for (let attempt = 0; ; attempt++) {
         let res;
         try {
-          res = await doFetch(api + path, { headers: { Authorization: 'Bearer ' + t, Accept: 'application/json' } });
+          const headers = Object.assign({ Authorization: 'Bearer ' + t, Accept: 'application/json' }, init && init.headers);
+          res = await doFetch(api + path, Object.assign({}, init, { headers }));
         } catch (e) {
-          return { state: 'unreachable' };
+          return { answer: { state: 'unreachable' } };
         }
         if (res.status === 401 && attempt === 0) {
           t = accessToken(await sb.auth.refreshSession());
-          if (!t) return { state: 'signed-out' };
+          if (!t) return { answer: { state: 'signed-out' } };
           continue;
         }
-        if (res.status === 401 || res.status === 403) return { state: 'refused', subject: subjectOf(t) };
-        if (res.status === 404) return { state: 'not-found' };
-        if (!res.ok) return { state: 'unreachable' };
-        try {
-          return { state: 'ok', data: await res.json() };
-        } catch (e) {
-          return { state: 'unreachable' };
-        }
+        if (res.status === 401 || res.status === 403) return { answer: { state: 'refused', subject: subjectOf(t) } };
+        if (res.status === 404) return { answer: { state: 'not-found' } };
+        return { res };
       }
+    }
+
+    async function get(path) {
+      const { res, answer } = await call(path);
+      if (answer) return answer;
+      if (!res.ok) return { state: 'unreachable' };
+      try {
+        return { state: 'ok', data: await res.json() };
+      } catch (e) {
+        return { state: 'unreachable' };
+      }
+    }
+
+    /* A write (2026-10-07 design §1): POST, PATCH or PUT only. A 409 `changed` brings what the
+       other person saved; another 409 or a 400 is the register refusing the value. */
+    const WRITES = ['POST', 'PATCH', 'PUT'];
+    async function send(method, path, body) {
+      if (!WRITES.includes(method)) throw new Error('register-link: only POST, PATCH and PUT are sent, not ' + method);
+      const { res, answer } = await call(path, {
+        method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body === undefined ? null : body),
+      });
+      if (answer) return answer;
+      if (res.ok) {
+        let data = null;
+        try { data = await res.json(); } catch (e) { /* 204: nothing to read */ }
+        return { state: 'ok', data };
+      }
+      if (res.status === 409 || res.status === 400) {
+        let b = null;
+        try { b = await res.json(); } catch (e) { /* no body */ }
+        b = b || {};
+        if (res.status === 409 && b.code === 'changed') return { state: 'changed', current: b.current === undefined ? null : b.current };
+        return { state: 'rejected', code: b.code || null, error: b.error || null };
+      }
+      return { state: 'unreachable' };
     }
 
     async function signIn() {
@@ -227,6 +261,7 @@
       ready,
       token,
       get,
+      send,
       signIn,
       signOut: () => sb.auth.signOut(),
       // supabase-js must not be called from inside its own callback; listeners run a tick later.
