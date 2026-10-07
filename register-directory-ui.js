@@ -13,8 +13,8 @@
 
   const css = document.createElement('style');
   css.textContent = [
-    '.st-tr.rd-c{grid-template-columns:minmax(170px,1.3fr) minmax(130px,1fr) minmax(150px,1.2fr) 112px 112px minmax(150px,1.2fr) 64px 28px}',
-    '.st-tr.rd-f{grid-template-columns:minmax(170px,1.3fr) minmax(150px,1.3fr) 112px minmax(150px,1.1fr) minmax(150px,1.2fr) 72px 28px}',
+    '.st-tr.rd-c{grid-template-columns:minmax(160px,1.3fr) minmax(120px,1fr) minmax(130px,1.2fr) 104px 104px minmax(140px,1.2fr) 56px 24px}',
+    '.st-tr.rd-f{grid-template-columns:minmax(160px,1.3fr) minmax(140px,1.3fr) 104px minmax(140px,1.1fr) minmax(140px,1.2fr) 64px 24px}',
     '.rd-cell{min-width:0;font-size:13px;color:var(--text)}',
     '.rd-val{display:block;min-height:22px;line-height:22px;padding-inline:4px;border-radius:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
     '.rd-val.rd-edit{cursor:text}',
