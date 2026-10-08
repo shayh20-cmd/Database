@@ -2500,7 +2500,11 @@ Object.assign(HE_EN, {
 "תכננת לעבוד על זה היום — רק אתה רואה את זה": "You planned to work on this today — only you see this",
 "נדחה": "Carried over",
 "תוכנן ל-{d} ועוד לא נגמר": "Planned for {d} and not done yet",
-"של אחרים": "Others' tasks"
+"של אחרים": "Others' tasks",
+"תשומת לב": "Attention",
+"דורש תשומת לב": "Needs attention",
+"דחוף בלי תאריך": "Urgent, no date",
+"לא דחוף": "Not urgent"
 });
 
 window.I18N_HE_EN = HE_EN;
