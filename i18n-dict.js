@@ -2476,7 +2476,13 @@ Object.assign(HE_EN, {
 "משרד חדש": "New firm",
 "משרד יועצים": "Firm",
 "לא נמצאו משרדי יועצים": "No firms found",
-"הצגת היועצים של המשרד": "Show the firm's consultants"
+"הצגת היועצים של המשרד": "Show the firm's consultants",
+"סמל הסטטוס": "Status icon",
+"איך מוצג ריבוע הסטטוס ליד המשימות": "How the status square next to tasks looks",
+"עם אות": "With letter",
+"מלא, עם האות הראשונה של הסטטוס": "Filled, with the status's first letter",
+"ללא אות": "No letter",
+"מסגרת בצבע הסטטוס ורקע בהיר": "A border in the status colour over a lighter fill"
 });
 
 window.I18N_HE_EN = HE_EN;
