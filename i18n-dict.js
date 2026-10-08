@@ -2482,7 +2482,24 @@ Object.assign(HE_EN, {
 "עם אות": "With letter",
 "מלא, עם האות הראשונה של הסטטוס": "Filled, with the status's first letter",
 "ללא אות": "No letter",
-"מסגרת בצבע הסטטוס ורקע בהיר": "A border in the status colour over a lighter fill"
+"מסגרת בצבע הסטטוס ורקע בהיר": "A border in the status colour over a lighter fill",
+"מועד יעד": "Deadline",
+"שבוע הבא": "Next week",
+"בהמשך": "Later",
+"התכנון שלי": "My plan",
+"לא מתוכנן": "Not planned",
+"לעבוד היום": "Work on it today",
+"לעבוד מחר": "Work on it tomorrow",
+"לעבוד השבוע": "Work on it this week",
+"לעבוד בהמשך": "Work on it later",
+"בטל תכנון": "Clear plan",
+"☀ להיום": "☀ Today",
+"☀ בטל": "☀ Clear",
+"הסר מהיום": "Remove from today",
+"לעבוד על זה היום": "Work on this today",
+"תכננת לעבוד על זה היום — רק אתה רואה את זה": "You planned to work on this today — only you see this",
+"נדחה": "Carried over",
+"תוכנן ל-{d} ועוד לא נגמר": "Planned for {d} and not done yet"
 });
 
 window.I18N_HE_EN = HE_EN;
