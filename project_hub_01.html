@@ -9139,6 +9139,281 @@ function buildProjectFromTemplate(src, meta) {
   };
   return doc;
 }
+/* ═══ admin-logic ═══ */
+/* פרויקט ניהול — a project of small projects. A category is a track, a small project is a stage
+   (a list sheet) with משימות / באגים / רעיונות sections, and the statuses follow a development
+   cycle. N / I / C / S keep their shared ids, so attention, My Tasks and automations work as is.
+   tests/admin-logic.test.js runs this block straight from the file. */
+const ADMIN_STATUSES = [{
+  id: 'IDEA',
+  label: 'רעיון',
+  color: '#A78BFA'
+}, {
+  id: 'N',
+  label: 'מתוכנן',
+  color: 'var(--status-N)'
+}, {
+  id: 'I',
+  label: 'בפיתוח',
+  color: 'var(--status-I)'
+}, {
+  id: 'R',
+  label: 'בבדיקה',
+  color: 'var(--status-R)'
+}, {
+  id: 'C',
+  label: 'הושלם',
+  color: 'var(--status-C)'
+}, {
+  id: 'S',
+  label: 'תקוע',
+  color: 'var(--status-S)'
+}];
+const ADMIN_SECTIONS = [{
+  key: 'tasks',
+  name: 'משימות'
+}, {
+  key: 'bugs',
+  name: 'באגים'
+}, {
+  key: 'ideas',
+  name: 'רעיונות'
+}];
+const ADMIN_HIDDEN_HUB_TABS = ['principles', 'supervision', 'reviews'];
+const isAdminProject = doc => !!(doc && doc.projectMeta && doc.projectMeta.kind === 'admin');
+const parseCategories = str => [...new Set(String(str || '').split(',').map(x => x.trim()).filter(Boolean))];
+const adminSections = () => ADMIN_SECTIONS.map(s => ({
+  id: uid(),
+  name: s.name,
+  collapsed: false,
+  adminKey: s.key
+}));
+function makeAdminStage(name, trackValue) {
+  return {
+    id: uid(),
+    name,
+    type: 'list',
+    track: trackValue,
+    groups: adminSections(),
+    tasks: [],
+    fields: [],
+    hiddenCols: {
+      __discipline: true,
+      __owner_status: true
+    },
+    colOrder: [],
+    views: []
+  };
+}
+const adminCategoryTrack = name => {
+  const tv = 'cat-' + uid();
+  return {
+    id: tv,
+    label: name,
+    trackValue: tv,
+    stageOrder: []
+  };
+};
+const adminBoard = track => ({
+  id: uid(),
+  name: 'דאשבורד',
+  type: 'dashboard',
+  track: track.trackValue,
+  groups: [],
+  tasks: []
+});
+/* a small project, added to a category; returns the new document and the stage's id */
+function addAdminStage(doc, track, name) {
+  const st = makeAdminStage(name, track.trackValue);
+  return {
+    id: st.id,
+    doc: {
+      ...doc,
+      sheets: [...(doc.sheets || []), st],
+      tracks: (doc.tracks || []).map(t => t.id === track.id ? {
+        ...t,
+        stageOrder: [...(t.stageOrder || []), st.id]
+      } : t)
+    }
+  };
+}
+/* a new admin project: the office roster, priorities and info fields from the source — no
+   architecture tracks, stages, disciplines or statuses */
+function buildAdminProject(src, meta, categories) {
+  const names = categories && categories.length ? categories : ['כללי'];
+  const cats = names.map(adminCategoryTrack);
+  const home = {
+    id: uid(),
+    name: 'משימות שוטפות',
+    type: 'list',
+    track: null,
+    groups: adminSections(),
+    tasks: [],
+    fields: [],
+    hiddenCols: {
+      __discipline: true,
+      __owner_status: true
+    },
+    colOrder: [],
+    views: []
+  };
+  return {
+    projectName: meta.name,
+    projectMeta: {
+      id: meta.id,
+      code: meta.code,
+      color: meta.color,
+      visibility: meta.visibility,
+      ownerId: CURRENT_USER.id,
+      ownerName: CURRENT_USER.name,
+      createdAt: todayISO(),
+      kind: 'admin'
+    },
+    tracks: [{
+      id: 'ongoing',
+      label: 'ניהול תכנון',
+      trackValue: null,
+      stageOrder: []
+    }, ...cats],
+    sheets: [home, ...cats.map(adminBoard)],
+    statuses: clone(ADMIN_STATUSES),
+    priorities: clone(src.priorities),
+    builtinConfig: {},
+    fields: [],
+    projectInfoFields: clone(src.projectInfoFields || []),
+    projectInfo: {
+      client: meta.client || '',
+      location: meta.location || '',
+      customFields: {}
+    },
+    staff: clone(src.staff || []),
+    team: (src.staff || []).filter(st => st.id === CURRENT_USER.id).map(st => ({
+      id: uid(),
+      staffId: st.id,
+      name: st.name,
+      role: st.role,
+      email: st.email,
+      phone: st.phone,
+      projectRole: '',
+      access: 'manager'
+    })),
+    externalContacts: [],
+    meetings: [],
+    goals: [],
+    milestones: [],
+    licensingGoals: [],
+    licensingMilestones: [],
+    standalonePrinciples: [],
+    automations: [],
+    automationLog: [],
+    inbox: [],
+    projectNotepads: [],
+    precondsRepaired: true,
+    _ts: Date.now()
+  };
+}
+const adminStatusOf = t => t.done ? 'C' : t.statusId || 'N';
+/* one row per small project: what is open in each section, what is in development, the last change */
+function adminSummary(doc) {
+  const tracks = (doc && doc.tracks || []).filter(t => t.trackValue);
+  const rows = [];
+  tracks.forEach(t => {
+    const order = t.stageOrder || [];
+    const rank = s => {
+      const i = order.indexOf(s.id);
+      return i < 0 ? order.length : i;
+    };
+    (doc.sheets || []).filter(s => s.type === 'list' && s.track === t.trackValue).sort((a, b) => rank(a) - rank(b)).forEach(s => {
+      const keyOf = gid => {
+        const g = (s.groups || []).find(x => x.id === gid);
+        return g && g.adminKey || 'tasks';
+      };
+      const open = (s.tasks || []).filter(x => adminStatusOf(x) !== 'C');
+      const inSec = k => open.filter(x => keyOf(x.groupId) === k).length;
+      const last = (s.tasks || []).flatMap(x => (x.activityLog || []).map(e => e.at || 0));
+      rows.push({
+        sheetId: s.id,
+        name: s.name,
+        trackId: t.id,
+        trackValue: t.trackValue,
+        category: t.label,
+        openTasks: inSec('tasks'),
+        bugs: inSec('bugs'),
+        ideas: inSec('ideas'),
+        dev: open.filter(x => adminStatusOf(x) === 'I').length,
+        review: open.filter(x => adminStatusOf(x) === 'R').length,
+        stuck: open.filter(x => adminStatusOf(x) === 'S').length,
+        inDev: open.filter(x => adminStatusOf(x) === 'I').map(x => x.title || ''),
+        lastAt: last.length ? Math.max(...last) : null
+      });
+    });
+  });
+  return rows;
+}
+/* turn an existing project into an admin one. plan.categories: [{name, sheetIds}] — which list
+   sheets go to which category; plan.sectionOf: {groupId: 'tasks'|'bugs'|'ideas'} — where an old
+   section's tasks go (default משימות). Track-less sheets (ניהול תכנון) stay; any other list sheet
+   the plan doesn't name goes to כללי. Nothing is deleted. */
+function convertToAdmin(doc, plan) {
+  const cats = (plan.categories || []).map(c => ({
+    track: adminCategoryTrack(c.name),
+    sheetIds: c.sheetIds || []
+  }));
+  let general = null;
+  const trackFor = sheet => {
+    const hit = cats.find(c => c.sheetIds.includes(sheet.id));
+    if (hit) return hit.track;
+    if (!general) general = adminCategoryTrack('כללי');
+    return general;
+  };
+  const sectionOf = plan.sectionOf || {};
+  const sheets = [];
+  (doc.sheets || []).forEach(s => {
+    /* an old track's board holds no tasks — the categories get boards of their own */
+    if (s.type === 'dashboard' && s.track != null) return;
+    /* ניהול תכנון and any non-list sheet stay exactly as they are */
+    if (s.type !== 'list' || s.track == null) {
+      sheets.push(s);
+      return;
+    }
+    const secs = adminSections();
+    const byKey = k => secs.find(g => g.adminKey === k).id;
+    const tr = trackFor(s);
+    tr.stageOrder.push(s.id);
+    sheets.push({
+      ...s,
+      track: tr.trackValue,
+      groups: secs,
+      tasks: (s.tasks || []).map(t => ({
+        ...t,
+        groupId: byKey(sectionOf[t.groupId] || 'tasks')
+      })),
+      hiddenCols: {
+        ...(s.hiddenCols || {}),
+        __discipline: true,
+        __owner_status: true
+      }
+    });
+  });
+  const catTracks = [...cats.map(c => c.track), ...(general ? [general] : [])];
+  const ongoing = (doc.tracks || []).find(t => t.trackValue == null) || {
+    id: 'ongoing',
+    label: 'ניהול תכנון',
+    trackValue: null,
+    stageOrder: []
+  };
+  return {
+    ...doc,
+    projectMeta: {
+      ...(doc.projectMeta || {}),
+      kind: 'admin'
+    },
+    tracks: [ongoing, ...catTracks],
+    sheets: [...sheets, ...catTracks.map(adminBoard)],
+    statuses: clone(ADMIN_STATUSES)
+  };
+}
+/* ═══ /admin-logic ═══ */
 async function postJson(url, body) {
   const r = await fetch(url, {
     method: 'POST',
