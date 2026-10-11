@@ -9,7 +9,7 @@ const m = html.match(/\/\* ═══ meeting-logic ═══ \*\/([\s\S]*?)\/\* 
 if (!m) throw new Error('meeting-logic block not found in project_hub_01.html');
 let n = 0;
 const uid = () => 'u' + ++n;
-const L = new Function('uid', m[1] + '\nreturn {migrateMeeting,meetingRows,indentItem,outdentItem,moveItem,moveSectionTo,followUpMeeting,prevMeetingOf,photoAppendix,assigneeText,mtgDate,mtgNewItem,mergeParticipants};')(uid);
+const L = new Function('uid', m[1] + '\nreturn {migrateMeeting,meetingRows,indentItem,outdentItem,moveItem,moveSectionTo,followUpMeeting,prevMeetingOf,photoAppendix,assigneeText,mtgDate,mtgNewItem,mergeParticipants,orderItems};')(uid);
 
 const old = { id: 'M1', date: '2026-09-28', trackId: null, participants: [{ id: 'p', name: 'דנה' }], items: [
   { id: 'a', number: '1', topic: 'לוחות זמנים' },
@@ -142,4 +142,78 @@ test('assigneeText, mtgDate, mtgNewItem, mergeParticipants', () => {
   const merged = L.mergeParticipants([{ id: '1', name: 'דנה' }], [{ name: 'דנה' }, { name: 'יוסי', role: 'קונסטרוקטור' }]);
   assert.deepStrictEqual(merged.map(p => p.name), ['דנה', 'יוסי']);
   assert.ok(merged[1].id);
+});
+
+// ── display order (array order must follow display order) ──
+const S = [{ id: 's', title: '' }];
+const it = (id, parentId) => ({ id, sectionId: 's', parentId: parentId || null });
+const shape = items => L.meetingRows({ sections: S, items }).flatMap(r => r.items.map(x => [x.item.id, x.subs.map(y => y.item.id)]));
+
+test('orderItems: sections order, each top-level item followed by its subs, orphans at the end of their section', () => {
+  const items = [
+    { id: 'b1', sectionId: 'B', parentId: 'b' }, { id: 'x', sectionId: 'X', parentId: null },
+    { id: 'a1', sectionId: 'A', parentId: 'a' }, { id: 'b', sectionId: 'B', parentId: null },
+    { id: 'o', sectionId: 'A', parentId: 'gone' }, { id: 'a', sectionId: 'A', parentId: null },
+    { id: 'c', sectionId: 'A', parentId: 'b' }, { id: 'a2', sectionId: 'A', parentId: 'a' }
+  ];
+  assert.deepStrictEqual(L.orderItems(items, [{ id: 'A' }, { id: 'B' }]).map(i => i.id), ['a', 'a1', 'a2', 'o', 'c', 'b', 'b1', 'x']);
+});
+
+test('indentItem: an item indented under a top item with subs lands after those subs', () => {
+  assert.deepStrictEqual(shape(L.indentItem([it('d'), it('e'), it('d1', 'd')], 'e')), [['d', ['d1', 'e']]]);
+});
+
+test('moveItem carries sub-items; indent after a move keeps the order', () => {
+  const moved = L.moveItem([it('a'), it('a1', 'a'), it('b'), it('b1', 'b')], 'b', -1);
+  assert.deepStrictEqual(shape(moved), [['b', ['b1']], ['a', ['a1']]]);
+  assert.deepStrictEqual(shape(L.indentItem(moved, 'a')), [['b', ['b1', 'a', 'a1']]]);
+});
+
+test('indentItem then outdentItem restores the item to its place', () => {
+  const ind = L.indentItem([it('p'), it('q'), it('r'), it('p1', 'p')], 'q');
+  assert.deepStrictEqual(shape(L.outdentItem(ind, 'q')), [['p', ['p1']], ['q', []], ['r', []]]);
+});
+
+test('outdentItem places the item right after its parent block', () => {
+  assert.deepStrictEqual(shape(L.outdentItem([it('p'), it('q'), it('x', 'p'), it('y', 'p')], 'y')), [['p', ['x']], ['y', []], ['q', []]]);
+});
+
+test('migrateMeeting: old rows added to a converted meeting map to the existing topics', () => {
+  n = 0;
+  const conv0 = L.migrateMeeting({ id: 'M', items: [{ id: 't1', number: '1', topic: 'T1' }, { id: 'i1', number: '1.1', topic: 'I1' }, { id: 't2', number: '2', topic: 'T2' }] });
+  const r = L.migrateMeeting({ ...conv0, items: [...conv0.items, { id: 'n2', number: '1.2', topic: 'N2' }, { id: 'n3', number: '1.1.1', topic: 'N3' }] });
+  assert.strictEqual(r.sections.length, 2);
+  const rows = L.meetingRows(r);
+  assert.deepStrictEqual(rows[0].items.map(x => [x.item.id, x.subs.map(y => y.item.id)]), [['i1', ['n3']], ['n2', []]]);
+  assert.deepStrictEqual(rows[1].items, []);
+});
+
+test('migrateMeeting: rows are processed in numeric order; invalid numbers last', () => {
+  n = 0;
+  const r = L.migrateMeeting({ id: 'M', items: [{ id: 'z', number: 'x', topic: 'Z' }, { id: 'e', number: '1.1', topic: 'early' }, { id: 'u', number: '10', topic: 'T10' }, { id: 't', number: '1', topic: 'T1' }, { id: 'w', number: '2', topic: 'T2' }] });
+  assert.deepStrictEqual(r.sections.map(s => s.title), ['T1', 'T2', 'T10']);
+  assert.strictEqual(r.items.find(i => i.id === 'e').sectionId, r.sections[0].id);
+  assert.strictEqual(r.items.find(i => i.id === 'z').sectionId, r.sections[2].id);
+});
+
+test('migrateMeeting: a new-format meeting out of display order gets its items ordered', () => {
+  const m0 = { id: 'M', sections: S, items: [it('a'), it('b'), it('a1', 'a')] };
+  const r = L.migrateMeeting(m0);
+  assert.notStrictEqual(r, m0);
+  assert.deepStrictEqual(r.items.map(i => i.id), ['a', 'a1', 'b']);
+  assert.strictEqual(L.migrateMeeting(r), r);
+});
+
+test('followUpMeeting skips items of missing topics and subs of missing parents', () => {
+  n = 0;
+  const f = L.followUpMeeting({ id: 'M', sections: S, items: [it('a'), { id: 'g', sectionId: 'ghost', parentId: null }, it('o', 'gone'), it('a1', 'a')] }, { id: 'M2', date: '2026-10-11' });
+  assert.strictEqual(f.items.length, 2);
+  assert.ok(f.items.every(i => f.sections.some(s => s.id === i.sectionId)));
+});
+
+test('mergeParticipants trims and dedupes; mtgDate takes a full ISO; assigneeText falls back to the id', () => {
+  const merged = L.mergeParticipants([{ id: '1', name: 'דנה ' }], [{ name: ' דנה' }, { name: 'יוסי ' }, { name: 'יוסי' }, { name: '  ' }]);
+  assert.deepStrictEqual(merged.map(p => p.name), ['דנה ', 'יוסי']);
+  assert.strictEqual(L.mtgDate('2026-10-15T09:00:00.000Z'), '15/10/2026');
+  assert.strictEqual(L.assigneeText({ assignee: 'GONE', person: '' }, () => undefined), 'GONE');
 });

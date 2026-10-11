@@ -3547,20 +3547,30 @@ m.distribution&&/*#__PURE__*/React.createElement("div",{style:{marginTop:4}},'ת
    Numbers are never stored — meetingRows derives them from the order. */
 const MTG_LETTERS='אבגדהוזחטיכלמנסעפצקרשת';
 function mtgNewItem(sectionId,parentId){return{id:uid(),sectionId,parentId:parentId||null,topic:'',assignee:null,person:'',dueDate:'',startDate:'',carriedFrom:null,photos:[],itemType:null,createdTaskTrackId:null,linkedRecordId:null,linkedRecordKind:null};}
-function mtgDate(iso){if(!iso)return '';const[y,mo,d]=String(iso).split('-');return d&&mo&&y?d+'/'+mo+'/'+y:'';}
+function mtgDate(iso){if(!iso)return '';const[y,mo,d]=String(iso).slice(0,10).split('-');return d&&mo&&y?d+'/'+mo+'/'+y:'';}
+function orderItems(items,sections){
+  const sids=(sections||[]).map(s=>s.id);items.forEach(it=>{if(!sids.includes(it.sectionId))sids.push(it.sectionId);});
+  const out=[];
+  sids.forEach(sid=>{const inSec=items.filter(x=>x.sectionId===sid);const tops=inSec.filter(x=>!x.parentId),topIds=new Set(tops.map(x=>x.id));tops.forEach(t=>out.push(t,...inSec.filter(x=>x.parentId===t.id)));out.push(...inSec.filter(x=>x.parentId&&!topIds.has(x.parentId)));});
+  return out;
+}
+function mtgNumSegs(number){const segs=String(number||'').trim().split('.').filter(Boolean);return segs.length&&segs.every(x=>/^\d+$/.test(x))?segs:null;}
+function mtgCmpSegs(a,b){for(let i=0;i<Math.max(a.length,b.length);i++){if(a[i]===undefined)return -1;if(b[i]===undefined)return 1;if(+a[i]!==+b[i])return a[i]-b[i];}return 0;}
 function migrateMeeting(m){
   const all=m.items||[];
-  if(Array.isArray(m.sections)&&all.every(it=>it.sectionId))return m;
+  if(Array.isArray(m.sections)&&all.every(it=>it.sectionId)){const o=orderItems(all,m.sections);return o.every((x,i)=>x===all[i])?m:{...m,items:o};}
   const sections=[...(m.sections||[])];
   const kept=all.filter(it=>it.sectionId);
   const items=[];
   const secByNum={},itemByNum={};
+  meetingRows({sections,items:kept}).forEach(r=>{secByNum[r.number]=r.section;r.items.forEach(x=>{itemByNum[x.number]=x.item;});});
+  const olds=all.filter(x=>!x.sectionId).map(it=>({it,segs:mtgNumSegs(it.number)}));
+  const rows=[...olds.filter(o=>o.segs).sort((a,b)=>mtgCmpSegs(a.segs,b.segs)),...olds.filter(o=>!o.segs)];
   let lastSec=sections.length?sections[sections.length-1]:null;
   const general=()=>{if(!lastSec){lastSec={id:uid(),title:'כללי'};sections.push(lastSec);}return lastSec;};
   const base=it=>({...mtgNewItem(null,null),id:it.id||uid(),topic:it.topic||'',assignee:it.assignee||null,person:it.person||'',dueDate:it.dueDate||'',startDate:it.startDate||'',carriedFrom:it.carriedFrom||null,photos:it.photos||[],itemType:it.itemType||null,createdTaskTrackId:it.createdTaskTrackId||null,linkedRecordId:it.linkedRecordId||null,linkedRecordKind:it.linkedRecordKind||null});
-  for(const it of all.filter(x=>!x.sectionId)){
-    const segs=String(it.number||'').trim().split('.').filter(Boolean);
-    const valid=segs.length>0&&segs.every(x=>/^\d+$/.test(x));
+  for(const{it,segs:sg}of rows){
+    const segs=sg||[],valid=!!sg;
     if(valid&&segs.length===1){
       const sec={id:uid(),title:it.topic||''};sections.push(sec);secByNum[segs[0]]=sec;lastSec=sec;
       if(it.assignee||it.dueDate||it.startDate||it.itemType||it.linkedRecordId)items.push({...base(it),sectionId:sec.id});
@@ -3572,7 +3582,7 @@ function migrateMeeting(m){
     if(sec){const x={...base(it),sectionId:sec.id};items.push(x);itemByNum[segs.slice(0,2).join('.')]=x;continue;}
     items.push({...base(it),sectionId:general().id});
   }
-  return{...m,sections,items:[...kept,...items]};
+  return{...m,sections,items:orderItems([...kept,...items],sections)};
 }
 function meetingRows(m){
   const items=m.items||[];
@@ -3582,28 +3592,29 @@ function meetingRows(m){
     return{section,number:n,items:tops.map((item,ii)=>{const num=n+'.'+(ii+1);return{item,number:num,subs:items.filter(x=>x.parentId===item.id).map((x,k)=>({item:x,number:num+'.'+(k+1)}))};})};
   });
 }
+/* indent/outdent/move order the array first (sections by first appearance — only within-section order matters) and return it ordered */
 function indentItem(items,id){
   const it=items.find(x=>x.id===id);if(!it||it.parentId)return items;
-  const tops=items.filter(x=>x.sectionId===it.sectionId&&!x.parentId);
+  const ord=orderItems(items);const tops=ord.filter(x=>x.sectionId===it.sectionId&&!x.parentId);
   const i=tops.findIndex(x=>x.id===id);if(i<1)return items;
   const prev=tops[i-1];
-  return items.map(x=>x.id===id||x.parentId===id?{...x,parentId:prev.id}:x);
+  return orderItems(ord.map(x=>x.id===id||x.parentId===id?{...x,parentId:prev.id}:x));
 }
 function outdentItem(items,id){
   const it=items.find(x=>x.id===id);if(!it||!it.parentId)return items;
-  const sibs=items.filter(x=>x.parentId===it.parentId);
+  const ord=orderItems(items);const sibs=ord.filter(x=>x.parentId===it.parentId);
   const later=sibs.slice(sibs.findIndex(x=>x.id===id)+1).map(x=>x.id);
-  const rest=items.filter(x=>x.id!==id);
+  const rest=ord.filter(x=>x.id!==id);
   let last=rest.findIndex(x=>x.id===it.parentId);
   rest.forEach((x,k)=>{if(x.parentId===it.parentId&&!later.includes(x.id)&&k>last)last=k;});
   const out=[...rest.slice(0,last+1),{...it,parentId:null},...rest.slice(last+1)];
-  return out.map(x=>later.includes(x.id)?{...x,parentId:id}:x);
+  return orderItems(out.map(x=>later.includes(x.id)?{...x,parentId:id}:x));
 }
 function moveItem(items,id,dir){
   const it=items.find(x=>x.id===id);if(!it)return items;
-  const sibs=items.filter(x=>x.sectionId===it.sectionId&&(x.parentId||null)===(it.parentId||null));
+  const ord=orderItems(items);const sibs=ord.filter(x=>x.sectionId===it.sectionId&&(x.parentId||null)===(it.parentId||null));
   const j=sibs.findIndex(x=>x.id===id)+dir;if(j<0||j>=sibs.length)return items;
-  const a=items.indexOf(it),b=items.indexOf(sibs[j]);const out=items.slice();out[a]=sibs[j];out[b]=it;return out;
+  const a=ord.indexOf(it),b=ord.indexOf(sibs[j]);const out=ord.slice();out[a]=sibs[j];out[b]=it;return orderItems(out);
 }
 function moveSectionTo(sections,id,to){
   const from=sections.findIndex(s=>s.id===id);if(from<0||to<0||to>=sections.length||from===to)return sections;
@@ -3612,8 +3623,10 @@ function moveSectionTo(sections,id,to){
 function followUpMeeting(prev,{id,date}){
   const m=migrateMeeting(prev);const secMap={},itemMap={};
   const sections=(m.sections||[]).map(s=>{const x={id:uid(),title:s.title};secMap[s.id]=x.id;return x;});
-  (m.items||[]).forEach(it=>{itemMap[it.id]=uid();});
-  const items=(m.items||[]).map(it=>({...it,id:itemMap[it.id],sectionId:secMap[it.sectionId],parentId:it.parentId?itemMap[it.parentId]||null:null,carriedFrom:it.carriedFrom||{meetingId:m.id,date:m.date||''},photos:[],itemType:null,createdTaskTrackId:null,linkedRecordId:null,linkedRecordKind:null}));
+  const vis=(m.items||[]).filter(it=>secMap[it.sectionId]),topIds=new Set(vis.filter(it=>!it.parentId).map(it=>it.id));
+  const src=vis.filter(it=>!it.parentId||topIds.has(it.parentId));
+  src.forEach(it=>{itemMap[it.id]=uid();});
+  const items=src.map(it=>({...it,id:itemMap[it.id],sectionId:secMap[it.sectionId],parentId:it.parentId?itemMap[it.parentId]||null:null,carriedFrom:it.carriedFrom||{meetingId:m.id,date:m.date||''},photos:[],itemType:null,createdTaskTrackId:null,linkedRecordId:null,linkedRecordKind:null}));
   return{id,trackId:m.trackId??null,title:m.title||'',date,participants:(m.participants||[]).map(p=>({...p,id:uid()})),sections,items,recordedBy:m.recordedBy||'',distribution:m.distribution||'',createdAt:new Date().toISOString(),basedOnMeetingId:m.id};
 }
 function prevMeetingOf(meetings,trackId){
@@ -3626,13 +3639,14 @@ function photoAppendix(m){
   return out;
 }
 function assigneeText(item,labelOf){
-  const d=item.assignee?(item.assignee==='לידיעה'?'לידיעה':labelOf(item.assignee)):'';
+  const d=item.assignee?(item.assignee==='לידיעה'?'לידיעה':(labelOf(item.assignee)||item.assignee)):'';
   const p=String(item.person||'').trim();
   return d&&p?d+' – '+p:d||p;
 }
 function mergeParticipants(current,members){
-  const have=new Set((current||[]).map(p=>p.name));
-  return[...(current||[]),...(members||[]).filter(p=>p.name&&!have.has(p.name)).map(p=>({id:uid(),name:p.name,role:p.role||'',firm:p.firm||'',isCustom:false}))];
+  const have=new Set((current||[]).map(p=>String(p.name||'').trim())),out=[...(current||[])];
+  (members||[]).forEach(p=>{const name=String(p.name||'').trim();if(!name||have.has(name))return;have.add(name);out.push({id:uid(),name,role:p.role||'',firm:p.firm||'',isCustom:false});});
+  return out;
 }
 /* ═══ /meeting-logic ═══ */
 function MeetingsView({data,save,trackId=null,openMeetingId=null,onConsumeOpen}){const[editId,setEditId]=useState(null);useEffect(()=>{if(openMeetingId){setEditId(openMeetingId);onConsumeOpen&&onConsumeOpen();}},[openMeetingId]);const allMeetings=data.meetings||[];const meetings=allMeetings.filter(m=>trackId===null||m.trackId===trackId);const tracks=data.tracks||[];const trackLabel=id=>(tracks.find(t=>t.id===id)||{}).label||id||'כללי';const openNew=()=>{const m={id:uid(),trackId:trackId,title:'',date:todayISO(),participants:[],items:[],recordedBy:'',distribution:'',createdAt:new Date().toISOString()};save({...data,meetings:[...allMeetings,m]});setEditId(m.id);};const deleteMeeting=id=>{if(!confirm(tx('למחוק את סיכום הישיבה?')))return;save({...data,meetings:allMeetings.filter(m=>m.id!==id)});};if(editId){const meeting=allMeetings.find(m=>m.id===editId);if(!meeting){setEditId(null);return null;}return/*#__PURE__*/React.createElement(MeetingEditor,{data:data,save:save,meeting:meeting,onBack:()=>setEditId(null),onSave:updated=>{save({...data,meetings:allMeetings.map(m=>m.id===updated.id?updated:m)});}});}return/*#__PURE__*/React.createElement("div",{style:{padding:'20px 24px',maxWidth:900,margin:'0 auto'}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}},/*#__PURE__*/React.createElement("h2",{style:{fontSize:16,fontWeight:700,margin:0,color:'var(--text)'}},"ישיבות"+(trackId?' — '+trackLabel(trackId):'')),/*#__PURE__*/React.createElement("button",{onClick:openNew,style:{padding:'7px 16px',fontSize:12,borderRadius:7,border:'none',background:'var(--accent)',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontWeight:600}},"+ ישיבה חדשה")),meetings.length===0?/*#__PURE__*/React.createElement("div",{style:{textAlign:'center',padding:'60px 0',color:'var(--text-3)',fontSize:13}},'אין ישיבות עדיין — לחץ על "+ ישיבה חדשה" כדי להתחיל'):/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirection:'column',gap:10}},meetings.map(m=>/*#__PURE__*/React.createElement("div",{key:m.id,style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'14px 18px',cursor:'pointer',display:'flex',alignItems:'center',gap:16,position:'relative'},onClick:()=>setEditId(m.id)},/*#__PURE__*/React.createElement("div",{style:{flexShrink:0,width:48,height:48,background:'rgba(99,102,241,.1)',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center'}},/*#__PURE__*/React.createElement(Ic,{n:'meetings',size:20})),/*#__PURE__*/React.createElement("div",{style:{flex:1,minWidth:0}},/*#__PURE__*/React.createElement("div",{"data-i18n-skip":"",style:{fontWeight:700,fontSize:13,color:'var(--text)',marginBottom:3}},m.title||tx('(ללא כותרת)')),/*#__PURE__*/React.createElement("div",{style:{fontSize:11,color:'var(--text-3)',display:'flex',gap:12}},/*#__PURE__*/React.createElement("span",null,fmtDateFull(m.date)),m.participants.length>0&&/*#__PURE__*/React.createElement("span",null,m.participants.length+' משתתפים'),m.items.length>0&&/*#__PURE__*/React.createElement("span",null,m.items.length+' נושאים'),trackId===null&&m.trackId&&/*#__PURE__*/React.createElement("span",{"data-i18n-skip":"",style:{background:'rgba(99,102,241,.12)',color:'var(--accent)',borderRadius:4,padding:'1px 6px',fontSize:10,fontWeight:600}},nameForLang(trackLabel(m.trackId))))),/*#__PURE__*/React.createElement("button",{onClick:e=>{e.stopPropagation();deleteMeeting(m.id);},style:{opacity:0,position:'absolute',insetInlineEnd:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',color:'#EF4444',fontSize:16,padding:'4px 8px',borderRadius:4},onMouseEnter:e=>e.currentTarget.style.opacity='1',onMouseLeave:e=>e.currentTarget.style.opacity='0'},'✕')))));}
