@@ -980,7 +980,7 @@ html[data-appearance="dark"] .mtp-tag.pri-high{color:#FDBA74;}
 .adm-table th{text-align:start;font-weight:500;font-size:11.5px;color:var(--text-3);padding:8px 12px;border-bottom:1px solid var(--border);}
 .adm-table td{padding:8px 12px;border-top:1px solid var(--border);}
 .adm-cat-row td{background:var(--bg);font-weight:700;font-size:12.5px;}
-.adm-row{cursor:pointer;}.adm-row:hover td{background:var(--row-hover);}
+.adm-row{cursor:pointer;}.adm-row:focus-visible td{background:var(--row-hover);outline:none;}.adm-row:hover td{background:var(--row-hover);}
 .adm-c{text-align:center;font-weight:600;}.adm-c.zero{color:var(--text-4,var(--text-3));font-weight:400;}
 .adm-c-stuck:not(.zero),.adm-c-bugs:not(.zero){color:#DC2626;}
 .adm-c-dev:not(.zero){color:var(--accent);}
@@ -4487,7 +4487,14 @@ function AdminOverview({
     }, list[0].category)), list.map(r => h("tr", {
       key: r.sheetId,
       className: "adm-row",
-      onClick: () => onOpenStage(r.trackId, r.sheetId)
+      tabIndex: 0,
+      onClick: () => onOpenStage(r.trackId, r.sheetId),
+      onKeyDown: e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onOpenStage(r.trackId, r.sheetId);
+        }
+      }
     }, h("td", {
       "data-i18n-skip": ""
     }, r.name), cols.map(([k]) => h("td", {
