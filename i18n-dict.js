@@ -2663,7 +2663,9 @@ Object.assign(HE_EN, {
 "המשימה משויכת גם ל{names} — לסמן אותה כהושלמה לכולם?": "The task is also assigned to {names} — mark it done for everyone?",
 "המשימה משויכת ל{names} — לסמן אותה כהושלמה?": "The task is assigned to {names} — mark it done?",
 "הצג שיוך": "Show owners",
-"בתכנית שלך · {b}": "In your plan · {b}"
+"בתכנית שלך · {b}": "In your plan · {b}",
+"שאר המשימות": "Other tasks",
+"בלי לחץ של תאריך": "No date pressure"
 });
 
 window.I18N_HE_EN = HE_EN;

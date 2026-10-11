@@ -936,6 +936,12 @@ html[data-appearance="dark"] .mtp-tag.pri-high{color:#FDBA74;}
 .mtp-av+.mtp-av{margin-inline-start:-6px;}
 .mtp-av.none{background:var(--border);}
 .mtp-av.more{background:var(--text-3);font-size:9px;}
+.mtp-a-rest{margin-top:10px;padding-top:6px;border-top:1px solid var(--border);}
+.mtp-rest-h{border:none;background:none;padding:0;font-family:inherit;cursor:pointer;color:var(--text-2);width:100%;text-align:start;}
+.mtp-rest-h:hover{color:var(--text);}
+.mtp-chev{display:inline-block;transition:transform .15s;font-size:11px;}
+.mtp-chev.open{transform:rotate(90deg);}
+[dir="rtl"] .mtp-chev:not(.open){transform:scaleX(-1);}
 .mtp-mode{display:inline-flex;margin-inline-start:auto;border:1px solid var(--border-strong);border-radius:8px;overflow:hidden;align-self:center;}
 .mtp-mode-b{border:none;background:var(--surface);color:var(--text-2);font-family:inherit;font-size:12.5px;padding:5px 12px;cursor:pointer;}
 .mtp-mode-b+.mtp-mode-b{border-inline-start:1px solid var(--border-strong);}
@@ -9871,6 +9877,7 @@ function MtPlanner({
   const canEdit = !!planCtx && myOfficeRole() !== 'viewer';
   const [over, setOver] = useState(null);
   const [showAll, setShowAll] = useState({});
+  const [restOpen, setRestOpen] = useState(false);
   const byKey = new Map(tasks.map(t => [planKeyOf(t), t]));
   const setPlan = (t, bucket) => planCtx && planCtx.setPlan(t, bucket);
   const dropZone = (id, onDrop) => ({
@@ -9920,6 +9927,9 @@ function MtPlanner({
     const l = levelOf(t);
     return l === 'urgent' || !urgentOnly && l === 'high';
   }).sort((a, b) => (levelOf(a) === 'urgent' ? 0 : 1) - (levelOf(b) === 'urgent' ? 0 : 1) || byDue(a, b));
+  /* open tasks no date presses, not urgent and not in my plan */
+  const pressing = new Set([...Object.values(attn).flat(), ...urgent].map(planKeyOf));
+  const rest = attnTasks.filter(t => !pressing.has(planKeyOf(t)) && !mtpPlanOf(t, plan, today)).sort(byDue);
   const LIMIT = 8;
   const rowsOf = (key, list, render) => {
     const all = showAll[key] || list.length <= LIMIT + 2;
@@ -10071,7 +10081,23 @@ function MtPlanner({
     id: 'urgent'
   }))) : h("div", {
     className: "mtp-empty"
-  }, urgentOnly ? 'אין משימות דחופות' : 'אין משימות דחופות או בעדיפות גבוהה')));
+  }, urgentOnly ? 'אין משימות דחופות' : 'אין משימות דחופות או בעדיפות גבוהה'), rest.length > 0 && h("div", {
+    className: "mtp-sec mtp-a-rest"
+  }, h("button", {
+    type: "button",
+    className: "mtp-sec-h mtp-rest-h",
+    "aria-expanded": restOpen,
+    onClick: () => setRestOpen(o => !o)
+  }, h("span", {
+    className: 'mtp-chev' + (restOpen ? ' open' : ''),
+    "aria-hidden": "true"
+  }, "▸"), h("span", null, "שאר המשימות"), h("span", {
+    className: "mtp-n"
+  }, rest.length), h("span", {
+    className: "mtp-pane-s"
+  }, "בלי לחץ של תאריך")), restOpen && rowsOf('a-rest', rest, attnRow({
+    id: 'rest'
+  })))));
 }
 /* quick buttons for the projects shown in המשימות שלי; more than a few → a list to pick from */
 function MtProjectBar({
@@ -10903,7 +10929,7 @@ function MyTasksTable({
     priorities,
     urgentOnly: !!mtPrefs.mtUrgentOnly,
     onUrgentOnly: v => setMtPref('mtUrgentOnly', v),
-    teamToo: !!mtPrefs.mtTeamToo,
+    teamToo: mtPrefs.mtTeamToo === undefined ? true : !!mtPrefs.mtTeamToo,
     onTeamToo: v => setMtPref('mtTeamToo', v),
     whoPlan: !!mtPrefs.mtWhoPlan,
     whoAttn: !!mtPrefs.mtWhoAttn,
