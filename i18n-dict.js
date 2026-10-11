@@ -2683,7 +2683,11 @@ Object.assign(HE_EN, {
 "{n} תקועות": "{n} stuck",
 "עדכון אחרון: {d}": "Last change: {d}",
 "באגים": "Bugs",
-"רעיונות": "Ideas"
+"רעיונות": "Ideas",
+"אין עדיין פרויקטים קטנים. פותחים קטגוריה בסיידבר ומוסיפים \"+ פרויקט\".": "No small projects yet. Open a category in the sidebar and use \"+ Project\".",
+"באגים פתוחים": "Open bugs",
+"בבדיקה": "In review",
+"עדכון אחרון": "Last change"
 });
 
 window.I18N_HE_EN = HE_EN;
