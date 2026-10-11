@@ -2669,7 +2669,28 @@ Object.assign(HE_EN, {
 "הצג שלב": "Show stage",
 
 /* ── Projects screen — the code badge ── */
-"ערוך את פרטי הפרויקט": "Edit project details"
+"ערוך את פרטי הפרויקט": "Edit project details",
+"מסלולי תכנון, רישוי, מכרז וביצוע": "Design, licensing, tender and construction tracks",
+"קטגוריות ופרויקטים קטנים: משימות, באגים, רעיונות": "Categories of small projects: tasks, bugs, ideas",
+"קטגוריות": "Categories",
+"מופרדות בפסיקים. כל קטגוריה היא מסלול, ובתוכה מוסיפים פרויקטים קטנים.": "Comma-separated. Each category is a track; small projects are added inside it.",
+"+ פרויקט": "+ Project",
+"שם הפרויקט הקטן": "Small project name",
+"אין עדיין פרויקטים בקטגוריה. \"+ פרויקט\" בשורת הלשוניות מוסיף אחד.": "No projects in this category yet. \"+ Project\" in the tab bar adds one.",
+"בפיתוח עכשיו": "In development now",
+" + עוד {n}": " + {n} more",
+"{n} בבדיקה": "{n} in review",
+"{n} תקועות": "{n} stuck",
+"עדכון אחרון: {d}": "Last change: {d}",
+"באגים": "Bugs",
+"רעיונות": "Ideas",
+"אין עדיין פרויקטים קטנים. פותחים קטגוריה בסיידבר ומוסיפים \"+ פרויקט\".": "No small projects yet. Open a category in the sidebar and use \"+ Project\".",
+"באגים פתוחים": "Open bugs",
+"בבדיקה": "In review",
+"עדכון אחרון": "Last change",
+"רעיון": "Idea",
+"רוויט, DB, עזרי תכנון, סקילים, אדמיניסטרציה": "Revit, DB, design aids, skills, administration",
+"נתוני הפרויקט": "Project data"
 });
 
 window.I18N_HE_EN = HE_EN;
