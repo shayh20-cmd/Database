@@ -217,3 +217,11 @@ test('mergeParticipants trims and dedupes; mtgDate takes a full ISO; assigneeTex
   assert.strictEqual(L.mtgDate('2026-10-15T09:00:00.000Z'), '15/10/2026');
   assert.strictEqual(L.assigneeText({ assignee: 'GONE', person: '' }, () => undefined), 'GONE');
 });
+
+test('only one migrateMeeting: the legacy normaliser is normalizeMeeting and migrateData uses it', () => {
+  assert.strictEqual((html.match(/function migrateMeeting\(/g) || []).length, 1);
+  assert.strictEqual((html.match(/function normalizeMeeting\(/g) || []).length, 1);
+  assert.match(html, /function normalizeMeeting\(m\)\{return\{\.\.\.m,recordedBy:/);
+  assert.ok(html.includes('d.meetings.map(normalizeMeeting)'));
+  assert.ok(!html.includes('d.meetings.map(migrateMeeting)'));
+});
