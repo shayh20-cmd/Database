@@ -1897,19 +1897,27 @@ html[dir="ltr"] .hw-resize{cursor:nwse-resize;background:linear-gradient(-45deg,
    position changes. One observer serves them all: an element matching POPUP_SEL whose
    position is fixed or absolute. A new popup with neither of these classes nor a menu or
    listbox role takes data-pop.
-   ponytail: a popup taller than the window keeps its top in view and its bottom cut; give
-   it a max-height if that ever matters. */
+   One taller than the window is cut to its height and scrolls.
+   ponytail: a popup that grows after it opens (a panel unfolding) is not refitted, and a
+   scrolling one clips any flyout inside it. */
 const POPUP_SEL = '[data-pop],[role="menu"],[role="listbox"],.dp,.assignee-dp,.pm-pop,.pj-add-pop,.fl-usage-pop,.ab-save-pop,.pp-pop,.tds-sf-menu,.af-type-menu,.color-picker-pop';
 const popupKey = el => [el.style.display, el.style.top, el.style.left, el.style.right, el.style.bottom].join('|');
 const popupFitted = new WeakMap();
 function fitPopup(el) {
   popupFitted.set(el, popupKey(el));
   if (el.closest('.tox')) return; // TinyMCE places its own menus
-  const pos = getComputedStyle(el).position;
-  if (pos !== 'fixed' && pos !== 'absolute') return;
+  const cs = getComputedStyle(el);
+  if (cs.position !== 'fixed' && cs.position !== 'absolute') return;
   el.style.translate = '';
-  const r = el.getBoundingClientRect(), m = 8, W = window.innerWidth, H = window.innerHeight;
+  let r = el.getBoundingClientRect();
+  const m = 8, W = window.innerWidth, H = window.innerHeight;
   if (!r.height || !W || !H) return; // a hidden pane measures 0 x 0
+  if (r.height > H - 2 * m) {
+    // max-height counts padding and border only under border-box; r.height - cs.height is what to leave for them
+    el.style.maxHeight = H - 2 * m - (r.height - parseFloat(cs.height)) + 'px';
+    el.style.overflowY = 'auto';
+    r = el.getBoundingClientRect();
+  }
   const dy = r.bottom > H - m ? Math.max(m - r.top, H - m - r.bottom) : r.top < m ? m - r.top : 0;
   const dx = r.right > W - m ? Math.max(m - r.left, W - m - r.right) : r.left < m ? m - r.left : 0;
   if (dx || dy) el.style.translate = `${dx}px ${dy}px`;
