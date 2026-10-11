@@ -2665,7 +2665,8 @@ Object.assign(HE_EN, {
 "הצג שיוך": "Show owners",
 "בתכנית שלך · {b}": "In your plan · {b}",
 "שאר המשימות": "Other tasks",
-"בלי לחץ של תאריך": "No date pressure"
+"בלי לחץ של תאריך": "No date pressure",
+"הצג שלב": "Show stage"
 });
 
 window.I18N_HE_EN = HE_EN;
