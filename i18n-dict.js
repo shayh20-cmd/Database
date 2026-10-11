@@ -2641,7 +2641,29 @@ Object.assign(HE_EN, {
 "+ היום": "+ Today",
 "המשימות שלי בפרויקט ←": "My tasks in this project ←",
 "מסך התכנון שלי, רק עם הפרויקט הזה": "My planner, with only this project",
-"דורש תשומת לב — צוות": "Needs attention — team"
+"דורש תשומת לב — צוות": "Needs attention — team",
+"עבר לפני {n} ימים": "{n} days ago",
+"עוד {n} ימים": "In {n} days",
+"אבני דרך וישיבות": "Milestones and meetings",
+"{n} הימים הקרובים": "Next {n} days",
+"{n} משימות הכנה פתוחות": "{n} prep tasks open",
+"ההכנה הושלמה ✓": "Preparation done ✓",
+"אין משימת הכנה": "No prep task",
+"משימה בפרויקט, עם יעד יום לפני": "A task in the project, due the day before",
+"+ הכנה": "+ Prep",
+"משימת ההכנה לא נוספה — בדוק שהשרת פועל": "The prep task wasn't added — check that the server is running",
+"דחוף וגבוהה": "Urgent and high",
+"כולל עדיפות גבוהה": "Include high priority",
+"אין משימות דחופות": "No urgent tasks",
+"אין משימות דחופות או בעדיפות גבוהה": "No urgent or high-priority tasks",
+"לחיצה מסתירה את כל הפרויקטים": "Click to hide all projects",
+"הצג את כל הפרויקטים": "Show all projects",
+"אחראי: {n}": "Owner: {n}",
+"כולל משימות הצוות בניהולי ({n})": "Include my team's tasks ({n})",
+"המשימה משויכת גם ל{names} — לסמן אותה כהושלמה לכולם?": "The task is also assigned to {names} — mark it done for everyone?",
+"המשימה משויכת ל{names} — לסמן אותה כהושלמה?": "The task is assigned to {names} — mark it done?",
+"הצג שיוך": "Show owners",
+"בתכנית שלך · {b}": "In your plan · {b}"
 });
 
 window.I18N_HE_EN = HE_EN;

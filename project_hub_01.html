@@ -902,6 +902,40 @@ html[data-appearance="dark"] .rv-verify{background:rgba(245,158,11,.18);color:#F
 .ds-btab.on{border-color:var(--accent);background:rgba(37,99,235,.08);color:var(--accent);font-weight:600;}
 .mtp-jump{margin-inline-start:auto;align-self:center;margin-inline-end:12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);color:var(--accent);font-family:inherit;font-size:12px;padding:4px 10px;cursor:pointer;white-space:nowrap;}
 .mtp-jump:hover{border-color:var(--accent);background:rgba(37,99,235,.06);}
+.mte{padding:2px 24px 10px;}
+.mte-h{display:flex;align-items:baseline;gap:8px;margin-bottom:6px;}
+.mte-t{font-size:13px;font-weight:700;}
+.mte-s{font-size:11.5px;color:var(--text-3);}
+.mte-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;}
+.mte-card{background:var(--surface);border:1px solid var(--border);border-inline-start:3px solid #8B5CF6;border-radius:8px;padding:7px 10px;display:flex;flex-direction:column;gap:4px;min-width:0;}
+.mte-card.is-late{border-inline-start-color:#DC2626;}
+.mte-top{display:flex;align-items:center;gap:6px;min-width:0;}
+.mte-kind{font-size:12px;line-height:1;}
+.mte-kind.ms{color:#8B5CF6;}.mte-kind.mtg{color:var(--accent);}
+.mte-date{margin-inline-start:auto;font-size:11px;color:var(--text-3);white-space:nowrap;}
+.mte-title{border:none;background:none;padding:0;text-align:start;font-family:inherit;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mte-title:hover{color:var(--accent);text-decoration:underline;}
+.mtp-tag.pri-urgent{background:#DC2626;color:#fff;border-color:transparent;}
+.mtp-tag.pri-high{background:rgba(234,88,12,.12);color:#C2410C;border-color:transparent;}
+html[data-appearance="dark"] .mtp-tag.pri-high{color:#FDBA74;}
+.mtp-part-u{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.mtp-uchk{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:400;color:var(--text-2);cursor:pointer;}
+.mtp-team{margin-inline-start:auto;}
+.mtp-pane-h{flex-wrap:wrap;}
+.mtp .mtp-row{display:grid;grid-template-columns:12px 40px minmax(0,1fr) 44px 92px 64px;gap:5px;}
+.mtp .mtp-row.with-who{grid-template-columns:12px 40px minmax(0,1fr) 44px 44px 92px 64px;}
+.mtp .mtp-row.in-plan{grid-template-columns:12px 40px minmax(0,1fr) 44px 92px 48px;}
+.mtp .mtp-row.in-plan.with-who{grid-template-columns:12px 40px minmax(0,1fr) 44px 44px 92px 48px;}
+.mtp-c{display:flex;align-items:center;min-width:0;}
+.mtp-c .mtp-tag{width:100%;box-sizing:border-box;text-align:center;overflow:hidden;text-overflow:ellipsis;}
+.mtp-c-who{justify-content:center;}
+.mtp-c-act{justify-content:flex-end;gap:2px;}
+.mtp-c-act .mtp-add{width:100%;}
+.mtp-avs{display:inline-flex;align-items:center;}
+.mtp-av{width:20px;height:20px;border-radius:50%;color:#fff;font-size:9.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;border:1.5px solid var(--surface);box-sizing:border-box;flex-shrink:0;}
+.mtp-av+.mtp-av{margin-inline-start:-6px;}
+.mtp-av.none{background:var(--border);}
+.mtp-av.more{background:var(--text-3);font-size:9px;}
 .mtp-mode{display:inline-flex;margin-inline-start:auto;border:1px solid var(--border-strong);border-radius:8px;overflow:hidden;align-self:center;}
 .mtp-mode-b{border:none;background:var(--surface);color:var(--text-2);font-family:inherit;font-size:12.5px;padding:5px 12px;cursor:pointer;}
 .mtp-mode-b+.mtp-mode-b{border-inline-start:1px solid var(--border-strong);}
@@ -2442,7 +2476,7 @@ const setPlan=(t,bucket)=>{const k=planKeyOf(t);const entry=planEntryFor(bucket,
 const bucketOrder=doc&&doc.prefs&&doc.prefs.bucketOrder||{};
 const setBucketOrder=(field,order)=>{const apply=d=>({...d,prefs:{...(d&&d.prefs||{}),bucketOrder:{...(d&&d.prefs&&d.prefs.bucketOrder||{}),[field]:order}}});setDoc(d=>apply(d||{tasks:[],prefs:{}}));updatePersonal(apply).catch(()=>{});};
 const value={plan,ready:!!doc,setPlan,bucketOrder,setBucketOrder,isManual:t=>!!plan[planKeyOf(t)],bucketOf:t=>planBucketOf(t,plan,todayISO()),rolledOf:t=>planRolledOf(t,plan,todayISO()),plannedToday:t=>{const p=plan[planKeyOf(t)];return!!p&&p.b!=='later'&&(p.b==='today'||p.d<=todayISO());}};
-return React.createElement(PlanCtx.Provider,{value},children);}/* completed tasks fold into a הושלמו row — except in המשימות שלי, where they stay in place */const inDoneSec=(sheet,t)=>sheet.id!=='__mytasks'&&taskStatusEff(t)==='C';function TaskRow({task,onUpdate,onCellUpdate=null,onDelete,autoFocus=false,fields=[],visibleColIds=[],daysThreshold=null,sortState=null,onTaskDragStart,onTaskDragEnd,taskDragSrc,taskDragTarget,taskDragInto=false,onTaskNest=null,subDrag=null,onSubDragStart=null,onTaskDragOver,onTaskDrop,selectedIds,onSelect,onDuplicate,onShowDetail,expandSignal,onCollapseAll}){const extraCells=useContext(ExtraCellsCtx);const planCtx=useContext(PlanCtx);/* ☀ = I chose today (or an earlier day still open), not a task its deadline pulled into היום */const plannedToday=!!planCtx&&planCtx.plannedToday(task);const rolledFrom=plannedToday?planCtx.rolledOf(task):null;/* a value changed in a column cell — with several tasks selected it applies to all of them */const cellUpdate=onCellUpdate||onUpdate;/* the row drags only from its ⠿ handle, so text in it can be selected */const[dragArmed,setDragArmed]=useState(false);useEffect(()=>{if(!dragArmed)return;const off=()=>setDragArmed(false);window.addEventListener('mouseup',off);return()=>window.removeEventListener('mouseup',off);},[dragArmed]);const[editTitle,setEditTitle]=useState(autoFocus);const[title,setTitle]=useState(task.title);const[panelSubId,setPanelSubId]=useState(null);const events=task.events||[];const isProcess=events.length>0;const[expanded,setExpandedRaw]=useState(()=>getExpandedTaskIds().has(task.id));const setExpanded=valOrFn=>setExpandedRaw(prev=>{const next=typeof valOrFn==='function'?valOrFn(prev):valOrFn;setTaskExpandedPersisted(task.id,next);return next;});useEffect(()=>{if(expandSignal&&expandSignal.ids.has(task.id))setExpanded(expandSignal.expand);},[expandSignal]);const[newSubId,setNewSubId]=useState(null);const[taskMenuPos,setTaskMenuPos]=useState(null);const inputRef=useRef(null);useEffect(()=>{if(autoFocus&&inputRef.current)inputRef.current.focus();},[]);useEffect(()=>{if(editTitle&&inputRef.current)inputRef.current.focus();},[editTitle]);/* ── Auto-stuck: if any process subtask has a delayed event → set statusId='S' on it and on task ── */useEffect(()=>{if(daysThreshold===null)return;if(task.statusId==='C')return;// done tasks are immune to auto-stuck
+return React.createElement(PlanCtx.Provider,{value},children);}/* completed tasks fold into a הושלמו row — except in המשימות שלי, where they stay in place */const inDoneSec=(sheet,t)=>sheet.id!=='__mytasks'&&taskStatusEff(t)==='C';function TaskRow({task,onUpdate,onCellUpdate=null,onDelete,autoFocus=false,fields=[],visibleColIds=[],daysThreshold=null,sortState=null,onTaskDragStart,onTaskDragEnd,taskDragSrc,taskDragTarget,taskDragInto=false,onTaskNest=null,subDrag=null,onSubDragStart=null,onTaskDragOver,onTaskDrop,selectedIds,onSelect,onDuplicate,onShowDetail,expandSignal,onCollapseAll}){const extraCells=useContext(ExtraCellsCtx);const planCtx=useContext(PlanCtx);/* ☀ = I chose today (or an earlier day still open), not a task its deadline pulled into היום */const plannedToday=!!planCtx&&planCtx.plannedToday(task);/* a value changed in a column cell — with several tasks selected it applies to all of them */const cellUpdate=onCellUpdate||onUpdate;/* the row drags only from its ⠿ handle, so text in it can be selected */const[dragArmed,setDragArmed]=useState(false);useEffect(()=>{if(!dragArmed)return;const off=()=>setDragArmed(false);window.addEventListener('mouseup',off);return()=>window.removeEventListener('mouseup',off);},[dragArmed]);const[editTitle,setEditTitle]=useState(autoFocus);const[title,setTitle]=useState(task.title);const[panelSubId,setPanelSubId]=useState(null);const events=task.events||[];const isProcess=events.length>0;const[expanded,setExpandedRaw]=useState(()=>getExpandedTaskIds().has(task.id));const setExpanded=valOrFn=>setExpandedRaw(prev=>{const next=typeof valOrFn==='function'?valOrFn(prev):valOrFn;setTaskExpandedPersisted(task.id,next);return next;});useEffect(()=>{if(expandSignal&&expandSignal.ids.has(task.id))setExpanded(expandSignal.expand);},[expandSignal]);const[newSubId,setNewSubId]=useState(null);const[taskMenuPos,setTaskMenuPos]=useState(null);const inputRef=useRef(null);useEffect(()=>{if(autoFocus&&inputRef.current)inputRef.current.focus();},[]);useEffect(()=>{if(editTitle&&inputRef.current)inputRef.current.focus();},[editTitle]);/* ── Auto-stuck: if any process subtask has a delayed event → set statusId='S' on it and on task ── */useEffect(()=>{if(daysThreshold===null)return;if(task.statusId==='C')return;// done tasks are immune to auto-stuck
 const today=todayISO();const daysBetweenLocal=(a,b)=>Math.round((new Date(b)-new Date(a))/86400000);let taskNeedsStuck=false;let updatedSubs=null;const subs=task.subtasks||[];subs.forEach((sub,i)=>{const evts=sub.events||[];if(!evts.length)return;const sorted=[...evts].sort((a,b)=>(b.date||'').localeCompare(a.date||''));const latest=sorted[0];if(!latest?.status||latest.status==='approved')return;// finished — no stuck
 const isPeriod=EV_PERIOD.has(latest.status);if(!isPeriod)return;// only period statuses can be "stuck"
 const days=daysBetweenLocal(latest.date,today);if(days>daysThreshold&&sub.statusId!=='S'){if(!updatedSubs)updatedSubs=[...subs];updatedSubs[i]={...sub,statusId:'S'};taskNeedsStuck=true;}});if(taskNeedsStuck){const patch={...(updatedSubs?{subtasks:updatedSubs}:{})};if(task.statusId!=='S')patch.statusId='S';if(Object.keys(patch).length)onUpdate({...task,...patch});}},[daysThreshold,JSON.stringify((task.subtasks||[]).map(s=>({id:s.id,statusId:s.statusId,events:s.events})))]);const{priorities}=useContext(ListsCtx);/* Sort subtask array by active sortState — mirrors top-level sort logic */const sortSubtasks=arr=>{const order=Object.fromEntries([...priorities.map((p,i)=>[p.id,i]),['',priorities.length]]);return[...arr].sort((a,b)=>{if(!!a.done!==!!b.done)return a.done?1:-1;if(!sortState?.length)return 0;for(const{column,dir}of sortState){const va=column==='priority'?order[a.priority??'']:a[column]??'';const vb=column==='priority'?order[b.priority??'']:b[column]??'';const cmp=va<vb?-1:va>vb?1:0;if(cmp!==0)return dir==='asc'?cmp:-cmp;}return 0;});};/* ── Derive task-level stuck: any subtask explicitly stuck or with a delayed event.
@@ -2454,7 +2488,7 @@ const updated={...procSub,subtasks:[...nested,sub]};updateSubtask(updated);};con
 /* Right-click opens the same menu as the 3-dot button, at the cursor instead of the button's own position. */
 onContextMenu:e=>{if(e.target.closest('button,input,textarea,select,a,[contenteditable]'))return;e.preventDefault();setTaskMenuPos(IS_LTR()?{top:e.clientY,left:e.clientX}:{top:e.clientY,right:window.innerWidth-e.clientX});},
 /* Double-click opens the detail panel on its default tab (תיאור משימה). */
-onDoubleClick:e=>{if(e.target.closest('button,input,textarea,select,a,[contenteditable]'))return;onShowDetail?.(task.id);}},/*#__PURE__*/React.createElement("td",{className:"sticky-td"},/*#__PURE__*/React.createElement("div",{className:"name-inner"},/*#__PURE__*/React.createElement("span",{className:"task-drag-handle",title:"גרור",onMouseDown:()=>setDragArmed(true)},"⠿"),/* no subtasks, no toggle — an empty slot keeps the titles aligned; an open task keeps it so it can be closed */subtasks.length>0||expanded?/*#__PURE__*/React.createElement("button",{className:`expand-btn${subtasks.length>0?' has-sub':''}`,title:"תת-משימות",onClick:e=>{e.stopPropagation();setExpanded(o=>!o);}},expanded?'▼':'▶'):React.createElement("span",{className:"expand-btn","aria-hidden":true,style:{cursor:'default'}}),/*#__PURE__*/React.createElement(StatusCircle,{size:15,statusId:taskEffectiveStatusId,disabled:false,onChange:v=>{onUpdate({...task,statusId:v,statusOverride:true,done:v==='C'});}}),plannedToday&&React.createElement("span",{className:"plan-sun",title:"תכננת לעבוד על זה היום — רק אתה רואה את זה"},"☀"),rolledFrom&&React.createElement("span",{className:"plan-rolled",title:tx('תוכנן ל-{d} ועוד לא נגמר',{d:+rolledFrom.slice(8,10)+' '+HE_MONTHS[+rolledFrom.slice(5,7)-1]})},tx("נדחה")),editTitle?/*#__PURE__*/React.createElement("input",{ref:inputRef,className:"name-edit-input",value:title,onChange:e=>setTitle(e.target.value),onBlur:commitTitle,onKeyDown:e=>{if(e.key==='Enter')commitTitle();if(e.key==='Escape'){setTitle(task.title);setEditTitle(false);}}}):/*#__PURE__*/React.createElement("span",{className:"name-text",style:{textDecoration:_baseStatusId==='C'?'line-through':'none',color:_baseStatusId==='C'?'var(--text-3)':'var(--text)',cursor:'text'},onClick:e=>{e.stopPropagation();if(String(getSelection()))return;/* a text selection, not an edit */setTitle(task.title);setEditTitle(true);}},task.title||/*#__PURE__*/React.createElement("span",{style:{color:'var(--text-3)'}},tx("ללא שם")),task.isPrinciple&&/*#__PURE__*/React.createElement("span",{title:"עקרון תכנון",style:{display:'inline-flex',marginInlineStart:4,color:'#059669',verticalAlign:'middle'}},/*#__PURE__*/React.createElement(Ic,{n:"principles",size:11}))),/*#__PURE__*/React.createElement(StageChip,{task:task,onUpdate:onUpdate}),React.createElement(HoldTag,{taskId:task.id}),planCtx&&planCtx.quick&&React.createElement("button",{className:'plan-quick'+(plannedToday?' on':''),title:plannedToday?'הסר מהיום':'לעבוד על זה היום',onClick:e=>{e.stopPropagation();planCtx.setPlan(task,plannedToday?null:'היום');}},plannedToday?"☀ בטל":"☀ להיום"),/*#__PURE__*/React.createElement("span",{className:"badge-slot"},subtasks.length>0&&!expanded&&/*#__PURE__*/React.createElement("span",{className:"sub-badge",onClick:e=>{e.stopPropagation();setExpanded(true);}},doneCount,"/",subtasks.length),subtasks.length===0&&React.createElement("button",{className:"add-sub-inline",title:"הוסף תת-משימה",onClick:e=>{e.stopPropagation();addSubtask();}},"+")),/*#__PURE__*/React.createElement("button",{className:"task-actions-btn",title:"אפשרויות",onClick:e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setTaskMenuPos(taskMenuPos?null:IS_LTR()?{top:r.bottom+4,left:r.left}:{top:r.bottom+4,right:window.innerWidth-r.right});}},/*#__PURE__*/React.createElement("svg",{width:"13",height:"13",viewBox:"0 0 16 16",fill:"none"},/*#__PURE__*/React.createElement("circle",{cx:"8",cy:"3",r:"1.4",fill:"currentColor"}),/*#__PURE__*/React.createElement("circle",{cx:"8",cy:"8",r:"1.4",fill:"currentColor"}),/*#__PURE__*/React.createElement("circle",{cx:"8",cy:"13",r:"1.4",fill:"currentColor"}))))),visibleColIds.filter(id=>id!=='__name').map(id=>{switch(id){case'__status':return/*#__PURE__*/React.createElement("td",{key:"__status",style:{padding:'0 8px',verticalAlign:'middle',textAlign:'center'}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',justifyContent:'center'}},/*#__PURE__*/React.createElement(StatusCircle,{statusId:taskEffectiveStatusId,disabled:false,onChange:v=>cellUpdate({...task,statusId:v,statusOverride:true})})));case'__priority':return/*#__PURE__*/React.createElement(PriorityCell,{key:"__priority",priority:task.priority,onChange:v=>cellUpdate({...task,priority:v})});case'__discipline':return/*#__PURE__*/React.createElement(DisciplineCell,{key:"__discipline",discipline:task.discipline,onChange:v=>cellUpdate({...task,discipline:v})});case'__owner_status':return/*#__PURE__*/React.createElement(StatusOwnerCell,{key:"__owner_status",task:task,onUpdate:onUpdate,onOpenUpdates:()=>onShowDetail?.(task.id,'updates'),onChangeResponsible:v=>cellUpdate({...task,responsible:v}),threshold:daysThreshold});case'__assignee':return/*#__PURE__*/React.createElement(AssigneeCell,{key:"__assignee",task:task,onUpdate:cellUpdate});case'__dates':return/*#__PURE__*/React.createElement(DateRangeCell,{key:"__dates",startDate:task.startDate,dueDate:task.dueDate,isParent:true,onChange:patch=>cellUpdate({...task,...patch})});case'__comment':return/*#__PURE__*/React.createElement(CommentCell,{key:"__comment",comment:task.comment,onChange:v=>cellUpdate({...task,comment:v})});default:{if(extraCells&&extraCells[id])return/*#__PURE__*/React.createElement("td",{key:id,className:"x-cell"},extraCells[id](task));const f=fields.find(f=>f.id===id);if(!f)return null;return/*#__PURE__*/React.createElement(CustomFieldCell,{key:id,field:f,value:(task.fieldValues||{})[id],onChange:v=>cellUpdate({...task,fieldValues:{...(task.fieldValues||{}),[id]:v}})});}}}),/*#__PURE__*/React.createElement("td",null)),expanded&&(()=>{const makeRow=sub=>React.createElement(NestedSubRows,{key:sub.id,sub:sub,visibleColIds:visibleColIds,onToggleNestedDone:ns=>updateSubtask({...sub,subtasks:(sub.subtasks||[]).map(x=>x.id===ns.id?{...x,done:!x.done}:x)}),rowProps:{subtask:sub,visibleColIds:visibleColIds,threshold:daysThreshold,autoFocus:sub.id===newSubId,parentStartDate:task.startDate||'',parentDueDate:task.dueDate||'',onOpenProcess:()=>setPanelSubId(sub.id),onUpdate:s=>{setNewSubId(null);updateSubtask(s);},onDelete:()=>{setNewSubId(null);deleteSubtask(sub.id);},onDuplicateSub:s=>{const idx=subtasks.findIndex(x=>x.id===s.id);const copy={...s,id:uid(),title:s.title+tx(' (עותק)')};const arr=[...subtasks];arr.splice(idx+1,0,copy);onUpdate({...task,subtasks:arr});},selected:!!selectedIds?.has(sub.id),dragging:!!subDrag&&subDrag.ids.includes(sub.id),onSelect:onSelect,onDragOut:onSubDragStart?id=>onSubDragStart(task.id,id):null,onDragOutEnd:onTaskDragEnd}});return/*#__PURE__*/React.createElement(React.Fragment,null,sortSubtasks(subtasks).map(makeRow));})(),expanded&&/*#__PURE__*/React.createElement("tr",{className:"sub-row"},/*#__PURE__*/React.createElement("td",{className:"sticky-td"},/*#__PURE__*/React.createElement("div",{className:"sub-name-inner"},/*#__PURE__*/React.createElement("button",{onClick:addSubtask,style:{background:'none',border:'none',cursor:'pointer',fontSize:12,color:'var(--text-3)',fontFamily:'inherit',display:'flex',alignItems:'center',gap:5,padding:0}},/*#__PURE__*/React.createElement("span",{style:{fontSize:15,color:'var(--accent)',lineHeight:1}},"+")," הוסף תת-משימה"))),visibleColIds.filter(id=>id!=='__name').map(id=>/*#__PURE__*/React.createElement("td",{key:id,style:{background:'inherit'}})),/*#__PURE__*/React.createElement("td",{style:{background:'inherit'}})),panelSubId&&(()=>{const isTaskNode=panelSubId==='__task__';const node=isTaskNode?task:subtasks.find(s=>s.id===panelSubId);if(!node)return null;return/*#__PURE__*/React.createElement(ProcessTaskPanel,{key:panelSubId,parentTitle:task.title,node:node,threshold:daysThreshold,parentStartDate:task.startDate||'',parentDueDate:task.dueDate||'',onUpdate:updated=>isTaskNode?onUpdate(updated):updateSubtask(updated),onAddToMain:isTaskNode?undefined:sub=>addSubToMain(sub),onClose:()=>setPanelSubId(null)});})(),taskMenuPos&&ReactDOM.createPortal((()=>{const MENU_ITEMS=[{icon:'⧉',label:'שכפול משימה',action:()=>{onDuplicate?.(task);setTaskMenuPos(null);}},{icon:'+',label:'הוספת תת-משימה',action:()=>{addSubtask();setTaskMenuPos(null);}},{icon:'⊡',label:'הוספת עדכון',action:()=>{setPanelSubId('__task__');setTaskMenuPos(null);}},{icon:'☰',label:'פרטי משימה',action:()=>{onShowDetail?.(task.id);setTaskMenuPos(null);}},{icon:'▴',label:'כווץ את כל המשימות',action:()=>{onCollapseAll?.();setTaskMenuPos(null);}},...(planCtx&&planCtx.ready?[{icon:'☀',label:'לעבוד היום',action:()=>{planCtx.setPlan(task,'היום');setTaskMenuPos(null);}},{icon:'›',label:'לעבוד מחר',action:()=>{planCtx.setPlan(task,'מחר');setTaskMenuPos(null);}},{icon:'»',label:'לעבוד השבוע',action:()=>{planCtx.setPlan(task,'השבוע');setTaskMenuPos(null);}},{icon:'…',label:'לעבוד בהמשך',action:()=>{planCtx.setPlan(task,'בהמשך');setTaskMenuPos(null);}},...(planCtx.isManual(task)?[{icon:'↺',label:'בטל תכנון',action:()=>{planCtx.setPlan(task,null);setTaskMenuPos(null);}}]:[]),null]:[]),{icon:'◆',label:task.isPrinciple?'הסר מעקרון תכנון':'סמן כעקרון תכנון',action:async()=>{if(task.isPrinciple&&!(await askConfirm(PRINCIPLE_UNLINK_CONFIRM_TASK,{confirmLabel:'הסר'}))){setTaskMenuPos(null);return;}const next=!task.isPrinciple;onUpdate({...task,isPrinciple:next,principleCreatedAt:next?task.principleCreatedAt||todayISO():task.principleCreatedAt});setTaskMenuPos(null);}},...(task.__src||!PROJECT_OPS.save?[]:[{icon:'◇',label:'הפוך לאבן דרך',action:()=>{setTaskMenuPos(null);taskToMilestone(task);}}]),null,{icon:'×',label:'מחק משימה',danger:true,action:()=>{onDelete();setTaskMenuPos(null);}}];return/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{style:{position:'fixed',inset:0,zIndex:9998},onClick:()=>setTaskMenuPos(null)}),/*#__PURE__*/React.createElement("div",{style:{position:'fixed',top:taskMenuPos.top,right:taskMenuPos.right,left:taskMenuPos.left,minWidth:170,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,boxShadow:'0 6px 20px rgba(0,0,0,.14)',zIndex:9999,padding:'4px',fontFamily:'Heebo,system-ui,sans-serif'}},MENU_ITEMS.map((item,idx)=>!item?/*#__PURE__*/React.createElement("div",{key:idx,style:{height:1,background:'var(--border)',margin:'3px 0'}}):/*#__PURE__*/React.createElement("button",{key:idx,onClick:item.action,style:{display:'flex',alignItems:'center',gap:9,width:'100%',padding:'8px 12px',border:'none',background:'none',cursor:'pointer',fontSize:13,fontFamily:'inherit',textAlign:'start',borderRadius:5,color:item.danger?'#EF4444':'var(--text)'},onMouseEnter:e=>e.currentTarget.style.background=item.danger?'rgba(239,68,68,.07)':'var(--bg)',onMouseLeave:e=>e.currentTarget.style.background='none'},/*#__PURE__*/React.createElement("span",{style:{color:item.danger?'#EF4444':'var(--text-3)',fontWeight:700,width:14,textAlign:'center',flexShrink:0}},item.icon),item.label))));})(),document.body));}/* ══════════════════════════════════════
+onDoubleClick:e=>{if(e.target.closest('button,input,textarea,select,a,[contenteditable]'))return;onShowDetail?.(task.id);}},/*#__PURE__*/React.createElement("td",{className:"sticky-td"},/*#__PURE__*/React.createElement("div",{className:"name-inner"},/*#__PURE__*/React.createElement("span",{className:"task-drag-handle",title:"גרור",onMouseDown:()=>setDragArmed(true)},"⠿"),/* no subtasks, no toggle — an empty slot keeps the titles aligned; an open task keeps it so it can be closed */subtasks.length>0||expanded?/*#__PURE__*/React.createElement("button",{className:`expand-btn${subtasks.length>0?' has-sub':''}`,title:"תת-משימות",onClick:e=>{e.stopPropagation();setExpanded(o=>!o);}},expanded?'▼':'▶'):React.createElement("span",{className:"expand-btn","aria-hidden":true,style:{cursor:'default'}}),/*#__PURE__*/React.createElement(StatusCircle,{size:15,statusId:taskEffectiveStatusId,disabled:false,onChange:v=>{onUpdate({...task,statusId:v,statusOverride:true,done:v==='C'});}}),plannedToday&&React.createElement("span",{className:"plan-sun",title:"תכננת לעבוד על זה היום — רק אתה רואה את זה"},"☀"),editTitle?/*#__PURE__*/React.createElement("input",{ref:inputRef,className:"name-edit-input",value:title,onChange:e=>setTitle(e.target.value),onBlur:commitTitle,onKeyDown:e=>{if(e.key==='Enter')commitTitle();if(e.key==='Escape'){setTitle(task.title);setEditTitle(false);}}}):/*#__PURE__*/React.createElement("span",{className:"name-text",style:{textDecoration:_baseStatusId==='C'?'line-through':'none',color:_baseStatusId==='C'?'var(--text-3)':'var(--text)',cursor:'text'},onClick:e=>{e.stopPropagation();if(String(getSelection()))return;/* a text selection, not an edit */setTitle(task.title);setEditTitle(true);}},task.title||/*#__PURE__*/React.createElement("span",{style:{color:'var(--text-3)'}},tx("ללא שם")),task.isPrinciple&&/*#__PURE__*/React.createElement("span",{title:"עקרון תכנון",style:{display:'inline-flex',marginInlineStart:4,color:'#059669',verticalAlign:'middle'}},/*#__PURE__*/React.createElement(Ic,{n:"principles",size:11}))),/*#__PURE__*/React.createElement(StageChip,{task:task,onUpdate:onUpdate}),React.createElement(HoldTag,{taskId:task.id}),planCtx&&planCtx.quick&&React.createElement("button",{className:'plan-quick'+(plannedToday?' on':''),title:plannedToday?'הסר מהיום':'לעבוד על זה היום',onClick:e=>{e.stopPropagation();planCtx.setPlan(task,plannedToday?null:'היום');}},plannedToday?"☀ בטל":"☀ להיום"),/*#__PURE__*/React.createElement("span",{className:"badge-slot"},subtasks.length>0&&!expanded&&/*#__PURE__*/React.createElement("span",{className:"sub-badge",onClick:e=>{e.stopPropagation();setExpanded(true);}},doneCount,"/",subtasks.length),subtasks.length===0&&React.createElement("button",{className:"add-sub-inline",title:"הוסף תת-משימה",onClick:e=>{e.stopPropagation();addSubtask();}},"+")),/*#__PURE__*/React.createElement("button",{className:"task-actions-btn",title:"אפשרויות",onClick:e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setTaskMenuPos(taskMenuPos?null:IS_LTR()?{top:r.bottom+4,left:r.left}:{top:r.bottom+4,right:window.innerWidth-r.right});}},/*#__PURE__*/React.createElement("svg",{width:"13",height:"13",viewBox:"0 0 16 16",fill:"none"},/*#__PURE__*/React.createElement("circle",{cx:"8",cy:"3",r:"1.4",fill:"currentColor"}),/*#__PURE__*/React.createElement("circle",{cx:"8",cy:"8",r:"1.4",fill:"currentColor"}),/*#__PURE__*/React.createElement("circle",{cx:"8",cy:"13",r:"1.4",fill:"currentColor"}))))),visibleColIds.filter(id=>id!=='__name').map(id=>{switch(id){case'__status':return/*#__PURE__*/React.createElement("td",{key:"__status",style:{padding:'0 8px',verticalAlign:'middle',textAlign:'center'}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',justifyContent:'center'}},/*#__PURE__*/React.createElement(StatusCircle,{statusId:taskEffectiveStatusId,disabled:false,onChange:v=>cellUpdate({...task,statusId:v,statusOverride:true})})));case'__priority':return/*#__PURE__*/React.createElement(PriorityCell,{key:"__priority",priority:task.priority,onChange:v=>cellUpdate({...task,priority:v})});case'__discipline':return/*#__PURE__*/React.createElement(DisciplineCell,{key:"__discipline",discipline:task.discipline,onChange:v=>cellUpdate({...task,discipline:v})});case'__owner_status':return/*#__PURE__*/React.createElement(StatusOwnerCell,{key:"__owner_status",task:task,onUpdate:onUpdate,onOpenUpdates:()=>onShowDetail?.(task.id,'updates'),onChangeResponsible:v=>cellUpdate({...task,responsible:v}),threshold:daysThreshold});case'__assignee':return/*#__PURE__*/React.createElement(AssigneeCell,{key:"__assignee",task:task,onUpdate:cellUpdate});case'__dates':return/*#__PURE__*/React.createElement(DateRangeCell,{key:"__dates",startDate:task.startDate,dueDate:task.dueDate,isParent:true,onChange:patch=>cellUpdate({...task,...patch})});case'__comment':return/*#__PURE__*/React.createElement(CommentCell,{key:"__comment",comment:task.comment,onChange:v=>cellUpdate({...task,comment:v})});default:{if(extraCells&&extraCells[id])return/*#__PURE__*/React.createElement("td",{key:id,className:"x-cell"},extraCells[id](task));const f=fields.find(f=>f.id===id);if(!f)return null;return/*#__PURE__*/React.createElement(CustomFieldCell,{key:id,field:f,value:(task.fieldValues||{})[id],onChange:v=>cellUpdate({...task,fieldValues:{...(task.fieldValues||{}),[id]:v}})});}}}),/*#__PURE__*/React.createElement("td",null)),expanded&&(()=>{const makeRow=sub=>React.createElement(NestedSubRows,{key:sub.id,sub:sub,visibleColIds:visibleColIds,onToggleNestedDone:ns=>updateSubtask({...sub,subtasks:(sub.subtasks||[]).map(x=>x.id===ns.id?{...x,done:!x.done}:x)}),rowProps:{subtask:sub,visibleColIds:visibleColIds,threshold:daysThreshold,autoFocus:sub.id===newSubId,parentStartDate:task.startDate||'',parentDueDate:task.dueDate||'',onOpenProcess:()=>setPanelSubId(sub.id),onUpdate:s=>{setNewSubId(null);updateSubtask(s);},onDelete:()=>{setNewSubId(null);deleteSubtask(sub.id);},onDuplicateSub:s=>{const idx=subtasks.findIndex(x=>x.id===s.id);const copy={...s,id:uid(),title:s.title+tx(' (עותק)')};const arr=[...subtasks];arr.splice(idx+1,0,copy);onUpdate({...task,subtasks:arr});},selected:!!selectedIds?.has(sub.id),dragging:!!subDrag&&subDrag.ids.includes(sub.id),onSelect:onSelect,onDragOut:onSubDragStart?id=>onSubDragStart(task.id,id):null,onDragOutEnd:onTaskDragEnd}});return/*#__PURE__*/React.createElement(React.Fragment,null,sortSubtasks(subtasks).map(makeRow));})(),expanded&&/*#__PURE__*/React.createElement("tr",{className:"sub-row"},/*#__PURE__*/React.createElement("td",{className:"sticky-td"},/*#__PURE__*/React.createElement("div",{className:"sub-name-inner"},/*#__PURE__*/React.createElement("button",{onClick:addSubtask,style:{background:'none',border:'none',cursor:'pointer',fontSize:12,color:'var(--text-3)',fontFamily:'inherit',display:'flex',alignItems:'center',gap:5,padding:0}},/*#__PURE__*/React.createElement("span",{style:{fontSize:15,color:'var(--accent)',lineHeight:1}},"+")," הוסף תת-משימה"))),visibleColIds.filter(id=>id!=='__name').map(id=>/*#__PURE__*/React.createElement("td",{key:id,style:{background:'inherit'}})),/*#__PURE__*/React.createElement("td",{style:{background:'inherit'}})),panelSubId&&(()=>{const isTaskNode=panelSubId==='__task__';const node=isTaskNode?task:subtasks.find(s=>s.id===panelSubId);if(!node)return null;return/*#__PURE__*/React.createElement(ProcessTaskPanel,{key:panelSubId,parentTitle:task.title,node:node,threshold:daysThreshold,parentStartDate:task.startDate||'',parentDueDate:task.dueDate||'',onUpdate:updated=>isTaskNode?onUpdate(updated):updateSubtask(updated),onAddToMain:isTaskNode?undefined:sub=>addSubToMain(sub),onClose:()=>setPanelSubId(null)});})(),taskMenuPos&&ReactDOM.createPortal((()=>{const MENU_ITEMS=[{icon:'⧉',label:'שכפול משימה',action:()=>{onDuplicate?.(task);setTaskMenuPos(null);}},{icon:'+',label:'הוספת תת-משימה',action:()=>{addSubtask();setTaskMenuPos(null);}},{icon:'⊡',label:'הוספת עדכון',action:()=>{setPanelSubId('__task__');setTaskMenuPos(null);}},{icon:'☰',label:'פרטי משימה',action:()=>{onShowDetail?.(task.id);setTaskMenuPos(null);}},{icon:'▴',label:'כווץ את כל המשימות',action:()=>{onCollapseAll?.();setTaskMenuPos(null);}},...(planCtx&&planCtx.ready?[{icon:'☀',label:'לעבוד היום',action:()=>{planCtx.setPlan(task,'היום');setTaskMenuPos(null);}},{icon:'›',label:'לעבוד מחר',action:()=>{planCtx.setPlan(task,'מחר');setTaskMenuPos(null);}},{icon:'»',label:'לעבוד השבוע',action:()=>{planCtx.setPlan(task,'השבוע');setTaskMenuPos(null);}},{icon:'…',label:'לעבוד בהמשך',action:()=>{planCtx.setPlan(task,'בהמשך');setTaskMenuPos(null);}},...(planCtx.isManual(task)?[{icon:'↺',label:'בטל תכנון',action:()=>{planCtx.setPlan(task,null);setTaskMenuPos(null);}}]:[]),null]:[]),{icon:'◆',label:task.isPrinciple?'הסר מעקרון תכנון':'סמן כעקרון תכנון',action:async()=>{if(task.isPrinciple&&!(await askConfirm(PRINCIPLE_UNLINK_CONFIRM_TASK,{confirmLabel:'הסר'}))){setTaskMenuPos(null);return;}const next=!task.isPrinciple;onUpdate({...task,isPrinciple:next,principleCreatedAt:next?task.principleCreatedAt||todayISO():task.principleCreatedAt});setTaskMenuPos(null);}},...(task.__src||!PROJECT_OPS.save?[]:[{icon:'◇',label:'הפוך לאבן דרך',action:()=>{setTaskMenuPos(null);taskToMilestone(task);}}]),null,{icon:'×',label:'מחק משימה',danger:true,action:()=>{onDelete();setTaskMenuPos(null);}}];return/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{style:{position:'fixed',inset:0,zIndex:9998},onClick:()=>setTaskMenuPos(null)}),/*#__PURE__*/React.createElement("div",{style:{position:'fixed',top:taskMenuPos.top,right:taskMenuPos.right,left:taskMenuPos.left,minWidth:170,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,boxShadow:'0 6px 20px rgba(0,0,0,.14)',zIndex:9999,padding:'4px',fontFamily:'Heebo,system-ui,sans-serif'}},MENU_ITEMS.map((item,idx)=>!item?/*#__PURE__*/React.createElement("div",{key:idx,style:{height:1,background:'var(--border)',margin:'3px 0'}}):/*#__PURE__*/React.createElement("button",{key:idx,onClick:item.action,style:{display:'flex',alignItems:'center',gap:9,width:'100%',padding:'8px 12px',border:'none',background:'none',cursor:'pointer',fontSize:13,fontFamily:'inherit',textAlign:'start',borderRadius:5,color:item.danger?'#EF4444':'var(--text)'},onMouseEnter:e=>e.currentTarget.style.background=item.danger?'rgba(239,68,68,.07)':'var(--bg)',onMouseLeave:e=>e.currentTarget.style.background='none'},/*#__PURE__*/React.createElement("span",{style:{color:item.danger?'#EF4444':'var(--text-3)',fontWeight:700,width:14,textAlign:'center',flexShrink:0}},item.icon),item.label))));})(),document.body));}/* ══════════════════════════════════════
    Task Detail Sidebar
 ══════════════════════════════════════ */const formatBytes=n=>n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFixed(1)+' MB';function SidebarSubRow({sub,onUpdate,onDelete,autoFocus=false,visibleFields}){const{priorities,disciplines}=useContext(ListsCtx);const[title,setTitle]=useState(sub.title||'');const ref=useRef(null);useEffect(()=>{if(autoFocus&&ref.current)ref.current.focus();},[]);const commit=()=>{if(title.trim())onUpdate({...sub,title:title.trim()});else onDelete();};const disc=sub.discipline?disciplines.find(d=>d.id===sub.discipline):null;const prio=sub.priority?priorities.find(p=>p.id===sub.priority):null;const evts=sub.events||[];const hasMeta=visibleFields.has('discipline')&&disc||visibleFields.has('priority')&&prio||visibleFields.has('dates')&&(sub.startDate||sub.dueDate)||visibleFields.has('events')&&evts.length>0;return/*#__PURE__*/React.createElement("div",{className:"sds-sub",style:{alignItems:hasMeta?'flex-start':'center'}},visibleFields.has('status')&&/*#__PURE__*/React.createElement("div",{style:{marginTop:hasMeta?2:0,flexShrink:0}},/*#__PURE__*/React.createElement(StatusCircle,{size:14,statusId:sub.statusId||'N',onChange:v=>onUpdate({...sub,statusId:v})})),/*#__PURE__*/React.createElement("div",{style:{flex:1,minWidth:0}},/*#__PURE__*/React.createElement("input",{ref:ref,style:{width:'100%',background:'none',border:'none',outline:'none',fontSize:12,fontFamily:'inherit',color:'var(--text)',padding:0,textDecoration:sub.done||sub.statusId==='C'?'line-through':'none',opacity:sub.done||sub.statusId==='C'?.6:1},value:title,placeholder:"תת-משימה...",onChange:e=>setTitle(e.target.value),onBlur:commit,onKeyDown:e=>{if(e.key==='Enter'||e.key==='Escape')commit();}}),hasMeta&&/*#__PURE__*/React.createElement("div",{className:"sds-sub-meta"},visibleFields.has('discipline')&&disc&&/*#__PURE__*/React.createElement("span",{style:{fontSize:9,fontWeight:700,color:disc.color,background:disc.bg,borderRadius:4,padding:'1px 5px',whiteSpace:'nowrap'}},disc.label),visibleFields.has('priority')&&prio&&/*#__PURE__*/React.createElement("span",{style:{fontSize:9,fontWeight:700,color:prio.color,background:prio.bg,borderRadius:4,padding:'1px 5px',whiteSpace:'nowrap'}},prio.label),visibleFields.has('dates')&&(sub.startDate||sub.dueDate)&&/*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:'var(--text-3)',fontFamily:'monospace',whiteSpace:'nowrap'}},sub.startDate?fmtDate(sub.startDate):'—',IS_LTR()?" › ":" ‹ ",sub.dueDate?fmtDate(sub.dueDate):'—'),visibleFields.has('events')&&evts.length>0&&/*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:'var(--accent)',background:'rgba(99,102,241,.1)',borderRadius:4,padding:'1px 5px',whiteSpace:'nowrap'}},"⊡ ",evts.length))),/*#__PURE__*/React.createElement("button",{style:{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',fontSize:13,padding:'0 2px',lineHeight:1,flexShrink:0,marginTop:hasMeta?1:0},onClick:onDelete},"×"));}function TaskDetailSidebar({task,onUpdate,onClose,data,onOpenMeeting,meetings,openTab}){const sourceMeeting=task.sourceMeetingId?(meetings||[]).find(m=>m.id===task.sourceMeetingId):null;const{priorities,disciplines}=useContext(ListsCtx);const groups=data.groups||[];const group=groups.find(g=>g.id===task.groupId);const sheetName=data.sheetName||'';/* Tabs */const[activeTab,setActiveTab]=useState('desc');useEffect(()=>{if(openTab)setActiveTab(openTab.tab);},[openTab]);const[panelW,setPanelW]=useState(()=>{const s=localStorage.getItem(TDS_PANEL_W_KEY);return s?parseInt(s,10):TDS_PANEL_W_DEFAULT();});const startPanelResize=e=>{e.preventDefault();const onMove=ev=>{const w=Math.max(320,Math.min(panelEdgeX(ev)/TDS_PANEL_ZOOM,(window.innerWidth-60)/TDS_PANEL_ZOOM));setPanelW(w);};const onUp=ev=>{const w=Math.max(320,Math.min(panelEdgeX(ev)/TDS_PANEL_ZOOM,(window.innerWidth-60)/TDS_PANEL_ZOOM));setPanelW(w);localStorage.setItem(TDS_PANEL_W_KEY,String(w));document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);};document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp);};/* Description rich-text editor */const descRef=useRef(null);/* The editor only exists while the desc tab is mounted, so opening the panel on the
    updates tab left it unpopulated - and a later blur then saved that emptiness
@@ -3171,12 +3205,12 @@ const handleCollapseAll=()=>{
    section. Every sheet starts with one implicit section holding all its tasks,
    and surfacing that as a header is just noise — so the default (group-by
    section) renders flat until a second section exists. */
-const hasUserSections=(groups||[]).length>1;const isFlatMode=groupByState.length===0||(groupByState.length===1&&groupByState[0].field==='section'&&!hasUserSections);const isDefaultGrouping=!isFlatMode&&groupByState.length===1&&groupByState[0].field==='section';/* fixed-order buckets (תשומת לב, תכנון, מועד יעד...) — each user can drag them into their own order */const vgFixedOrder=field=>field==='__due'?DUE_BUCKETS:field==='mtAttn'?[...ATTN_BUCKETS,'לא דחוף']:field==='mtPlan'?PLAN_BUCKETS:(()=>{const f=(extraGroups||[]).find(x=>x.field===field);return f&&f.order?f.order:null;})();const userBucketOrder=(field,order)=>{const saved=planCtx&&planCtx.bucketOrder&&planCtx.bucketOrder[field];if(!saved||!saved.length)return order;return[...saved.filter(v=>order.includes(v)),...order.filter(v=>!saved.includes(v))];};const vgCanMove=field=>!!vgFixedOrder(field)&&!!(planCtx&&planCtx.setBucketOrder);const[vgDrag,setVgDrag]=useState(null);const[vgDropOver,setVgDropOver]=useState(null);const moveBucket=(field,src,tgt)=>{const base=vgFixedOrder(field);if(!base||src===tgt)return;const cur=userBucketOrder(field,base);const all=[...cur,...(virtualGroups||[]).map(v=>v.value).filter(v=>!cur.includes(v))];const si=all.indexOf(src),ti=all.indexOf(tgt);if(si<0||ti<0)return;const a=[...all];const[item]=a.splice(si,1);a.splice(ti,0,item);planCtx.setBucketOrder(field,a);};const buildVirtualGroups=()=>{/* Tasks don't carry a `section` property directly — a section is t.groupId. */const fieldValueOf=(field,t)=>field==='section'?t.groupId||'':field==='__due'?dueBucketOf(t):field==='mtPlan'?t.mtPlan||(planCtx?planCtx.bucketOf(t):planDateBucket(t,todayISO())):field==='mtAttn'?attnBucketOf(t,attnCtx.threshold,attnCtx.priorities)||'לא דחוף':field==='__owner'?(t.assigneeIds||[])[0]||t.assigneeId||'':t[field]??'';const getLabel=(field,value)=>{if(field==='section'){const g=groups.find(x=>x.id===value);return g?g.name:'ללא מקטע';}if(!value)return'ללא '+([...GROUP_FIELDS,{field:'__track',label:'מסלול'},{field:'__stage',label:'שלב'},...(extraGroups||[])].find(f=>f.field===field)?.label||'');if(field==='discipline'){const d=disciplines.find(x=>x.id===value);return d?d.label:value;}if(field==='priority'){const p=priorities.find(x=>x.id===value);return p?p.label:value;}if(field==='statusId'){const s=STATUSES.find(x=>x.id===value);return s?s.label:value;}if(field==='__owner'){const m=(vTeam||[]).find(x=>(x.staffId||x.id)===value);return m&&m.name||value;}return value;};const getPill=(field,value)=>{if(field==='section')return null;if(!value)return null;if(field==='discipline'){const d=disciplines.find(x=>x.id===value);return d?{color:d.color,bg:d.bg}:null;}if(field==='priority'){const p=priorities.find(x=>x.id===value);return p?{color:p.color,bg:p.bg}:null;}if(field==='statusId'){const s=STATUSES.find(x=>x.id===value);return s?{color:s.color,bg:'var(--chip-neutral-bg)'}:null;}return null;};const priOrder=Object.fromEntries(priorities.map((p,i)=>[p.id,i]));/* For 'section', show every real group (even ones with 0 tasks yet) instead of only
+const hasUserSections=(groups||[]).length>1;const isFlatMode=groupByState.length===0||(groupByState.length===1&&groupByState[0].field==='section'&&!hasUserSections);const isDefaultGrouping=!isFlatMode&&groupByState.length===1&&groupByState[0].field==='section';/* fixed-order buckets (תשומת לב, תכנון, מועד יעד...) — each user can drag them into their own order */const vgFixedOrder=field=>field==='__due'?DUE_BUCKETS:field==='mtAttn'?[...ATTN_BUCKETS,'לא דחוף']:field==='mtPlan'?PLAN_BUCKETS:(()=>{const f=(extraGroups||[]).find(x=>x.field===field);return f&&f.order?f.order:null;})();const userBucketOrder=(field,order)=>{const saved=planCtx&&planCtx.bucketOrder&&planCtx.bucketOrder[field];if(!saved||!saved.length)return order;return[...saved.filter(v=>order.includes(v)),...order.filter(v=>!saved.includes(v))];};const vgCanMove=field=>!!vgFixedOrder(field)&&!!(planCtx&&planCtx.setBucketOrder);const[vgDrag,setVgDrag]=useState(null);const[vgDropOver,setVgDropOver]=useState(null);const moveBucket=(field,src,tgt)=>{const base=vgFixedOrder(field);if(!base||src===tgt)return;const cur=userBucketOrder(field,base);const all=[...cur,...(virtualGroups||[]).map(v=>v.value).filter(v=>!cur.includes(v))];const si=all.indexOf(src),ti=all.indexOf(tgt);if(si<0||ti<0)return;const a=[...all];const[item]=a.splice(si,1);a.splice(ti,0,item);planCtx.setBucketOrder(field,a);};const buildVirtualGroups=()=>{/* Tasks don't carry a `section` property directly — a section is t.groupId. */const fieldValueOf=(field,t)=>field==='section'?t.groupId||'':field==='__due'?dueBucketOf(t):field==='mtPlan'?t.mtPlan||(planCtx?planCtx.bucketOf(t):planDateBucket(t,todayISO())):field==='mtAttn'?attnBucketOf(t,attnCtx.threshold,attnCtx.priorities)||'לא דחוף':field==='__owner'?(t.assigneeIds||[])[0]||t.assigneeId||'':t[field]??'';/* a task with several owners sits under each of them */const fieldValuesOf=(field,t)=>{if(field==='__owner'){const ids=t.assigneeIds||(t.assigneeId?[t.assigneeId]:[]);return ids.length?ids:[''];}return[fieldValueOf(field,t)];};const getLabel=(field,value)=>{if(field==='section'){const g=groups.find(x=>x.id===value);return g?g.name:'ללא מקטע';}if(!value)return'ללא '+([...GROUP_FIELDS,{field:'__track',label:'מסלול'},{field:'__stage',label:'שלב'},...(extraGroups||[])].find(f=>f.field===field)?.label||'');if(field==='discipline'){const d=disciplines.find(x=>x.id===value);return d?d.label:value;}if(field==='priority'){const p=priorities.find(x=>x.id===value);return p?p.label:value;}if(field==='statusId'){const s=STATUSES.find(x=>x.id===value);return s?s.label:value;}if(field==='__owner'){const m=(vTeam||[]).find(x=>(x.staffId||x.id)===value);return m&&m.name||value;}return value;};const getPill=(field,value)=>{if(field==='section')return null;if(!value)return null;if(field==='discipline'){const d=disciplines.find(x=>x.id===value);return d?{color:d.color,bg:d.bg}:null;}if(field==='priority'){const p=priorities.find(x=>x.id===value);return p?{color:p.color,bg:p.bg}:null;}if(field==='statusId'){const s=STATUSES.find(x=>x.id===value);return s?{color:s.color,bg:'var(--chip-neutral-bg)'}:null;}return null;};const priOrder=Object.fromEntries(priorities.map((p,i)=>[p.id,i]));/* For 'section', show every real group (even ones with 0 tasks yet) instead of only
        values that already appear on a task — otherwise a freshly-added section is invisible
        until something is assigned to it. *//* a field with a fixed order of buckets keeps it; showEmpty lists every bucket, so a task can be dropped into an empty one */const orderOf=field=>{const o=orderOf0(field);return o&&{...o,order:userBucketOrder(field,o.order)};};const orderOf0=field=>field==='__due'?{order:DUE_BUCKETS,all:false}:field==='mtAttn'?{order:[...ATTN_BUCKETS,'לא דחוף'],all:false}:field==='mtPlan'?{order:PLAN_BUCKETS,all:PLAN_BUCKETS.filter(b=>b!=='באיחור')}:(()=>{const f=(extraGroups||[]).find(x=>x.field===field);return f&&f.order?{order:f.order,all:f.showEmpty||false}:null;})();
-/* under a track or a stage, an empty section shows only where it lives — a section belongs to one stage */const valuesOf=(field,taskList,path)=>{const found=[...new Set(taskList.map(t=>fieldValueOf(field,t)))];const ord=orderOf(field);if(ord)return[...ord.order.filter(v=>found.includes(v)||ord.all===true||Array.isArray(ord.all)&&ord.all.includes(v)),...found.filter(v=>!ord.order.includes(v))];if(field!=='section')return found;const home=data.__groupHome;const within=(path||[]).filter(p=>p.field==='__track'||p.field==='__stage');const realIds=groups.map(g=>g.id).filter(id=>{if(!home||!within.length||found.includes(id))return true;const h=home[id];return!!h&&within.every(p=>(p.field==='__track'?h.track:h.stage)===p.value);});return[...realIds,...found.filter(v=>!realIds.includes(v))];};/* Recursively builds one nested level per groupByState entry, so grouping by
+/* under a track or a stage, an empty section shows only where it lives — a section belongs to one stage */const valuesOf=(field,taskList,path)=>{const found=[...new Set(taskList.flatMap(t=>fieldValuesOf(field,t)))];const ord=orderOf(field);if(ord)return[...ord.order.filter(v=>found.includes(v)||ord.all===true||Array.isArray(ord.all)&&ord.all.includes(v)),...found.filter(v=>!ord.order.includes(v))];if(field!=='section')return found;const home=data.__groupHome;const within=(path||[]).filter(p=>p.field==='__track'||p.field==='__stage');const realIds=groups.map(g=>g.id).filter(id=>{if(!home||!within.length||found.includes(id))return true;const h=home[id];return!!h&&within.every(p=>(p.field==='__track'?h.track:h.stage)===p.value);});return[...realIds,...found.filter(v=>!realIds.includes(v))];};/* Recursively builds one nested level per groupByState entry, so grouping by
        3+ criteria (e.g. track → stage → discipline) actually nests instead of only
-       honoring the first two levels. */const buildLevel=(taskList,depth,parentId,path=[])=>{if(depth>=groupByState.length)return null;const field=groupByState[depth].field;const vals=valuesOf(field,taskList,path);if(field==='priority')vals.sort((a,b)=>(priOrder[a]??99)-(priOrder[b]??99));return vals.map(val=>{const gTasks=taskList.filter(t=>fieldValueOf(field,t)===val);const id=`${parentId}_${field}_${val}`;return{id,label:getLabel(field,val),pill:getPill(field,val),field,value:val,depth,tasks:gTasks,subGroups:buildLevel(gTasks,depth+1,id,[...path,{field,value:val}])};});};return buildLevel(display,0,'vg');};const virtualGroups=!isFlatMode&&!isDefaultGrouping?buildVirtualGroups():null;/* Ordered visible columns — built-ins first (in colOrder), then custom fields */const builtinVis=colOrder.filter(id=>!hiddenCols[id]);const customVis=fields.filter(f=>!hiddenCols[f.id]).map(f=>f.id);const visibleColIds=[...builtinVis,...customVis].filter(id=>id!=='__status');const visibleCols=visibleColIds.map(id=>{if(COL_DEFS[id])return{id,...COL_DEFS[id]};const f=fields.find(f=>f.id===id);return{id,label:f?.title||id,align:'start',defaultW:120,minW:60,locked:false};});const totalColW=visibleCols.reduce((s,col)=>s+getColW(col.id),0)+42;return/*#__PURE__*//* the stage chip on each row is off for now — too much on the row; grouping by שלב shows the stage */React.createElement(StageChipHiddenCtx.Provider,{value:true},/*#__PURE__*/React.createElement(Toolbar,{onAddTask:addTask,onAddGroup:addGroup,filterState:filterState,setFilterState:setFilterState,sortState:sortState,setSortState:setSortState,groupByState:groupByState,setGroupByState:setGroupByState,views:views,activeViewId:activeViewId,activeViewName:activeView?.name||'מבטים',isViewDirty:isViewDirty,onUpdateView:updateView,onSaveView:saveView,onLoadView:loadView,onDeleteView:deleteView,favViewId:favViewId,onToggleFav:toggleFav,viewsMenu:viewsMenu,onRenameView:renameView,onSettings:()=>setShowSettings(o=>!o),settingsOpen:showSettings,trackOptions:data.__combined?[...new Set(tasks.map(t=>t.__track).filter(Boolean))]:null,stageOptions:data.__combined?[...new Set(tasks.map(t=>t.__stage).filter(Boolean))]:null,isCombinedView:!!data.__combined,automations:automations,extraFilters:extraFilters,extraGroups:extraGroups,extraSorts:extraSorts}),vScreen&&isViewDirty&&React.createElement(ViewDirtyBar,{kind:viewKind(activeView),name:activeView.name,canUpdate:canEditView(activeView),onRevert:()=>{dropSortOv(activeViewId);if(baseActiveView)applyView(baseActiveView,false);},onUpdate:updateView,onSaveAs:()=>setSaveDlg(true)}),/*#__PURE__*/React.createElement("div",{className:"list-wrap",onClick:()=>{setSelectedGroup(null);setSecMenu(null);}},/*#__PURE__*/React.createElement("table",{className:"list-table",ref:tableRef,style:{width:totalColW+'px'}},/*#__PURE__*/React.createElement("colgroup",null,visibleCols.map(col=>/*#__PURE__*/React.createElement("col",{key:col.id,ref:el=>{if(el)colGroupRef.current[col.id]=el;},style:{width:getColW(col.id)+'px'}})),/*#__PURE__*/React.createElement("col",{style:{width:'42px'}})),/*#__PURE__*/React.createElement("thead",null,/*#__PURE__*/React.createElement("tr",null,visibleCols.map(col=>{const sortField=SORTABLE_COL_FIELD[col.id]??(col.id.startsWith('__')?null:col.id);const sortList2=sortState||[];const sortEntry=sortField?sortList2.find(s=>s.column===sortField):null;const isSorted=!!sortEntry;const sortDir=sortEntry?.dir??null;const sortNum=isSorted&&sortList2.length>1?sortList2.indexOf(sortEntry)+1:null;const handleColClick=e=>{if(e.target.closest('.col-rh'))return;if(!sortField)return;if(!sortEntry){// add as last criterion, default desc
+       honoring the first two levels. */const buildLevel=(taskList,depth,parentId,path=[])=>{if(depth>=groupByState.length)return null;const field=groupByState[depth].field;const vals=valuesOf(field,taskList,path);if(field==='priority')vals.sort((a,b)=>(priOrder[a]??99)-(priOrder[b]??99));return vals.map(val=>{const gTasks=taskList.filter(t=>fieldValuesOf(field,t).includes(val));const id=`${parentId}_${field}_${val}`;return{id,label:getLabel(field,val),pill:getPill(field,val),field,value:val,depth,tasks:gTasks,subGroups:buildLevel(gTasks,depth+1,id,[...path,{field,value:val}])};});};return buildLevel(display,0,'vg');};const virtualGroups=!isFlatMode&&!isDefaultGrouping?buildVirtualGroups():null;/* Ordered visible columns — built-ins first (in colOrder), then custom fields */const builtinVis=colOrder.filter(id=>!hiddenCols[id]);const customVis=fields.filter(f=>!hiddenCols[f.id]).map(f=>f.id);const visibleColIds=[...builtinVis,...customVis].filter(id=>id!=='__status');const visibleCols=visibleColIds.map(id=>{if(COL_DEFS[id])return{id,...COL_DEFS[id]};const f=fields.find(f=>f.id===id);return{id,label:f?.title||id,align:'start',defaultW:120,minW:60,locked:false};});const totalColW=visibleCols.reduce((s,col)=>s+getColW(col.id),0)+42;return/*#__PURE__*//* the stage chip on each row is off for now — too much on the row; grouping by שלב shows the stage */React.createElement(StageChipHiddenCtx.Provider,{value:true},/*#__PURE__*/React.createElement(Toolbar,{onAddTask:addTask,onAddGroup:addGroup,filterState:filterState,setFilterState:setFilterState,sortState:sortState,setSortState:setSortState,groupByState:groupByState,setGroupByState:setGroupByState,views:views,activeViewId:activeViewId,activeViewName:activeView?.name||'מבטים',isViewDirty:isViewDirty,onUpdateView:updateView,onSaveView:saveView,onLoadView:loadView,onDeleteView:deleteView,favViewId:favViewId,onToggleFav:toggleFav,viewsMenu:viewsMenu,onRenameView:renameView,onSettings:()=>setShowSettings(o=>!o),settingsOpen:showSettings,trackOptions:data.__combined?[...new Set(tasks.map(t=>t.__track).filter(Boolean))]:null,stageOptions:data.__combined?[...new Set(tasks.map(t=>t.__stage).filter(Boolean))]:null,isCombinedView:!!data.__combined,automations:automations,extraFilters:extraFilters,extraGroups:extraGroups,extraSorts:extraSorts}),vScreen&&isViewDirty&&React.createElement(ViewDirtyBar,{kind:viewKind(activeView),name:activeView.name,canUpdate:canEditView(activeView),onRevert:()=>{dropSortOv(activeViewId);if(baseActiveView)applyView(baseActiveView,false);},onUpdate:updateView,onSaveAs:()=>setSaveDlg(true)}),/*#__PURE__*/React.createElement("div",{className:"list-wrap",onClick:()=>{setSelectedGroup(null);setSecMenu(null);}},/*#__PURE__*/React.createElement("table",{className:"list-table",ref:tableRef,style:{width:totalColW+'px'}},/*#__PURE__*/React.createElement("colgroup",null,visibleCols.map(col=>/*#__PURE__*/React.createElement("col",{key:col.id,ref:el=>{if(el)colGroupRef.current[col.id]=el;},style:{width:getColW(col.id)+'px'}})),/*#__PURE__*/React.createElement("col",{style:{width:'42px'}})),/*#__PURE__*/React.createElement("thead",null,/*#__PURE__*/React.createElement("tr",null,visibleCols.map(col=>{const sortField=SORTABLE_COL_FIELD[col.id]??(col.id.startsWith('__')?null:col.id);const sortList2=sortState||[];const sortEntry=sortField?sortList2.find(s=>s.column===sortField):null;const isSorted=!!sortEntry;const sortDir=sortEntry?.dir??null;const sortNum=isSorted&&sortList2.length>1?sortList2.indexOf(sortEntry)+1:null;const handleColClick=e=>{if(e.target.closest('.col-rh'))return;if(!sortField)return;if(!sortEntry){// add as last criterion, default desc
 setSortState([...sortList2,{column:sortField,dir:'desc'}]);}else if(sortEntry.dir==='desc'){setSortState(sortList2.map(s=>s.column===sortField?{...s,dir:'asc'}:s));}else{// was asc → remove
 const a=sortList2.filter(s=>s.column!==sortField);setSortState(a.length?a:null);}};return/*#__PURE__*/React.createElement("th",{key:col.id,className:[col.id==='__name'?'c-name':'',sortField?'sortable':''].join(' ').trim(),style:{textAlign:col.align,position:'sticky',insetInlineStart:col.id==='__name'?0:undefined,userSelect:'none',cursor:col.locked?'default':sortField?'pointer':'grab',background:isSorted?'rgba(37,99,235,.06)':dragOver===col.id?'rgba(37,99,235,.07)':undefined,outline:dragOver===col.id?'2px solid var(--accent)':undefined,outlineOffset:'-2px'},draggable:!col.locked,onClick:handleColClick,onDragStart:e=>{e.dataTransfer.setData('text/plain',col.id);e.dataTransfer.effectAllowed='move';},onDragOver:e=>{e.preventDefault();if(!col.locked)setDragOver(col.id);},onDragLeave:()=>setDragOver(null),onDrop:e=>{e.preventDefault();setDragOver(null);handleColReorder(e.dataTransfer.getData('text/plain'),col.id);}},/*#__PURE__*/React.createElement("span",{style:{display:'inline-flex',alignItems:'center',gap:4}},col.label,sortField&&/*#__PURE__*/React.createElement("span",{className:"sort-arrow",style:{display:'inline-flex',alignItems:'center',gap:1,fontSize:8,lineHeight:1,opacity:isSorted?1:0,color:'var(--blue)',transition:'opacity .15s'}},sortDir==='asc'?'▲':'▼',sortNum&&/*#__PURE__*/React.createElement("span",{style:{fontSize:7,fontWeight:700}},sortNum))),/*#__PURE__*/React.createElement("div",{className:"col-rh",onMouseDown:e=>startResize(e,col.id),draggable:false,onClick:e=>e.stopPropagation()}));}),/*#__PURE__*/React.createElement("th",{className:"c-addcol"},/*#__PURE__*/React.createElement("button",{onClick:()=>{setShowSettings(true);},style:{width:20,height:20,borderRadius:'50%',border:'1px dashed var(--border-strong)',background:'transparent',cursor:'pointer',fontSize:14,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto',color:'var(--text-3)'}},"+")))),/*#__PURE__*/React.createElement("tbody",null,isFlatMode&&(()=>{const colSpanFlat=visibleColIds.length+1;const taskRowPropsFlat={fields,visibleColIds,daysThreshold:data.builtinConfig?.__owner_status?.delayThreshold??null,sortState,taskDragSrc,taskDragTarget,taskDragInto,onTaskNest:handleTaskNest,subDrag,onSubDragStart:handleSubDragStart,onTaskDragStart:handleTaskDragStart,onTaskDragEnd:handleTaskDragEnd,onTaskDragOver:handleTaskDragOver,onTaskDrop:handleTaskDropOnTask,selectedIds,onSelect:handleSelect,onCellUpdate:updateTaskCell,onDuplicate:duplicateTask,onShowDetail:handleShowDetail,expandSignal,onCollapseAll:handleCollapseAll};const activeFlat=display.filter(t=>!inDoneSec(data,t));const doneFlat=display.filter(t=>inDoneSec(data,t));const doneOpenFlat=openDone.has('__flat__');const toggleDoneFlat=()=>setOpenDone(prev=>{const n=new Set(prev);n.has('__flat__')?n.delete('__flat__'):n.add('__flat__');return n;});const addTaskFlat=()=>{const gId=groups[0]?.id;if(!gId)return;const id=uid();savePartial({tasks:[...tasks,{id,groupId:gId,title:'',statusId:'N',priority:'',discipline:'',startDate:'',dueDate:'',comment:'',done:false,subtasks:[],fieldValues:{},events:[],...filterPrefill()}]});setNewTaskId(id);};return/*#__PURE__*/React.createElement(React.Fragment,{key:"flat"},activeFlat.map(task=>/*#__PURE__*/React.createElement(TaskRow,{key:task.id,task:task,...taskRowPropsFlat,autoFocus:task.id===newTaskId,onUpdate:t=>{setNewTaskId(null);updateTask(t);},onDelete:()=>{setNewTaskId(null);deleteTask(task.id);}})),/*#__PURE__*/React.createElement("tr",{className:"add-task-row"},/*#__PURE__*/React.createElement("td",{colSpan:colSpanFlat},/*#__PURE__*/React.createElement("button",{className:"add-task-btn",onClick:addTaskFlat},/*#__PURE__*/React.createElement("span",{style:{fontSize:16,lineHeight:1,color:'var(--accent)'}},"+")," הוסף משימה"))),doneFlat.length>0&&/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("tr",{className:"done-sec-row",onClick:toggleDoneFlat},/*#__PURE__*/React.createElement("td",{colSpan:colSpanFlat},/*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',gap:7}},/*#__PURE__*/React.createElement("span",{className:`done-chevron${doneOpenFlat?' open':''}`},"▶"),/*#__PURE__*/React.createElement("span",{style:{fontSize:12,fontWeight:600,color:'var(--text-4)'}},"הושלמו"),/*#__PURE__*/React.createElement("span",{style:{fontSize:11,fontWeight:400,color:'var(--text-4)'}},doneFlat.length," משימות")))),doneOpenFlat&&doneFlat.map(task=>/*#__PURE__*/React.createElement(TaskRow,{key:task.id,task:task,...taskRowPropsFlat,autoFocus:task.id===newTaskId,onUpdate:t=>{setNewTaskId(null);updateTask(t);},onDelete:()=>{setNewTaskId(null);deleteTask(task.id);}}))));})(),virtualGroups&&virtualGroups.map(vg=>{const colSpan2=visibleColIds.length+1;const taskRowPropsV={fields,visibleColIds,daysThreshold:data.builtinConfig?.__owner_status?.delayThreshold??null,sortState,taskDragSrc,taskDragTarget,taskDragInto,onTaskNest:handleTaskNest,subDrag,onSubDragStart:handleSubDragStart,onTaskDragStart:handleTaskDragStart,onTaskDragEnd:handleTaskDragEnd,onTaskDragOver:handleTaskDragOver,onTaskDrop:handleTaskDropOnTask,selectedIds,onSelect:handleSelect,onCellUpdate:updateTaskCell,onDuplicate:duplicateTask,onShowDetail:handleShowDetail,expandSignal,onCollapseAll:handleCollapseAll};const addTaskForVg=()=>{const template=vg.tasks[0];const gId=vg.field==='section'?vg.value:(template?.groupId||groups[0]?.id);if(!gId)return;const id=uid();const fieldPatch=GROUP_COMPUTED.includes(vg.field)?{}:{[vg.field]:vg.value};const srcPatch=template?.__srcSheetId?{__srcSheetId:template.__srcSheetId}:{};savePartial({tasks:[...tasks,{id,groupId:gId,...srcPatch,title:'',statusId:'N',priority:'',discipline:'',startDate:'',dueDate:'',comment:'',done:false,subtasks:[],fieldValues:{},events:[],...filterPrefill(),...fieldPatch}]});setNewTaskId(id);};const renderVgTaskRows=(taskList,doneKey,field,value)=>{const active=taskList.filter(t=>!inDoneSec(data,t));const done=taskList.filter(t=>inDoneSec(data,t));const doneOpen2=openDone.has(doneKey);const toggleDone2=()=>setOpenDone(prev=>{const n=new Set(prev);n.has(doneKey)?n.delete(doneKey):n.add(doneKey);return n;});const taskRowPropsHere={...taskRowPropsV,onTaskDrop:id=>handleVgTaskDrop(field,value,id)};const addHere=()=>{const template=taskList[0];const gId=field==='section'?value:(template?.groupId||groups[0]?.id);if(!gId)return;const nid=uid();const fieldPatch=GROUP_COMPUTED.includes(field)?{}:{[field]:value};const srcPatch=template?.__srcSheetId?{__srcSheetId:template.__srcSheetId}:{};savePartial({tasks:[...tasks,{id:nid,groupId:gId,...srcPatch,title:'',statusId:'N',priority:'',discipline:'',startDate:'',dueDate:'',comment:'',done:false,subtasks:[],fieldValues:{},events:[],...filterPrefill(),...fieldPatch}]});setNewTaskId(nid);};return/*#__PURE__*/React.createElement(React.Fragment,null,active.map(task=>/*#__PURE__*/React.createElement(TaskRow,{key:task.id,task:task,...taskRowPropsHere,autoFocus:task.id===newTaskId,onUpdate:t=>{setNewTaskId(null);updateTask(t);},onDelete:()=>{setNewTaskId(null);deleteTask(task.id);}})),/*#__PURE__*/React.createElement("tr",{className:"add-task-row"},/*#__PURE__*/React.createElement("td",{colSpan:colSpan2},/*#__PURE__*/React.createElement("button",{className:"add-task-btn",onClick:addHere},/*#__PURE__*/React.createElement("span",{style:{fontSize:16,lineHeight:1,color:'var(--accent)'}},"+")," הוסף משימה"))),done.length>0&&/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("tr",{className:"done-sec-row",onClick:toggleDone2},/*#__PURE__*/React.createElement("td",{colSpan:colSpan2},/*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',gap:7}},/*#__PURE__*/React.createElement("span",{className:`done-chevron${doneOpen2?' open':''}`},"▶"),/*#__PURE__*/React.createElement("span",{style:{fontSize:12,fontWeight:600,color:'var(--text-4)'}},"הושלמו"),/*#__PURE__*/React.createElement("span",{style:{fontSize:11,fontWeight:400,color:'var(--text-4)'}},done.length," משימות")))),doneOpen2&&done.map(task=>/*#__PURE__*/React.createElement(TaskRow,{key:task.id,task:task,...taskRowPropsHere,autoFocus:task.id===newTaskId,onUpdate:t=>{setNewTaskId(null);updateTask(t);},onDelete:()=>{setNewTaskId(null);deleteTask(task.id);}}))));};const renderSubGroup=sg=>/*#__PURE__*/React.createElement(React.Fragment,{key:sg.id},/*#__PURE__*/React.createElement("tr",{className:"sub-sec-row",onClick:()=>toggleVg(sg.id),style:{cursor:'pointer'},onDragOver:e=>{if(taskDragSrc){e.preventDefault();}},onDrop:e=>{e.preventDefault();handleVgTaskDrop(sg.field,sg.value,null);}},/*#__PURE__*/React.createElement("td",{colSpan:colSpan2},/*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',gap:7,paddingInlineStart:(sg.depth-1)*14}},/*#__PURE__*/React.createElement("button",{onClick:e=>{e.stopPropagation();toggleVg(sg.id);},style:{background:'none',border:'none',cursor:'pointer',padding:'0 2px',color:'var(--text-3)',fontSize:16,lineHeight:1,display:'flex',alignItems:'center',transform:collVg[sg.id]?'rotate(-90deg)':'rotate(0deg)',transition:'transform .18s',flexShrink:0}},"▾"),/*#__PURE__*/React.createElement("div",{style:{width:7,height:7,borderRadius:'50%',background:'var(--border-strong)',flexShrink:0}}),/* a מקטע at the second grouping level is a real section too — rename it and open its menu, as at the first level */(()=>{const rg=sg.field==='section'?groups.find(g=>g.id===sg.value):null;return React.createElement(React.Fragment,null,rg&&editingGroupId===rg.id?React.createElement("input",{autoFocus:true,value:groupNameDraft,onChange:e=>setGroupNameDraft(e.target.value),onBlur:()=>{if(groupNameDraft.trim())save({...data,groups:groups.map(x=>x.id===rg.id?{...x,name:groupNameDraft.trim()}:x)});setEditingGroupId(null);},onKeyDown:e=>{if(e.key==='Enter'){e.target.blur();}if(e.key==='Escape'){setEditingGroupId(null);}},onClick:e=>e.stopPropagation(),style:{fontWeight:600,fontSize:12,border:'none',borderBottom:'1.5px solid var(--accent)',outline:'none',background:'transparent',fontFamily:'inherit',padding:'0 2px',minWidth:80}}):React.createElement("span",{style:{fontWeight:600,fontSize:12,cursor:rg?'text':'default'},onClick:rg?e=>{e.stopPropagation();setGroupNameDraft(rg.name);setEditingGroupId(rg.id);}:undefined},sg.pill?React.createElement("span",{className:"pill",style:{color:sg.pill.color,background:sg.pill.bg}},sg.label):sg.label),React.createElement("span",{style:{fontSize:11,color:'var(--text-3)',fontWeight:400}},sg.tasks.length," משימות"),rg&&React.createElement("button",{className:"sec-actions-btn",onClick:e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setSecMenu(secMenu?.id===rg.id?null:{id:rg.id,left:Math.max(4,r.left),y:r.bottom+4,gRef:rg,taskIds:sg.tasks.map(t=>t.id),subGroupIds:sg.subGroups?sg.subGroups.map(x=>x.id):null});},style:{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',padding:'2px 5px',borderRadius:4,display:'flex',alignItems:'center',flexShrink:0,transition:'color .12s'},onMouseEnter:e=>e.currentTarget.style.color='var(--text)',onMouseLeave:e=>e.currentTarget.style.color='var(--text-3)',title:"אפשרויות"},React.createElement("svg",{width:"14",height:"14",viewBox:"0 0 16 16",fill:"none"},React.createElement("circle",{cx:"8",cy:"3",r:"1.2",fill:"currentColor"}),React.createElement("circle",{cx:"8",cy:"8",r:"1.2",fill:"currentColor"}),React.createElement("circle",{cx:"8",cy:"13",r:"1.2",fill:"currentColor"}))));})()))),!collVg[sg.id]&&(sg.subGroups?sg.subGroups.map(renderSubGroup):renderVgTaskRows(sg.tasks,sg.id,sg.field,sg.value)));const vgCollapsed=collVg[vg.id];/* When grouping by מקטע, each vg row maps 1:1 to a real group — give it the
                  same options menu real (non-virtual) section rows have. */const vgRealGroup=vg.field==='section'?groups.find(g=>g.id===vg.value):null;return/*#__PURE__*/React.createElement(React.Fragment,{key:vg.id},/*#__PURE__*/React.createElement("tr",{className:"sec-row",onClick:()=>toggleVg(vg.id),draggable:vgCanMove(vg.field),onDragStart:e=>{if(!vgCanMove(vg.field))return;e.dataTransfer.effectAllowed='move';setVgDrag({field:vg.field,value:vg.value});},onDragEnd:()=>{setVgDrag(null);setVgDropOver(null);},style:{cursor:'pointer',opacity:vgDrag&&vgDrag.value===vg.value&&vgDrag.field===vg.field?.5:1,outline:vgDrag&&vgDrag.field===vg.field&&vgDrag.value!==vg.value&&vgDropOver===vg.id?'2px dashed var(--accent)':'none'},onDragOver:e=>{if(taskDragSrc){e.preventDefault();}else if(vgDrag&&vgDrag.field===vg.field&&vgDrag.value!==vg.value){e.preventDefault();if(vgDropOver!==vg.id)setVgDropOver(vg.id);}},onDrop:e=>{e.preventDefault();if(vgDrag){if(vgDrag.field===vg.field)moveBucket(vg.field,vgDrag.value,vg.value);setVgDrag(null);setVgDropOver(null);return;}handleVgTaskDrop(vg.field,vg.value,null);}},/*#__PURE__*/React.createElement("td",{colSpan:colSpan2},/*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',gap:8}},vgCanMove(vg.field)&&React.createElement("span",{className:"sec-drag-handle",title:"גרור לשינוי סדר"},"⠿"),/*#__PURE__*/React.createElement("button",{onClick:e=>{e.stopPropagation();toggleVg(vg.id);},style:{background:'none',border:'none',cursor:'pointer',padding:'1px 2px',color:'var(--blue)',fontSize:23,lineHeight:1,display:'flex',alignItems:'center',transform:vgCollapsed?'rotate(-90deg)':'rotate(0deg)',transition:'transform .18s',flexShrink:0}},"▾"),vg.field==='__track'?/*#__PURE__*/React.createElement("span",{style:{fontWeight:700,fontSize:13,flexShrink:0}},"מסלול: ",vg.label):/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{style:{width:10,height:10,borderRadius:'50%',background:'var(--blue)',flexShrink:0}}),vgRealGroup&&editingGroupId===vgRealGroup.id?/*#__PURE__*/React.createElement("input",{autoFocus:true,value:groupNameDraft,onChange:e=>setGroupNameDraft(e.target.value),onBlur:()=>{if(groupNameDraft.trim())save({...data,groups:groups.map(x=>x.id===vgRealGroup.id?{...x,name:groupNameDraft.trim()}:x)});setEditingGroupId(null);},onKeyDown:e=>{if(e.key==='Enter'){e.target.blur();}if(e.key==='Escape'){setEditingGroupId(null);}},onClick:e=>e.stopPropagation(),style:{fontWeight:700,fontSize:13,border:'none',borderBottom:'1.5px solid var(--accent)',outline:'none',background:'transparent',fontFamily:'inherit',padding:'0 2px',minWidth:80}}):/*#__PURE__*/React.createElement("span",{style:{fontWeight:700,fontSize:13,cursor:vgRealGroup?'text':'default'},onClick:vgRealGroup?e=>{e.stopPropagation();setGroupNameDraft(vgRealGroup.name);setEditingGroupId(vgRealGroup.id);}:undefined},vg.pill?/*#__PURE__*/React.createElement("span",{className:"pill",style:{color:vg.pill.color,background:vg.pill.bg}},vg.label):vg.label)),/*#__PURE__*/React.createElement("span",{style:{fontSize:11,color:'var(--text-3)',fontWeight:400}},vg.tasks.length," משימות"),vgRealGroup&&/*#__PURE__*/React.createElement("button",{className:"sec-actions-btn",onClick:e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setSecMenu(secMenu?.id===vgRealGroup.id?null:{id:vgRealGroup.id,left:Math.max(4,r.left),y:r.bottom+4,gRef:vgRealGroup,taskIds:vg.tasks.map(t=>t.id),subGroupIds:vg.subGroups?vg.subGroups.map(sg=>sg.id):null});},style:{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',padding:'2px 5px',borderRadius:4,display:'flex',alignItems:'center',flexShrink:0,transition:'color .12s'},onMouseEnter:e=>e.currentTarget.style.color='var(--text)',onMouseLeave:e=>e.currentTarget.style.color='var(--text-3)',title:"אפשרויות"},/*#__PURE__*/React.createElement("svg",{width:"14",height:"14",viewBox:"0 0 16 16",fill:"none",stroke:"currentColor",strokeWidth:"1.8",strokeLinecap:"round"},/*#__PURE__*/React.createElement("circle",{cx:"8",cy:"3",r:"1.2",fill:"currentColor",stroke:"none"}),/*#__PURE__*/React.createElement("circle",{cx:"8",cy:"8",r:"1.2",fill:"currentColor",stroke:"none"}),/*#__PURE__*/React.createElement("circle",{cx:"8",cy:"13",r:"1.2",fill:"currentColor",stroke:"none"})))))),!vgCollapsed&&(vg.subGroups?vg.subGroups.map(renderSubGroup):renderVgTaskRows(vg.tasks,vg.id,vg.field,vg.value)));}),!virtualGroups&&!isFlatMode&&groups.map(g=>{const gTasks=display.filter(t=>t.groupId===g.id);const activeTasks=gTasks.filter(t=>!inDoneSec(data,t));const doneTasks=gTasks.filter(t=>inDoneSec(data,t));const doneOpen=openDone.has(g.id);const toggleDone=()=>setOpenDone(prev=>{const next=new Set(prev);if(next.has(g.id))next.delete(g.id);else next.add(g.id);return next;});const colSpan=visibleColIds.length+1;const taskRowProps={fields,visibleColIds,daysThreshold:data.builtinConfig?.__owner_status?.delayThreshold??null,sortState,taskDragSrc,taskDragTarget,taskDragInto,onTaskNest:handleTaskNest,subDrag,onSubDragStart:handleSubDragStart,onTaskDragStart:handleTaskDragStart,onTaskDragEnd:handleTaskDragEnd,onTaskDragOver:handleTaskDragOver,onTaskDrop:handleTaskDropOnTask,selectedIds,onSelect:handleSelect,onCellUpdate:updateTaskCell,onDuplicate:duplicateTask,onShowDetail:handleShowDetail,expandSignal,onCollapseAll:handleCollapseAll};const isDragSrc=dragSrc===g.id;const isDragOver=dragTarget===g.id;/* reorder helper */const reorderGroups=(srcId,tgtId)=>{if(srcId===tgtId)return;const arr=[...groups];const si=arr.findIndex(x=>x.id===srcId);const ti=arr.findIndex(x=>x.id===tgtId);const[item]=arr.splice(si,1);arr.splice(ti,0,item);save({...data,groups:arr});};return/*#__PURE__*/React.createElement(React.Fragment,{key:g.id},/*#__PURE__*/React.createElement("tr",{className:"sec-row",draggable:true,onDragStart:e=>{e.dataTransfer.effectAllowed='move';setDragSrc(g.id);},onDragEnd:()=>{setDragSrc(null);setDragTarget(null);},onDragOver:dragSrc===g.id?undefined:e=>{e.preventDefault();setDragTarget(g.id);},onDrop:e=>{e.preventDefault();if(taskDragSrc){handleTaskDropOnGroup(g.id);}else if(dragSrc){reorderGroups(dragSrc,g.id);}setDragTarget(null);},style:{outline:isDragOver?'2px dashed var(--accent)':'none',opacity:isDragSrc?.5:1}},/*#__PURE__*/React.createElement("td",{colSpan:colSpan},/*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',gap:8}},/*#__PURE__*/React.createElement("span",{className:"sec-drag-handle",title:"גרור לשינוי סדר"},"⠿"),/*#__PURE__*/React.createElement("button",{onClick:e=>{e.stopPropagation();toggleCollapse(g.id);},title:g.collapsed?'הרחב מקטע':'כווץ מקטע',style:{background:'none',border:'none',cursor:'pointer',padding:'1px 2px',color:'var(--blue)',fontSize:23,lineHeight:1,display:'flex',alignItems:'center',transform:g.collapsed?'rotate(-90deg)':'rotate(0deg)',transition:'transform .18s',flexShrink:0}},"▾"),editingGroupId===g.id?/*#__PURE__*/React.createElement("input",{autoFocus:true,value:groupNameDraft,onChange:e=>setGroupNameDraft(e.target.value),onBlur:()=>{if(groupNameDraft.trim())save({...data,groups:groups.map(x=>x.id===g.id?{...x,name:groupNameDraft.trim()}:x)});setEditingGroupId(null);},onKeyDown:e=>{if(e.key==='Enter'){e.target.blur();}if(e.key==='Escape'){setEditingGroupId(null);}},onClick:e=>e.stopPropagation(),style:{fontWeight:700,fontSize:13,border:'none',borderBottom:'1.5px solid var(--accent)',outline:'none',background:'transparent',fontFamily:'inherit',padding:'0 2px',minWidth:80}}):/*#__PURE__*/React.createElement("span",{"data-i18n-skip":"",onClick:e=>{e.stopPropagation();setGroupNameDraft(g.name);setEditingGroupId(g.id);},style:{fontWeight:700,fontSize:13,color:'var(--text)',cursor:'text',padding:'0 2px'}},nameForLang(g.name)),/*#__PURE__*/React.createElement("span",{style:{fontSize:11,color:'var(--text-3)',fontWeight:400}},gTasks.length," משימות"),sectionBadge&&sectionBadge(g,gTasks),/*#__PURE__*/React.createElement("button",{className:"sec-actions-btn",onClick:e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();setSecMenu(secMenu?.id===g.id?null:{id:g.id,left:Math.max(4,r.left),y:r.bottom+4,gRef:g,taskIds:gTasks.map(t=>t.id)});},style:{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',padding:'2px 5px',borderRadius:4,display:'flex',alignItems:'center',flexShrink:0,transition:'color .12s'},onMouseEnter:e=>e.currentTarget.style.color='var(--text)',onMouseLeave:e=>e.currentTarget.style.color='var(--text-3)',title:"אפשרויות"},/*#__PURE__*/React.createElement("svg",{width:"14",height:"14",viewBox:"0 0 16 16",fill:"none",stroke:"currentColor",strokeWidth:"1.8",strokeLinecap:"round"},/*#__PURE__*/React.createElement("circle",{cx:"8",cy:"3",r:"1.2",fill:"currentColor",stroke:"none"}),/*#__PURE__*/React.createElement("circle",{cx:"8",cy:"8",r:"1.2",fill:"currentColor",stroke:"none"}),/*#__PURE__*/React.createElement("circle",{cx:"8",cy:"13",r:"1.2",fill:"currentColor",stroke:"none"})))))),!g.collapsed&&activeTasks.map(task=>/*#__PURE__*/React.createElement(TaskRow,{key:task.id,task:task,...taskRowProps,autoFocus:task.id===newTaskId,onUpdate:t=>{setNewTaskId(null);updateTask(t);},onDelete:()=>{setNewTaskId(null);deleteTask(task.id);}})),!g.collapsed&&/*#__PURE__*/React.createElement("tr",{className:"add-task-row"},/*#__PURE__*/React.createElement("td",{colSpan:colSpan},/*#__PURE__*/React.createElement("button",{className:"add-task-btn",onClick:()=>addTask(g.id)},/*#__PURE__*/React.createElement("span",{style:{fontSize:16,lineHeight:1,color:'var(--accent)'}},"+")," הוסף משימה"))),!g.collapsed&&doneTasks.length>0&&/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("tr",{className:"done-sec-row",onClick:toggleDone},/*#__PURE__*/React.createElement("td",{colSpan:colSpan},/*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',gap:7,paddingInlineStart:59}},/*#__PURE__*/React.createElement("span",{className:`done-chevron${doneOpen?' open':''}`},"▶"),/*#__PURE__*/React.createElement("span",{style:{fontSize:12,fontWeight:600,color:'var(--text-4)'}},"הושלמו"),/*#__PURE__*/React.createElement("span",{style:{fontSize:11,fontWeight:400,color:'var(--text-4)'}},doneTasks.length," משימות")))),doneOpen&&doneTasks.map(task=>/*#__PURE__*/React.createElement(TaskRow,{key:task.id,task:task,...taskRowProps,autoFocus:task.id===newTaskId,onUpdate:t=>{setNewTaskId(null);updateTask(t);},onDelete:()=>{setNewTaskId(null);deleteTask(task.id);}}))));}))),filterState&&display.length===0&&/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'48px 24px',gap:12,color:'var(--text-3)'}},/*#__PURE__*/React.createElement("svg",{width:"36",height:"36",viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round"},/*#__PURE__*/React.createElement("circle",{cx:"11",cy:"11",r:"8"}),/*#__PURE__*/React.createElement("path",{d:"m21 21-4.35-4.35"}),/*#__PURE__*/React.createElement("path",{d:"M8 11h6"})),/*#__PURE__*/React.createElement("span",{style:{fontSize:14,fontWeight:600,color:'var(--text-2)'}},"לא נמצאו משימות"),/*#__PURE__*/React.createElement("span",{style:{fontSize:12}},"הסינון הנוכחי אינו מחזיר תוצאות"),/*#__PURE__*/React.createElement("button",{onClick:()=>setFilterState(null),style:{marginTop:4,fontSize:12,fontWeight:600,color:'var(--accent)',background:'none',border:'1px solid var(--accent)',borderRadius:6,padding:'5px 16px',cursor:'pointer',fontFamily:'inherit'}},"נקה סינון"))),mgrDlg&&React.createElement(ViewsManagerModal,{groups:viewGroups,hidden:hiddenViews,activeViewId,favViewId,sortOv,fields,canOffice:isSuperAdmin(),teamHidden:teamHiddenViews,canTeam:!isMyTasks&&canEditProjectViews&&!!PROJECT_OPS.save,hiddenNote:isMyTasks?'ההסתרה היא רק אצלך, במסך המשימות שלי.':null,newIds:newOfficeIds,onToggleTeamHidden:toggleTeamHiddenView,onToggleHidden:toggleHiddenView,onToggleFav:toggleFav,onRename:renameView,onDelete:deleteView,onResetSort:resetSortOv,onSaveSort:saveSortInView,onClose:()=>{setMgrDlg(false);markOfficeSeen();}}),saveDlg&&React.createElement(SaveViewModal,{initialName:activeView?activeView.name:'',showProject:!isMyTasks,summary:viewSummary({filterState,sortState,groupByState,hiddenCols},fields),canProject:canEditProjectViews,canOffice:isSuperAdmin(),projectName:(MY_PROJECTS.find(p=>p.id===ACTIVE_PROJECT_ID)||{}).name||'',missingFields:fields.filter(f=>hiddenCols[f.id]).map(f=>f.title).filter(Boolean),onSave:saveViewAs,onClose:()=>setSaveDlg(false)}),showSettings&&/*#__PURE__*/React.createElement(SettingsPanel,{data:vScreen&&viewHidden?{...data,hiddenCols}:data,save:panelSave,onClose:()=>setShowSettings(false),projectFields:projectFields,automations:automations&&{...automations,activeView:data.__combined?allViews.find(v=>v.id===activeViewId)||null:null}}),detailTask&&/*#__PURE__*/React.createElement(TaskDetailSidebar,{task:detailTask,data:data,onUpdate:t=>{updateTask(t);setDetailTaskId(t.id);},onClose:()=>{setDetailTaskId(null);setDetailOpenTab(null);},onOpenMeeting:onOpenMeeting,meetings:meetings,openTab:detailOpenTab}),secMenu&&ReactDOM.createPortal((()=>{const g=secMenu.gRef;const ITEMS=[{icon:'✏',label:'שנה שם',action:()=>{setGroupNameDraft(g.name);setEditingGroupId(g.id);setSecMenu(null);}},{icon:'+',label:'הוסף מקטע',action:()=>{addGroup(g.id);setSecMenu(null);}},{icon:'⧉',label:'שכפל מקטע',action:()=>{setDupModal({group:g,name:tx('עותק של {name}',{name:g.name}),copyTasks:true,copySubtasks:true,copyUpdates:false});setSecMenu(null);}},null,{icon:'▾',label:'פתח את כל המשימות',action:()=>{const subIds=secMenu.subGroupIds;if(subIds&&subIds.length){const cur=secPhase[secMenu.id]||0;if(cur<1){setCollVg(c=>{const n={...c};subIds.forEach(id=>n[id]=false);return n;});setSecPhase(p=>({...p,[secMenu.id]:1}));}else{setExpandSignal({ids:new Set(secMenu.taskIds||[]),expand:true,ts:Date.now()});setSecPhase(p=>({...p,[secMenu.id]:2}));}}else{setExpandSignal({ids:new Set(secMenu.taskIds||[]),expand:true,ts:Date.now()});}setSecMenu(null);}},{icon:'▴',label:'סגור את כל המשימות',action:()=>{const subIds=secMenu.subGroupIds;if(subIds&&subIds.length){const cur=secPhase[secMenu.id]??2;if(cur>1){setExpandSignal({ids:new Set(secMenu.taskIds||[]),expand:false,ts:Date.now()});setSecPhase(p=>({...p,[secMenu.id]:1}));}else{setCollVg(c=>{const n={...c};subIds.forEach(id=>n[id]=true);return n;});setSecPhase(p=>({...p,[secMenu.id]:0}));}}else{setExpandSignal({ids:new Set(secMenu.taskIds||[]),expand:false,ts:Date.now()});}setSecMenu(null);}},null,{icon:'×',label:'מחק מקטע',danger:true,action:()=>{setDelModal({group:g,choice:null});setSecMenu(null);}}];return/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{style:{position:'fixed',inset:0,zIndex:9998},onClick:()=>setSecMenu(null)}),/*#__PURE__*/React.createElement("div",{style:{position:'fixed',top:secMenu.y,left:secMenu.left,minWidth:180,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,boxShadow:'0 6px 20px rgba(0,0,0,.14)',zIndex:9999,padding:'4px',fontFamily:'Heebo,system-ui,sans-serif'}},ITEMS.map((item,idx)=>!item?/*#__PURE__*/React.createElement("div",{key:idx,style:{height:1,background:'var(--border)',margin:'3px 0'}}):/*#__PURE__*/React.createElement("button",{key:idx,onClick:item.action,style:{display:'flex',alignItems:'center',gap:9,width:'100%',padding:'8px 12px',border:'none',background:'none',cursor:'pointer',fontSize:13,fontFamily:'inherit',textAlign:'start',borderRadius:5,color:item.danger?'#EF4444':'var(--text)'},onMouseEnter:e=>e.currentTarget.style.background=item.danger?'rgba(239,68,68,.07)':'var(--bg)',onMouseLeave:e=>e.currentTarget.style.background='none'},/*#__PURE__*/React.createElement("span",{style:{color:item.danger?'#EF4444':'var(--text-3)',fontWeight:700,width:14,textAlign:'center'}},item.icon),item.label))));})(),document.body),dupModal&&ReactDOM.createPortal(/*#__PURE__*/React.createElement("div",{style:{position:'fixed',inset:0,background:'var(--overlay)',zIndex:10000,display:'flex',alignItems:'center',justifyContent:'center'},onClick:()=>setDupModal(null)},/*#__PURE__*/React.createElement("div",{style:{background:'var(--surface)',borderRadius:12,padding:'24px',minWidth:340,maxWidth:440,boxShadow:'0 8px 32px rgba(0,0,0,.22)',fontFamily:'Heebo,system-ui,sans-serif'},onClick:e=>e.stopPropagation()},/*#__PURE__*/React.createElement("h3",{style:{margin:'0 0 16px',fontSize:15,fontWeight:700,color:'var(--text)'}},"שכפול מקטע"),/*#__PURE__*/React.createElement("label",{style:{fontSize:12,fontWeight:600,color:'var(--text-2)',display:'block',marginBottom:4}},"שם המקטע החדש"),/*#__PURE__*/React.createElement("input",{autoFocus:true,value:dupModal.name,onChange:e=>setDupModal(d=>({...d,name:e.target.value})),style:{width:'100%',padding:'7px 10px',border:'1px solid var(--border)',borderRadius:6,fontSize:13,fontFamily:'inherit',background:'var(--bg)',color:'var(--text)',outline:'none',boxSizing:'border-box',marginBottom:14}}),/*#__PURE__*/React.createElement("div",{style:{fontSize:12,fontWeight:600,color:'var(--text-2)',marginBottom:8}},"מה להעתיק"),[{key:'copyTasks',label:'משימות'},{key:'copySubtasks',label:'תת-משימות'},{key:'copyUpdates',label:'עדכונים ואירועים'}].map(({key,label})=>/*#__PURE__*/React.createElement("label",{key:key,style:{display:'flex',alignItems:'center',gap:8,marginBottom:7,cursor:'pointer',fontSize:13,color:'var(--text)'}},/*#__PURE__*/React.createElement("input",{type:"checkbox",checked:dupModal[key]||false,onChange:e=>setDupModal(d=>({...d,[key]:e.target.checked})),style:{accentColor:'var(--accent)',width:14,height:14,flexShrink:0}}),label)),/*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:8,justifyContent:'flex-start',marginTop:20}},/*#__PURE__*/React.createElement("button",{onClick:()=>{duplicateGroup(dupModal.group,dupModal.name,dupModal.copyTasks,dupModal.copySubtasks,dupModal.copyUpdates);setDupModal(null);},style:{padding:'7px 20px',borderRadius:6,border:'none',background:'var(--accent)',fontSize:13,cursor:'pointer',fontFamily:'inherit',color:'#fff',fontWeight:600}},"שכפל"),/*#__PURE__*/React.createElement("button",{onClick:()=>setDupModal(null),style:{padding:'7px 16px',borderRadius:6,border:'1px solid var(--border)',background:'var(--bg)',fontSize:13,cursor:'pointer',fontFamily:'inherit',color:'var(--text)'}},"ביטול")))),document.body),delModal&&ReactDOM.createPortal(/*#__PURE__*/React.createElement("div",{style:{position:'fixed',inset:0,background:'var(--overlay)',zIndex:10000,display:'flex',alignItems:'center',justifyContent:'center'},onClick:()=>setDelModal(null)},/*#__PURE__*/React.createElement("div",{style:{background:'var(--surface)',borderRadius:12,padding:'24px',minWidth:340,maxWidth:460,boxShadow:'0 8px 32px rgba(0,0,0,.22)',fontFamily:'Heebo,system-ui,sans-serif'},onClick:e=>e.stopPropagation()},/*#__PURE__*/React.createElement("h3",{style:{margin:'0 0 6px',fontSize:15,fontWeight:700,color:'#EF4444'}},"מחיקת מקטע"),/*#__PURE__*/React.createElement("p",{style:{margin:'0 0 16px',fontSize:13,color:'var(--text-2)'}},"מה לעשות עם המשימות של ",/*#__PURE__*/React.createElement("strong",{"data-i18n-skip":""},"\"",nameForLang(delModal.group.name),"\""),"?"),[{key:'withTasks',label:'מחק את המקטע כולל כל המשימות',desc:''},{key:'keepTasks',label:'מחק רק את המקטע',desc:'המשימות יועברו אוטומטית למקטע "ללא שם"'}].map(({key,label,desc})=>/*#__PURE__*/React.createElement("label",{key:key,onClick:()=>setDelModal(d=>({...d,choice:key})),style:{display:'flex',alignItems:'flex-start',gap:10,padding:'10px 12px',marginBottom:8,border:`1.5px solid ${delModal.choice===key?'var(--accent)':'var(--border)'}`,borderRadius:8,cursor:'pointer',background:delModal.choice===key?'rgba(37,99,235,.04)':'transparent',transition:'all .12s'}},/*#__PURE__*/React.createElement("input",{type:"radio",readOnly:true,checked:delModal.choice===key,style:{accentColor:'var(--accent)',marginTop:3,flexShrink:0}}),/*#__PURE__*/React.createElement("div",null,/*#__PURE__*/React.createElement("div",{style:{fontSize:13,fontWeight:600,color:'var(--text)'}},label),desc&&/*#__PURE__*/React.createElement("div",{style:{fontSize:11,color:'var(--text-3)',marginTop:2}},desc)))),/*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:8,justifyContent:'flex-start',marginTop:16}},/*#__PURE__*/React.createElement("button",{onClick:()=>{if(!delModal.choice)return;deleteGroup(delModal.group.id,delModal.choice==='keepTasks');setDelModal(null);},disabled:!delModal.choice,style:{padding:'7px 20px',borderRadius:6,border:'none',fontSize:13,cursor:delModal.choice?'pointer':'default',fontFamily:'inherit',color:delModal.choice?'#fff':'var(--surface)',fontWeight:600,background:delModal.choice?'#EF4444':'var(--border)',transition:'background .15s'}},"מחק"),/*#__PURE__*/React.createElement("button",{onClick:()=>setDelModal(null),style:{padding:'7px 16px',borderRadius:6,border:'1px solid var(--border)',background:'var(--bg)',fontSize:13,cursor:'pointer',fontFamily:'inherit',color:'var(--text)'}},"ביטול")))),document.body));}/* ListView wrapper — provides lists context */function ListViewWithCtx({data,save}){const priorities=projList(data, 'priorities');const disciplines=projList(data, 'disciplines');const statuses=projList(data, 'statuses');const[editList,setEditList]=useState(null);const savePartial=patch=>save({...data,...patch});const listTitle=t=>t==='priority'?'עריכת עדיפויות':t==='status'?'עריכת סטטוסים':'עריכת תחומים';const listItems=t=>t==='priority'?priorities:t==='status'?statuses:disciplines;return/*#__PURE__*/React.createElement(ListsCtx.Provider,{value:{priorities,disciplines,statuses,team:data.team||[],onEditList:type=>{const k=LIST_KEY_OF_TYPE[type];if(k&&PROJECT_OPS.data&&!PROJECT_OPS.data[k])openProjectList(k);else setEditList(type);}}},/*#__PURE__*/React.createElement(ListView,{data:data,save:save}),editList&&/*#__PURE__*/React.createElement(EditListModal,{title:listTitle(editList),items:listItems(editList),previewType:editList==='status'?'status':'pill',onSave:items=>{if(editList==='priority')savePartial({priorities:items});else if(editList==='status')savePartial({statuses:items});else savePartial({disciplines:items});setEditList(null);},onClose:()=>setEditList(null)}));}/* ══════════════════════════════════════
@@ -9666,12 +9700,14 @@ const MTP_ATTN = [{
   label: 'עדכון מתעכב',
   part: 'time',
   of: ['תקוע']
-}, {
-  id: 'urgent',
-  label: 'עדיפות גבוהה',
-  part: 'urgent',
-  of: ['דחוף בלי תאריך']
 }];
+/* דחוף / גבוהה by the task's priority — the merged list of המשימות שלי, matched by id or name */
+const mtpPriLevel = (t, priorities) => {
+  if (!t.priority) return null;
+  const p = (priorities || []).find(x => x.id === t.priority);
+  if (t.priority === 'urgent' || p && (p.label || '').trim() === 'דחוף') return 'urgent';
+  return isHighPriority(t.priority, priorities || PRIORITIES) ? 'high' : null;
+};
 /* where I placed a task: today (or an earlier day still open), this week, later — or nowhere */
 const mtpPlanOf = (t, plan, today) => {
   const p = plan && plan[planKeyOf(t)];
@@ -9709,32 +9745,59 @@ function mtpDueTag(t, today) {
     text: mtpDate(d)
   };
 }
+/* a row in fixed columns — priority, owners, date, then the plan action — so the tags line up */
+function MtpOwners({
+  owners
+}) {
+  const h = React.createElement;
+  if (!owners || !owners.length) return h("span", {
+    className: "mtp-av none",
+    title: tx('ללא אחראי'),
+    "aria-label": tx('ללא אחראי')
+  });
+  const shown = owners.slice(0, 2);
+  return h("span", {
+    className: "mtp-avs",
+    title: owners.map(o => o.name || o.id).join(', '),
+    "data-i18n-skip": ""
+  }, shown.map(o => h("span", {
+    key: o.id,
+    className: "mtp-av",
+    style: {
+      background: staffColor(o.id)
+    }
+  }, staffInitials(o.name || '?'))), owners.length > 2 && h("span", {
+    className: "mtp-av more"
+  }, "+", owners.length - 2));
+}
 function MtpRow({
   t,
+  pri,
+  owners,
+  showWho,
   today,
   planned,
-  rolled,
   inPlan,
   canEdit,
   onOpen,
   onPlan,
   onDone,
-  extra
+  note
 }) {
   const h = React.createElement;
   const due = mtpDueTag(t, today);
   const key = planKeyOf(t);
   return h("div", {
-    className: 'mtp-row' + (planned && !inPlan ? ' is-planned' : ''),
+    className: 'mtp-row' + (planned && !inPlan ? ' is-planned' : '') + (showWho ? ' with-who' : '') + (inPlan ? ' in-plan' : ''),
     draggable: canEdit,
     onDragStart: e => {
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/x-mtp', key);
     }
-  }, canEdit && h("span", {
+  }, h("span", {
     className: "mtp-grip",
     "aria-hidden": "true"
-  }, "⠿"), h("span", {
+  }, canEdit ? "⠿" : ""), h("span", {
     className: "sb-proj-badge mt-badge" + (t.__src === 'me' ? ' mt-badge-me' : ''),
     style: t.__src === 'me' ? null : {
       background: hexBg(t.mtProjColor),
@@ -9749,20 +9812,26 @@ function MtpRow({
     "data-i18n-skip": "",
     title: t.title,
     onClick: () => onOpen(t)
-  }, t.title || '—'), extra, rolled && inPlan && h("span", {
-    className: "mtp-tag info",
-    title: tx('תוכנן ל-{d}', {
-      d: mtpDate(rolled)
-    })
-  }, tx('נדחה מ-{d}', {
-    d: mtpDate(rolled)
-  })), due && h("span", {
+  }, t.title || '—'), h("span", {
+    className: "mtp-c mtp-c-pri"
+  }, pri && h("span", {
+    className: 'mtp-tag pri-' + pri
+  }, pri === 'urgent' ? 'דחוף' : 'גבוהה')), showWho && h("span", {
+    className: "mtp-c mtp-c-who"
+  }, h(MtpOwners, {
+    owners
+  })), h("span", {
+    className: "mtp-c mtp-c-due"
+  }, note || due && h("span", {
     className: 'mtp-tag ' + due.cls
-  }, due.text), planned && !inPlan && h("span", {
-    className: "mtp-tag info"
-  }, tx('בתכנית · {b}', {
-    b: tx(MTP_PLAN.find(x => x.id === planned).label)
-  })), canEdit && !inPlan && !planned && h("button", {
+  }, due.text)), h("span", {
+    className: "mtp-c mtp-c-act"
+  }, planned && !inPlan && h("span", {
+    className: "mtp-tag info",
+    title: tx('בתכנית שלך · {b}', {
+      b: tx(MTP_PLAN.find(x => x.id === planned).label)
+    })
+  }, planned === 'today' ? '☀ ' : '', tx(MTP_PLAN.find(x => x.id === planned).label)), canEdit && !inPlan && !planned && h("button", {
     type: "button",
     className: "mtp-add",
     title: "הוסף לתכנון של היום",
@@ -9779,11 +9848,19 @@ function MtpRow({
     title: "הוצא מהתכנון",
     "aria-label": "הוצא מהתכנון",
     onClick: () => onPlan(t, null)
-  }, "×"));
+  }, "×")));
 }
 function MtPlanner({
   tasks,
   priorities,
+  urgentOnly,
+  onUrgentOnly,
+  teamToo,
+  onTeamToo,
+  whoPlan,
+  whoAttn,
+  onWho,
+  ownersOf,
   onOpen,
   onDone
 }) {
@@ -9821,9 +9898,12 @@ function MtPlanner({
     const b = mtpPlanOf(t, plan, today);
     if (b) planned[b].push(t);
   });
+  /* tasks I manage but am not on show here only when I ask; what I planned shows on my side anyway */
+  const teamCount = tasks.filter(t => t.mtScope === 'בניהולי').length;
+  const attnTasks = teamToo ? tasks : tasks.filter(t => t.mtScope !== 'בניהולי');
   const attn = {};
   MTP_ATTN.forEach(a => attn[a.id] = []);
-  tasks.forEach(t => {
+  attnTasks.forEach(t => {
     const b = attnBucketOf(t, null, priorities);
     const a = b && MTP_ATTN.find(x => x.of.includes(b));
     if (a) attn[a.id].push(t);
@@ -9833,6 +9913,13 @@ function MtPlanner({
   Object.values(planned).forEach(l => l.sort(byDue));
   ['late', 'near'].forEach(k => attn[k].sort(byDue));
   attn.stuck.sort((a, b) => (b.mtDelay || 0) - (a.mtDelay || 0));
+  /* דחוף: every task of that priority (and גבוהה, unless I chose דחוף only), whatever its date —
+     so it can show here and under its date too */
+  const levelOf = t => mtpPriLevel(t, priorities);
+  const urgent = attnTasks.filter(t => {
+    const l = levelOf(t);
+    return l === 'urgent' || !urgentOnly && l === 'high';
+  }).sort((a, b) => (levelOf(a) === 'urgent' ? 0 : 1) - (levelOf(b) === 'urgent' ? 0 : 1) || byDue(a, b));
   const LIMIT = 8;
   const rowsOf = (key, list, render) => {
     const all = showAll[key] || list.length <= LIMIT + 2;
@@ -9851,9 +9938,11 @@ function MtPlanner({
   const planRow = t => h(MtpRow, {
     key: planKeyOf(t),
     t,
+    pri: levelOf(t),
+    owners: ownersOf(t),
+    showWho: whoPlan,
     today,
     planned: mtpPlanOf(t, plan, today),
-    rolled: planCtx && planCtx.rolledOf(t),
     inPlan: true,
     canEdit,
     onOpen,
@@ -9863,6 +9952,9 @@ function MtPlanner({
   const attnRow = a => t => h(MtpRow, {
     key: planKeyOf(t),
     t,
+    pri: levelOf(t),
+    owners: ownersOf(t),
+    showWho: whoAttn,
     today,
     planned: mtpPlanOf(t, plan, today),
     inPlan: false,
@@ -9870,7 +9962,7 @@ function MtPlanner({
     onOpen,
     onPlan: setPlan,
     onDone,
-    extra: a.id === 'stuck' ? h("span", {
+    note: a.id === 'stuck' ? h("span", {
       className: "mtp-tag warn"
     }, t.mtDelay != null ? tx('עדכון פתוח {n} ימים', {
       n: t.mtDelay
@@ -9881,6 +9973,14 @@ function MtPlanner({
     n: attn[a.id].length,
     open: attn[a.id].filter(t => !mtpPlanOf(t, plan, today)).length
   }));
+  const urgentLabel = urgentOnly ? 'דחוף' : 'דחוף וגבוהה';
+  counts.push({
+    id: 'urgent',
+    label: urgentLabel,
+    part: 'urgent',
+    n: urgent.length,
+    open: urgent.filter(t => !mtpPlanOf(t, plan, today)).length
+  });
   const attnSec = a => attn[a.id].length > 0 && h("div", {
     key: a.id,
     className: 'mtp-sec mtp-a-' + a.id
@@ -9901,7 +10001,13 @@ function MtPlanner({
     className: "mtp-pane-t"
   }, "התכנון שלי"), h("span", {
     className: "mtp-pane-s"
-  }, "מה אני עושה")), MTP_PLAN.map(b => h("div", Object.assign({
+  }, "מה אני עושה"), h("label", {
+    className: "mtp-uchk mtp-team"
+  }, h("input", {
+    type: "checkbox",
+    checked: !!whoPlan,
+    onChange: e => onWho('plan', e.target.checked)
+  }), "הצג שיוך")), MTP_PLAN.map(b => h("div", Object.assign({
     key: b.id,
     className: 'mtp-sec mtp-p-' + b.id + (over === 'p-' + b.id ? ' is-over' : '')
   }, canEdit ? dropZone('p-' + b.id, t => setPlan(t, b.set)) : {}), h("div", {
@@ -9921,7 +10027,21 @@ function MtPlanner({
     className: "mtp-pane-t"
   }, "דורש תשומת לב"), h("span", {
     className: "mtp-pane-s"
-  }, "מה דוחק")), h("div", {
+  }, "מה דוחק"), h("label", {
+    className: "mtp-uchk mtp-team"
+  }, h("input", {
+    type: "checkbox",
+    checked: !!whoAttn,
+    onChange: e => onWho('attn', e.target.checked)
+  }), "הצג שיוך"), teamCount > 0 && h("label", {
+    className: "mtp-uchk"
+  }, h("input", {
+    type: "checkbox",
+    checked: !!teamToo,
+    onChange: e => onTeamToo(e.target.checked)
+  }), tx('כולל משימות הצוות בניהולי ({n})', {
+    n: teamCount
+  }))), h("div", {
     className: "mtp-cards"
   }, counts.map(c => h("div", {
     key: c.id,
@@ -9933,9 +10053,25 @@ function MtPlanner({
     className: "mtp-empty"
   }, "אין כרגע משימות שדורשות תשומת לב"), counts.some(c => c.part === 'time' && c.n) && h("div", {
     className: "mtp-part"
-  }, "זמנים"), MTP_ATTN.filter(a => a.part === 'time').map(attnSec), counts.some(c => c.part === 'urgent' && c.n) && h("div", {
-    className: "mtp-part"
-  }, "דחוף"), MTP_ATTN.filter(a => a.part === 'urgent').map(attnSec)));
+  }, "זמנים"), MTP_ATTN.filter(a => a.part === 'time').map(attnSec), h("div", {
+    className: "mtp-part mtp-part-u"
+  }, h("span", null, "דחוף"), h("label", {
+    className: "mtp-uchk"
+  }, h("input", {
+    type: "checkbox",
+    checked: !urgentOnly,
+    onChange: e => onUrgentOnly(!e.target.checked)
+  }), "כולל עדיפות גבוהה")), urgent.length ? h("div", {
+    className: "mtp-sec mtp-a-urgent"
+  }, h("div", {
+    className: "mtp-sec-h"
+  }, h("span", null, urgentLabel), h("span", {
+    className: "mtp-n"
+  }, urgent.length)), rowsOf('a-urgent', urgent, attnRow({
+    id: 'urgent'
+  }))) : h("div", {
+    className: "mtp-empty"
+  }, urgentOnly ? 'אין משימות דחופות' : 'אין משימות דחופות או בעדיפות גבוהה')));
 }
 /* quick buttons for the projects shown in המשימות שלי; more than a few → a list to pick from */
 function MtProjectBar({
@@ -9972,10 +10108,9 @@ function MtProjectBar({
       ...hidden
     };
     if (n[id]) delete n[id];else n[id] = true;
-    /* never hide everything — the last one stays */
-    if (items.every(p => n[p.id])) return;
     onChange(n);
   };
+  const hideAll = () => onChange(Object.fromEntries(items.map(p => [p.id, true])));
   const only = id => onChange(Object.fromEntries(items.filter(p => p.id !== id).map(p => [p.id, true])));
   const chip = p => h("button", {
     key: p.id,
@@ -10002,7 +10137,10 @@ function MtProjectBar({
   }, h("button", {
     type: "button",
     className: 'mtp-pchip' + (shown === items.length ? ' on' : ''),
-    onClick: () => onChange({})
+    "aria-pressed": shown === items.length,
+    title: shown === items.length ? 'לחיצה מסתירה את כל הפרויקטים' : 'הצג את כל הפרויקטים',
+    /* all shown → a second click clears, so one project can be picked from nothing */
+    onClick: () => shown === items.length ? hideAll() : onChange({})
   }, "הכל"), chips.map(chip), many && h("button", {
     type: "button",
     ref: btnRef,
@@ -10064,6 +10202,85 @@ function MtProjectBar({
       only(p.id);
     }
   }, "רק זה")))), document.body));
+}
+/* אבני דרך וישיבות קרובות in המשימות שלי — points in time, not work: shown apart from the tasks.
+   A milestone of any of my projects (or one that passed and isn't reached), a meeting I'm invited to. */
+const MT_EVENT_DAYS = 14;
+const mtOwnersOf = t => t.__src === 'me' ? [CURRENT_USER.id] : t.assigneeIds || (t.assigneeId ? [t.assigneeId] : []);
+function MtEventStrip({
+  items,
+  onOpen
+}) {
+  const h = React.createElement;
+  const today = todayISO();
+  if (!items.length) return null;
+  const when = d => {
+    if (d < today) return {
+      cls: 'bad',
+      text: tx('עבר לפני {n} ימים', {
+        n: mtpDays(d, today)
+      })
+    };
+    if (d === today) return {
+      cls: 'warn',
+      text: tx('היום')
+    };
+    if (d === isoPlusDays(today, 1)) return {
+      cls: 'warn',
+      text: tx('מחר')
+    };
+    const n = mtpDays(today, d);
+    return {
+      cls: n <= 7 ? 'warn' : '',
+      text: tx('עוד {n} ימים', {
+        n
+      })
+    };
+  };
+  return h("div", {
+    className: "mte"
+  }, h("div", {
+    className: "mte-h"
+  }, h("span", {
+    className: "mte-t"
+  }, "אבני דרך וישיבות"), h("span", {
+    className: "mte-s"
+  }, tx('{n} הימים הקרובים', {
+    n: MT_EVENT_DAYS
+  }))), h("div", {
+    className: "mte-list"
+  }, items.map(it => {
+    const w = when(it.date);
+    return h("div", {
+      key: it.kind + it.p.id + it.id,
+      className: 'mte-card' + (it.date < today ? ' is-late' : '')
+    }, h("div", {
+      className: "mte-top"
+    }, h("span", {
+      className: 'mte-kind ' + it.kind,
+      title: it.kind === 'ms' ? 'אבן דרך' : 'ישיבה',
+      "aria-label": it.kind === 'ms' ? 'אבן דרך' : 'ישיבה'
+    }, it.kind === 'ms' ? '◆' : '●'), h("span", {
+      className: "sb-proj-badge mt-badge",
+      style: {
+        background: hexBg(it.p.color || '#2563EB'),
+        color: it.p.color || '#2563EB',
+        border: `1px solid ${it.p.color || '#2563EB'}40`
+      },
+      title: it.p.name,
+      "data-i18n-skip": ""
+    }, it.p.code), h("span", {
+      className: 'mtp-tag ' + w.cls
+    }, w.text), h("span", {
+      className: "mte-date"
+    }, mtpDate(it.date))), h("button", {
+      type: "button",
+      className: "mte-title",
+      "data-i18n-skip": "",
+      title: it.title,
+      onClick: () => onOpen(it)
+    }, it.title));
+  })));
 }
 function MyTasksTable({
   data,
@@ -10604,6 +10821,42 @@ function MyTasksTable({
     column: 'mtProject',
     label: 'פרויקט'
   }];
+  /* the milestones and meetings ahead (and milestones that passed unreached), in the projects shown */
+  const evHorizon = isoPlusDays(today, MT_EVENT_DAYS);
+  const evItems = [];
+  loaded.forEach(p => {
+    if (hideProj[p.id]) return;
+    const doc = docOf(p);
+    const meM = (doc.team || []).find(m => m.staffId === CURRENT_USER.id);
+    (doc.licensingMilestones || []).forEach(ms => {
+      if (ms.done || ms.status === 'done' || !ms.date || !(ms.title || '').trim() || ms.date > evHorizon) return;
+      evItems.push({
+        kind: 'ms',
+        id: ms.id,
+        title: ms.title,
+        date: ms.date,
+        p
+      });
+    });
+    (doc.meetings || []).forEach(m => {
+      if (!m.date || m.date < today || m.date > evHorizon) return;
+      const invited = (m.participants || []).some(x => meM && (x.id === meM.id || x.name === meM.name) || x.name === CURRENT_USER.name);
+      if (!invited) return;
+      evItems.push({
+        kind: 'mtg',
+        id: m.id,
+        title: (m.title || '').trim() || tx('ישיבה'),
+        date: m.date,
+        p
+      });
+    });
+  });
+  evItems.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  const openEvent = it => searchGo({
+    p: it.p,
+    type: it.kind === 'ms' ? 'milestone' : 'meeting',
+    meetingId: it.kind === 'mtg' ? it.id : null
+  });
   const waiting = projects.length > loaded.length;
   return /*#__PURE__*/React.createElement("div", {
     className: "mt-table-page"
@@ -10630,6 +10883,9 @@ function MyTasksTable({
     items: projItems,
     hidden: hideProj,
     onChange: v => setMtPref('mtHideProj', v)
+  }), React.createElement(MtEventStrip, {
+    items: evItems,
+    onOpen: openEvent
   }), React.createElement(HoldReviewBox, {
     projects: loaded,
     docOf,
@@ -10645,12 +10901,39 @@ function MyTasksTable({
   }, err || personalErr), mtMode === 'planner' ? React.createElement(MtPlanner, {
     tasks: visTasks,
     priorities,
+    urgentOnly: !!mtPrefs.mtUrgentOnly,
+    onUrgentOnly: v => setMtPref('mtUrgentOnly', v),
+    teamToo: !!mtPrefs.mtTeamToo,
+    onTeamToo: v => setMtPref('mtTeamToo', v),
+    whoPlan: !!mtPrefs.mtWhoPlan,
+    whoAttn: !!mtPrefs.mtWhoAttn,
+    onWho: (side, v) => setMtPref(side === 'plan' ? 'mtWhoPlan' : 'mtWhoAttn', v),
+    ownersOf: t => mtOwnersOf(t).map(id => ({
+      id,
+      name: (team.find(m => m.staffId === id) || {}).name || (id === CURRENT_USER.id ? CURRENT_USER.name : '')
+    })),
     onOpen: t => t.__src === 'me' ? setMtPref('mtMode', 'list') : openInProject(t),
-    onDone: t => route([t], [{
-      ...t,
-      statusId: 'C',
-      done: true
-    }])
+    onDone: async t => {
+      /* the task is one for everyone on it — closing a shared one, or someone else's, asks first */
+      const others = mtOwnersOf(t).filter(id => id !== CURRENT_USER.id);
+      if (others.length) {
+        const names = others.map(id => (team.find(m => m.staffId === id) || {}).name || id).join(', ');
+        const mine = mtOwnersOf(t).includes(CURRENT_USER.id);
+        const ok = await askConfirm(mine ? tx('המשימה משויכת גם ל{names} — לסמן אותה כהושלמה לכולם?', {
+          names
+        }) : tx('המשימה משויכת ל{names} — לסמן אותה כהושלמה?', {
+          names
+        }), {
+          confirmLabel: 'סמן כהושלמה'
+        });
+        if (!ok) return;
+      }
+      route([t], [{
+        ...t,
+        statusId: 'C',
+        done: true
+      }]);
+    }
   }) : layout ? /*#__PURE__*/React.createElement(ExtraCellsCtx.Provider, {
     value: cells
   }, /*#__PURE__*/React.createElement(ListsCtx.Provider, {
