@@ -154,3 +154,45 @@ test('convertToAdmin puts a list sheet the plan does not name into כללי', ()
   const general = doc.tracks.find(t => t.label === 'כללי');
   assert.strictEqual(doc.sheets.find(s => s.id === 's1').track, general.trackValue);
 });
+
+test('buildAdminProject sets the migration flags and the home sheet has the three sections', () => {
+  const doc = L.buildAdminProject(src, meta, ['רוויט']);
+  assert.strictEqual(doc.singleStage, true);
+  assert.strictEqual(doc.ongoingHome, true);
+  assert.strictEqual(doc.tenderEv2, true);
+  const home = doc.sheets.find(s => s.type === 'list' && s.track == null);
+  assert.strictEqual(home.name, 'משימות שוטפות');
+  assert.deepStrictEqual(home.groups.map(g => g.adminKey), ['tasks', 'bugs', 'ideas']);
+});
+
+test('convertToAdmin keeps a non-list sheet on a removed track visible under כללי', () => {
+  const old = { projectMeta: {},
+    tracks: [{ id: 'ongoing', label: 'ניהול תכנון', trackValue: null, stageOrder: [] },
+             { id: 'tender', label: 'מסלול מכרז', trackValue: 'tender', stageOrder: [] }],
+    sheets: [{ id: 'dw', name: 'סטים', type: 'drawset', track: 'tender', tasks: [{ id: 'dz' }] }] };
+  const doc = L.convertToAdmin(old, { categories: [] });
+  const general = doc.tracks.find(t => t.label === 'כללי');
+  assert.ok(general);
+  const dw = doc.sheets.find(s => s.id === 'dw');
+  assert.strictEqual(dw.track, general.trackValue);
+  assert.ok(!general.stageOrder.includes('dw'));
+  assert.ok(doc.sheets.flatMap(s => s.tasks || []).some(t => t.id === 'dz'));
+  assert.strictEqual(doc.singleStage, true);
+  assert.strictEqual(doc.ongoingHome, true);
+  assert.strictEqual(doc.tenderEv2, true);
+});
+
+test('convertToAdmin returns an admin project unchanged', () => {
+  const adminDoc = L.buildAdminProject(src, meta, ['רוויט']);
+  assert.strictEqual(L.convertToAdmin(adminDoc, { categories: [] }), adminDoc);
+});
+
+test('adminSummary: activity entries without at give lastAt null', () => {
+  let doc = L.buildAdminProject(src, meta, ['רוויט']);
+  const track = doc.tracks.find(t => t.label === 'רוויט');
+  const r = L.addAdminStage(doc, track, 'תוסף');
+  doc = r.doc;
+  const st = doc.sheets.find(s => s.id === r.id);
+  st.tasks = [{ id: 'a', groupId: st.groups[0].id, activityLog: [{ text: 'x' }, {}] }];
+  assert.strictEqual(L.adminSummary(doc).find(x => x.sheetId === r.id).lastAt, null);
+});
