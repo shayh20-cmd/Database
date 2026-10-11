@@ -2673,7 +2673,9 @@ Object.assign(HE_EN, {
 "מסלולי תכנון, רישוי, מכרז וביצוע": "Design, licensing, tender and construction tracks",
 "קטגוריות ופרויקטים קטנים: משימות, באגים, רעיונות": "Categories of small projects: tasks, bugs, ideas",
 "קטגוריות": "Categories",
-"מופרדות בפסיקים. כל קטגוריה היא מסלול, ובתוכה מוסיפים פרויקטים קטנים.": "Comma-separated. Each category is a track; small projects are added inside it."
+"מופרדות בפסיקים. כל קטגוריה היא מסלול, ובתוכה מוסיפים פרויקטים קטנים.": "Comma-separated. Each category is a track; small projects are added inside it.",
+"+ פרויקט": "+ Project",
+"שם הפרויקט הקטן": "Small project name"
 });
 
 window.I18N_HE_EN = HE_EN;
