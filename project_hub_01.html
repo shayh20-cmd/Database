@@ -948,6 +948,12 @@ html[data-appearance="dark"] .mtp-tag.pri-high{color:#FDBA74;}
 .sb-proj-drag{border-radius:6px;}
 .sb-proj-drag.is-src{opacity:.45;}
 .sb-proj-drag.is-over{box-shadow:0 -2px 0 0 var(--accent) inset, 0 2px 0 0 var(--accent);}
+.np-kind{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.np-kind-opt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:8px 10px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);cursor:pointer;font-family:inherit;text-align:start;}
+.np-kind-opt.on{border-color:var(--accent);background:rgba(37,99,235,.06);}
+.np-kind-lbl{font-size:13px;font-weight:600;color:var(--text);}
+.np-kind-desc{font-size:11px;color:var(--text-3);}
+.np-hint{font-size:11px;color:var(--text-3);margin-top:4px;}
 .mtp-mode{display:inline-flex;margin-inline-start:auto;border:1px solid var(--border-strong);border-radius:8px;overflow:hidden;align-self:center;}
 .mtp-mode-b{border:none;background:var(--surface);color:var(--text-2);font-family:inherit;font-size:12.5px;padding:5px 12px;cursor:pointer;}
 .mtp-mode-b+.mtp-mode-b{border-inline-start:1px solid var(--border-strong);}
@@ -9443,7 +9449,7 @@ async function createProject(meta) {
     ...meta,
     id
   };
-  await postJson(`/api/hub-project/${id}`, buildProjectFromTemplate(src, full));
+  await postJson(`/api/hub-project/${id}`, meta.kind === 'admin' ? buildAdminProject(src, full, parseCategories(meta.categories)) : buildProjectFromTemplate(src, full));
   const regRes = await fetch(PROJECTS_ENDPOINT);
   const reg = regRes.ok ? await regRes.json() : {};
   const entry = {
@@ -12412,6 +12418,8 @@ function NewProjectModal({
   const [client, setClient] = useState('');
   const [loc, setLoc] = useState('');
   const [startDate, setStartDate] = useState('');
+  const [kind, setKind] = useState('arch');
+  const [categories, setCategories] = useState('');
   const [tried, setTried] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -12444,7 +12452,9 @@ function NewProjectModal({
         visibility,
         client: client.trim(),
         location: loc.trim(),
-        startDate
+        startDate,
+        kind,
+        categories
       });
       switchProject(id, 'overview');
     } catch {
@@ -12476,7 +12486,39 @@ function NewProjectModal({
     "aria-label": "סגור"
   }, "×")), /*#__PURE__*/React.createElement("div", {
     className: "af-body np-body"
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+  }, React.createElement("div", null, React.createElement("div", {
+    className: "af-label"
+  }, "סוג פרויקט"), React.createElement("div", {
+    className: "np-kind",
+    role: "radiogroup",
+    "aria-label": "סוג פרויקט"
+  }, [['arch', 'אדריכלות', 'מסלולי תכנון, רישוי, מכרז וביצוע'], ['admin', 'ניהול', 'קטגוריות ופרויקטים קטנים: משימות, באגים, רעיונות']].map(([id, label, desc]) => React.createElement("button", {
+    key: id,
+    type: "button",
+    role: "radio",
+    "aria-checked": kind === id,
+    className: 'np-kind-opt' + (kind === id ? ' on' : ''),
+    onClick: () => setKind(id)
+  }, React.createElement("span", {
+    className: "np-kind-lbl"
+  }, label), React.createElement("span", {
+    className: "np-kind-desc"
+  }, desc)))), kind === 'admin' && React.createElement("div", {
+    style: {
+      marginTop: 10
+    }
+  }, React.createElement("label", {
+    className: "af-label",
+    htmlFor: "np-cats"
+  }, "קטגוריות"), React.createElement("input", {
+    id: "np-cats",
+    className: "af-input",
+    value: categories,
+    placeholder: "רוויט, DB, עזרי תכנון, סקילים, אדמיניסטרציה",
+    onChange: e => setCategories(e.target.value)
+  }), React.createElement("div", {
+    className: "np-hint"
+  }, "מופרדות בפסיקים. כל קטגוריה היא מסלול, ובתוכה מוסיפים פרויקטים קטנים."))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     className: "af-label",
     htmlFor: "np-name"
   }, "שם הפרויקט *"), /*#__PURE__*/React.createElement("input", {

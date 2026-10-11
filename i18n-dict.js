@@ -2669,7 +2669,11 @@ Object.assign(HE_EN, {
 "הצג שלב": "Show stage",
 
 /* ── Projects screen — the code badge ── */
-"ערוך את פרטי הפרויקט": "Edit project details"
+"ערוך את פרטי הפרויקט": "Edit project details",
+"מסלולי תכנון, רישוי, מכרז וביצוע": "Design, licensing, tender and construction tracks",
+"קטגוריות ופרויקטים קטנים: משימות, באגים, רעיונות": "Categories of small projects: tasks, bugs, ideas",
+"קטגוריות": "Categories",
+"מופרדות בפסיקים. כל קטגוריה היא מסלול, ובתוכה מוסיפים פרויקטים קטנים.": "Comma-separated. Each category is a track; small projects are added inside it."
 });
 
 window.I18N_HE_EN = HE_EN;
