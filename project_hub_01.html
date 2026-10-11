@@ -3631,6 +3631,52 @@ function MeetingTable({data,save,meeting,onChange}){
         h("button",{className:"mtg-fig-x meeting-print-hide",title:"הסר תמונה",onClick:()=>removePhoto(a.item.id,a.photo.id)},"✕"))))),
     createItemFor&&h(CreateItemDialog,{data,save,item:items.find(it=>it.id===createItemFor),meeting,onClose:()=>setCreateItemFor(null),onCreate:sheetId=>{updateItem(createItemFor,{createdTaskTrackId:sheetId});setCreateItemFor(null);}}));
 }
+function MeetingParticipants({data,save,m,update}){
+  const h=React.createElement;
+  const lists=data.participantLists||[];
+  const allPersons=[...(data.team||[]).map(p=>({key:'team-'+p.id,name:p.name,role:p.projectRole||p.role||'',firm:''})),...RegisterLinkUI.useConsultantRows(data,data.disciplines||DISCIPLINES).flatMap(c=>(c.contacts||[]).map(ct=>({key:'con-'+c.id+'-'+ct.name,name:ct.name||c.firm,role:c.discipline||c.firm||'',firm:c.firm||''})))].filter(p=>p.name);
+  const participants=m.participants||[];
+  const used=new Set(participants.map(p=>p.name));
+  const available=allPersons.filter(p=>!used.has(p.name));
+  const[open,setOpen]=useState(null);// 'load' | 'pick' | 'custom' | 'save' | null
+  const[name,setName]=useState('');const[role,setRole]=useState('');
+  const[listName,setListName]=useState('');
+  const[renaming,setRenaming]=useState(null);const[renameDraft,setRenameDraft]=useState('');
+  const ref=useRef(null);
+  useEffect(()=>{if(!open||open==='custom')return;const c=e=>{if(ref.current&&!ref.current.contains(e.target))setOpen(null);};document.addEventListener('mousedown',c);return()=>document.removeEventListener('mousedown',c);},[open]);
+  const saveLists=next=>save({...data,participantLists:next});
+  const members=()=>participants.map(p=>({name:p.name,role:p.role||'',firm:p.firm||''}));
+  const saveAsNew=()=>{if(!listName.trim())return;saveLists([...lists,{id:uid(),name:listName.trim(),members:members()}]);setListName('');setOpen(null);};
+  const overwrite=async l=>{if(!(await askConfirm('לעדכן את הרשימה "'+l.name+'" למשתתפים הנוכחיים?',{confirmLabel:'עדכן'})))return;saveLists(lists.map(x=>x.id===l.id?{...x,members:members()}:x));setOpen(null);};
+  const removeList=async l=>{if(!(await askConfirm('למחוק את הרשימה "'+l.name+'"?',{confirmLabel:'מחק'})))return;saveLists(lists.filter(x=>x.id!==l.id));};
+  const commitRename=l=>{if(renameDraft.trim())saveLists(lists.map(x=>x.id===l.id?{...x,name:renameDraft.trim()}:x));setRenaming(null);};
+  const addCustom=()=>{if(!name.trim())return;update({participants:[...participants,{id:uid(),name:name.trim(),role:role.trim(),firm:'',isCustom:true}]});setName('');setRole('');setOpen(null);};
+  const btn=(label,key)=>h("button",{className:"mtg-tool",style:{fontSize:12,padding:'4px 10px'},onClick:()=>setOpen(o=>o===key?null:key)},label);
+  const line=participants.map(p=>p.role?p.name+' ('+p.role+')':p.name).join(', ');
+  return h("div",{style:{marginTop:10}},
+    h("div",{"data-i18n-skip":"",style:{fontSize:12}},h("b",null,"נכחו: "),line||h("span",{className:"meeting-print-hide",style:{color:'#999'}},"אין משתתפים עדיין")),
+    participants.length>0&&h("div",{className:"meeting-print-hide",style:{display:'flex',flexWrap:'wrap',gap:4,marginTop:6}},participants.map(p=>h("span",{key:p.id,"data-i18n-skip":"",style:{fontSize:11,border:'1px solid #ddd',borderRadius:10,padding:'1px 8px',display:'inline-flex',gap:4,alignItems:'center'}},nameForLang(p.name),p.role?h("span",{style:{color:'#888'}},nameForLang(p.role)):null,h("button",{title:"הסר",onClick:()=>update({participants:participants.filter(x=>x.id!==p.id)}),style:{border:'none',background:'none',cursor:'pointer',color:'#999',fontSize:11,padding:0}},"✕")))),
+    h("div",{ref,className:"meeting-print-hide",style:{display:'flex',gap:6,marginTop:8,flexWrap:'wrap',alignItems:'flex-start'}},
+      h("span",{className:"mtg-pp"},btn("טען רשימה ▾",'load'),open==='load'&&h("div",{className:"mtg-pop"},
+        lists.length===0&&h("div",{className:"mtg-pop-lbl"},"אין רשימות שמורות. הוסף משתתפים ולחץ \"שמור כרשימה\"."),
+        lists.map(l=>h("div",{key:l.id,className:"mtg-pop-row",onClick:()=>{if(renaming)return;update({participants:mergeParticipants(participants,l.members)});setOpen(null);}},
+          renaming===l.id?h("input",{autoFocus:true,value:renameDraft,onClick:e=>e.stopPropagation(),onChange:e=>setRenameDraft(e.target.value),onBlur:()=>commitRename(l),onKeyDown:e=>{if(e.key==='Enter')commitRename(l);if(e.key==='Escape')setRenaming(null);},style:{flex:1,fontSize:12}}):h("span",{"data-i18n-skip":"",style:{flex:1}},l.name,h("span",{style:{color:'var(--text-3)',fontSize:10}}," · ",l.members.length)),
+          h("button",{className:"mtg-tool",title:"שנה שם",onClick:e=>{e.stopPropagation();setRenaming(l.id);setRenameDraft(l.name);}},"✎"),
+          h("button",{className:"mtg-tool",title:"מחק רשימה",onClick:e=>{e.stopPropagation();removeList(l);}},"✕"))))),
+      h("span",{className:"mtg-pp"},btn("+ משתתף",'pick'),open==='pick'&&h("div",{className:"mtg-pop"},
+        available.length===0&&h("div",{className:"mtg-pop-lbl"},"כל אנשי הפרויקט כבר ברשימה"),
+        available.map(p=>h("div",{key:p.key,className:"mtg-pop-row",onClick:()=>{update({participants:[...participants,{id:uid(),name:p.name,role:p.role,firm:p.firm,isCustom:false}]});setOpen(null);}},
+          h("span",{"data-i18n-skip":"",style:{flex:1}},nameForLang(p.name),p.role&&h("span",{style:{color:'var(--text-3)',fontSize:10}}," · ",nameForLang(p.role))))))),
+      btn("+ הזנה ידנית",'custom'),
+      open==='custom'&&h("span",{style:{display:'inline-flex',gap:4}},
+        h("input",{autoFocus:true,value:name,onChange:e=>setName(e.target.value),placeholder:"שם",style:{fontSize:12,width:110}}),
+        h("input",{value:role,onChange:e=>setRole(e.target.value),onKeyDown:e=>{if(e.key==='Enter')addCustom();},placeholder:"תפקיד",style:{fontSize:12,width:110}}),
+        h("button",{className:"mtg-tool",onClick:addCustom},"הוסף")),
+      participants.length>0&&h("span",{className:"mtg-pp"},btn("שמור כרשימה",'save'),open==='save'&&h("div",{className:"mtg-pop",style:{padding:8}},
+        h("div",{style:{display:'flex',gap:4}},h("input",{autoFocus:true,value:listName,onChange:e=>setListName(e.target.value),onKeyDown:e=>{if(e.key==='Enter')saveAsNew();},placeholder:"שם רשימה חדשה",style:{flex:1,fontSize:12}}),h("button",{className:"mtg-tool",onClick:saveAsNew},"שמור")),
+        lists.length>0&&h("div",{className:"mtg-pop-lbl"},"או עדכן רשימה קיימת:"),
+        lists.map(l=>h("div",{key:l.id,className:"mtg-pop-row","data-i18n-skip":"",onClick:()=>overwrite(l)},l.name))))));
+}
 function MeetingEditor({data,save,meeting,onBack,onSave}){
 const[m,setM]=useState(meeting);
 const update=patch=>{const next={...m,...patch};setM(next);};
