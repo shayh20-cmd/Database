@@ -3477,7 +3477,7 @@ function MeetingTable({data,save,meeting,onChange}){
       h("button",{onClick:()=>{setItems(its=>moveItem(its,item.id,1));setMenuId(null);}},"↓ הזז למטה"),
       isSub?h("button",{onClick:()=>{setItems(its=>outdentItem(its,item.id));setMenuId(null);}},"⇤ הפוך לסעיף"):h("button",{onClick:()=>{setItems(its=>indentItem(its,item.id));setMenuId(null);}},"⇥ הפוך לתת סעיף"),
       h("hr"),
-      ...ITEM_TYPES.map(t=>h("button",{key:t.id,onClick:()=>linkAs(item,t.id)},"קשר כ"+t.label)),
+      ...ITEM_TYPES.map(t=>h("button",{key:t.id,onClick:()=>linkAs(item,t.id)},"קשר כ",t.label)),
       item.itemType&&h("button",{onClick:()=>{updateItem(item.id,{itemType:null,createdTaskTrackId:null,linkedRecordId:null,linkedRecordKind:null});setMenuId(null);}},"נקה קישור"),
       h("hr"),
       h("button",{style:{color:'#EF4444'},onClick:async()=>{setMenuId(null);if((items.some(x=>x.parentId===item.id)||(item.photos||[]).length)&&!(await askConfirm('למחוק את הסעיף? יימחקו גם תתי הסעיפים והתמונות שלו.',{confirmLabel:'מחק'})))return;deleteItem(item.id);}},"✕ מחק סעיף")));
@@ -3493,7 +3493,7 @@ function MeetingTable({data,save,meeting,onChange}){
     h("td",{key:'d'},line(x,false),x.subs.map(s=>line(s,true))),
     h("td",{key:'a'},
       h("select",{className:"mtg-sel meeting-print-hide",value:x.item.assignee||'',onChange:e=>updateItem(x.item.id,{assignee:e.target.value||null})},discOptions.map(o=>h("option",{key:o.id,value:o.id},o.label))),
-      h("input",{className:"mtg-person meeting-print-hide",list:"mtg-people","data-i18n-skip":"",value:x.item.person||'',placeholder:"שם",onChange:e=>updateItem(x.item.id,{person:e.target.value})}),
+      h("input",{className:"mtg-person meeting-print-hide",list:"mtg-people","data-i18n-skip":"",value:x.item.person||'',placeholder:tx("שם"),onChange:e=>updateItem(x.item.id,{person:e.target.value})}),
       h("div",{className:"meeting-print-only","data-i18n-skip":""},assigneeText(x.item,labelOf))),
     h("td",{key:'t'},
       h("div",{className:"meeting-print-hide mtg-due"},h(DateField,{value:x.item.dueDate||'',onChange:v=>updateItem(x.item.id,{dueDate:v}),style:{fontSize:11}})),
@@ -3553,7 +3553,7 @@ function MeetingParticipants({data,save,m,update}){
   const line=participants.map(p=>p.role?p.name+' ('+p.role+')':p.name).join(', ');
   return h("div",{style:{marginTop:10}},
     h("div",{style:{fontSize:12}},h("b",null,"נכחו: "),line?h("span",{"data-i18n-skip":""},line):h("span",{className:"meeting-print-hide",style:{color:'#999'}},"אין משתתפים עדיין")),
-    participants.length>0&&h("div",{className:"meeting-print-hide",style:{display:'flex',flexWrap:'wrap',gap:4,marginTop:6}},participants.map(p=>h("span",{key:p.id,"data-i18n-skip":"",style:{fontSize:11,border:'1px solid #ddd',borderRadius:10,padding:'1px 8px',display:'inline-flex',gap:4,alignItems:'center'}},nameForLang(p.name),p.role?h("span",{style:{color:'#888'}},nameForLang(p.role)):null,h("button",{title:"הסר",onClick:()=>update({participants:participants.filter(x=>x.id!==p.id)}),style:{border:'none',background:'none',cursor:'pointer',color:'#999',fontSize:11,padding:0}},"✕")))),
+    participants.length>0&&h("div",{className:"meeting-print-hide",style:{display:'flex',flexWrap:'wrap',gap:4,marginTop:6}},participants.map(p=>h("span",{key:p.id,"data-i18n-skip":"",style:{fontSize:11,border:'1px solid #ddd',borderRadius:10,padding:'1px 8px',display:'inline-flex',gap:4,alignItems:'center'}},nameForLang(p.name),p.role?h("span",{"data-i18n-skip":"",style:{color:'#888'}},nameForLang(p.role)):null,h("button",{title:"הסר",onClick:()=>update({participants:participants.filter(x=>x.id!==p.id)}),style:{border:'none',background:'none',cursor:'pointer',color:'#999',fontSize:11,padding:0}},"✕")))),
     h("div",{ref,className:"meeting-print-hide",style:{display:'flex',gap:6,marginTop:8,flexWrap:'wrap',alignItems:'flex-start'}},
       h("span",{className:"mtg-pp"},btn("טען רשימה ▾",'load'),open==='load'&&h("div",{className:"mtg-pop"},
         lists.length===0&&h("div",{className:"mtg-pop-lbl"},"אין רשימות שמורות. הוסף משתתפים ולחץ \"שמור כרשימה\"."),
