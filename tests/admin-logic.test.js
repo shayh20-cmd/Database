@@ -13,9 +13,10 @@ const uid = () => 'id' + ++n;
 const clone = v => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
 const CURRENT_USER = { id: 'st07', name: 'שי' };
 const todayISO = () => '2026-10-11';
-const L = new Function('uid', 'clone', 'CURRENT_USER', 'todayISO',
+const build = taskStatusEff => new Function('uid', 'clone', 'CURRENT_USER', 'todayISO', 'taskStatusEff',
   m[1] + '\nreturn {ADMIN_STATUSES,ADMIN_SECTIONS,isAdminProject,parseCategories,makeAdminStage,addAdminStage,buildAdminProject,adminSummary,convertToAdmin};'
-)(uid, clone, CURRENT_USER, todayISO);
+)(uid, clone, CURRENT_USER, todayISO, taskStatusEff);
+const L = build(undefined);
 
 const src = {
   staff: [{ id: 'st07', name: 'שי', role: 'אדריכל', email: 's@x', phone: '1' }],
@@ -195,4 +196,17 @@ test('adminSummary: activity entries without at give lastAt null', () => {
   const st = doc.sheets.find(s => s.id === r.id);
   st.tasks = [{ id: 'a', groupId: st.groups[0].id, activityLog: [{ text: 'x' }, {}] }];
   assert.strictEqual(L.adminSummary(doc).find(x => x.sheetId === r.id).lastAt, null);
+});
+
+test('adminSummary uses the event-derived status when the app provides it', () => {
+  const E = build(t => t.__eff || t.statusId);
+  let doc = E.buildAdminProject(src, meta, ['רוויט']);
+  const track = doc.tracks.find(t => t.label === 'רוויט');
+  const r = E.addAdminStage(doc, track, 'תוסף');
+  doc = r.doc;
+  const st = doc.sheets.find(s => s.id === r.id);
+  st.tasks = [{ id: 'a', groupId: st.groups[0].id, title: 'תהליך', statusId: 'N', __eff: 'I' }];
+  const row = E.adminSummary(doc).find(x => x.sheetId === r.id);
+  assert.strictEqual(row.dev, 1);
+  assert.deepStrictEqual(row.inDev, ['תהליך']);
 });

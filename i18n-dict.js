@@ -2687,7 +2687,10 @@ Object.assign(HE_EN, {
 "אין עדיין פרויקטים קטנים. פותחים קטגוריה בסיידבר ומוסיפים \"+ פרויקט\".": "No small projects yet. Open a category in the sidebar and use \"+ Project\".",
 "באגים פתוחים": "Open bugs",
 "בבדיקה": "In review",
-"עדכון אחרון": "Last change"
+"עדכון אחרון": "Last change",
+"רעיון": "Idea",
+"רוויט, DB, עזרי תכנון, סקילים, אדמיניסטרציה": "Revit, DB, design aids, skills, administration",
+"נתוני הפרויקט": "Project data"
 });
 
 window.I18N_HE_EN = HE_EN;
