@@ -1533,7 +1533,12 @@ html[data-appearance="dark"] .plan-rolled{background:rgba(245,158,11,.18);color:
    for actual <table> elements. */
 /* Meeting summary — an A4 sheet on screen, the same sheet in print */
 .mtg-page{width:210mm;max-width:100%;margin:0 auto 40px;padding:15mm;box-sizing:border-box;background:#fff;color:#111;box-shadow:0 1px 6px rgba(0,0,0,.14);font-size:12px;line-height:1.5}
+.mtg-page{color-scheme:light}
 .mtg-page input,.mtg-page select,.mtg-page textarea{color:#111}
+.mtg-page input:not([type=checkbox]):not([type=radio]),.mtg-page select{background-color:#fff}
+.mtg-page .df-box{background:#fff;color:#111;border-color:#ddd}
+.mtg-page .df-box.empty .df-box-val{color:#999}
+.mtg-text-print{white-space:pre-wrap;overflow-wrap:anywhere;flex:1;min-width:0;font:inherit;line-height:1.5;color:inherit}
 .mtg-table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:14px}
 .mtg-table th{background:#efefef;border:1px solid #222;padding:6px;font-weight:700;text-align:center}
 .mtg-table td{border-left:1px solid #222;border-right:1px solid #222;padding:4px 6px;vertical-align:top}
@@ -1554,13 +1559,13 @@ html[data-appearance="dark"] .plan-rolled{background:rgba(245,158,11,.18);color:
 .mtg-person{margin-top:3px}
 .mtg-due{max-width:100%;overflow:hidden}.mtg-due .df-box{min-width:0;width:100%;padding:2px 4px;justify-content:center;box-sizing:border-box}.mtg-due .df-box-ico{display:none}
 .mtg-menu-btn{border:none;background:none;cursor:pointer;color:#999;font-size:14px;padding:0 3px;line-height:1.2;opacity:0}
-.mtg-line:hover .mtg-menu-btn,.mtg-menu-btn.open{opacity:1}
+.mtg-line:hover .mtg-menu-btn,.mtg-menu-btn.open,.mtg-menu-btn:focus-visible{opacity:1}
 .mtg-menu{position:absolute;top:100%;inset-inline-end:0;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.14);z-index:300;min-width:170px;padding:4px 0}
 .mtg-menu button{display:block;width:100%;text-align:start;border:none;background:none;padding:6px 12px;font:inherit;font-size:12px;color:inherit;cursor:pointer}
 .mtg-menu button:hover{background:var(--bg)}
 .mtg-menu hr{border:none;border-top:1px solid var(--border);margin:4px 0}
 .mtg-sec-tools{display:flex;gap:4px;margin-top:6px;opacity:0}
-.mtg-sec:hover .mtg-sec-tools{opacity:1}
+.mtg-sec:hover .mtg-sec-tools,.mtg-sec:focus-within .mtg-sec-tools{opacity:1}
 .mtg-tool{border:1px solid #ddd;background:#fff;border-radius:4px;font-size:10px;padding:1px 6px;cursor:pointer;color:#555;font-family:inherit}
 .mtg-add{margin-top:10px;border:1px dashed #bbb;background:none;border-radius:6px;padding:5px 12px;font:inherit;font-size:12px;color:#555;cursor:pointer}
 .mtg-appendix{margin-top:28px;break-before:page}
@@ -1585,7 +1590,7 @@ html[data-appearance="dark"] .plan-rolled{background:rgba(245,158,11,.18);color:
   .meeting-doc {
     position: absolute; top: 0; left: 0;
     width: 100% !important; max-width: 100% !important;
-    margin: 0 !important; padding: 24px !important;
+    margin: 0 !important; padding: 0 !important;
     overflow: visible !important;
   }
   .tender-print-doc {
@@ -1595,7 +1600,10 @@ html[data-appearance="dark"] .plan-rolled{background:rgba(245,158,11,.18);color:
     overflow: visible !important;
   }
   .meeting-print-hide { display: none !important; }
-  .mtg-page { width: auto !important; padding: 0 !important; margin: 0 !important; box-shadow: none !important; }
+  /* @page keeps 12mm side margins for .tender-print-doc; 3mm more each side gives the meeting sheet its 15mm (≈180mm text width) */
+  .mtg-page { width: auto !important; padding: 0 3mm !important; margin: 0 !important; box-shadow: none !important; }
+  .mtg-page ::placeholder { color: transparent !important; }
+  .mtg-text-print { font-size: inherit; }
   .meeting-doc .mtg-table th, .meeting-doc .mtg-table td { padding: 4px 6px; font-size: 10pt; }
   .meeting-doc .mtg-table td { border-top: none; border-bottom: none; border-left: 1px solid #222; border-right: 1px solid #222; }
   .meeting-doc .mtg-table th { border: 1px solid #222; background: #efefef !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -3406,10 +3414,16 @@ const a=sortList2.filter(s=>s.column!==sortField);setSortState(a.length?a:null);
    defaults old saved data is migrated from. */const trackLabelOf=(tracks,s)=>(tracks.find(t=>t.trackValue===s.track)||{}).label||s.track||'ניהול שוטף';function CreateItemDialog({data,save,item,meeting,onClose,onCreate}){const[title,setTitle]=useState(item?item.topic||'':'');const[trackId,setTrackId]=useState('');const[sheetId,setSheetId]=useState('');const tracks=data.tracks||[];const sheets=data.sheets||[];const selectedTrack=tracks.find(t=>t.id===trackId);const trackSheets=sheets.filter(s=>s.type==='list'&&s.track===(selectedTrack?selectedTrack.trackValue:undefined));useEffect(()=>{setSheetId('');},[ trackId]);const handleCreate=()=>{if(!title.trim()||!sheetId)return;const sheet=sheets.find(s=>s.id===sheetId);if(!sheet)return;const groups=sheet.groups||[];const groupId=groups.length>0?groups[0].id:null;const newTask={id:uid(),groupId:groupId,title:title.trim(),statusId:'N',priority:'medium',discipline:item&&item.assignee&&item.assignee!=='לידיעה'?item.assignee:null,startDate:item&&item.startDate||'',dueDate:item&&item.dueDate||'',done:false,taskType:'simple',fieldValues:{},subtasks:[],sourceMeetingId:meeting?meeting.id:null,sourceMeetingItemId:item?item.id:null};const updatedSheet={...sheet,tasks:[...(sheet.tasks||[]),newTask]};const updatedSheets=sheets.map(s=>s.id===sheetId?updatedSheet:s);save({...data,sheets:updatedSheets});onCreate(sheetId,groupId,title.trim());};return/*#__PURE__*/React.createElement("div",{style:{position:'fixed',inset:0,background:'rgba(0,0,0,.4)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center'},onClick:e=>{if(e.target===e.currentTarget)onClose();}},/*#__PURE__*/React.createElement("div",{style:{background:'var(--surface)',borderRadius:12,padding:'28px 32px',minWidth:380,maxWidth:480,boxShadow:'0 8px 32px rgba(0,0,0,.18)'}},/*#__PURE__*/React.createElement("div",{style:{fontSize:15,fontWeight:700,color:'var(--text)',marginBottom:20}},'צור פריט'),/*#__PURE__*/React.createElement("div",{style:{marginBottom:14}},/*#__PURE__*/React.createElement("label",{style:{fontSize:12,color:'var(--text-2)',display:'block',marginBottom:4}},'שם'),/*#__PURE__*/React.createElement("input",{value:title,onChange:e=>setTitle(e.target.value),style:{width:'100%',padding:'8px 10px',border:'1px solid var(--border)',borderRadius:6,fontSize:13,fontFamily:'inherit',color:'var(--text)',background:'var(--bg)',boxSizing:'border-box'}})),/*#__PURE__*/React.createElement("div",{style:{marginBottom:14}},/*#__PURE__*/React.createElement("label",{style:{fontSize:12,color:'var(--text-2)',display:'block',marginBottom:4}},'מסלול'),/*#__PURE__*/React.createElement("select",{value:trackId,onChange:e=>setTrackId(e.target.value),style:{width:'100%',padding:'8px 10px',border:'1px solid var(--border)',borderRadius:6,fontSize:13,fontFamily:'inherit',color:'var(--text)',background:'var(--bg)',boxSizing:'border-box'}},/*#__PURE__*/React.createElement("option",{value:''},'— בחר מסלול —'),tracks.map(t=>/*#__PURE__*/React.createElement("option",{"data-i18n-skip":"",key:t.id,value:t.id},nameForLang(t.label||t.id))))),trackId&&/*#__PURE__*/React.createElement("div",{style:{marginBottom:20}},/*#__PURE__*/React.createElement("label",{style:{fontSize:12,color:'var(--text-2)',display:'block',marginBottom:4}},'קבוצה / גיליון'),/*#__PURE__*/React.createElement("select",{value:sheetId,onChange:e=>setSheetId(e.target.value),style:{width:'100%',padding:'8px 10px',border:'1px solid var(--border)',borderRadius:6,fontSize:13,fontFamily:'inherit',color:'var(--text)',background:'var(--bg)',boxSizing:'border-box'}},/*#__PURE__*/React.createElement("option",{value:''},'— בחר גיליון —'),trackSheets.map(s=>/*#__PURE__*/React.createElement("option",{"data-i18n-skip":"",key:s.id,value:s.id},nameForLang(s.name||s.id))))),/*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:10,justifyContent:'flex-end'}},/*#__PURE__*/React.createElement("button",{onClick:onClose,style:{padding:'8px 18px',fontSize:13,borderRadius:7,border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text-2)',cursor:'pointer',fontFamily:'inherit'}},'ביטול'),/*#__PURE__*/React.createElement("button",{onClick:handleCreate,disabled:!title.trim()||!sheetId,style:{padding:'8px 18px',fontSize:13,borderRadius:7,border:'none',background:!title.trim()||!sheetId?'var(--border)':'var(--accent)',color:!title.trim()||!sheetId?'var(--text-3)':'#fff',cursor:!title.trim()||!sheetId?'not-allowed':'pointer',fontFamily:'inherit',fontWeight:600}},'צור'))));}
 const DISCIPLINE_FULL_NAMES={ARCH:'אדריכל',STRC:'קונסטרוקטור',ELEC:'חשמל',ENVI:'סביבה',LAND:'נוף',TRAF:'תנועה',PM:'ניהול פרויקט',SAFE:'בטיחות',HVAC:'מיזוג אוויר',PLUM:'אינסטלציה',HYDR:'ניקוז',ACSS:'נגישות',GR:'קרקע',LIFT:'מעליות',TNDR:'מכרזים',AGRO:'אגרונומיה'};
 const fmtDateNumeric=iso=>iso?iso.split('-').reverse().join('.'):'-';
+/* The textarea's height is fixed inline from its scrollHeight at screen width/font, so print renders a
+   separate div with the same text (textareas don't grow) — see .mtg-text-print. */
 function MtgText({value,onChange,onKeyDown,placeholder,dataId,bold}){
   const ref=useRef(null);
-  React.useLayoutEffect(()=>{const el=ref.current;if(el){el.style.height='auto';el.style.height=el.scrollHeight+'px';}},[value]);
-  return React.createElement("textarea",{ref,rows:1,value:value||'',placeholder,"data-mtg-item":dataId,"data-i18n-skip":"",className:"mtg-text"+(bold?" mtg-text-b":""),onChange:e=>onChange(e.target.value),onKeyDown});
+  const fit=()=>{const el=ref.current;if(el){el.style.height='auto';el.style.height=el.scrollHeight+'px';}};
+  React.useLayoutEffect(fit,[value]);
+  useEffect(()=>{window.addEventListener('resize',fit);return()=>window.removeEventListener('resize',fit);},[]);
+  return React.createElement(React.Fragment,null,
+    React.createElement("textarea",{ref,rows:1,value:value||'',placeholder,"data-mtg-item":dataId,"data-i18n-skip":"",className:"mtg-text meeting-print-hide"+(bold?" mtg-text-b":""),onChange:e=>onChange(e.target.value),onKeyDown}),
+    React.createElement("div",{className:"mtg-text-print meeting-print-only"+(bold?" mtg-text-b":""),"data-i18n-skip":""},value||''));
 }
 function MeetingTable({data,save,meeting,onChange}){
   const h=React.createElement;
@@ -3428,20 +3442,23 @@ function MeetingTable({data,save,meeting,onChange}){
   const fileRef=useRef(null);const photoFor=useRef(null);
   useEffect(()=>{if(!menuId)return;const c=()=>setMenuId(null);document.addEventListener('click',c);return()=>document.removeEventListener('click',c);},[menuId]);
   useEffect(()=>{if(!focusId)return;const el=document.querySelector('[data-mtg-item="'+focusId+'"]');if(el){el.focus();const L=el.value.length;el.setSelectionRange(L,L);}setFocusId(null);},[focusId]);
-  const setItems=next=>onChange({items:next});
-  const setSections=next=>onChange({sections:next});
+  /* setItems/setSections take a function of the previous list so queued edits never overwrite each other */
+  const setItems=f=>onChange(prev=>({items:f(prev.items||[])}));
+  const setSections=f=>onChange(prev=>({sections:f(prev.sections||[])}));
   const updateItem=(id,patch)=>onChange(prev=>({items:(prev.items||[]).map(it=>it.id===id?{...it,...patch}:it)}));
-  const insertAt=(idx,item)=>{const out=items.slice();out.splice(idx,0,item);setItems(out);setFocusId(item.id);};
-  const endOf=id=>{let k=items.findIndex(x=>x.id===id);items.forEach((x,i)=>{if(x.parentId===id&&i>k)k=i;});return k;};
-  const addItem=sectionId=>{let k=-1;items.forEach((x,i)=>{if(x.sectionId===sectionId)k=i;});insertAt(k<0?items.length:k+1,mtgNewItem(sectionId,null));};
+  const insertAt=(idxOf,item)=>{setItems(its=>{const out=its.slice();out.splice(Math.max(0,Math.min(its.length,idxOf(its))),0,item);return out;});setFocusId(item.id);};
+  const endOf=(its,id)=>{let k=its.findIndex(x=>x.id===id);its.forEach((x,i)=>{if(x.parentId===id&&i>k)k=i;});return k;};
+  const addItem=sectionId=>insertAt(its=>{let k=-1;its.forEach((x,i)=>{if(x.sectionId===sectionId)k=i;});return k<0?its.length:k+1;},mtgNewItem(sectionId,null));
   const addSection=()=>{const sec={id:uid(),title:''};const it=mtgNewItem(sec.id,null);onChange(prev=>({sections:[...(prev.sections||[]),sec],items:[...(prev.items||[]),it]}));setFocusId('sec-'+sec.id);};
-  const deleteItem=id=>{if(createItemFor&&id===createItemFor.id)setCreateItemFor(null);setItems(items.filter(x=>x.id!==id&&x.parentId!==id));};
-  const deleteSection=async sec=>{const has=items.some(x=>x.sectionId===sec.id&&x.topic);if(has&&!(await askConfirm('למחוק את הנושא וכל הסעיפים שבו?',{confirmLabel:'מחק'})))return;onChange(prev=>({sections:(prev.sections||[]).filter(s=>s.id!==sec.id),items:(prev.items||[]).filter(x=>x.sectionId!==sec.id)}));};
+  const deleteItem=id=>{if(createItemFor&&id===createItemFor.id)setCreateItemFor(null);setItems(its=>its.filter(x=>x.id!==id&&x.parentId!==id));};
+  const deleteSection=async sec=>{const filled=x=>x.topic||(x.photos||[]).length||x.assignee||x.person||x.dueDate;const has=String(sec.title||'').trim()||items.some(x=>x.sectionId===sec.id&&filled(x));if(has&&!(await askConfirm('למחוק את הנושא וכל הסעיפים שבו?',{confirmLabel:'מחק'})))return;onChange(prev=>({sections:(prev.sections||[]).filter(s=>s.id!==sec.id),items:(prev.items||[]).filter(x=>x.sectionId!==sec.id)}));};
   const onKey=(e,it)=>{
     if(e.nativeEvent&&e.nativeEvent.isComposing)return;
-    if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();const n=mtgNewItem(it.sectionId,it.parentId);insertAt(it.parentId?items.indexOf(it)+1:endOf(it.id)+1,n);return;}
-    if(e.key==='Tab'){e.preventDefault();setItems(e.shiftKey?outdentItem(items,it.id):indentItem(items,it.id));setFocusId(it.id);return;}
-    if(e.key==='Backspace'&&!it.topic&&!(it.photos||[]).length&&!it.itemType&&!items.some(x=>x.parentId===it.id)){e.preventDefault();const prev=items.find(x=>x.id===order[order.indexOf(it.id)-1]);deleteItem(it.id);setFocusId(prev&&prev.sectionId===it.sectionId?prev.id:'sec-'+it.sectionId);}
+    if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();const n=mtgNewItem(it.sectionId,it.parentId);insertAt(its=>{const k=its.findIndex(x=>x.id===it.id);return k<0?its.length:it.parentId?k+1:endOf(its,it.id)+1;},n);return;}
+    if(e.key==='Tab'){e.preventDefault();const out=e.shiftKey;setItems(its=>out?outdentItem(its,it.id):indentItem(its,it.id));setFocusId(it.id);return;}
+    /* Backspace removes a row only when it is completely blank */
+    const blank=!it.topic&&!(it.photos||[]).length&&!it.itemType&&!it.linkedRecordId&&!it.assignee&&!String(it.person||'').trim()&&!it.dueDate&&!it.carriedFrom&&!items.some(x=>x.parentId===it.id);
+    if(e.key==='Backspace'&&blank){e.preventDefault();const prev=items.find(x=>x.id===order[order.indexOf(it.id)-1]);deleteItem(it.id);setFocusId(prev&&prev.sectionId===it.sectionId?prev.id:'sec-'+it.sectionId);}
   };
   const uploadPhotos=async(itemId,files)=>{
     for(const f of Array.from(files||[]).filter(f=>/^image\//.test(f.type))){
@@ -3456,14 +3473,14 @@ function MeetingTable({data,save,meeting,onChange}){
     h("button",{className:"mtg-menu-btn"+(menuId===item.id?' open':''),title:"אפשרויות",onClick:e=>{e.stopPropagation();setMenuId(m=>m===item.id?null:item.id);}},"⋯"),
     menuId===item.id&&h("div",{className:"mtg-menu","data-pop":"",onClick:e=>e.stopPropagation()},
       h("button",{onClick:()=>{photoFor.current=item.id;setMenuId(null);fileRef.current&&fileRef.current.click();}},"📷 הוסף תמונה"),
-      h("button",{onClick:()=>{setItems(moveItem(items,item.id,-1));setMenuId(null);}},"↑ הזז למעלה"),
-      h("button",{onClick:()=>{setItems(moveItem(items,item.id,1));setMenuId(null);}},"↓ הזז למטה"),
-      isSub?h("button",{onClick:()=>{setItems(outdentItem(items,item.id));setMenuId(null);}},"⇤ הפוך לסעיף"):h("button",{onClick:()=>{setItems(indentItem(items,item.id));setMenuId(null);}},"⇥ הפוך לתת סעיף"),
+      h("button",{onClick:()=>{setItems(its=>moveItem(its,item.id,-1));setMenuId(null);}},"↑ הזז למעלה"),
+      h("button",{onClick:()=>{setItems(its=>moveItem(its,item.id,1));setMenuId(null);}},"↓ הזז למטה"),
+      isSub?h("button",{onClick:()=>{setItems(its=>outdentItem(its,item.id));setMenuId(null);}},"⇤ הפוך לסעיף"):h("button",{onClick:()=>{setItems(its=>indentItem(its,item.id));setMenuId(null);}},"⇥ הפוך לתת סעיף"),
       h("hr"),
       ...ITEM_TYPES.map(t=>h("button",{key:t.id,onClick:()=>linkAs(item,t.id)},"קשר כ"+t.label)),
       item.itemType&&h("button",{onClick:()=>{updateItem(item.id,{itemType:null,createdTaskTrackId:null,linkedRecordId:null,linkedRecordKind:null});setMenuId(null);}},"נקה קישור"),
       h("hr"),
-      h("button",{style:{color:'#EF4444'},onClick:()=>{deleteItem(item.id);setMenuId(null);}},"✕ מחק סעיף")));
+      h("button",{style:{color:'#EF4444'},onClick:async()=>{setMenuId(null);if((items.some(x=>x.parentId===item.id)||(item.photos||[]).length)&&!(await askConfirm('למחוק את הסעיף? יימחקו גם תתי הסעיפים והתמונות שלו.',{confirmLabel:'מחק'})))return;deleteItem(item.id);}},"✕ מחק סעיף")));
   const extras=item=>{const letters=appendix.filter(a=>a.item.id===item.id).map(a=>a.letter);const t=item.itemType&&ITEM_TYPES.find(x=>x.id===item.itemType);return[
     letters.length>0&&h("span",{key:'p',className:"mtg-photo-ref"},"📷 נספח ",letters.join(", ")),
     t&&h("span",{key:'c',className:"mtg-chip meeting-print-hide"},t.label," ↗")];};
@@ -3471,9 +3488,9 @@ function MeetingTable({data,save,meeting,onChange}){
     h("span",{className:"mtg-n"},e.number),
     h(MtgText,{value:e.item.topic,dataId:e.item.id,placeholder:isSub?"תת סעיף":"תיאור הסעיף",onChange:v=>updateItem(e.item.id,{topic:v}),onKeyDown:ev=>onKey(ev,e.item)}),
     ...extras(e.item),menu(e.item,isSub));
-  const dropPhotos=itemId=>({onDragOver:e=>{if(!dragSec&&e.dataTransfer&&Array.from(e.dataTransfer.types||[]).includes('Files'))e.preventDefault();},onDrop:e=>{if(dragSec||!e.dataTransfer||!e.dataTransfer.files.length)return;e.preventDefault();e.stopPropagation();uploadPhotos(itemId,e.dataTransfer.files);}});
+  const dropPhotos=itemId=>({onDragOver:e=>{if(!dragSec&&e.dataTransfer&&Array.from(e.dataTransfer.types||[]).includes('Files'))e.preventDefault();},onDrop:e=>{if(dragSec||!e.dataTransfer||!e.dataTransfer.files.length)return;e.preventDefault();e.stopPropagation();const fs=Array.from(e.dataTransfer.files);if(!fs.some(f=>/^image\//.test(f.type))){alert(tx('אפשר לצרף רק תמונות'));return;}uploadPhotos(itemId,fs);}});
   const itemCells=x=>[
-    h("td",{key:'d',...dropPhotos(x.item.id)},line(x,false),x.subs.map(s=>line(s,true))),
+    h("td",{key:'d'},line(x,false),x.subs.map(s=>line(s,true))),
     h("td",{key:'a'},
       h("select",{className:"mtg-sel meeting-print-hide",value:x.item.assignee||'',onChange:e=>updateItem(x.item.id,{assignee:e.target.value||null})},discOptions.map(o=>h("option",{key:o.id,value:o.id},o.label))),
       h("input",{className:"mtg-person meeting-print-hide",list:"mtg-people","data-i18n-skip":"",value:x.item.person||'',placeholder:"שם",onChange:e=>updateItem(x.item.id,{person:e.target.value})}),
@@ -3490,17 +3507,17 @@ function MeetingTable({data,save,meeting,onChange}){
       h("thead",null,h("tr",null,h("th",null,"#"),h("th",null,"נושא"),h("th",null,"תיאור"),h("th",null,"אחראי"),h("th",null,"לטיפול"))),
       rows.map((r,si)=>{const span=Math.max(1,r.items.length);return h("tbody",{key:r.section.id,className:"mtg-sec"+(dragSec===r.section.id?" mtg-dragging":""),
         onDragOver:e=>{if(dragSec)e.preventDefault();},
-        onDrop:e=>{if(!dragSec)return;e.preventDefault();if(dragSec!==r.section.id)setSections(moveSectionTo(sections,dragSec,si));setDragSec(null);}},
-        (r.items.length?r.items:[null]).map((x,ii)=>h("tr",{key:x?x.item.id:'empty'},
+        onDrop:e=>{if(!dragSec)return;e.preventDefault();const d=dragSec;if(d!==r.section.id)setSections(ss=>moveSectionTo(ss,d,si));setDragSec(null);}},
+        (r.items.length?r.items:[null]).map((x,ii)=>h("tr",{key:x?x.item.id:'empty',...(x?dropPhotos(x.item.id):{})},
           ii===0&&h("td",{rowSpan:span,className:"mtg-num"},
             h("span",{className:"mtg-drag meeting-print-hide",draggable:true,title:"גרור לשינוי סדר הנושאים",onDragStart:e=>{setDragSec(r.section.id);e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','');},onDragEnd:()=>setDragSec(null)},"⋮⋮"),
             r.number),
           ii===0&&h("td",{rowSpan:span},
-            h(MtgText,{value:r.section.title,dataId:'sec-'+r.section.id,placeholder:"נושא",bold:true,onChange:v=>setSections(sections.map(s=>s.id===r.section.id?{...s,title:v}:s)),onKeyDown:e=>{if(e.key==='Enter'&&!e.shiftKey&&!(e.nativeEvent&&e.nativeEvent.isComposing)){e.preventDefault();const first=items.find(i=>i.sectionId===r.section.id&&!i.parentId);if(first)setFocusId(first.id);else addItem(r.section.id);}}}),
+            h(MtgText,{value:r.section.title,dataId:'sec-'+r.section.id,placeholder:"נושא",bold:true,onChange:v=>setSections(ss=>ss.map(s=>s.id===r.section.id?{...s,title:v}:s)),onKeyDown:e=>{if(e.key==='Enter'&&!e.shiftKey&&!(e.nativeEvent&&e.nativeEvent.isComposing)){e.preventDefault();const first=items.find(i=>i.sectionId===r.section.id&&!i.parentId);if(first)setFocusId(first.id);else addItem(r.section.id);}}}),
             h("div",{className:"mtg-sec-tools meeting-print-hide"},
               h("button",{className:"mtg-tool",onClick:()=>addItem(r.section.id)},"+ סעיף"),
-              h("button",{className:"mtg-tool",title:"הזז למעלה",onClick:()=>setSections(moveSectionTo(sections,r.section.id,si-1))},"↑"),
-              h("button",{className:"mtg-tool",title:"הזז למטה",onClick:()=>setSections(moveSectionTo(sections,r.section.id,si+1))},"↓"),
+              h("button",{className:"mtg-tool",title:"הזז למעלה",onClick:()=>setSections(ss=>moveSectionTo(ss,r.section.id,ss.findIndex(s=>s.id===r.section.id)-1))},"↑"),
+              h("button",{className:"mtg-tool",title:"הזז למטה",onClick:()=>setSections(ss=>moveSectionTo(ss,r.section.id,ss.findIndex(s=>s.id===r.section.id)+1))},"↓"),
               h("button",{className:"mtg-tool",title:"מחק נושא",onClick:()=>deleteSection(r.section)},"✕"))),
           x?itemCells(x):h("td",{colSpan:3},h("button",{className:"mtg-tool meeting-print-hide",onClick:()=>addItem(r.section.id)},"+ סעיף")))));})),
     h("button",{className:"mtg-add meeting-print-hide",onClick:addSection},"+ נושא"),
@@ -3518,7 +3535,7 @@ function MeetingParticipants({data,save,m,update}){
   const allPersons=[...(data.team||[]).map(p=>({key:'team-'+p.id,name:p.name,role:p.projectRole||p.role||'',firm:''})),...RegisterLinkUI.useConsultantRows(data,data.disciplines||DISCIPLINES).flatMap(c=>(c.contacts||[]).map(ct=>({key:'con-'+c.id+'-'+ct.name,name:ct.name||c.firm,role:c.discipline||c.firm||'',firm:c.firm||''})))].filter(p=>p.name);
   const participants=m.participants||[];
   const used=new Set(participants.map(p=>p.name));
-  const available=allPersons.filter(p=>!used.has(p.name));
+  const seen=new Set();const available=allPersons.filter(p=>{if(used.has(p.name)||seen.has(p.name))return false;seen.add(p.name);return true;});
   const[open,setOpen]=useState(null);// 'load' | 'pick' | 'custom' | 'save' | null
   const[name,setName]=useState('');const[role,setRole]=useState('');
   const[listName,setListName]=useState('');
@@ -3535,7 +3552,7 @@ function MeetingParticipants({data,save,m,update}){
   const btn=(label,key)=>h("button",{className:"mtg-tool",style:{fontSize:12,padding:'4px 10px'},onClick:()=>setOpen(o=>o===key?null:key)},label);
   const line=participants.map(p=>p.role?p.name+' ('+p.role+')':p.name).join(', ');
   return h("div",{style:{marginTop:10}},
-    h("div",{"data-i18n-skip":"",style:{fontSize:12}},h("b",null,"נכחו: "),line||h("span",{className:"meeting-print-hide",style:{color:'#999'}},"אין משתתפים עדיין")),
+    h("div",{style:{fontSize:12}},h("b",null,"נכחו: "),line?h("span",{"data-i18n-skip":""},line):h("span",{className:"meeting-print-hide",style:{color:'#999'}},"אין משתתפים עדיין")),
     participants.length>0&&h("div",{className:"meeting-print-hide",style:{display:'flex',flexWrap:'wrap',gap:4,marginTop:6}},participants.map(p=>h("span",{key:p.id,"data-i18n-skip":"",style:{fontSize:11,border:'1px solid #ddd',borderRadius:10,padding:'1px 8px',display:'inline-flex',gap:4,alignItems:'center'}},nameForLang(p.name),p.role?h("span",{style:{color:'#888'}},nameForLang(p.role)):null,h("button",{title:"הסר",onClick:()=>update({participants:participants.filter(x=>x.id!==p.id)}),style:{border:'none',background:'none',cursor:'pointer',color:'#999',fontSize:11,padding:0}},"✕")))),
     h("div",{ref,className:"meeting-print-hide",style:{display:'flex',gap:6,marginTop:8,flexWrap:'wrap',alignItems:'flex-start'}},
       h("span",{className:"mtg-pp"},btn("טען רשימה ▾",'load'),open==='load'&&h("div",{className:"mtg-pop"},
@@ -3546,7 +3563,7 @@ function MeetingParticipants({data,save,m,update}){
           h("button",{className:"mtg-tool",title:"מחק רשימה",onClick:e=>{e.stopPropagation();removeList(l);}},"✕"))))),
       h("span",{className:"mtg-pp"},btn("+ משתתף",'pick'),open==='pick'&&h("div",{className:"mtg-pop"},
         available.length===0&&h("div",{className:"mtg-pop-lbl"},"כל אנשי הפרויקט כבר ברשימה"),
-        available.map(p=>h("div",{key:p.key,className:"mtg-pop-row",onClick:()=>{update({participants:[...participants,{id:uid(),name:p.name,role:p.role,firm:p.firm,isCustom:false}]});setOpen(null);}},
+        available.map((p,i)=>h("div",{key:p.key+'-'+i,className:"mtg-pop-row",onClick:()=>{update({participants:[...participants,{id:uid(),name:p.name,role:p.role,firm:p.firm,isCustom:false}]});setOpen(null);}},
           h("span",{"data-i18n-skip":"",style:{flex:1}},nameForLang(p.name),p.role&&h("span",{style:{color:'var(--text-3)',fontSize:10}}," · ",nameForLang(p.role))))))),
       btn("+ הזנה ידנית",'custom'),
       open==='custom'&&h("span",{style:{display:'inline-flex',gap:4}},
@@ -3562,7 +3579,8 @@ function MeetingEditor({data,save,meeting,onBack,onSave}){
 const[m,setM]=useState(()=>migrateMeeting(meeting));
 const update=patch=>setM(prev=>({...prev,...(typeof patch==='function'?patch(prev):patch)}));
 const commit=()=>onSave(m);
-return/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}},
+const filesDrag=e=>{if(e.dataTransfer&&Array.from(e.dataTransfer.types||[]).includes('Files'))e.preventDefault();};
+return/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'},onDragOver:filesDrag,onDrop:filesDrag},
 /*#__PURE__*/React.createElement("div",{className:"meeting-print-hide",style:{display:'flex',alignItems:'center',gap:8,padding:'10px 16px',borderBottom:'1px solid var(--border)',background:'var(--surface)',flexShrink:0}},
 /*#__PURE__*/React.createElement("button",{onClick:onBack,style:{background:'none',border:'none',cursor:'pointer',color:'var(--text-2)',fontSize:13,fontFamily:'inherit',padding:'4px 8px',borderRadius:5,display:'flex',alignItems:'center',gap:4}},/*#__PURE__*/React.createElement("span",{style:{display:'inline-flex',transform:IS_LTR()?'scaleX(-1)':undefined}},React.createElement(Ic,{n:'chevron',size:12})),' חזרה'),
 /*#__PURE__*/React.createElement("span",{style:{flex:1}}),
@@ -3688,9 +3706,9 @@ function mergeParticipants(current,members){
   return out;
 }
 /* ═══ /meeting-logic ═══ */
-function MeetingsView({data,save,trackId=null,openMeetingId=null,onConsumeOpen}){const[editId,setEditId]=useState(null);useEffect(()=>{if(openMeetingId){setEditId(openMeetingId);onConsumeOpen&&onConsumeOpen();}},[openMeetingId]);const allMeetings=data.meetings||[];const meetings=allMeetings.filter(m=>trackId===null||m.trackId===trackId);const tracks=data.tracks||[];const trackLabel=id=>(tracks.find(t=>t.id===id)||{}).label||id||'כללי';const[newMenu,setNewMenu]=useState(false);const prevMeeting=prevMeetingOf(allMeetings,trackId);const createMeeting=m=>{save({...data,meetings:[...allMeetings,m]});setEditId(m.id);setNewMenu(false);};const blankMeeting=participants=>{const sec={id:uid(),title:''};return{id:uid(),trackId:trackId,title:'',date:todayISO(),participants:participants||[],sections:[sec],items:[mtgNewItem(sec.id,null)],recordedBy:'',distribution:'',createdAt:new Date().toISOString()};};const openNew=()=>setNewMenu(o=>!o);useEffect(()=>{if(!newMenu)return;const c=e=>{if(!e.target.closest('.mtg-pp'))setNewMenu(false);};document.addEventListener('mousedown',c);return()=>document.removeEventListener('mousedown',c);},[newMenu]);const deleteMeeting=id=>{if(!confirm(tx('למחוק את סיכום הישיבה?')))return;save({...data,meetings:allMeetings.filter(m=>m.id!==id)});};if(editId){const meeting=allMeetings.find(m=>m.id===editId);if(!meeting){setEditId(null);return null;}return/*#__PURE__*/React.createElement(MeetingEditor,{data:data,save:save,meeting:meeting,onBack:()=>setEditId(null),onSave:updated=>{save({...data,meetings:allMeetings.map(m=>m.id===updated.id?updated:m)});}});}return/*#__PURE__*/React.createElement("div",{style:{padding:'20px 24px',maxWidth:900,margin:'0 auto'}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}},/*#__PURE__*/React.createElement("h2",{style:{fontSize:16,fontWeight:700,margin:0,color:'var(--text)'}},"ישיבות"+(trackId?' — '+trackLabel(trackId):'')),React.createElement("span",{className:"mtg-pp"},/*#__PURE__*/React.createElement("button",{onClick:openNew,style:{padding:'7px 16px',fontSize:12,borderRadius:7,border:'none',background:'var(--accent)',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontWeight:600}},"+ ישיבה חדשה ▾"),newMenu&&React.createElement("div",{className:"mtg-pop","data-pop":"",style:{insetInlineStart:'auto',insetInlineEnd:0}},
+function MeetingsView({data,save,trackId=null,openMeetingId=null,onConsumeOpen}){const[editId,setEditId]=useState(null);useEffect(()=>{if(openMeetingId){setEditId(openMeetingId);onConsumeOpen&&onConsumeOpen();}},[openMeetingId]);const allMeetings=data.meetings||[];const meetings=allMeetings.filter(m=>trackId===null||m.trackId===trackId);const tracks=data.tracks||[];const trackLabel=id=>(tracks.find(t=>t.id===id)||{}).label||id||'כללי';const[newMenu,setNewMenu]=useState(false);/* the hub tab (trackId null) lists every meeting, so the latest of all of them is "previous"; follow-ups keep the source meeting's own trackId */const prevPick=prevMeetingOf(trackId===null?allMeetings.map(m=>({...m,trackId:null})):allMeetings,trackId);const prevMeeting=prevPick&&(allMeetings.find(m=>m.id===prevPick.id)||prevPick);const createMeeting=m=>{save({...data,meetings:[...allMeetings,m]});setEditId(m.id);setNewMenu(false);};const blankMeeting=participants=>{const sec={id:uid(),title:''};return{id:uid(),trackId:trackId,title:'',date:todayISO(),participants:participants||[],sections:[sec],items:[mtgNewItem(sec.id,null)],recordedBy:'',distribution:'',createdAt:new Date().toISOString()};};const openNew=()=>setNewMenu(o=>!o);useEffect(()=>{if(!newMenu)return;const c=e=>{if(!e.target.closest('.mtg-pp'))setNewMenu(false);};document.addEventListener('mousedown',c);return()=>document.removeEventListener('mousedown',c);},[newMenu]);const deleteMeeting=id=>{if(!confirm(tx('למחוק את סיכום הישיבה?')))return;save({...data,meetings:allMeetings.filter(m=>m.id!==id)});};if(editId){const meeting=allMeetings.find(m=>m.id===editId);if(!meeting){setEditId(null);return null;}return/*#__PURE__*/React.createElement(MeetingEditor,{data:data,save:save,meeting:meeting,onBack:()=>setEditId(null),onSave:updated=>{save({...data,meetings:allMeetings.map(m=>m.id===updated.id?updated:m)});}});}return/*#__PURE__*/React.createElement("div",{style:{padding:'20px 24px',maxWidth:900,margin:'0 auto'}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}},/*#__PURE__*/React.createElement("h2",{style:{fontSize:16,fontWeight:700,margin:0,color:'var(--text)'}},"ישיבות"+(trackId?' — '+trackLabel(trackId):'')),React.createElement("span",{className:"mtg-pp"},/*#__PURE__*/React.createElement("button",{onClick:openNew,style:{padding:'7px 16px',fontSize:12,borderRadius:7,border:'none',background:'var(--accent)',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontWeight:600}},"+ ישיבה חדשה ▾"),newMenu&&React.createElement("div",{className:"mtg-pop","data-pop":"",style:{insetInlineStart:'auto',insetInlineEnd:0}},
 React.createElement("div",{className:"mtg-pop-row",onClick:()=>createMeeting(blankMeeting())},"ישיבה ריקה"),
-prevMeeting&&React.createElement("div",{className:"mtg-pop-row",onClick:()=>createMeeting(followUpMeeting(prevMeeting,{id:uid(),date:todayISO()}))},React.createElement("span",{"data-i18n-skip":""},"על בסיס הישיבה הקודמת · ",prevMeeting.title||'ישיבה'," ",mtgDate(prevMeeting.date))),
+prevMeeting&&React.createElement("div",{className:"mtg-pop-row",onClick:()=>createMeeting(followUpMeeting(prevMeeting,{id:uid(),date:todayISO()}))},"על בסיס הישיבה הקודמת · ",React.createElement("span",{"data-i18n-skip":""},prevMeeting.title||tx('ישיבה')," ",mtgDate(prevMeeting.date))),
 (data.participantLists||[]).length>0&&React.createElement("div",{className:"mtg-pop-lbl"},"ריקה, עם רשימת משתתפים:"),
 (data.participantLists||[]).map(l=>React.createElement("div",{key:l.id,className:"mtg-pop-row","data-i18n-skip":"",onClick:()=>createMeeting(blankMeeting(mergeParticipants([],l.members)))},l.name))))),meetings.length===0?/*#__PURE__*/React.createElement("div",{style:{textAlign:'center',padding:'60px 0',color:'var(--text-3)',fontSize:13}},'אין ישיבות עדיין — לחץ על "+ ישיבה חדשה" כדי להתחיל'):/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirection:'column',gap:10}},meetings.map(m=>/*#__PURE__*/React.createElement("div",{key:m.id,style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'14px 18px',cursor:'pointer',display:'flex',alignItems:'center',gap:16,position:'relative'},onClick:()=>setEditId(m.id)},/*#__PURE__*/React.createElement("div",{style:{flexShrink:0,width:48,height:48,background:'rgba(99,102,241,.1)',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center'}},/*#__PURE__*/React.createElement(Ic,{n:'meetings',size:20})),/*#__PURE__*/React.createElement("div",{style:{flex:1,minWidth:0}},/*#__PURE__*/React.createElement("div",{"data-i18n-skip":"",style:{fontWeight:700,fontSize:13,color:'var(--text)',marginBottom:3}},m.title||tx('(ללא כותרת)')),/*#__PURE__*/React.createElement("div",{style:{fontSize:11,color:'var(--text-3)',display:'flex',gap:12}},/*#__PURE__*/React.createElement("span",null,fmtDateFull(m.date)),(m.participants||[]).length>0&&/*#__PURE__*/React.createElement("span",null,m.participants.length+' משתתפים'),(()=>{const n=(m.sections||[]).length||(m.items||[]).filter(i=>!i.parentId).length;return n>0&&/*#__PURE__*/React.createElement("span",null,n+' נושאים');})(),trackId===null&&m.trackId&&/*#__PURE__*/React.createElement("span",{"data-i18n-skip":"",style:{background:'rgba(99,102,241,.12)',color:'var(--accent)',borderRadius:4,padding:'1px 6px',fontSize:10,fontWeight:600}},nameForLang(trackLabel(m.trackId))))),/*#__PURE__*/React.createElement("button",{onClick:e=>{e.stopPropagation();deleteMeeting(m.id);},style:{opacity:0,position:'absolute',insetInlineEnd:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',color:'#EF4444',fontSize:16,padding:'4px 8px',borderRadius:4},onMouseEnter:e=>e.currentTarget.style.opacity='1',onMouseLeave:e=>e.currentTarget.style.opacity='0'},'✕')))));}
 
