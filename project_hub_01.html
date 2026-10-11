@@ -3525,6 +3525,112 @@ createItemFor&&/*#__PURE__*/React.createElement(CreateItemDialog,{data:data,save
 /*#__PURE__*/React.createElement("button",{onClick:addRow,style:{fontSize:12,padding:'5px 12px',borderRadius:6,border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text-2)',cursor:'pointer',fontFamily:'inherit'}},'+ שורה'),
 /*#__PURE__*/React.createElement("button",{onClick:addSubRow,disabled:items.length===0,style:{fontSize:12,padding:'5px 12px',borderRadius:6,border:'1px solid var(--border)',background:'var(--surface)',color:items.length===0?'var(--text-3)':'var(--text-2)',cursor:items.length===0?'not-allowed':'pointer',fontFamily:'inherit'}},'+ תת-שורה'),
 /*#__PURE__*/React.createElement("button",{onClick:addSubSubRow,disabled:!subSubBase,style:{fontSize:12,padding:'5px 12px',borderRadius:6,border:'1px solid var(--border)',background:'var(--surface)',color:!subSubBase?'var(--text-3)':'var(--text-2)',cursor:!subSubBase?'not-allowed':'pointer',fontFamily:'inherit'}},'+ תת תת שורה')));}
+function MtgText({value,onChange,onKeyDown,placeholder,dataId,bold}){
+  const ref=useRef(null);
+  React.useLayoutEffect(()=>{const el=ref.current;if(el){el.style.height='auto';el.style.height=el.scrollHeight+'px';}},[value]);
+  return React.createElement("textarea",{ref,rows:1,value:value||'',placeholder,"data-mtg-item":dataId,"data-i18n-skip":"",className:"mtg-text"+(bold?" mtg-text-b":""),onChange:e=>onChange(e.target.value),onKeyDown});
+}
+function MeetingTable({data,save,meeting,onChange}){
+  const h=React.createElement;
+  const sections=meeting.sections||[];const items=meeting.items||[];
+  const disciplines=projList(data,'disciplines');
+  const discOptions=[{id:'',label:'—'},...visOpts(disciplines).map(d=>({id:d.id,label:d.label})),{id:'לידיעה',label:'לידיעה'}];
+  const labelOf=id=>DISCIPLINE_FULL_NAMES[id]||(discOptions.find(o=>o.id===id)||{}).label||id;
+  const ITEM_TYPES=[{id:'task',label:'משימה'},{id:'subtask',label:'תת-משימה'},{id:'update',label:'עדכון'},{id:'principle',label:'עקרון תכנון'},{id:'milestone',label:'אבן דרך'},...(SHOW_GOALS?[{id:'goal',label:'יעד'}]:[])];
+  const rows=meetingRows(meeting);
+  const appendix=photoAppendix(meeting);
+  const order=rows.flatMap(r=>r.items.flatMap(x=>[x.item.id,...x.subs.map(s=>s.item.id)]));
+  const[focusId,setFocusId]=useState(null);
+  const[menuId,setMenuId]=useState(null);
+  const[createItemFor,setCreateItemFor]=useState(null);
+  const[dragSec,setDragSec]=useState(null);
+  const fileRef=useRef(null);const photoFor=useRef(null);
+  useEffect(()=>{if(!menuId)return;const c=()=>setMenuId(null);document.addEventListener('click',c);return()=>document.removeEventListener('click',c);},[menuId]);
+  useEffect(()=>{if(!focusId)return;const el=document.querySelector('[data-mtg-item="'+focusId+'"]');if(el){el.focus();const L=el.value.length;el.setSelectionRange(L,L);}setFocusId(null);},[focusId]);
+  const setItems=next=>onChange({items:next});
+  const setSections=next=>onChange({sections:next});
+  const updateItem=(id,patch)=>onChange(prev=>({items:(prev.items||[]).map(it=>it.id===id?{...it,...patch}:it)}));
+  const insertAt=(idx,item)=>{const out=items.slice();out.splice(idx,0,item);setItems(out);setFocusId(item.id);};
+  const endOf=id=>{let k=items.findIndex(x=>x.id===id);items.forEach((x,i)=>{if(x.parentId===id&&i>k)k=i;});return k;};
+  const addItem=sectionId=>{let k=-1;items.forEach((x,i)=>{if(x.sectionId===sectionId)k=i;});insertAt(k<0?items.length:k+1,mtgNewItem(sectionId,null));};
+  const addSection=()=>{const sec={id:uid(),title:''};const it=mtgNewItem(sec.id,null);onChange(prev=>({sections:[...(prev.sections||[]),sec],items:[...(prev.items||[]),it]}));setFocusId('sec-'+sec.id);};
+  const deleteItem=id=>{if(id===createItemFor)setCreateItemFor(null);setItems(items.filter(x=>x.id!==id&&x.parentId!==id));};
+  const deleteSection=async sec=>{const has=items.some(x=>x.sectionId===sec.id&&x.topic);if(has&&!(await askConfirm('למחוק את הנושא וכל הסעיפים שבו?',{confirmLabel:'מחק'})))return;onChange(prev=>({sections:(prev.sections||[]).filter(s=>s.id!==sec.id),items:(prev.items||[]).filter(x=>x.sectionId!==sec.id)}));};
+  const onKey=(e,it)=>{
+    if(e.nativeEvent&&e.nativeEvent.isComposing)return;
+    if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();const n=mtgNewItem(it.sectionId,it.parentId);insertAt(it.parentId?items.indexOf(it)+1:endOf(it.id)+1,n);return;}
+    if(e.key==='Tab'){e.preventDefault();setItems(e.shiftKey?outdentItem(items,it.id):indentItem(items,it.id));setFocusId(it.id);return;}
+    if(e.key==='Backspace'&&!it.topic&&!(it.photos||[]).length&&!it.itemType&&!items.some(x=>x.parentId===it.id)){e.preventDefault();const prev=items.find(x=>x.id===order[order.indexOf(it.id)-1]);deleteItem(it.id);setFocusId(prev&&prev.sectionId===it.sectionId?prev.id:'sec-'+it.sectionId);}
+  };
+  const uploadPhotos=async(itemId,files)=>{
+    for(const f of Array.from(files||[]).filter(f=>/^image\//.test(f.type))){
+      try{const url=await uploadAttachment(f,f.name);onChange(prev=>({items:(prev.items||[]).map(it=>it.id===itemId?{...it,photos:[...(it.photos||[]),{id:uid(),url,name:f.name}]}:it)}));}
+      catch(err){alert(tx('העלאת התמונה נכשלה')+': '+err.message);}
+    }
+  };
+  const removePhoto=(itemId,photoId)=>onChange(prev=>({items:(prev.items||[]).map(it=>it.id===itemId?{...it,photos:(it.photos||[]).filter(p=>p.id!==photoId)}:it)}));
+  const linkItemAsRecord=(item,kind)=>{const disc=item.assignee&&item.assignee!=='לידיעה'?item.assignee:'';const id=uid();if(kind==='principle'){save({...data,standalonePrinciples:[...(data.standalonePrinciples||[]),{id,description:item.topic||'',discipline:disc,createdAt:item.startDate||todayISO(),sourceMeetingId:meeting.id,sourceMeetingItemId:item.id}]});}else if(kind==='goal'){save({...data,licensingGoals:[...(data.licensingGoals||[]),{id,title:item.topic||'',targetDate:item.dueDate||'',startDate:todayISO(),status:'not_started',done:false,stageId:null}]});}else if(kind==='milestone'){save({...data,licensingMilestones:[...(data.licensingMilestones||[]),{id,title:item.topic||'',date:item.dueDate||'',startDate:todayISO(),status:'not_started',done:false,stageId:null}]});}updateItem(item.id,{linkedRecordId:id,linkedRecordKind:kind});};
+  const linkAs=(item,type)=>{updateItem(item.id,{itemType:type});setMenuId(null);if(type==='principle'||type==='goal'||type==='milestone')linkItemAsRecord(item,type);else setCreateItemFor(item.id);};
+  const menu=(item,isSub)=>h("span",{className:"meeting-print-hide",style:{position:'relative',flexShrink:0}},
+    h("button",{className:"mtg-menu-btn"+(menuId===item.id?' open':''),title:"אפשרויות",onClick:e=>{e.stopPropagation();setMenuId(m=>m===item.id?null:item.id);}},"⋯"),
+    menuId===item.id&&h("div",{className:"mtg-menu","data-pop":"",onClick:e=>e.stopPropagation()},
+      h("button",{onClick:()=>{photoFor.current=item.id;setMenuId(null);fileRef.current&&fileRef.current.click();}},"📷 הוסף תמונה"),
+      h("button",{onClick:()=>{setItems(moveItem(items,item.id,-1));setMenuId(null);}},"↑ הזז למעלה"),
+      h("button",{onClick:()=>{setItems(moveItem(items,item.id,1));setMenuId(null);}},"↓ הזז למטה"),
+      isSub?h("button",{onClick:()=>{setItems(outdentItem(items,item.id));setMenuId(null);}},"⇤ הפוך לסעיף"):h("button",{onClick:()=>{setItems(indentItem(items,item.id));setMenuId(null);}},"⇥ הפוך לתת סעיף"),
+      h("hr"),
+      ...ITEM_TYPES.map(t=>h("button",{key:t.id,onClick:()=>linkAs(item,t.id)},"קשר כ"+t.label)),
+      item.itemType&&h("button",{onClick:()=>{updateItem(item.id,{itemType:null,createdTaskTrackId:null,linkedRecordId:null,linkedRecordKind:null});setMenuId(null);}},"נקה קישור"),
+      h("hr"),
+      h("button",{style:{color:'#EF4444'},onClick:()=>{deleteItem(item.id);setMenuId(null);}},"✕ מחק סעיף")));
+  const extras=item=>{const letters=appendix.filter(a=>a.item.id===item.id).map(a=>a.letter);const t=item.itemType&&ITEM_TYPES.find(x=>x.id===item.itemType);return[
+    letters.length>0&&h("span",{key:'p',className:"mtg-photo-ref"},"📷 נספח ",letters.join(", ")),
+    t&&h("span",{key:'c',className:"mtg-chip meeting-print-hide"},t.label," ↗")];};
+  const line=(e,isSub)=>h("div",{key:e.item.id,className:"mtg-line"+(isSub?" mtg-sub":"")},
+    h("span",{className:"mtg-n"},e.number),
+    h(MtgText,{value:e.item.topic,dataId:e.item.id,placeholder:isSub?"תת סעיף":"תיאור הסעיף",onChange:v=>updateItem(e.item.id,{topic:v}),onKeyDown:ev=>onKey(ev,e.item)}),
+    ...extras(e.item),menu(e.item,isSub));
+  const dropPhotos=itemId=>({onDragOver:e=>{if(!dragSec&&e.dataTransfer&&Array.from(e.dataTransfer.types||[]).includes('Files'))e.preventDefault();},onDrop:e=>{if(dragSec||!e.dataTransfer||!e.dataTransfer.files.length)return;e.preventDefault();e.stopPropagation();uploadPhotos(itemId,e.dataTransfer.files);}});
+  const itemCells=x=>[
+    h("td",{key:'d',...dropPhotos(x.item.id)},line(x,false),x.subs.map(s=>line(s,true))),
+    h("td",{key:'a'},
+      h("select",{className:"mtg-sel meeting-print-hide",value:x.item.assignee||'',onChange:e=>updateItem(x.item.id,{assignee:e.target.value||null})},discOptions.map(o=>h("option",{key:o.id,value:o.id},o.label))),
+      h("input",{className:"mtg-person meeting-print-hide",list:"mtg-people","data-i18n-skip":"",value:x.item.person||'',placeholder:"שם",onChange:e=>updateItem(x.item.id,{person:e.target.value})}),
+      h("div",{className:"meeting-print-only","data-i18n-skip":""},assigneeText(x.item,labelOf))),
+    h("td",{key:'t'},
+      h("div",{className:"meeting-print-hide"},h(DateField,{value:x.item.dueDate||'',onChange:v=>updateItem(x.item.id,{dueDate:v}),style:{fontSize:11}})),
+      h("div",{className:"meeting-print-only"},mtgDate(x.item.dueDate)),
+      x.item.carriedFrom&&h("div",{className:"mtg-carried"},"מישיבה ",mtgDate(x.item.carriedFrom.date)))];
+  return h("div",null,
+    h("datalist",{id:"mtg-people"},(meeting.participants||[]).map(p=>h("option",{key:p.id,value:p.name}))),
+    h("input",{ref:fileRef,type:"file",accept:"image/*",multiple:true,style:{display:'none'},onChange:e=>{const id=photoFor.current;const fs=e.target.files;if(id&&fs)uploadPhotos(id,fs);e.target.value='';}}),
+    h("table",{className:"mtg-table"},
+      h("colgroup",null,h("col",{style:{width:'7%'}}),h("col",{style:{width:'17%'}}),h("col",null),h("col",{style:{width:'18%'}}),h("col",{style:{width:'14%'}})),
+      h("thead",null,h("tr",null,h("th",null,"#"),h("th",null,"נושא"),h("th",null,"תיאור"),h("th",null,"אחראי"),h("th",null,"לטיפול"))),
+      rows.map((r,si)=>{const span=Math.max(1,r.items.length);return h("tbody",{key:r.section.id,className:"mtg-sec"+(dragSec===r.section.id?" mtg-dragging":""),
+        onDragOver:e=>{if(dragSec)e.preventDefault();},
+        onDrop:e=>{if(!dragSec)return;e.preventDefault();if(dragSec!==r.section.id)setSections(moveSectionTo(sections,dragSec,si));setDragSec(null);}},
+        (r.items.length?r.items:[null]).map((x,ii)=>h("tr",{key:x?x.item.id:'empty'},
+          ii===0&&h("td",{rowSpan:span,className:"mtg-num"},
+            h("span",{className:"mtg-drag meeting-print-hide",draggable:true,title:"גרור לשינוי סדר הנושאים",onDragStart:e=>{setDragSec(r.section.id);e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','');},onDragEnd:()=>setDragSec(null)},"⋮⋮"),
+            r.number),
+          ii===0&&h("td",{rowSpan:span},
+            h(MtgText,{value:r.section.title,dataId:'sec-'+r.section.id,placeholder:"נושא",bold:true,onChange:v=>setSections(sections.map(s=>s.id===r.section.id?{...s,title:v}:s)),onKeyDown:e=>{if(e.key==='Enter'&&!e.shiftKey&&!(e.nativeEvent&&e.nativeEvent.isComposing)){e.preventDefault();const first=items.find(i=>i.sectionId===r.section.id&&!i.parentId);if(first)setFocusId(first.id);else addItem(r.section.id);}}}),
+            h("div",{className:"mtg-sec-tools meeting-print-hide"},
+              h("button",{className:"mtg-tool",onClick:()=>addItem(r.section.id)},"+ סעיף"),
+              h("button",{className:"mtg-tool",title:"הזז למעלה",onClick:()=>setSections(moveSectionTo(sections,r.section.id,si-1))},"↑"),
+              h("button",{className:"mtg-tool",title:"הזז למטה",onClick:()=>setSections(moveSectionTo(sections,r.section.id,si+1))},"↓"),
+              h("button",{className:"mtg-tool",title:"מחק נושא",onClick:()=>deleteSection(r.section)},"✕"))),
+          x?itemCells(x):h("td",{colSpan:3},h("button",{className:"mtg-tool meeting-print-hide",onClick:()=>addItem(r.section.id)},"+ סעיף")))));})),
+    h("button",{className:"mtg-add meeting-print-hide",onClick:addSection},"+ נושא"),
+    appendix.length>0&&h("div",{className:"mtg-appendix"},
+      h("div",{className:"mtg-app-title"},"נספח תמונות"),
+      h("div",{className:"mtg-app-grid"},appendix.map(a=>h("figure",{key:a.photo.id,className:"mtg-fig"},
+        h("img",{src:a.photo.url,alt:""}),
+        h("figcaption",{"data-i18n-skip":""},a.letter," · סעיף ",a.number,a.item.topic?" — "+a.item.topic.slice(0,70):""),
+        h("button",{className:"mtg-fig-x meeting-print-hide",title:"הסר תמונה",onClick:()=>removePhoto(a.item.id,a.photo.id)},"✕"))))),
+    createItemFor&&h(CreateItemDialog,{data,save,item:items.find(it=>it.id===createItemFor),meeting,onClose:()=>setCreateItemFor(null),onCreate:sheetId=>{updateItem(createItemFor,{createdTaskTrackId:sheetId});setCreateItemFor(null);}}));
+}
 function MeetingEditor({data,save,meeting,onBack,onSave}){
 const[m,setM]=useState(meeting);
 const update=patch=>{const next={...m,...patch};setM(next);};
