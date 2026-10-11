@@ -3542,6 +3542,99 @@ showCustomForm&&/*#__PURE__*/React.createElement("div",{style:{display:'flex',ga
 (m.recordedBy||m.distribution)&&/*#__PURE__*/React.createElement("div",{className:"meeting-print-only",style:{fontSize:12,color:'var(--text)',marginTop:8}},
 m.recordedBy&&/*#__PURE__*/React.createElement("div",null,'רשם: ',m.recordedBy),
 m.distribution&&/*#__PURE__*/React.createElement("div",{style:{marginTop:4}},'תפוצה: ',m.distribution)))));}
+/* ═══ meeting-logic ═══ */
+/* Meeting summaries: topics (sections) hold items; an item with parentId is a sub-item.
+   Numbers are never stored — meetingRows derives them from the order. */
+const MTG_LETTERS='אבגדהוזחטיכלמנסעפצקרשת';
+function mtgNewItem(sectionId,parentId){return{id:uid(),sectionId,parentId:parentId||null,topic:'',assignee:null,person:'',dueDate:'',startDate:'',carriedFrom:null,photos:[],itemType:null,createdTaskTrackId:null,linkedRecordId:null,linkedRecordKind:null};}
+function mtgDate(iso){if(!iso)return '';const[y,mo,d]=String(iso).split('-');return d&&mo&&y?d+'/'+mo+'/'+y:'';}
+function migrateMeeting(m){
+  const all=m.items||[];
+  if(Array.isArray(m.sections)&&all.every(it=>it.sectionId))return m;
+  const sections=[...(m.sections||[])];
+  const kept=all.filter(it=>it.sectionId);
+  const items=[];
+  const secByNum={},itemByNum={};
+  let lastSec=sections.length?sections[sections.length-1]:null;
+  const general=()=>{if(!lastSec){lastSec={id:uid(),title:'כללי'};sections.push(lastSec);}return lastSec;};
+  const base=it=>({...mtgNewItem(null,null),id:it.id||uid(),topic:it.topic||'',assignee:it.assignee||null,person:it.person||'',dueDate:it.dueDate||'',startDate:it.startDate||'',carriedFrom:it.carriedFrom||null,photos:it.photos||[],itemType:it.itemType||null,createdTaskTrackId:it.createdTaskTrackId||null,linkedRecordId:it.linkedRecordId||null,linkedRecordKind:it.linkedRecordKind||null});
+  for(const it of all.filter(x=>!x.sectionId)){
+    const segs=String(it.number||'').trim().split('.').filter(Boolean);
+    const valid=segs.length>0&&segs.every(x=>/^\d+$/.test(x));
+    if(valid&&segs.length===1){
+      const sec={id:uid(),title:it.topic||''};sections.push(sec);secByNum[segs[0]]=sec;lastSec=sec;
+      if(it.assignee||it.dueDate||it.startDate||it.itemType||it.linkedRecordId)items.push({...base(it),sectionId:sec.id});
+      continue;
+    }
+    const parent=valid&&segs.length>=3?itemByNum[segs.slice(0,2).join('.')]:null;
+    if(parent){items.push({...base(it),sectionId:parent.sectionId,parentId:parent.id});continue;}
+    const sec=valid&&secByNum[segs[0]];
+    if(sec){const x={...base(it),sectionId:sec.id};items.push(x);itemByNum[segs.slice(0,2).join('.')]=x;continue;}
+    items.push({...base(it),sectionId:general().id});
+  }
+  return{...m,sections,items:[...kept,...items]};
+}
+function meetingRows(m){
+  const items=m.items||[];
+  return(m.sections||[]).map((section,si)=>{
+    const n=String(si+1);
+    const tops=items.filter(it=>it.sectionId===section.id&&!it.parentId);
+    return{section,number:n,items:tops.map((item,ii)=>{const num=n+'.'+(ii+1);return{item,number:num,subs:items.filter(x=>x.parentId===item.id).map((x,k)=>({item:x,number:num+'.'+(k+1)}))};})};
+  });
+}
+function indentItem(items,id){
+  const it=items.find(x=>x.id===id);if(!it||it.parentId)return items;
+  const tops=items.filter(x=>x.sectionId===it.sectionId&&!x.parentId);
+  const i=tops.findIndex(x=>x.id===id);if(i<1)return items;
+  const prev=tops[i-1];
+  return items.map(x=>x.id===id||x.parentId===id?{...x,parentId:prev.id}:x);
+}
+function outdentItem(items,id){
+  const it=items.find(x=>x.id===id);if(!it||!it.parentId)return items;
+  const sibs=items.filter(x=>x.parentId===it.parentId);
+  const later=sibs.slice(sibs.findIndex(x=>x.id===id)+1).map(x=>x.id);
+  const rest=items.filter(x=>x.id!==id);
+  let last=rest.findIndex(x=>x.id===it.parentId);
+  rest.forEach((x,k)=>{if(x.parentId===it.parentId&&!later.includes(x.id)&&k>last)last=k;});
+  const out=[...rest.slice(0,last+1),{...it,parentId:null},...rest.slice(last+1)];
+  return out.map(x=>later.includes(x.id)?{...x,parentId:id}:x);
+}
+function moveItem(items,id,dir){
+  const it=items.find(x=>x.id===id);if(!it)return items;
+  const sibs=items.filter(x=>x.sectionId===it.sectionId&&(x.parentId||null)===(it.parentId||null));
+  const j=sibs.findIndex(x=>x.id===id)+dir;if(j<0||j>=sibs.length)return items;
+  const a=items.indexOf(it),b=items.indexOf(sibs[j]);const out=items.slice();out[a]=sibs[j];out[b]=it;return out;
+}
+function moveSectionTo(sections,id,to){
+  const from=sections.findIndex(s=>s.id===id);if(from<0||to<0||to>=sections.length||from===to)return sections;
+  const out=sections.slice();const[s]=out.splice(from,1);out.splice(to,0,s);return out;
+}
+function followUpMeeting(prev,{id,date}){
+  const m=migrateMeeting(prev);const secMap={},itemMap={};
+  const sections=(m.sections||[]).map(s=>{const x={id:uid(),title:s.title};secMap[s.id]=x.id;return x;});
+  (m.items||[]).forEach(it=>{itemMap[it.id]=uid();});
+  const items=(m.items||[]).map(it=>({...it,id:itemMap[it.id],sectionId:secMap[it.sectionId],parentId:it.parentId?itemMap[it.parentId]||null:null,carriedFrom:it.carriedFrom||{meetingId:m.id,date:m.date||''},photos:[],itemType:null,createdTaskTrackId:null,linkedRecordId:null,linkedRecordKind:null}));
+  return{id,trackId:m.trackId??null,title:m.title||'',date,participants:(m.participants||[]).map(p=>({...p,id:uid()})),sections,items,recordedBy:m.recordedBy||'',distribution:m.distribution||'',createdAt:new Date().toISOString(),basedOnMeetingId:m.id};
+}
+function prevMeetingOf(meetings,trackId){
+  const same=(meetings||[]).filter(m=>(m.trackId??null)===(trackId??null));if(!same.length)return null;
+  return same.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||String(b.createdAt||'').localeCompare(String(a.createdAt||'')))[0];
+}
+function photoAppendix(m){
+  const out=[];
+  meetingRows(m).forEach(r=>r.items.forEach(x=>[x,...x.subs].forEach(e=>(e.item.photos||[]).forEach(photo=>{const k=out.length;out.push({letter:k<MTG_LETTERS.length?MTG_LETTERS[k]+"'":String(k+1),number:e.number,item:e.item,photo});}))));
+  return out;
+}
+function assigneeText(item,labelOf){
+  const d=item.assignee?(item.assignee==='לידיעה'?'לידיעה':labelOf(item.assignee)):'';
+  const p=String(item.person||'').trim();
+  return d&&p?d+' – '+p:d||p;
+}
+function mergeParticipants(current,members){
+  const have=new Set((current||[]).map(p=>p.name));
+  return[...(current||[]),...(members||[]).filter(p=>p.name&&!have.has(p.name)).map(p=>({id:uid(),name:p.name,role:p.role||'',firm:p.firm||'',isCustom:false}))];
+}
+/* ═══ /meeting-logic ═══ */
 function MeetingsView({data,save,trackId=null,openMeetingId=null,onConsumeOpen}){const[editId,setEditId]=useState(null);useEffect(()=>{if(openMeetingId){setEditId(openMeetingId);onConsumeOpen&&onConsumeOpen();}},[openMeetingId]);const allMeetings=data.meetings||[];const meetings=allMeetings.filter(m=>trackId===null||m.trackId===trackId);const tracks=data.tracks||[];const trackLabel=id=>(tracks.find(t=>t.id===id)||{}).label||id||'כללי';const openNew=()=>{const m={id:uid(),trackId:trackId,title:'',date:todayISO(),participants:[],items:[],recordedBy:'',distribution:'',createdAt:new Date().toISOString()};save({...data,meetings:[...allMeetings,m]});setEditId(m.id);};const deleteMeeting=id=>{if(!confirm(tx('למחוק את סיכום הישיבה?')))return;save({...data,meetings:allMeetings.filter(m=>m.id!==id)});};if(editId){const meeting=allMeetings.find(m=>m.id===editId);if(!meeting){setEditId(null);return null;}return/*#__PURE__*/React.createElement(MeetingEditor,{data:data,save:save,meeting:meeting,onBack:()=>setEditId(null),onSave:updated=>{save({...data,meetings:allMeetings.map(m=>m.id===updated.id?updated:m)});}});}return/*#__PURE__*/React.createElement("div",{style:{padding:'20px 24px',maxWidth:900,margin:'0 auto'}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}},/*#__PURE__*/React.createElement("h2",{style:{fontSize:16,fontWeight:700,margin:0,color:'var(--text)'}},"ישיבות"+(trackId?' — '+trackLabel(trackId):'')),/*#__PURE__*/React.createElement("button",{onClick:openNew,style:{padding:'7px 16px',fontSize:12,borderRadius:7,border:'none',background:'var(--accent)',color:'#fff',cursor:'pointer',fontFamily:'inherit',fontWeight:600}},"+ ישיבה חדשה")),meetings.length===0?/*#__PURE__*/React.createElement("div",{style:{textAlign:'center',padding:'60px 0',color:'var(--text-3)',fontSize:13}},'אין ישיבות עדיין — לחץ על "+ ישיבה חדשה" כדי להתחיל'):/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirection:'column',gap:10}},meetings.map(m=>/*#__PURE__*/React.createElement("div",{key:m.id,style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'14px 18px',cursor:'pointer',display:'flex',alignItems:'center',gap:16,position:'relative'},onClick:()=>setEditId(m.id)},/*#__PURE__*/React.createElement("div",{style:{flexShrink:0,width:48,height:48,background:'rgba(99,102,241,.1)',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center'}},/*#__PURE__*/React.createElement(Ic,{n:'meetings',size:20})),/*#__PURE__*/React.createElement("div",{style:{flex:1,minWidth:0}},/*#__PURE__*/React.createElement("div",{"data-i18n-skip":"",style:{fontWeight:700,fontSize:13,color:'var(--text)',marginBottom:3}},m.title||tx('(ללא כותרת)')),/*#__PURE__*/React.createElement("div",{style:{fontSize:11,color:'var(--text-3)',display:'flex',gap:12}},/*#__PURE__*/React.createElement("span",null,fmtDateFull(m.date)),m.participants.length>0&&/*#__PURE__*/React.createElement("span",null,m.participants.length+' משתתפים'),m.items.length>0&&/*#__PURE__*/React.createElement("span",null,m.items.length+' נושאים'),trackId===null&&m.trackId&&/*#__PURE__*/React.createElement("span",{"data-i18n-skip":"",style:{background:'rgba(99,102,241,.12)',color:'var(--accent)',borderRadius:4,padding:'1px 6px',fontSize:10,fontWeight:600}},nameForLang(trackLabel(m.trackId))))),/*#__PURE__*/React.createElement("button",{onClick:e=>{e.stopPropagation();deleteMeeting(m.id);},style:{opacity:0,position:'absolute',insetInlineEnd:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',color:'#EF4444',fontSize:16,padding:'4px 8px',borderRadius:4},onMouseEnter:e=>e.currentTarget.style.opacity='1',onMouseLeave:e=>e.currentTarget.style.opacity='0'},'✕')))));}
 
 function NihulHubView({data,save,onNavigateToOngoing,onEditAutomation}){const takeHub=()=>{try{const r=JSON.parse(sessionStorage.getItem('pm_pending_hub')||'null');sessionStorage.removeItem('pm_pending_hub');return r;}catch{return null;}};const[firstHub]=useState(takeHub);const[activeTab,setActiveTabRaw]=useState(()=>{const t=firstHub&&firstHub.tab||screenGet('hub:'+ACTIVE_PROJECT_ID)||'ongoing';return isAdminProject(data)&&ADMIN_HIDDEN_HUB_TABS.includes(t)?'ongoing':t;});const setActiveTab=t=>setActiveTabRaw(isAdminProject(data)&&ADMIN_HIDDEN_HUB_TABS.includes(t)?'ongoing':t);useEffect(()=>{screenSet('hub:'+ACTIVE_PROJECT_ID,activeTab);},[activeTab]);const[pendingMeetingId,setPendingMeetingId]=useState(firstHub&&firstHub.meetingId||null);useEffect(()=>{const on=e=>{takeHub();const r=e.detail||{};if(r.tab)setActiveTab(r.tab);if(r.meetingId)setPendingMeetingId(r.meetingId);};window.addEventListener('ph:go-hub',on);return()=>window.removeEventListener('ph:go-hub',on);},[]);return/*#__PURE__*/React.createElement("div",{style:{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',borderBottom:'1px solid var(--border)',background:'var(--surface)',flexShrink:0}},CROSS_CUTTING_ITEMS.filter(t=>!isAdminProject(data)||!ADMIN_HIDDEN_HUB_TABS.includes(t.id)).map(t=>/*#__PURE__*/React.createElement("button",{key:t.id,onClick:()=>setActiveTab(t.id),style:{padding:'9px 16px',fontSize:12,fontFamily:'inherit',border:'none',cursor:'pointer',background:'none',borderBottom:'2px solid',borderBottomColor:activeTab===t.id?'var(--accent)':'transparent',fontWeight:activeTab===t.id?700:400,color:activeTab===t.id?'var(--text)':'var(--text-2)'}},t.label)),React.createElement("button",{type:"button",className:"mtp-jump",title:"מסך התכנון שלי, רק עם הפרויקט הזה",onClick:()=>window.dispatchEvent(new Event('ph:open-my-planner'))},"המשימות שלי בפרויקט ←")),/*#__PURE__*/React.createElement("div",{style:{flex:1,display:'flex',flexDirection:'column',minHeight:0,overflowY:'auto',overflowX:'hidden',background:'var(--bg)'}},activeTab==='ongoing'&&/*#__PURE__*/React.createElement(TrackView,{data:data,save:save,trackId:"ongoing",onEditAutomation:onEditAutomation,onOpenMeeting:id=>{setPendingMeetingId(id);setActiveTab('meetings');}}),activeTab==='gantt'&&/*#__PURE__*/React.createElement(NihulGanttView,{data:data,save:save}),activeTab==='meetings'&&/*#__PURE__*/React.createElement(MeetingsView,{data:data,save:save,trackId:null,openMeetingId:pendingMeetingId,onConsumeOpen:()=>setPendingMeetingId(null)}),activeTab==='supervision'&&/*#__PURE__*/React.createElement(ComingSoonPage,{iconName:"supervision",title:"פיקוח",desc:"ריכוז וניהול דוחות פיקוח מהביצוע — בפיתוח"}),activeTab==='reviews'&&React.createElement(ReviewsPage,{data:data,save:save}),activeTab==='principles'&&/*#__PURE__*/React.createElement(PrinciplesView,{data:data,save:save,onNavigateToTasks:()=>setActiveTab('ongoing'),onOpenMeeting:id=>{setPendingMeetingId(id);setActiveTab('meetings');}}),activeTab==='milestones'&&/*#__PURE__*/React.createElement("div",{style:{padding:'18px 20px'}},/*#__PURE__*/React.createElement(GoalsMilestonesPanel,{data:data,save:save,only:"milestones"})),activeTab==='goals'&&/*#__PURE__*/React.createElement("div",{style:{padding:'18px 20px'}},/*#__PURE__*/React.createElement(GoalsMilestonesPanel,{data:data,save:save,only:"goals"}))));}/* Small popover for viewing/editing/deleting a single process-event "update"
