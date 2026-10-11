@@ -2666,6 +2666,7 @@ Object.assign(HE_EN, {
 "בתכנית שלך · {b}": "In your plan · {b}",
 "שאר המשימות": "Other tasks",
 "בלי לחץ של תאריך": "No date pressure",
+"הצג שלב": "Show stage",
 
 /* ── Projects screen — the code badge ── */
 "ערוך את פרטי הפרויקט": "Edit project details"
