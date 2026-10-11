@@ -2675,7 +2675,15 @@ Object.assign(HE_EN, {
 "קטגוריות": "Categories",
 "מופרדות בפסיקים. כל קטגוריה היא מסלול, ובתוכה מוסיפים פרויקטים קטנים.": "Comma-separated. Each category is a track; small projects are added inside it.",
 "+ פרויקט": "+ Project",
-"שם הפרויקט הקטן": "Small project name"
+"שם הפרויקט הקטן": "Small project name",
+"אין עדיין פרויקטים בקטגוריה. \"+ פרויקט\" בשורת הלשוניות מוסיף אחד.": "No projects in this category yet. \"+ Project\" in the tab bar adds one.",
+"בפיתוח עכשיו": "In development now",
+" + עוד {n}": " + {n} more",
+"{n} בבדיקה": "{n} in review",
+"{n} תקועות": "{n} stuck",
+"עדכון אחרון: {d}": "Last change: {d}",
+"באגים": "Bugs",
+"רעיונות": "Ideas"
 });
 
 window.I18N_HE_EN = HE_EN;
