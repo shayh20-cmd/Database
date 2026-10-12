@@ -1553,10 +1553,21 @@ html[data-appearance="dark"] .plan-rolled{background:rgba(245,158,11,.18);color:
 .mtg-sub{padding-inline-start:24px}
 .mtg-n{color:#555;min-width:30px;flex-shrink:0}
 .mtg-carried{font-size:10px;color:#666;margin-top:2px}
+.mtg-due{display:flex;align-items:center;gap:3px}
+.mtg-due .df-box{flex:1}
+.mtg-orig-btn{flex-shrink:0;border:none;background:none;color:#888;cursor:pointer;font-size:12px;line-height:1;padding:2px 3px;border-radius:4px;opacity:0;font-family:inherit}
+tr:hover .mtg-orig-btn,.mtg-orig-btn:focus-visible,.mtg-orig-btn.on{opacity:.75}
+.mtg-orig-btn:hover{opacity:1;background:rgba(37,99,235,.08);color:var(--accent)}
+.mtg-orig-edit{display:flex;flex-direction:column;gap:2px;margin-top:4px;font-size:10px;color:#666}
+.mtg-orig-edit .df-box{width:100%;padding:2px 4px;justify-content:center;box-sizing:border-box}
+.mtg-subadd{flex-shrink:0;border:none;background:none;color:#999;cursor:pointer;font-size:11px;padding:1px 5px;border-radius:4px;opacity:0;font-family:inherit;white-space:nowrap}
+.mtg-line:hover .mtg-subadd,.mtg-subadd:focus-visible{opacity:.8}
+.mtg-subadd:hover{opacity:1;color:var(--accent);background:rgba(37,99,235,.08)}
 .mtg-photo-ref{font-size:10px;color:#555;white-space:nowrap;flex-shrink:0}
 .mtg-chip{font-size:10px;color:var(--accent);border:1px solid var(--accent);border-radius:9px;padding:0 6px;white-space:nowrap;flex-shrink:0}
 .mtg-sel,.mtg-person{width:100%;font-size:11px;font-family:inherit;border:1px solid #ddd;border-radius:4px;padding:2px 4px;background:#fff;box-sizing:border-box}
 .mtg-person{margin-top:3px}
+.mtg-role{margin:0}
 .mtg-due{max-width:100%;overflow:hidden}.mtg-due .df-box{min-width:0;width:100%;padding:2px 4px;justify-content:center;box-sizing:border-box}.mtg-due .df-box-ico{display:none}
 .mtg-menu-btn{border:none;background:none;cursor:pointer;color:#999;font-size:14px;padding:0 3px;line-height:1.2;opacity:0}
 .mtg-line:hover .mtg-menu-btn,.mtg-menu-btn.open,.mtg-menu-btn:focus-visible{opacity:1}
@@ -3431,6 +3442,11 @@ function MeetingTable({data,save,meeting,onChange}){
   const disciplines=projList(data,'disciplines');
   const discOptions=[{id:'',label:'—'},...visOpts(disciplines).map(d=>({id:d.id,label:DISCIPLINE_FULL_NAMES[d.id]||d.label})),{id:'לידיעה',label:'לידיעה'}];
   const labelOf=id=>DISCIPLINE_FULL_NAMES[id]||(discOptions.find(o=>o.id===id)||{}).label||id;
+  /* roles typed in any of the project's meetings (and the participants' roles) come back as suggestions */
+  const discLabels=discOptions.filter(o=>o.id).map(o=>o.label);
+  const roles=[...new Set([...[...(data.meetings||[]).filter(m=>m.id!==meeting.id),meeting].flatMap(m=>(m.items||[]).map(x=>String(x.person||'').trim())),...(meeting.participants||[]).map(p=>String(p.role||'').trim())].filter(r=>r&&!discLabels.includes(r)))].sort((a,b)=>a.localeCompare(b,'he'));
+  const assigneeFrom=v=>{const t=String(v||'').trim();if(!t)return{assignee:null,person:''};const o=discOptions.find(o=>o.id&&(o.label===t||o.id===t));return o?{assignee:o.id,person:''}:{assignee:null,person:v};};
+  const[origFor,setOrigFor]=useState(null);
   const ITEM_TYPES=[{id:'task',label:'משימה'},{id:'subtask',label:'תת-משימה'},{id:'update',label:'עדכון'},{id:'principle',label:'עקרון תכנון'},{id:'milestone',label:'אבן דרך'},...(SHOW_GOALS?[{id:'goal',label:'יעד'}]:[])];
   const rows=meetingRows(meeting);
   const appendix=photoAppendix(meeting);
@@ -3487,20 +3503,24 @@ function MeetingTable({data,save,meeting,onChange}){
   const line=(e,isSub)=>h("div",{key:e.item.id,className:"mtg-line"+(isSub?" mtg-sub":"")},
     h("span",{className:"mtg-n"},e.number),
     h(MtgText,{value:e.item.topic,dataId:e.item.id,placeholder:isSub?"תת סעיף":"תיאור הסעיף",onChange:v=>updateItem(e.item.id,{topic:v}),onKeyDown:ev=>onKey(ev,e.item)}),
-    ...extras(e.item),menu(e.item,isSub));
+    ...extras(e.item),
+    !isSub&&h("button",{className:"mtg-subadd meeting-print-hide",title:"הוסף תת סעיף (או Tab בתחילת סעיף חדש)",onClick:()=>insertAt(its=>endOf(its,e.item.id)+1,mtgNewItem(e.item.sectionId,e.item.id))},"+ תת סעיף"),
+    menu(e.item,isSub));
   const dropPhotos=itemId=>({onDragOver:e=>{if(!dragSec&&e.dataTransfer&&Array.from(e.dataTransfer.types||[]).includes('Files'))e.preventDefault();},onDrop:e=>{if(dragSec||!e.dataTransfer||!e.dataTransfer.files.length)return;e.preventDefault();e.stopPropagation();const fs=Array.from(e.dataTransfer.files);if(!fs.some(f=>/^image\//.test(f.type))){alert(tx('אפשר לצרף רק תמונות'));return;}uploadPhotos(itemId,fs);}});
   const itemCells=x=>[
     h("td",{key:'d'},line(x,false),x.subs.map(s=>line(s,true))),
     h("td",{key:'a'},
-      h("select",{className:"mtg-sel meeting-print-hide",value:x.item.assignee||'',onChange:e=>updateItem(x.item.id,{assignee:e.target.value||null})},discOptions.map(o=>h("option",{key:o.id,value:o.id},o.label))),
-      h("input",{className:"mtg-person meeting-print-hide",list:"mtg-people","data-i18n-skip":"",value:x.item.person||'',placeholder:tx("שם"),onChange:e=>updateItem(x.item.id,{person:e.target.value})}),
+      h("input",{className:"mtg-sel mtg-role meeting-print-hide",list:"mtg-roles","data-i18n-skip":"",value:assigneeText(x.item,labelOf),placeholder:tx("תחום / תפקיד"),title:"בחר תחום או כתוב תפקיד — תפקיד שנכתב פעם אחת בפרויקט יוצע מעכשיו ברשימה",onChange:e=>updateItem(x.item.id,assigneeFrom(e.target.value))}),
       h("div",{className:"meeting-print-only","data-i18n-skip":""},assigneeText(x.item,labelOf))),
     h("td",{key:'t'},
-      h("div",{className:"meeting-print-hide mtg-due"},h(DateField,{value:x.item.dueDate||'',onChange:v=>updateItem(x.item.id,{dueDate:v}),style:{fontSize:11}})),
+      h("div",{className:"meeting-print-hide mtg-due"},h(DateField,{value:x.item.dueDate||'',onChange:v=>updateItem(x.item.id,{dueDate:v}),style:{fontSize:11}}),
+        h("button",{type:"button",className:"mtg-orig-btn"+(origFor===x.item.id||x.item.origDue?" on":""),title:x.item.origDue?"יעד מקורי: "+mtgDate(x.item.origDue)+" — לחיצה לשינוי":"תאריך יעד מקורי — כשהיעד נדחה בישיבה שלא תועדה כאן","aria-label":"תאריך יעד מקורי",onClick:()=>setOrigFor(f=>f===x.item.id?null:x.item.id)},"↶")),
+      origFor===x.item.id&&h("div",{className:"meeting-print-hide mtg-orig-edit"},h("span",null,"יעד מקורי"),h(DateField,{value:x.item.origDue||'',clearable:true,onChange:v=>{updateItem(x.item.id,{origDue:v||null});setOrigFor(null);},style:{fontSize:11}})),
       h("div",{className:"meeting-print-only"},mtgDate(x.item.dueDate)),
+      x.item.origDue&&x.item.origDue!==x.item.dueDate&&h("div",{className:"mtg-carried"},"יעד מקורי ",mtgDate(x.item.origDue)),
       x.item.carriedFrom&&h("div",{className:"mtg-carried"},"מישיבה ",mtgDate(x.item.carriedFrom.date)))];
   return h("div",null,
-    h("datalist",{id:"mtg-people"},(meeting.participants||[]).map(p=>h("option",{key:p.id,value:p.name}))),
+    h("datalist",{id:"mtg-roles"},[...discOptions.filter(o=>o.id).map(o=>o.label),...roles].map(v=>h("option",{key:v,value:v}))),
     h("input",{ref:fileRef,type:"file",accept:"image/*",multiple:true,style:{display:'none'},onChange:e=>{const id=photoFor.current;const fs=e.target.files;if(id&&fs)uploadPhotos(id,fs);e.target.value='';}}),
     h("table",{className:"mtg-table"},
       h("colgroup",null,h("col",{style:{width:'7%'}}),h("col",{style:{width:'17%'}}),h("col",null),h("col",{style:{width:'18%'}}),h("col",{style:{width:'14%'}})),
