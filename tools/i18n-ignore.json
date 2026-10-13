@@ -5,6 +5,7 @@
  "${daysBetween(today,g.targetDate)}י",
  "${daysBetween(today,m.date)}י",
  "א",
+ "אבגדהוזחטיכלמנסעפצקרשת",
  "אולם ספורט",
  "אולם ספורט לוד",
  "אישור תכנית בינוי",
