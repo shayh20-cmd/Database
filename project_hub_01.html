@@ -905,6 +905,33 @@ html[data-appearance="dark"] .rv-verify{background:rgba(245,158,11,.18);color:#F
 .ds-btab.on{border-color:var(--accent);background:rgba(37,99,235,.08);color:var(--accent);font-weight:600;}
 .mt-proj-only .mt-table-head,.mt-proj-only .mtp-pbar{display:none}
 .mt-proj-only{padding-top:14px}
+.arc{padding:18px 20px;max-width:1100px}
+.arc-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:12px;flex-wrap:wrap}
+.arc-t{font-size:16px;font-weight:700;color:var(--text)}
+.arc-s{font-size:12px;color:var(--text-3);margin-top:2px}
+.arc-q{border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12.5px;font-family:inherit;background:var(--surface);color:var(--text);min-width:220px}
+.arc-bar{display:flex;align-items:center;gap:8px;padding:8px 10px;margin-bottom:8px;border:1px solid var(--accent);border-radius:8px;background:rgba(37,99,235,.06);font-size:12.5px}
+.arc-table{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.arc-table th{text-align:start;font-weight:600;color:var(--text-2);background:var(--bg);padding:7px 10px;border-bottom:1px solid var(--border)}
+.arc-table td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:top;color:var(--text)}
+.arc-table tr.on td{background:rgba(37,99,235,.05)}
+.arc-title{font-weight:600}
+.arc-sub{display:block;font-weight:400;font-size:11px;color:var(--text-3);margin-top:2px}
+.arc-where{color:var(--text-2)}
+.arc-when{border:none;background:none;color:var(--text-2);font:inherit;cursor:pointer;padding:0;text-decoration:underline dotted}
+.arc-when:hover{color:var(--accent)}
+.arc-acts{white-space:nowrap;text-align:end}
+.arc-btn{border:1px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:6px;padding:3px 10px;font-size:12px;font-family:inherit;cursor:pointer;margin-inline-start:4px}
+.arc-btn.primary{border-color:var(--accent);color:var(--accent)}
+.arc-btn.primary:hover{background:rgba(37,99,235,.08)}
+.arc-btn.danger{color:#b91c1c}
+.arc-btn.danger:hover{border-color:#b91c1c;background:rgba(185,28,28,.06)}
+.arc-empty{padding:24px;text-align:center;color:var(--text-3);font-size:13px}
+.arc-bak{margin-top:18px;font-size:12.5px}
+.arc-bak summary{cursor:pointer;color:var(--text-2);font-weight:600}
+.arc-bak-list{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:4px}
+.arc-bak-list li{display:flex;gap:10px;align-items:center}
+.arc-bak-list a{color:var(--accent);font-family:monospace;font-size:12px}
 .mtp-jump{margin-inline-start:auto;align-self:center;margin-inline-end:12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);color:var(--accent);font-family:inherit;font-size:12px;padding:4px 10px;cursor:pointer;white-space:nowrap;}
 .mtp-jump:hover{border-color:var(--accent);background:rgba(37,99,235,.06);}
 .mte{padding:2px 24px 10px;}
@@ -3742,7 +3769,233 @@ prevMeeting&&React.createElement("div",{className:"mtg-pop-row",onClick:()=>crea
 (data.participantLists||[]).length>0&&React.createElement("div",{className:"mtg-pop-lbl"},"ריקה, עם רשימת משתתפים:"),
 (data.participantLists||[]).map(l=>React.createElement("div",{key:l.id,className:"mtg-pop-row","data-i18n-skip":"",onClick:()=>createMeeting(blankMeeting(mergeParticipants([],l.members)))},l.name))))),meetings.length===0?/*#__PURE__*/React.createElement("div",{style:{textAlign:'center',padding:'60px 0',color:'var(--text-3)',fontSize:13}},'אין ישיבות עדיין — לחץ על "+ ישיבה חדשה" כדי להתחיל'):/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirection:'column',gap:10}},meetings.map(m=>/*#__PURE__*/React.createElement("div",{key:m.id,style:{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'14px 18px',cursor:'pointer',display:'flex',alignItems:'center',gap:16,position:'relative'},onClick:()=>setEditId(m.id)},/*#__PURE__*/React.createElement("div",{style:{flexShrink:0,width:48,height:48,background:'rgba(99,102,241,.1)',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center'}},/*#__PURE__*/React.createElement(Ic,{n:'meetings',size:20})),/*#__PURE__*/React.createElement("div",{style:{flex:1,minWidth:0}},/*#__PURE__*/React.createElement("div",{"data-i18n-skip":"",style:{fontWeight:700,fontSize:13,color:'var(--text)',marginBottom:3}},m.title||tx('(ללא כותרת)')),/*#__PURE__*/React.createElement("div",{style:{fontSize:11,color:'var(--text-3)',display:'flex',gap:12}},/*#__PURE__*/React.createElement("span",null,fmtDateFull(m.date)),(m.participants||[]).length>0&&/*#__PURE__*/React.createElement("span",null,m.participants.length+' משתתפים'),(()=>{const n=(m.sections||[]).length||(m.items||[]).filter(i=>!i.parentId).length;return n>0&&/*#__PURE__*/React.createElement("span",null,n+' נושאים');})(),trackId===null&&m.trackId&&/*#__PURE__*/React.createElement("span",{"data-i18n-skip":"",style:{background:'rgba(99,102,241,.12)',color:'var(--accent)',borderRadius:4,padding:'1px 6px',fontSize:10,fontWeight:600}},nameForLang(trackLabel(m.trackId))))),/*#__PURE__*/React.createElement("button",{onClick:e=>{e.stopPropagation();deleteMeeting(m.id);},style:{opacity:0,position:'absolute',insetInlineEnd:12,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',color:'#EF4444',fontSize:16,padding:'4px 8px',borderRadius:4},onMouseEnter:e=>e.currentTarget.style.opacity='1',onMouseLeave:e=>e.currentTarget.style.opacity='0'},'✕')))));}
 
-function NihulHubView({data,save,onNavigateToOngoing,onEditAutomation,onOpenTask=null}){const{doc:hubPd,setDoc:setHubPd}=usePersonal();const hubOrder=hubPd&&hubPd.prefs&&hubPd.prefs.hubTabOrder||[];const hubTabsAll=CROSS_CUTTING_ITEMS.filter(t=>!isAdminProject(data)||!ADMIN_HIDDEN_HUB_TABS.includes(t.id));/* tabs the saved order doesn't know (new ones) keep their default place among the rest */const hubTabs=(()=>{const known=hubOrder.map(id=>hubTabsAll.find(t=>t.id===id)).filter(Boolean);const out=[...known];hubTabsAll.forEach((t,i)=>{if(out.includes(t))return;const prev=hubTabsAll.slice(0,i).reverse().find(p=>out.includes(p));out.splice(prev?out.indexOf(prev)+1:0,0,t);});return out;})();const[hubDrag,setHubDrag]=useState(null);const moveHubTab=(from,to)=>{if(!from||from===to)return;const ids=hubTabs.map(t=>t.id).filter(id=>id!==from);const at=ids.indexOf(to);ids.splice(at<0?ids.length:(hubTabs.findIndex(t=>t.id===from)<hubTabs.findIndex(t=>t.id===to)?at+1:at),0,from);const apply=d=>({...d,prefs:{...(d&&d.prefs||{}),hubTabOrder:ids}});setHubPd(d=>apply(d||{tasks:[],prefs:{}}));updatePersonal(apply).catch(()=>{});};const takeHub=()=>{try{const r=JSON.parse(sessionStorage.getItem('pm_pending_hub')||'null');sessionStorage.removeItem('pm_pending_hub');return r;}catch{return null;}};const[firstHub]=useState(takeHub);const[activeTab,setActiveTabRaw]=useState(()=>{const t=firstHub&&firstHub.tab||screenGet('hub:'+ACTIVE_PROJECT_ID)||'ongoing';return isAdminProject(data)&&ADMIN_HIDDEN_HUB_TABS.includes(t)?'ongoing':t;});const setActiveTab=t=>setActiveTabRaw(isAdminProject(data)&&ADMIN_HIDDEN_HUB_TABS.includes(t)?'ongoing':t);useEffect(()=>{screenSet('hub:'+ACTIVE_PROJECT_ID,activeTab);},[activeTab]);const[pendingMeetingId,setPendingMeetingId]=useState(firstHub&&firstHub.meetingId||null);useEffect(()=>{const on=e=>{takeHub();const r=e.detail||{};if(r.tab)setActiveTab(r.tab);if(r.meetingId)setPendingMeetingId(r.meetingId);};window.addEventListener('ph:go-hub',on);return()=>window.removeEventListener('ph:go-hub',on);},[]);return/*#__PURE__*/React.createElement("div",{style:{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',borderBottom:'1px solid var(--border)',background:'var(--surface)',flexShrink:0}},hubTabs.map(t=>/*#__PURE__*/React.createElement("button",{key:t.id,draggable:true,title:"גרירה משנה את סדר הלשוניות",onDragStart:e=>{e.dataTransfer.setData('text/x-hubtab',t.id);e.dataTransfer.effectAllowed='move';setHubDrag(t.id);},onDragEnd:()=>setHubDrag(null),onDragOver:e=>{if(e.dataTransfer.types.includes('text/x-hubtab')){e.preventDefault();e.dataTransfer.dropEffect='move';}},onDrop:e=>{e.preventDefault();moveHubTab(e.dataTransfer.getData('text/x-hubtab'),t.id);setHubDrag(null);},onClick:()=>setActiveTab(t.id),style:{padding:'9px 16px',fontSize:12,fontFamily:'inherit',border:'none',cursor:'pointer',background:'none',borderBottom:'2px solid',borderBottomColor:activeTab===t.id?'var(--accent)':'transparent',fontWeight:activeTab===t.id?700:400,color:activeTab===t.id?'var(--text)':'var(--text-2)'}},t.label))),/*#__PURE__*/React.createElement("div",{style:{flex:1,display:'flex',flexDirection:'column',minHeight:0,overflowY:'auto',overflowX:'hidden',background:'var(--bg)'}},activeTab==='myplan'&&React.createElement(MyTasksTable,{data:data,save:save,onOpenTask:onOpenTask||(()=>{}),projectOnly:true}),activeTab==='ongoing'&&/*#__PURE__*/React.createElement(TrackView,{data:data,save:save,trackId:"ongoing",onEditAutomation:onEditAutomation,onOpenMeeting:id=>{setPendingMeetingId(id);setActiveTab('meetings');}}),activeTab==='gantt'&&/*#__PURE__*/React.createElement(NihulGanttView,{data:data,save:save}),activeTab==='meetings'&&/*#__PURE__*/React.createElement(MeetingsView,{data:data,save:save,trackId:null,openMeetingId:pendingMeetingId,onConsumeOpen:()=>setPendingMeetingId(null)}),activeTab==='supervision'&&/*#__PURE__*/React.createElement(ComingSoonPage,{iconName:"supervision",title:"פיקוח",desc:"ריכוז וניהול דוחות פיקוח מהביצוע — בפיתוח"}),activeTab==='reviews'&&React.createElement(ReviewsPage,{data:data,save:save}),activeTab==='principles'&&/*#__PURE__*/React.createElement(PrinciplesView,{data:data,save:save,onNavigateToTasks:()=>setActiveTab('ongoing'),onOpenMeeting:id=>{setPendingMeetingId(id);setActiveTab('meetings');}}),activeTab==='milestones'&&/*#__PURE__*/React.createElement("div",{style:{padding:'18px 20px'}},/*#__PURE__*/React.createElement(GoalsMilestonesPanel,{data:data,save:save,only:"milestones"})),activeTab==='goals'&&/*#__PURE__*/React.createElement("div",{style:{padding:'18px 20px'}},/*#__PURE__*/React.createElement(GoalsMilestonesPanel,{data:data,save:save,only:"goals"}))));}/* Small popover for viewing/editing/deleting a single process-event "update"
+/* ארכיון — the project's removed tasks, kept by the server on every save (tools/local-server/history.js).
+   Restoring puts a task back where it was (its stage and section, or under its parent); the server
+   drops it from the archive once a save has it again. */
+function ArchiveView({
+  data,
+  save
+}) {
+  const h = React.createElement;
+  const [items, setItems] = useState(null);
+  const [err, setErr] = useState('');
+  const [q, setQ] = useState('');
+  const [sel, setSel] = useState(() => new Set());
+  const [restored, setRestored] = useState(() => new Set());
+  const [backups, setBackups] = useState(null);
+  const load = () => fetch('/api/archive/' + ACTIVE_PROJECT_ID, {
+    cache: 'no-store'
+  }).then(r => r.ok ? r.json() : Promise.reject()).then(d => {
+    setItems(d.items || []);
+    setErr('');
+  }).catch(() => setErr('לא ניתן לטעון את הארכיון'));
+  useEffect(() => {
+    load();
+  }, []);
+  const me = (data.team || []).find(m => m.staffId === CURRENT_USER.id);
+  const canPurge = isSuperAdmin() || !!me && memberAccess(me) === 'manager';
+  const when = iso => {
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const p = n => String(n).padStart(2, '0');
+    return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  };
+  const restore = list => {
+    const sheets = (data.sheets || []).map(s => ({
+      ...s,
+      groups: [...(s.groups || [])],
+      tasks: [...(s.tasks || [])]
+    }));
+    const lists = sheets.filter(s => s.type === 'list');
+    const home = lists.find(s => s.track == null) || lists[0];
+    if (!home) return;
+    const have = new Set();
+    sheets.forEach(s => s.tasks.forEach(t => {
+      have.add(t.id);
+      (t.subtasks || []).forEach(x => have.add(x.id));
+    }));
+    /* parents first, so a subtask restored with its parent finds it */
+    [...list].sort((a, b) => (a.parentId ? 1 : 0) - (b.parentId ? 1 : 0)).forEach(r => {
+      if (have.has(r.id)) return;
+      if (r.parentId) {
+        const ps = sheets.find(s => s.tasks.some(t => t.id === r.parentId));
+        if (ps) {
+          ps.tasks = ps.tasks.map(t => t.id === r.parentId ? {
+            ...t,
+            subtasks: [...(t.subtasks || []), r.task]
+          } : t);
+          have.add(r.id);
+          return;
+        }
+      }
+      const s = lists.find(x => x.id === r.sheetId) || home;
+      if (!s.groups.length) s.groups.push({
+        id: uid(),
+        name: 'כללי',
+        collapsed: false
+      });
+      const gid = s.groups.some(g => g.id === r.groupId) ? r.groupId : s.groups[0].id;
+      s.tasks.push({
+        statusId: 'N',
+        subtasks: [],
+        ...r.task,
+        groupId: gid
+      });
+      have.add(r.id);
+    });
+    save({
+      ...data,
+      sheets
+    });
+    setRestored(prev => new Set([...prev, ...list.map(r => r.id)]));
+    setSel(new Set());
+  };
+  const purge = async list => {
+    const ok = await askConfirm(list.length === 1 ? tx('למחוק את "{t}" לצמיתות? אי אפשר יהיה לשחזר.', {
+      t: list[0].task.title || ''
+    }) : tx('למחוק {n} משימות לצמיתות? אי אפשר יהיה לשחזר.', {
+      n: list.length
+    }), {
+      confirmLabel: 'מחק לצמיתות'
+    });
+    if (!ok) return;
+    await fetch('/api/archive/' + ACTIVE_PROJECT_ID + '/purge', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        ids: list.map(r => r.id)
+      })
+    }).catch(() => {});
+    setSel(new Set());
+    load();
+  };
+  const loadBackups = () => fetch('/api/backups/' + ACTIVE_PROJECT_ID, {
+    cache: 'no-store'
+  }).then(r => r.ok ? r.json() : Promise.reject()).then(d => setBackups(d.backups || [])).catch(() => setBackups([]));
+  const norm = s => String(s || '').toLowerCase();
+  const shown = (items || []).filter(r => !restored.has(r.id)).filter(r => !q.trim() || [r.task.title, r.stage, r.group, r.track, r.parentTitle, r.deletedBy].some(x => norm(x).includes(norm(q.trim()))));
+  const picked = shown.filter(r => sel.has(r.id));
+  const toggle = id => setSel(s => {
+    const n = new Set(s);
+    if (n.has(id)) n.delete(id);else n.add(id);
+    return n;
+  });
+  /* everything one save removed together — usually what needs to come back together */
+  const pickBatch = r => setSel(new Set(shown.filter(x => x.deletedAt === r.deletedAt).map(x => x.id)));
+  return h("div", {
+    className: "arc"
+  }, h("div", {
+    className: "arc-head"
+  }, h("div", null, h("div", {
+    className: "arc-t"
+  }, "ארכיון"), h("div", {
+    className: "arc-s"
+  }, "משימות שנמחקו מהפרויקט נשמרות כאן. שחזור מחזיר משימה לשלב ולמקטע שבהם הייתה.")), h("input", {
+    className: "arc-q",
+    type: "search",
+    value: q,
+    placeholder: tx('חיפוש בארכיון'),
+    onChange: e => setQ(e.target.value)
+  })), picked.length > 0 && h("div", {
+    className: "arc-bar"
+  }, h("span", null, tx('{n} נבחרו', {
+    n: picked.length
+  })), h("button", {
+    type: "button",
+    className: "arc-btn primary",
+    onClick: () => restore(picked)
+  }, "שחזר נבחרות"), canPurge && h("button", {
+    type: "button",
+    className: "arc-btn danger",
+    onClick: () => purge(picked)
+  }, "מחק לצמיתות"), h("button", {
+    type: "button",
+    className: "arc-btn",
+    onClick: () => setSel(new Set())
+  }, "נקה בחירה")), err && h("div", {
+    className: "np-err pj-err",
+    role: "alert"
+  }, err), items === null && !err ? h("div", {
+    className: "arc-empty"
+  }, "טוען…") : shown.length === 0 && !err ? h("div", {
+    className: "arc-empty"
+  }, q.trim() ? 'אין תוצאות' : 'אין משימות בארכיון') : h("table", {
+    className: "arc-table"
+  }, h("thead", null, h("tr", null, h("th", {
+    style: {
+      width: 28
+    }
+  }, h("input", {
+    type: "checkbox",
+    "aria-label": "בחר הכל",
+    checked: picked.length > 0 && picked.length === shown.length,
+    onChange: e => setSel(e.target.checked ? new Set(shown.map(r => r.id)) : new Set())
+  })), h("th", null, "משימה"), h("th", null, "היכן הייתה"), h("th", null, "נמחקה"), h("th", null, "בשמירה של"), h("th", null))), h("tbody", null, shown.map(r => h("tr", {
+    key: r.id + r.deletedAt,
+    className: sel.has(r.id) ? 'on' : ''
+  }, h("td", null, h("input", {
+    type: "checkbox",
+    checked: sel.has(r.id),
+    onChange: () => toggle(r.id)
+  })), h("td", {
+    className: "arc-title"
+  }, h("span", {
+    "data-i18n-skip": ""
+  }, r.task.title || tx('(ללא כותרת)')), r.parentId && h("span", {
+    className: "arc-sub"
+  }, tx('תת-משימה של'), " ", h("span", {
+    "data-i18n-skip": ""
+  }, r.parentTitle)), (r.task.subtasks || []).length > 0 && h("span", {
+    className: "arc-sub"
+  }, tx('כולל {n} תתי-משימות', {
+    n: r.task.subtasks.length
+  }))), h("td", {
+    className: "arc-where",
+    "data-i18n-skip": ""
+  }, [trackShortLabel(r.track), r.stage, r.group].filter(Boolean).join(' · ')), h("td", null, h("button", {
+    type: "button",
+    className: "arc-when",
+    dir: "ltr",
+    title: "בחר את כל מה שנמחק באותה שמירה",
+    onClick: () => pickBatch(r)
+  }, when(r.deletedAt))), h("td", {
+    "data-i18n-skip": ""
+  }, r.deletedBy || ''), h("td", {
+    className: "arc-acts"
+  }, h("button", {
+    type: "button",
+    className: "arc-btn primary",
+    onClick: () => restore([r])
+  }, "שחזר"), canPurge && h("button", {
+    type: "button",
+    className: "arc-btn danger",
+    title: "מחיקה לצמיתות",
+    onClick: () => purge([r])
+  }, "✕")))))), isSuperAdmin() && h("details", {
+    className: "arc-bak",
+    onToggle: e => {
+      if (e.currentTarget.open && backups === null) loadBackups();
+    }
+  }, h("summary", null, "גיבויים של הפרויקט"), h("div", {
+    className: "arc-s"
+  }, "עותק של כל הפרויקט נשמר לכל היותר פעם בחצי שעה, ותמיד לפני שמירה שמוחקת 5 משימות או יותר. נשמרים 60 העותקים האחרונים."), backups === null ? h("div", {
+    className: "arc-empty"
+  }, "טוען…") : backups.length === 0 ? h("div", {
+    className: "arc-empty"
+  }, "עוד אין גיבויים") : h("ul", {
+    className: "arc-bak-list"
+  }, backups.map(b => h("li", {
+    key: b.name
+  }, h("a", {
+    href: '/api/backups/' + ACTIVE_PROJECT_ID + '/' + b.name,
+    download: true
+  }, b.name.replace(/\.json$/, '')), h("span", {
+    className: "arc-s"
+  }, Math.round(b.size / 1024) + ' KB'))))));
+}
+function NihulHubView({data,save,onNavigateToOngoing,onEditAutomation,onOpenTask=null}){const{doc:hubPd,setDoc:setHubPd}=usePersonal();const hubOrder=hubPd&&hubPd.prefs&&hubPd.prefs.hubTabOrder||[];const hubTabsAll=CROSS_CUTTING_ITEMS.filter(t=>!isAdminProject(data)||!ADMIN_HIDDEN_HUB_TABS.includes(t.id));/* tabs the saved order doesn't know (new ones) keep their default place among the rest */const hubTabs=(()=>{const known=hubOrder.map(id=>hubTabsAll.find(t=>t.id===id)).filter(Boolean);const out=[...known];hubTabsAll.forEach((t,i)=>{if(out.includes(t))return;const prev=hubTabsAll.slice(0,i).reverse().find(p=>out.includes(p));out.splice(prev?out.indexOf(prev)+1:0,0,t);});return out;})();const[hubDrag,setHubDrag]=useState(null);const moveHubTab=(from,to)=>{if(!from||from===to)return;const ids=hubTabs.map(t=>t.id).filter(id=>id!==from);const at=ids.indexOf(to);ids.splice(at<0?ids.length:(hubTabs.findIndex(t=>t.id===from)<hubTabs.findIndex(t=>t.id===to)?at+1:at),0,from);const apply=d=>({...d,prefs:{...(d&&d.prefs||{}),hubTabOrder:ids}});setHubPd(d=>apply(d||{tasks:[],prefs:{}}));updatePersonal(apply).catch(()=>{});};const takeHub=()=>{try{const r=JSON.parse(sessionStorage.getItem('pm_pending_hub')||'null');sessionStorage.removeItem('pm_pending_hub');return r;}catch{return null;}};const[firstHub]=useState(takeHub);const[activeTab,setActiveTabRaw]=useState(()=>{const t=firstHub&&firstHub.tab||screenGet('hub:'+ACTIVE_PROJECT_ID)||'ongoing';return isAdminProject(data)&&ADMIN_HIDDEN_HUB_TABS.includes(t)?'ongoing':t;});const setActiveTab=t=>setActiveTabRaw(isAdminProject(data)&&ADMIN_HIDDEN_HUB_TABS.includes(t)?'ongoing':t);useEffect(()=>{screenSet('hub:'+ACTIVE_PROJECT_ID,activeTab);},[activeTab]);const[pendingMeetingId,setPendingMeetingId]=useState(firstHub&&firstHub.meetingId||null);useEffect(()=>{const on=e=>{takeHub();const r=e.detail||{};if(r.tab)setActiveTab(r.tab);if(r.meetingId)setPendingMeetingId(r.meetingId);};window.addEventListener('ph:go-hub',on);return()=>window.removeEventListener('ph:go-hub',on);},[]);return/*#__PURE__*/React.createElement("div",{style:{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',borderBottom:'1px solid var(--border)',background:'var(--surface)',flexShrink:0}},hubTabs.map(t=>/*#__PURE__*/React.createElement("button",{key:t.id,draggable:true,title:"גרירה משנה את סדר הלשוניות",onDragStart:e=>{e.dataTransfer.setData('text/x-hubtab',t.id);e.dataTransfer.effectAllowed='move';setHubDrag(t.id);},onDragEnd:()=>setHubDrag(null),onDragOver:e=>{if(e.dataTransfer.types.includes('text/x-hubtab')){e.preventDefault();e.dataTransfer.dropEffect='move';}},onDrop:e=>{e.preventDefault();moveHubTab(e.dataTransfer.getData('text/x-hubtab'),t.id);setHubDrag(null);},onClick:()=>setActiveTab(t.id),style:{padding:'9px 16px',fontSize:12,fontFamily:'inherit',border:'none',cursor:'pointer',background:'none',borderBottom:'2px solid',borderBottomColor:activeTab===t.id?'var(--accent)':'transparent',fontWeight:activeTab===t.id?700:400,color:activeTab===t.id?'var(--text)':'var(--text-2)'}},t.label))),/*#__PURE__*/React.createElement("div",{style:{flex:1,display:'flex',flexDirection:'column',minHeight:0,overflowY:'auto',overflowX:'hidden',background:'var(--bg)'}},activeTab==='archive'&&React.createElement(ArchiveView,{data:data,save:save}),activeTab==='myplan'&&React.createElement(MyTasksTable,{data:data,save:save,onOpenTask:onOpenTask||(()=>{}),projectOnly:true}),activeTab==='ongoing'&&/*#__PURE__*/React.createElement(TrackView,{data:data,save:save,trackId:"ongoing",onEditAutomation:onEditAutomation,onOpenMeeting:id=>{setPendingMeetingId(id);setActiveTab('meetings');}}),activeTab==='gantt'&&/*#__PURE__*/React.createElement(NihulGanttView,{data:data,save:save}),activeTab==='meetings'&&/*#__PURE__*/React.createElement(MeetingsView,{data:data,save:save,trackId:null,openMeetingId:pendingMeetingId,onConsumeOpen:()=>setPendingMeetingId(null)}),activeTab==='supervision'&&/*#__PURE__*/React.createElement(ComingSoonPage,{iconName:"supervision",title:"פיקוח",desc:"ריכוז וניהול דוחות פיקוח מהביצוע — בפיתוח"}),activeTab==='reviews'&&React.createElement(ReviewsPage,{data:data,save:save}),activeTab==='principles'&&/*#__PURE__*/React.createElement(PrinciplesView,{data:data,save:save,onNavigateToTasks:()=>setActiveTab('ongoing'),onOpenMeeting:id=>{setPendingMeetingId(id);setActiveTab('meetings');}}),activeTab==='milestones'&&/*#__PURE__*/React.createElement("div",{style:{padding:'18px 20px'}},/*#__PURE__*/React.createElement(GoalsMilestonesPanel,{data:data,save:save,only:"milestones"})),activeTab==='goals'&&/*#__PURE__*/React.createElement("div",{style:{padding:'18px 20px'}},/*#__PURE__*/React.createElement(GoalsMilestonesPanel,{data:data,save:save,only:"goals"}))));}/* Small popover for viewing/editing/deleting a single process-event "update"
    clicked on a Gantt bar segment — without opening the full event-sequence
    panel. When the clicked segment is the last one in the chain, it also
    offers a quick "add next update" mini-form. */function EventPopover({x,y,event,disciplines,isLast,onSave,onDelete,onClose,onOpenFull,onAddNext}){const[status,setStatus]=useState(event.status||'progress');const[assignee,setAssignee]=useState(event.assignee||'');const[note,setNote]=useState(event.note||'');const[date,setDate]=useState(event.date||todayISO());const[showAdd,setShowAdd]=useState(false);const[addStatus,setAddStatus]=useState(getNextSuggestedStatus(event.status));const[addAssignee,setAddAssignee]=useState(assignee);const[addNote,setAddNote]=useState('');const[addDate,setAddDate]=useState(todayISO());const popW=260;const left=Math.min(Math.max(8,x-popW/2),window.innerWidth-popW-8);const top=Math.min(y+12,window.innerHeight-340);const selStyle={width:'100%',fontSize:12,padding:'5px 7px',borderRadius:6,border:'1px solid var(--border-strong)',fontFamily:'inherit',background:'var(--surface)',color:'var(--text)'};const lblStyle={fontSize:10,color:'var(--text-3)',fontWeight:600,marginBottom:3,display:'block'};return ReactDOM.createPortal(/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{onClick:onClose,onContextMenu:passContextMenu(onClose),style:{position:'fixed',inset:0,zIndex:799,background:'transparent'}}),/*#__PURE__*/React.createElement("div",{onClick:e=>e.stopPropagation(),style:{position:'fixed',left,top,width:popW,zIndex:800,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,boxShadow:'var(--shadow-lg)',padding:12,fontFamily:'inherit'}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}},/*#__PURE__*/React.createElement("span",{style:{fontSize:12,fontWeight:700,color:'var(--text)'}},"עדכון"),/*#__PURE__*/React.createElement("button",{onClick:onClose,style:{background:'none',border:'none',cursor:'pointer',fontSize:14,color:'var(--text-3)',padding:0}},"×")),/*#__PURE__*/React.createElement("label",{style:lblStyle},"סוג העדכון"),/*#__PURE__*/React.createElement("select",{value:status,onChange:e=>setStatus(e.target.value),style:{...selStyle,marginBottom:8}},Object.values(EV_STATUSES).filter(s=>s.id!=='missing').map(s=>/*#__PURE__*/React.createElement("option",{key:s.id,value:s.id},s.symbol," ",s.label))),/*#__PURE__*/React.createElement("label",{style:lblStyle},"אחראי"),/*#__PURE__*/React.createElement("select",{value:assignee,onChange:e=>setAssignee(e.target.value),style:{...selStyle,marginBottom:8}},/*#__PURE__*/React.createElement("option",{value:""},"—"),visOpts(disciplines).map(d=>/*#__PURE__*/React.createElement("option",{key:d.id,value:d.id},d.label))),/*#__PURE__*/React.createElement("label",{style:lblStyle},"כותרת / הערה"),/*#__PURE__*/React.createElement("input",{value:note,onChange:e=>setNote(e.target.value),placeholder:"תיאור קצר...",style:{...selStyle,marginBottom:8}}),/*#__PURE__*/React.createElement("label",{style:lblStyle},"תאריך"),/*#__PURE__*/React.createElement(DateField,{value:date,onChange:setDate,style:{...selStyle,marginBottom:10}}),/*#__PURE__*/React.createElement("div",{style:{display:'flex',gap:6,marginBottom:8}},/*#__PURE__*/React.createElement("button",{onClick:()=>onSave({...event,status,assignee,note,date}),style:{flex:1,padding:'6px 0',fontSize:12,fontWeight:600,color:'#fff',background:'var(--accent)',border:'none',borderRadius:6,cursor:'pointer',fontFamily:'inherit'}},"שמור"),/*#__PURE__*/React.createElement("button",{onClick:async()=>{if(await askConfirm('למחוק את העדכון?'))onDelete();},style:{padding:'6px 12px',fontSize:12,fontWeight:600,color:'#EF4444',background:'none',border:'1px solid #EF4444',borderRadius:6,cursor:'pointer',fontFamily:'inherit'}},"מחק")),/*#__PURE__*/React.createElement("button",{onClick:onOpenFull,style:{width:'100%',padding:'6px 0',fontSize:11.5,fontWeight:600,color:'var(--accent)',background:'rgba(37,99,235,.07)',border:'none',borderRadius:6,cursor:'pointer',fontFamily:'inherit'}},"⊡ פתח את כל רצף העדכונים"),isLast&&/*#__PURE__*/React.createElement("div",{style:{borderTop:'1px solid var(--border)',marginTop:10,paddingTop:10}},!showAdd?/*#__PURE__*/React.createElement("button",{onClick:()=>setShowAdd(true),style:{width:'100%',padding:'6px 0',fontSize:12,fontWeight:600,color:'var(--accent)',background:'none',border:'1px dashed var(--accent)',borderRadius:6,cursor:'pointer',fontFamily:'inherit'}},"+ הוסף עדכון"):/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("label",{style:lblStyle},"סוג העדכון החדש"),/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexWrap:'wrap',gap:4,marginBottom:8}},EV_CYCLE.filter(sid=>sid!=='missing').map(sid=>/*#__PURE__*/React.createElement("span",{key:sid,className:"pill",onClick:()=>setAddStatus(sid),style:{color:EV_STATUSES[sid].color,background:EV_STATUSES[sid].bg,border:'2px solid '+(addStatus===sid?EV_STATUSES[sid].border:'transparent')}},EV_STATUSES[sid].symbol+' '+EV_STATUSES[sid].label))),/*#__PURE__*/React.createElement("label",{style:lblStyle},"אחראי"),/*#__PURE__*/React.createElement("select",{value:addAssignee,onChange:e=>setAddAssignee(e.target.value),style:{...selStyle,marginBottom:8}},/*#__PURE__*/React.createElement("option",{value:""},"—"),visOpts(disciplines).map(d=>/*#__PURE__*/React.createElement("option",{key:d.id,value:d.id},d.label))),/*#__PURE__*/React.createElement("label",{style:lblStyle},"כותרת / הערה"),/*#__PURE__*/React.createElement("input",{value:addNote,onChange:e=>setAddNote(e.target.value),placeholder:"תיאור קצר...",style:{...selStyle,marginBottom:8}}),/*#__PURE__*/React.createElement("label",{style:lblStyle},"תאריך"),/*#__PURE__*/React.createElement(DateField,{value:addDate,onChange:setAddDate,style:{...selStyle,marginBottom:10}}),/*#__PURE__*/React.createElement("button",{onClick:()=>onAddNext({status:addStatus,assignee:addAssignee,note:addNote,date:addDate}),style:{width:'100%',padding:'6px 0',fontSize:12,fontWeight:600,color:'#fff',background:'var(--accent)',border:'none',borderRadius:6,cursor:'pointer',fontFamily:'inherit'}},"הוסף עדכון"))))),document.body);}/* ══════════════════════════════════════
@@ -4864,7 +5117,7 @@ const map=new Map();sorted.forEach(t=>{const k=t[groupBy]||'';if(!map.has(k))map
    Coming Soon Placeholder
 ══════════════════════════════════════ */function ComingSoonPage({iconName,title,desc}){return/*#__PURE__*/React.createElement("div",{style:{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,padding:40,background:'var(--bg)',color:'var(--text-2)'}},/*#__PURE__*/React.createElement("div",{style:{color:'var(--border-strong)',opacity:.5}},/*#__PURE__*/React.createElement(Ic,{n:iconName,size:48})),/*#__PURE__*/React.createElement("div",{style:{fontSize:22,fontWeight:700,color:'var(--text)'}},title),/*#__PURE__*/React.createElement("div",{style:{fontSize:14,color:'var(--text-2)',maxWidth:360,textAlign:'center',lineHeight:1.6}},desc),/*#__PURE__*/React.createElement("div",{style:{marginTop:8,padding:'8px 20px',borderRadius:20,background:'var(--surface)',border:'1px solid var(--border)',fontSize:12,color:'var(--text-3)',fontWeight:600,display:'flex',alignItems:'center',gap:6}},/*#__PURE__*/React.createElement(Ic,{n:"soon",size:13})," בקרוב"));}/* ══════════════════════════════════════
    Sidebar
-══════════════════════════════════════ */const MY_PROJECTS=[{id:'ph01',name:'אולם ספורט לוד',color:'#2563EB',code:'PH01',active:true,real:true}];const PROJ_TRACKS=[{id:'overview',label:'מבט על',icon:'overview',enabled:true},{id:'contacts',label:'אנשי קשר',icon:'consultants',enabled:true},{id:'data',label:'נתונים',icon:'planning',enabled:true},{id:'tasks',label:'ניהול תכנון',icon:'tasks',enabled:true},{id:'template',label:'טמפלייט',icon:'template',enabled:true}];const CROSS_CUTTING_ITEMS=[{id:'myplan',label:'התכנון שלי',icon:'tasks'},{id:'ongoing',label:'רשימה',icon:'tasks'},{id:'gantt',label:'גאנט',icon:'gantt'},{id:'meetings',label:'ישיבות',icon:'meetings'},{id:'principles',label:'עקרונות תכנון',icon:'principles'},{id:'supervision',label:'פיקוח',icon:'supervision'},{id:'milestones',label:'אבני דרך',icon:'milestones'},{id:'reviews',label:'בדיקות',icon:'principles'},...(SHOW_GOALS?[{id:'goals',label:'יעדים',icon:'goals'}]:[])];function Sidebar({track,setTrack,tracks,data,save}){/* my projects in the order I dragged them into (prefs.projOrder, per user); new ones join at the end */const{doc:sbPersonal,setDoc:setSbPersonal}=usePersonal();const projOrder=sbPersonal&&sbPersonal.prefs&&sbPersonal.prefs.projOrder||[];const[projDrag,setProjDrag]=useState(null);const[projOver,setProjOver]=useState(null);const sortProjects=list=>{const rank=id=>{const i=projOrder.indexOf(id);return i<0?projOrder.length:i;};return list.map((p,i)=>({p,i})).sort((a,b)=>rank(a.p.id)-rank(b.p.id)||a.i-b.i).map(x=>x.p);};const moveProject=(list,src,tgt)=>{if(src===tgt)return;const ids=list.map(p=>p.id);const si=ids.indexOf(src),ti=ids.indexOf(tgt);if(si<0||ti<0)return;ids.splice(si,1);ids.splice(ti,0,src);const keep=projOrder.filter(id=>!ids.includes(id));const next=[...ids,...keep];const apply=d=>({...d,prefs:{...(d&&d.prefs||{}),projOrder:next}});setSbPersonal(d=>apply(d||{tasks:[],prefs:{}}));updatePersonal(apply).catch(()=>{});};const sbList=sortProjects(MY_PROJECTS.filter(p=>isMyProject(p)||p.id===ACTIVE_PROJECT_ID));/* The footer shows whoever is signed in; /api/me may answer before or after this mounts. */const[meName,setMeName]=React.useState(CURRENT_USER_LABEL);React.useEffect(()=>{setMeName(CURRENT_USER_LABEL);const on=e=>setMeName(e.detail.name);window.addEventListener('pm-user',on);return()=>window.removeEventListener('pm-user',on);},[]);const[userMenu,setUserMenu]=React.useState(false);const[profileOpen,setProfileOpen]=React.useState(false);const userMenuRef=React.useRef(null);React.useEffect(()=>{if(!userMenu)return;const h=e=>{if(userMenuRef.current&&!userMenuRef.current.contains(e.target))setUserMenu(false);};const k=e=>{if(e.key==='Escape')setUserMenu(false);};document.addEventListener('mousedown',h);document.addEventListener('keydown',k);return()=>{document.removeEventListener('mousedown',h);document.removeEventListener('keydown',k);};},[userMenu]);const meInitials=nameForLang(meName).split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()||'?';const[,forceLangTick]=React.useState(0);React.useEffect(()=>{const on=()=>forceLangTick(x=>x+1);window.addEventListener('i18n:change',on);window.addEventListener('appearance:change',on);window.addEventListener('projects:change',on);return()=>{window.removeEventListener('i18n:change',on);window.removeEventListener('appearance:change',on);window.removeEventListener('projects:change',on);};},[]);const[sidebarOpen,setSidebarOpen]=React.useState(true);const[sidebarW,setSidebarW]=React.useState(()=>{const saved=parseInt(localStorage.getItem('pm_sidebar_w'),10);return Number.isFinite(saved)&&saved>=180&&saved<=420?saved:220;});React.useEffect(()=>{localStorage.setItem('pm_sidebar_w',String(sidebarW));},[sidebarW]);const[isResizingSidebar,setIsResizingSidebar]=React.useState(false);const startSidebarResize=e=>{e.preventDefault();const startX=e.clientX;const startW=sidebarW;setIsResizingSidebar(true);const onMove=ev=>{const next=Math.max(180,Math.min(420,startW+(IS_LTR()?1:-1)*(ev.clientX-startX)));setSidebarW(next);};const onUp=()=>{setIsResizingSidebar(false);document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);};document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp);};const[expandedProj,setExpandedProj]=React.useState(ACTIVE_PROJECT_ID);// the open project starts expanded
+══════════════════════════════════════ */const MY_PROJECTS=[{id:'ph01',name:'אולם ספורט לוד',color:'#2563EB',code:'PH01',active:true,real:true}];const PROJ_TRACKS=[{id:'overview',label:'מבט על',icon:'overview',enabled:true},{id:'contacts',label:'אנשי קשר',icon:'consultants',enabled:true},{id:'data',label:'נתונים',icon:'planning',enabled:true},{id:'tasks',label:'ניהול תכנון',icon:'tasks',enabled:true},{id:'template',label:'טמפלייט',icon:'template',enabled:true}];const CROSS_CUTTING_ITEMS=[{id:'myplan',label:'התכנון שלי',icon:'tasks'},{id:'ongoing',label:'רשימה',icon:'tasks'},{id:'gantt',label:'גאנט',icon:'gantt'},{id:'meetings',label:'ישיבות',icon:'meetings'},{id:'principles',label:'עקרונות תכנון',icon:'principles'},{id:'supervision',label:'פיקוח',icon:'supervision'},{id:'milestones',label:'אבני דרך',icon:'milestones'},{id:'reviews',label:'בדיקות',icon:'principles'},...(SHOW_GOALS?[{id:'goals',label:'יעדים',icon:'goals'}]:[]),{id:'archive',label:'ארכיון',icon:'tasks'}];function Sidebar({track,setTrack,tracks,data,save}){/* my projects in the order I dragged them into (prefs.projOrder, per user); new ones join at the end */const{doc:sbPersonal,setDoc:setSbPersonal}=usePersonal();const projOrder=sbPersonal&&sbPersonal.prefs&&sbPersonal.prefs.projOrder||[];const[projDrag,setProjDrag]=useState(null);const[projOver,setProjOver]=useState(null);const sortProjects=list=>{const rank=id=>{const i=projOrder.indexOf(id);return i<0?projOrder.length:i;};return list.map((p,i)=>({p,i})).sort((a,b)=>rank(a.p.id)-rank(b.p.id)||a.i-b.i).map(x=>x.p);};const moveProject=(list,src,tgt)=>{if(src===tgt)return;const ids=list.map(p=>p.id);const si=ids.indexOf(src),ti=ids.indexOf(tgt);if(si<0||ti<0)return;ids.splice(si,1);ids.splice(ti,0,src);const keep=projOrder.filter(id=>!ids.includes(id));const next=[...ids,...keep];const apply=d=>({...d,prefs:{...(d&&d.prefs||{}),projOrder:next}});setSbPersonal(d=>apply(d||{tasks:[],prefs:{}}));updatePersonal(apply).catch(()=>{});};const sbList=sortProjects(MY_PROJECTS.filter(p=>isMyProject(p)||p.id===ACTIVE_PROJECT_ID));/* The footer shows whoever is signed in; /api/me may answer before or after this mounts. */const[meName,setMeName]=React.useState(CURRENT_USER_LABEL);React.useEffect(()=>{setMeName(CURRENT_USER_LABEL);const on=e=>setMeName(e.detail.name);window.addEventListener('pm-user',on);return()=>window.removeEventListener('pm-user',on);},[]);const[userMenu,setUserMenu]=React.useState(false);const[profileOpen,setProfileOpen]=React.useState(false);const userMenuRef=React.useRef(null);React.useEffect(()=>{if(!userMenu)return;const h=e=>{if(userMenuRef.current&&!userMenuRef.current.contains(e.target))setUserMenu(false);};const k=e=>{if(e.key==='Escape')setUserMenu(false);};document.addEventListener('mousedown',h);document.addEventListener('keydown',k);return()=>{document.removeEventListener('mousedown',h);document.removeEventListener('keydown',k);};},[userMenu]);const meInitials=nameForLang(meName).split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase()||'?';const[,forceLangTick]=React.useState(0);React.useEffect(()=>{const on=()=>forceLangTick(x=>x+1);window.addEventListener('i18n:change',on);window.addEventListener('appearance:change',on);window.addEventListener('projects:change',on);return()=>{window.removeEventListener('i18n:change',on);window.removeEventListener('appearance:change',on);window.removeEventListener('projects:change',on);};},[]);const[sidebarOpen,setSidebarOpen]=React.useState(true);const[sidebarW,setSidebarW]=React.useState(()=>{const saved=parseInt(localStorage.getItem('pm_sidebar_w'),10);return Number.isFinite(saved)&&saved>=180&&saved<=420?saved:220;});React.useEffect(()=>{localStorage.setItem('pm_sidebar_w',String(sidebarW));},[sidebarW]);const[isResizingSidebar,setIsResizingSidebar]=React.useState(false);const startSidebarResize=e=>{e.preventDefault();const startX=e.clientX;const startW=sidebarW;setIsResizingSidebar(true);const onMove=ev=>{const next=Math.max(180,Math.min(420,startW+(IS_LTR()?1:-1)*(ev.clientX-startX)));setSidebarW(next);};const onUp=()=>{setIsResizingSidebar(false);document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);};document.addEventListener('mousemove',onMove);document.addEventListener('mouseup',onUp);};const[expandedProj,setExpandedProj]=React.useState(ACTIVE_PROJECT_ID);// the open project starts expanded
 const[newProjOpen,setNewProjOpen]=React.useState(false);const[newTaskOpen,setNewTaskOpen]=React.useState(false);/* N (מ on a Hebrew layout) = new task, like the "צור חדש" menu; ignored while typing or when a dialog is open */React.useEffect(()=>{const h=e=>{if(e.code!=='KeyN'||e.ctrlKey||e.metaKey||e.altKey||e.shiftKey||e.repeat)return;const t=e.target;if(t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))return;if(document.querySelector('.modal-overlay,.nt-modal,[role=dialog]'))return;e.preventDefault();setNewTaskOpen(true);};document.addEventListener('keydown',h);return()=>document.removeEventListener('keydown',h);},[]);
 const[tracksExpanded,setTracksExpanded]=React.useState(true);const[overviewExpanded,setOverviewExpanded]=React.useState(true);
 const NAV=[{id:'home',label:'בית',icon:'home'},{id:'mytasks',label:'המשימות שלי',icon:'mytasks'},{id:'search',label:'חיפוש',icon:'search'},{id:'projects',label:'פרויקטים',icon:'projects'},{id:'hours',label:'דיווח שעות',icon:'hours'},{id:'portfolio',label:'פורטפוליו',icon:'portfolio'},{id:'settings',label:'הגדרות',icon:'settings'}];const ChevronIcon=({dir})=>/*#__PURE__*/React.createElement("svg",{width:"11",height:"11",viewBox:"0 0 12 12",fill:"none",stroke:"currentColor",strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round"},dir==='right'?/*#__PURE__*/React.createElement("path",{d:"M4 2l4 4-4 4"}):/*#__PURE__*/React.createElement("path",{d:"M8 2L4 6l4 4"}));const DownIcon=({open})=>/*#__PURE__*/React.createElement("svg",{width:"10",height:"10",viewBox:"0 0 12 12",fill:"none",stroke:"currentColor",strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round"},open?/*#__PURE__*/React.createElement("path",{d:"M2 8l4-4 4 4"}):/*#__PURE__*/React.createElement("path",{d:"M2 4l4 4 4-4"}));return/*#__PURE__*/React.createElement(React.Fragment,null,newProjOpen&&/*#__PURE__*/React.createElement(NewProjectModal,{onClose:()=>setNewProjOpen(false)}),newTaskOpen&&data&&/*#__PURE__*/React.createElement(NewTaskModal,{data:data,save:save,onClose:()=>setNewTaskOpen(false)}),!sidebarOpen&&/*#__PURE__*/React.createElement("button",{className:"sb-toggle-fixed",onClick:()=>setSidebarOpen(true),title:"פתח תפריט"},/*#__PURE__*/React.createElement(ChevronIcon,{dir:"left"})),/*#__PURE__*/React.createElement("div",{className:`sidebar${sidebarOpen?'':' collapsed'}`,style:{position:'relative',...(sidebarOpen?{width:sidebarW+'px'}:{}),...(isResizingSidebar?{transition:'none'}:{})}},sidebarOpen&&/*#__PURE__*/React.createElement("div",{onMouseDown:startSidebarResize,title:"שינוי רוחב התפריט",style:{position:'absolute',top:0,bottom:0,insetInlineEnd:-3,width:6,cursor:'col-resize',zIndex:20}}),/*#__PURE__*/React.createElement("div",{className:"sb-top"},/*#__PURE__*/React.createElement("div",{style:{display:'flex',alignItems:'center',gap:6,marginBottom:4}},/*#__PURE__*/React.createElement("div",{className:"sb-workspace",style:{flex:1,marginBottom:0}},/*#__PURE__*/React.createElement(BrandLockup,null)),/*#__PURE__*/React.createElement("button",{className:"sb-toggle",onClick:()=>setSidebarOpen(false),title:"סגור תפריט"},/*#__PURE__*/React.createElement(ChevronIcon,{dir:"right"}))),/*#__PURE__*/React.createElement(CreateNewButton,{onTask:()=>setNewTaskOpen(true),onProject:()=>setNewProjOpen(true)})),/*#__PURE__*/React.createElement("div",{className:"sb-body"},/*#__PURE__*/React.createElement("div",{className:"sb-section"},NAV.map(item=>{const trackMap={home:'home',mytasks:'mytasks',search:'search',projects:'projects',portfolio:'portfolio',settings:'settings'};const itemTrack=trackMap[item.id];const isActive=itemTrack&&track===itemTrack;const roleBlocked=item.id==='portfolio'&&!hasOfficeRole('admin');const isEnabled=!!itemTrack&&!roleBlocked;return/*#__PURE__*/React.createElement("button",{key:item.id,className:`sb-item${isActive?' active':isEnabled?'':' disabled'}`,title:roleBlocked?'פורטפוליו זמין מרמת Admin':item.id==='search'?'חיפוש בכל הפרויקטים (Ctrl+K)':undefined,onClick:isEnabled?()=>setTrack(itemTrack):undefined},/*#__PURE__*/React.createElement("span",{className:"sb-item-icon"},/*#__PURE__*/React.createElement(Ic,{n:item.icon,size:15})),item.label);})),/*#__PURE__*/React.createElement("div",{className:"sb-section"},/*#__PURE__*/React.createElement("div",{className:"sb-section-label"},"הפרויקטים שלי"),sbList.map(p=>{const isActive=p.id===ACTIVE_PROJECT_ID;const canOpen=!isActive&&!!p.real;const isExpanded=expandedProj===p.id;return/*#__PURE__*/React.createElement("div",{key:p.id,className:'sb-proj-drag'+(projDrag===p.id?' is-src':'')+(projOver===p.id&&projDrag&&projDrag!==p.id?' is-over':''),draggable:true,onDragStart:e=>{if(e.target.closest&&e.target.closest('.sb-sub-item'))return;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/x-sb-proj',p.id);setProjDrag(p.id);},onDragEnd:()=>{setProjDrag(null);setProjOver(null);},onDragOver:e=>{if(!projDrag)return;e.preventDefault();if(projOver!==p.id)setProjOver(p.id);},onDrop:e=>{e.preventDefault();if(projDrag)moveProject(sbList,projDrag,p.id);setProjDrag(null);setProjOver(null);}},/*#__PURE__*/React.createElement("div",{className:"sb-proj-row"},/*#__PURE__*/React.createElement("button",{className:`sb-proj-btn${isActive?' active':canOpen?'':' disabled'}`,title:p.visibility==='private'?'פרויקט פרטי':undefined,onClick:isActive?()=>{setExpandedProj(p.id);setTrack('overview');}:canOpen?()=>switchProject(p.id,'overview'):undefined},/*#__PURE__*/React.createElement("span",{className:"sb-proj-badge",style:{background:hexBg(p.color),color:p.color,border:`1px solid ${p.color}40`}},p.code),/*#__PURE__*/React.createElement("span",{className:"sb-proj-name"},p.name),p.visibility==='private'&&/*#__PURE__*/React.createElement("span",{className:"sb-proj-lock"},/*#__PURE__*/React.createElement(LockIcon,{size:10}))),/*#__PURE__*/React.createElement("button",{className:`sb-proj-chevron${isActive||canOpen?'':' disabled'}`,onClick:isActive?()=>setExpandedProj(isExpanded?null:p.id):canOpen?()=>switchProject(p.id,'overview'):undefined},/*#__PURE__*/React.createElement(DownIcon,{open:isExpanded}))),isExpanded&&/*#__PURE__*/React.createElement("div",{style:{marginBottom:2}},/* מבט על has no item of its own: the project's name opens it *//*#__PURE__*/React.createElement("button",{className:`sb-sub-item${track==='tasks'?' active':''}`,onClick:()=>setTrack('tasks')},/*#__PURE__*/React.createElement("span",{className:"sb-sub-dot",style:{background:track==='tasks'?'var(--accent)':'var(--border-strong)'}}),/*#__PURE__*/React.createElement("span",{className:"sb-item-icon",style:{width:13,height:13}},/*#__PURE__*/React.createElement(Ic,{n:"tasks",size:13})),"ניהול תכנון"),/*#__PURE__*/React.createElement("button",{className:`sb-sub-item${!tracksExpanded&&tracks.filter(t=>t.id!=='ongoing').some(t=>t.id===track)?' active':''}`,onClick:()=>setTracksExpanded(!tracksExpanded)},/*#__PURE__*/React.createElement("span",{className:"sb-sub-dot",style:{background:!tracksExpanded&&tracks.filter(t=>t.id!=='ongoing').some(t=>t.id===track)?'var(--accent)':'var(--border-strong)'}}),/*#__PURE__*/React.createElement("span",{className:"sb-item-icon",style:{width:13,height:13}},/*#__PURE__*/React.createElement(DownIcon,{open:tracksExpanded})),"מסלולים"),tracksExpanded&&tracks.filter(t=>t.id!=='ongoing').map(t=>/*#__PURE__*/React.createElement("button",{"data-i18n-skip":"",key:t.id,className:`sb-sub-item${track===t.id?' active':''}`,style:{paddingInlineStart:44},onClick:()=>setTrack(t.id)},/*#__PURE__*/React.createElement("span",{className:"sb-sub-dot",style:{background:track===t.id?'var(--accent)':'var(--border-strong)'}}),/*#__PURE__*/React.createElement("span",{className:"sb-item-icon",style:{width:13,height:13}},/*#__PURE__*/React.createElement(Ic,{n:"tasks",size:13})),nameForLang(t.label))),/*#__PURE__*/React.createElement("button",{className:`sb-sub-item${track==='template'?' active':''}`,onClick:()=>setTrack('template')},/*#__PURE__*/React.createElement("span",{className:"sb-sub-dot",style:{background:track==='template'?'var(--accent)':'var(--border-strong)'}}),/*#__PURE__*/React.createElement("span",{className:"sb-item-icon",style:{width:13,height:13}},/*#__PURE__*/React.createElement(Ic,{n:"template",size:13})),"טמפלייט")));}))),/*#__PURE__*/React.createElement("div",{className:"sb-footer"},/*#__PURE__*/React.createElement("div",{className:"sb-user"},profileOpen&&/*#__PURE__*/React.createElement(ProfileModal,{onClose:()=>setProfileOpen(false)}),/*#__PURE__*/React.createElement("div",{className:"sb-user-wrap",ref:userMenuRef},/*#__PURE__*/React.createElement("button",{className:`sb-user-btn${userMenu?' open':''}`,onClick:()=>setUserMenu(o=>!o),title:"הפרופיל שלי","aria-haspopup":"menu","aria-expanded":userMenu},/*#__PURE__*/React.createElement("div",{"data-i18n-skip":"",className:"sb-avatar"},meInitials),/*#__PURE__*/React.createElement("span",{"data-i18n-skip":"",className:"sb-user-name"},meName)),userMenu&&/*#__PURE__*/React.createElement(UserMenu,{name:meName,initials:meInitials,onProfile:()=>{setUserMenu(false);setProfileOpen(true);}})),/*#__PURE__*/React.createElement("button",{title:"החלף שפה",style:{background:'none',border:'none',cursor:'default',opacity:.55,fontSize:15,lineHeight:1,padding:4,color:'var(--text-2)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,gap:3,height:24},onClick:()=>window.I18N&&window.I18N.toggle()},"🌐",/*#__PURE__*/React.createElement("span",{"data-i18n-skip":"",style:{fontSize:11}},(window.I18N&&window.I18N.get&&window.I18N.get()==='he')?'EN':'עב')),/*#__PURE__*/React.createElement("button",{title:getAppearance()==='dark'?"מצב בהיר":"מצב כהה",style:{background:'none',border:'none',cursor:'default',opacity:.55,fontSize:15,lineHeight:1,padding:4,color:'var(--text-2)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,width:24,height:24},onClick:()=>applyAppearance(getAppearance()==='dark'?'light':'dark')},getAppearance()==='dark'?"☀":"☾")))));}/* ══════════════════════════════════════
