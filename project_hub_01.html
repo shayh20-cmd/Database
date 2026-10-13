@@ -932,6 +932,7 @@ html[data-appearance="dark"] .rv-verify{background:rgba(245,158,11,.18);color:#F
 .arc-bak-list{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:4px}
 .arc-bak-list li{display:flex;gap:10px;align-items:center}
 .arc-bak-list a{color:var(--accent);font-family:monospace;font-size:12px}
+.mt-undo{margin-inline-start:auto;margin-inline-end:8px}
 .mtp-jump{margin-inline-start:auto;align-self:center;margin-inline-end:12px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);color:var(--accent);font-family:inherit;font-size:12px;padding:4px 10px;cursor:pointer;white-space:nowrap;}
 .mtp-jump:hover{border-color:var(--accent);background:rgba(37,99,235,.06);}
 .mte{padding:2px 24px 10px;}
@@ -2715,7 +2716,7 @@ const setPlan=(t,bucket)=>{const k=planKeyOf(t);const entry=planEntryFor(bucket,
 /* the order a user dragged the bucket headers into (באיחור / תקוע / ...), per grouping field */
 const bucketOrder=doc&&doc.prefs&&doc.prefs.bucketOrder||{};
 const setBucketOrder=(field,order)=>{const apply=d=>({...d,prefs:{...(d&&d.prefs||{}),bucketOrder:{...(d&&d.prefs&&d.prefs.bucketOrder||{}),[field]:order}}});setDoc(d=>apply(d||{tasks:[],prefs:{}}));updatePersonal(apply).catch(()=>{});};
-const value={plan,ready:!!doc,setPlan,bucketOrder,setBucketOrder,isManual:t=>!!plan[planKeyOf(t)],bucketOf:t=>planBucketOf(t,plan,todayISO()),rolledOf:t=>planRolledOf(t,plan,todayISO()),plannedToday:t=>{const p=plan[planKeyOf(t)];return!!p&&p.b!=='later'&&(p.b==='today'||p.d<=todayISO());}};
+const setPlanEntry=(t,entry)=>{const k=planKeyOf(t);const apply=d=>{const cur={...(d&&d.prefs&&d.prefs.plan||{})};if(entry)cur[k]=entry;else delete cur[k];return{...d,prefs:{...(d&&d.prefs||{}),plan:cur}};};setDoc(d=>apply(d||{tasks:[],prefs:{}}));updatePersonal(apply).catch(()=>{});};const value={plan,ready:!!doc,setPlan,setPlanEntry,bucketOrder,setBucketOrder,isManual:t=>!!plan[planKeyOf(t)],bucketOf:t=>planBucketOf(t,plan,todayISO()),rolledOf:t=>planRolledOf(t,plan,todayISO()),plannedToday:t=>{const p=plan[planKeyOf(t)];return!!p&&p.b!=='later'&&(p.b==='today'||p.d<=todayISO());}};
 return React.createElement(PlanCtx.Provider,{value},children);}/* completed tasks fold into a הושלמו row — except in המשימות שלי, where they stay in place */const inDoneSec=(sheet,t)=>sheet.id!=='__mytasks'&&taskStatusEff(t)==='C';/* a row can carry its own status list (המשימות שלי: each task its project's) */function TaskRow(props){const lists=useContext(ListsCtx);const el=React.createElement(TaskRowInner,props);return lists.statusesOf?React.createElement(ListsCtx.Provider,{value:{...lists,statuses:lists.statusesOf(props.task)||lists.statuses}},el):el;}function TaskRowInner({task,onUpdate,onCellUpdate=null,onDelete,autoFocus=false,fields=[],visibleColIds=[],daysThreshold=null,sortState=null,onTaskDragStart,onTaskDragEnd,taskDragSrc,taskDragTarget,taskDragInto=false,onTaskNest=null,subDrag=null,onSubDragStart=null,onTaskDragOver,onTaskDrop,selectedIds,onSelect,onDuplicate,onShowDetail,expandSignal,onCollapseAll}){const extraCells=useContext(ExtraCellsCtx);const planCtx=useContext(PlanCtx);/* ☀ = I chose today (or an earlier day still open), not a task its deadline pulled into היום */const plannedToday=!!planCtx&&planCtx.plannedToday(task);/* a value changed in a column cell — with several tasks selected it applies to all of them */const cellUpdate=onCellUpdate||onUpdate;/* the row drags only from its ⠿ handle, so text in it can be selected */const[dragArmed,setDragArmed]=useState(false);useEffect(()=>{if(!dragArmed)return;const off=()=>setDragArmed(false);window.addEventListener('mouseup',off);return()=>window.removeEventListener('mouseup',off);},[dragArmed]);const[editTitle,setEditTitle]=useState(autoFocus);const[title,setTitle]=useState(task.title);const[panelSubId,setPanelSubId]=useState(null);const events=task.events||[];const isProcess=events.length>0;const[expanded,setExpandedRaw]=useState(()=>getExpandedTaskIds().has(task.id));const setExpanded=valOrFn=>setExpandedRaw(prev=>{const next=typeof valOrFn==='function'?valOrFn(prev):valOrFn;setTaskExpandedPersisted(task.id,next);return next;});useEffect(()=>{if(expandSignal&&expandSignal.ids.has(task.id))setExpanded(expandSignal.expand);},[expandSignal]);const[newSubId,setNewSubId]=useState(null);const[taskMenuPos,setTaskMenuPos]=useState(null);const inputRef=useRef(null);useEffect(()=>{if(autoFocus&&inputRef.current)inputRef.current.focus();},[]);useEffect(()=>{if(editTitle&&inputRef.current)inputRef.current.focus();},[editTitle]);/* ── Auto-stuck: if any process subtask has a delayed event → set statusId='S' on it and on task ── */useEffect(()=>{if(daysThreshold===null)return;if(task.statusId==='C')return;// done tasks are immune to auto-stuck
 const today=todayISO();const daysBetweenLocal=(a,b)=>Math.round((new Date(b)-new Date(a))/86400000);let taskNeedsStuck=false;let updatedSubs=null;const subs=task.subtasks||[];subs.forEach((sub,i)=>{const evts=sub.events||[];if(!evts.length)return;const sorted=[...evts].sort((a,b)=>(b.date||'').localeCompare(a.date||''));const latest=sorted[0];if(!latest?.status||latest.status==='approved')return;// finished — no stuck
 const isPeriod=EV_PERIOD.has(latest.status);if(!isPeriod)return;// only period statuses can be "stuck"
@@ -10857,7 +10858,8 @@ function MtPlanner({
   ownersOf,
   onOpen,
   onDone,
-  teamLabel = null
+  teamLabel = null,
+  onPlanChange = null
 }) {
   const h = React.createElement;
   const planCtx = useContext(PlanCtx);
@@ -10868,7 +10870,7 @@ function MtPlanner({
   const [showAll, setShowAll] = useState({});
   const [restOpen, setRestOpen] = useState(false);
   const byKey = new Map(tasks.map(t => [planKeyOf(t), t]));
-  const setPlan = (t, bucket) => planCtx && planCtx.setPlan(t, bucket);
+  const setPlan = (t, bucket) => onPlanChange ? onPlanChange(t, bucket) : planCtx && planCtx.setPlan(t, bucket);
   const dropZone = (id, onDrop) => ({
     onDragOver: e => {
       if (!e.dataTransfer.types.includes('text/x-mtp')) return;
@@ -11335,6 +11337,11 @@ function MyTasksTable({
   const [docs, setDocs] = useState({});
   const [err, setErr] = useState('');
   const [layout, setLayout] = useState(null);
+  /* ↩ ↪ for this page: it writes to several projects and the personal list at once, so it keeps its own
+     history — each entry the lists before and after a change; undo routes them back */
+  const [mtPast, setMtPast] = useState([]);
+  const [mtFuture, setMtFuture] = useState([]);
+  const mtUndoRef = useRef(null);
   const loadDoc = id => fetch(projectEndpointOf(id)).then(r => r.ok ? r.json() : null).then(d => {
     if (d && d.sheets) setDocs(prev => ({
       ...prev,
@@ -11621,12 +11628,14 @@ function MyTasksTable({
       };
     })
   });
-  const route = (prev, next) => {
+  const routeRaw = (prev, next) => {
+    let did = false;
     const prevById = new Map(prev.map(t => [t.id, t]));
     const nextIds = new Set(next.map(t => t.id));
     const byProj = {};
     const personalOps = [];
     const push = (t, op) => {
+      did = true;
       if (t.__src === 'proj') (byProj[t.__projId] = byProj[t.__projId] || []).push({
         sheetId: t.__sheetId,
         ...op
@@ -11646,6 +11655,7 @@ function MyTasksTable({
         groupId: 1
       })) {
         if (planCtx) planCtx.setPlan(t, t.mtPlan === 'לא מתוכנן' ? null : t.mtPlan);
+        did = true;
         return;
       }
       push(t, {
@@ -11696,7 +11706,94 @@ function MyTasksTable({
         tasks: applyMe(d.tasks || [])
       })).catch(() => setErr('המשימה האישית לא נשמרה — בדוק שהשרת פועל'));
     }
+    return did;
   };
+  const mtLabelOf = (prev, next) => {
+    const before = new Map(prev.map(t => [t.id, t]));
+    const gone = prev.find(t => !next.some(x => x.id === t.id));
+    if (gone) return tx('מחיקת "{t}"', {
+      t: gone.title || ''
+    });
+    const t = next.find(x => before.get(x.id) !== x);
+    if (!t) return tx('שינוי');
+    if (!before.has(t.id)) return tx('הוספת "{t}"', {
+      t: t.title || ''
+    });
+    const o = before.get(t.id);
+    if (o.mtPlan !== t.mtPlan) return tx('תכנון "{t}"', {
+      t: t.title || ''
+    });
+    return tx('עריכת "{t}"', {
+      t: t.title || ''
+    });
+  };
+  const route = (prev, next) => {
+    if (!routeRaw(prev, next)) return;
+    mtRecord({
+      undo: () => routeRaw(next, prev),
+      redo: () => routeRaw(prev, next),
+      label: mtLabelOf(prev, next)
+    });
+  };
+  const mtRecord = e => {
+    setMtPast(p => [...p.slice(-49), {
+      ...e,
+      at: Date.now()
+    }]);
+    setMtFuture([]);
+  };
+  /* a plan change from מסך התכנון (+ היום, a drop on היום / השבוע / בהמשך) */
+  const planRecorded = (t, bucket) => {
+    if (!planCtx) return;
+    const was = planCtx.plan[planKeyOf(t)] || null;
+    planCtx.setPlan(t, bucket);
+    mtRecord({
+      undo: () => planCtx.setPlanEntry(t, was),
+      redo: () => planCtx.setPlan(t, bucket),
+      label: tx(bucket ? 'תכנון "{t}"' : 'הוצאה מהתכנון: "{t}"', {
+        t: t.title || ''
+      })
+    });
+  };
+  /* undo the newest n; redo order keeps the next action first */
+  const mtUndo = n => {
+    const k = Math.min(n, mtPast.length);
+    if (!k) return;
+    const moved = mtPast.slice(mtPast.length - k);
+    moved.slice().reverse().forEach(e => e.undo());
+    setMtPast(mtPast.slice(0, mtPast.length - k));
+    setMtFuture([...moved.slice().reverse(), ...mtFuture]);
+  };
+  const mtRedo = n => {
+    const k = Math.min(n, mtFuture.length);
+    if (!k) return;
+    const moved = mtFuture.slice(0, k);
+    moved.forEach(e => e.redo());
+    setMtFuture(mtFuture.slice(k));
+    setMtPast([...mtPast, ...moved]);
+  };
+  mtUndoRef.current = {
+    undo: mtUndo,
+    redo: mtRedo
+  };
+  /* Ctrl+Z / Ctrl+Y here (the project's own keys stay off on this page); a text field keeps its own undo */
+  useEffect(() => {
+    if (projectOnly) return;
+    const onKey = e => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const tg = e.target;
+      if (tg && (tg.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(tg.tagName))) return;
+      if (e.code === 'KeyZ' && !e.shiftKey) {
+        e.preventDefault();
+        mtUndoRef.current.undo(1);
+      } else if (e.code === 'KeyY' || e.code === 'KeyZ' && e.shiftKey) {
+        e.preventDefault();
+        mtUndoRef.current.redo(1);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [projectOnly]);
   const onSave = next => {
     setErr('');
     const nextGroups = next.groups && next.groups.length ? next.groups : groups;
@@ -11910,6 +12007,25 @@ function MyTasksTable({
   }, "\u05DE\u05E9\u05D9\u05DE\u05D5\u05EA \u05DE\u05DB\u05DC \u05D4\u05E4\u05E8\u05D5\u05D9\u05E7\u05D8\u05D9\u05DD \u05E9\u05DC\u05DA \u05D5\u05DE\u05E9\u05D9\u05DE\u05D5\u05EA \u05D0\u05D9\u05E9\u05D9\u05D5\u05EA \xB7 \"+ \u05D4\u05D5\u05E1\u05E3 \u05DE\u05E9\u05D9\u05DE\u05D4\" \u05D9\u05D5\u05E6\u05E8 \u05DE\u05E9\u05D9\u05DE\u05D4 \u05D0\u05D9\u05E9\u05D9\u05EA"), waiting && /*#__PURE__*/React.createElement("span", {
     className: "mt-loading"
   }, "\u05D8\u05D5\u05E2\u05DF \u05E4\u05E8\u05D5\u05D9\u05E7\u05D8\u05D9\u05DD\u2026"), React.createElement("div", {
+    className: "undo-pair mt-undo"
+  }, React.createElement(UndoRedoBtn, {
+    icon: "↩",
+    tooltip: "ביטול (Ctrl+Z)",
+    listTitle: "פעולות אחרונות — לחיצה חוזרת עד לשם",
+    newestLast: true,
+    items: mtPast,
+    disabled: !mtPast.length,
+    onApply: () => mtUndo(1),
+    onGoTo: mtUndo
+  }), React.createElement(UndoRedoBtn, {
+    icon: "↪",
+    tooltip: "שחזור (Ctrl+Y)",
+    listTitle: "שחזור — לחיצה משחזרת עד לשם",
+    items: mtFuture,
+    disabled: !mtFuture.length,
+    onApply: () => mtRedo(1),
+    onGoTo: mtRedo
+  })), React.createElement("div", {
     className: "mtp-mode",
     role: "tablist",
     "aria-label": "תצוגה"
@@ -11947,6 +12063,7 @@ function MyTasksTable({
     teamToo: projectOnly ? mtPrefs.mtProjOthers === undefined ? true : !!mtPrefs.mtProjOthers : mtPrefs.mtTeamToo === undefined ? true : !!mtPrefs.mtTeamToo,
     onTeamToo: v => setMtPref(projectOnly ? 'mtProjOthers' : 'mtTeamToo', v),
     teamLabel: projectOnly ? 'כולל משימות של אחרים בפרויקט ({n})' : null,
+    onPlanChange: planRecorded,
     whoPlan: !!mtPrefs.mtWhoPlan,
     whoAttn: !!mtPrefs.mtWhoAttn,
     onWho: (side, v) => setMtPref(side === 'plan' ? 'mtWhoPlan' : 'mtWhoAttn', v),
@@ -18543,7 +18660,7 @@ if(out!==d)setData(out);
 setSaveError(false);}catch{setSaveError(true);}finally{saving.current=false;}},[]);const openFileFallback=useCallback(async()=>{if(!window.showOpenFilePicker)return;try{const[handle]=await window.showOpenFilePicker({types:[{description:'JSON',accept:{'application/json':['.json']}}]});const file=await handle.getFile();const text=await file.text();const parsed=text?JSON.parse(text):{};const d=repairPrecondsSheet(migrateData(Object.keys(parsed).length?parsed:makeDefaultData()));fileHandleRef.current=handle;setLoadError(false);timeAutoRan.current=false;setData(d);}catch{}},[]);
 const save=useCallback(nd=>{if(myOfficeRole()==='viewer'){setReadOnlyNotice(Date.now());return;}const ad=runAutomations(data,nd);const d={...ad,_ts:Date.now(),_by:CURRENT_USER_LABEL};const label=detectActionLabel(data,nd);setPastStack(p=>[...p.slice(-(MAX_HIST-1)),{snapshot:{...data},label,at:Date.now()}]);setFutureStack([]);setData(d);persist(d);},[data,persist]);PROJECT_OPS.data=data;PROJECT_OPS.save=save;/* Every 30 seconds and on focus: if someone else saved, merge their version into the screen. Not while a save is in flight or a field has focus — the next check does it. Undo is cleared: it restores whole snapshots and would quietly remove a colleague's change. */React.useEffect(()=>{const check=async()=>{if(saving.current||!baseDoc.current||fileHandleRef.current)return;const ae=document.activeElement;if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT'||ae.isContentEditable))return;try{const r=await fetch(API_ENDPOINT,{headers:serverVersion?{'If-None-Match':serverVersion}:{}});if(r.status!==200)return;const theirs=await r.json();if(!theirs||!Object.keys(theirs).length||saving.current)return;serverVersion=r.headers.get('etag')||serverVersion;setData(cur=>{const merged=mergeDocs(baseDoc.current,cur,theirs);baseDoc.current=theirs;return merged;});setPastStack([]);setFutureStack([]);setExternalNotice(theirs._by||'משתמש אחר');setTimeout(()=>setExternalNotice(''),6000);}catch{}};window.addEventListener('focus',check);const iv=setInterval(check,30000);return()=>{window.removeEventListener('focus',check);clearInterval(iv);};},[]);
 const timeAutoRan=useRef(false);useLibViews();const seededViews=useRef(false);useEffect(()=>{if(seededViews.current||!LIB_VIEWS_READY)return;seededViews.current=true;seedOfficeViews().catch(()=>{});});/* "המשימות שלי בפרויקט" in ניהול תכנון: מסך תכנון with only this project shown */useEffect(()=>{const on=()=>{const others=MY_PROJECTS.filter(p=>p.real&&isMyProject(p)&&p.id!==ACTIVE_PROJECT_ID).map(p=>p.id);const hide=Object.fromEntries([...others,'__me'].map(id=>[id,true]));updatePersonal(d=>({...d,prefs:{...(d.prefs||{}),mtMode:'planner',mtHideProj:hide}})).catch(()=>{}).finally(()=>setTrack('mytasks'));};window.addEventListener('ph:open-my-planner',on);return()=>window.removeEventListener('ph:open-my-planner',on);},[]);/* a rule scoped to a library view waits for the library, or it would find no view and skip every task */const timeAutoWaitsLib=!LIB_VIEWS_READY&&!!data&&(data.automations||[]).some(r=>{const sc=autoNormScope(r.scope);return sc!=='all'&&sc.views.some(isLibViewId);});React.useEffect(()=>{if(!data||timeAutoRan.current||timeAutoWaitsLib)return;timeAutoRan.current=true;const res=runTimeBasedAutomations(data);if(res.changed){const d={...res.data,_ts:Date.now()};setData(d);persist(d);}},[data,persist,timeAutoWaitsLib]);const undoTo=useCallback(steps=>{const n=Math.min(steps,pastStack.length);if(!n)return;const newPast=pastStack.slice(0,pastStack.length-n);const displaced=pastStack.slice(pastStack.length-n);// oldest→newest
-/* redo order: the next action first; each entry holds the state right after its action */const futureEntries=displaced.map((p,j)=>({label:p.label,at:p.at,snapshot:j<displaced.length-1?displaced[j+1].snapshot:{...data}}));const restored={...displaced[0].snapshot,_ts:Date.now()};setPastStack(newPast);setFutureStack(fut=>[...futureEntries,...fut].slice(0,MAX_HIST));setData(restored);persist(restored);},[data,pastStack,persist]);const redoTo=useCallback(steps=>{const n=Math.min(steps,futureStack.length);if(!n)return;const displaced=futureStack.slice(0,n);const newFuture=futureStack.slice(n);const pastEntries=[{snapshot:{...data},label:displaced[0].label},...displaced.slice(1).map((f,i)=>({snapshot:displaced[i].snapshot,label:f.label}))];const restored={...displaced[n-1].snapshot,_ts:Date.now()};setPastStack(p=>[...p.slice(-(MAX_HIST-n)),...pastEntries]);setFutureStack(newFuture);setData(restored);persist(restored);},[data,futureStack,persist]);React.useEffect(()=>{/* Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z by physical key, so a Hebrew layout works; inside a text field they stay the field's own undo */const handler=e=>{if(!(e.ctrlKey||e.metaKey)||e.altKey)return;const t=e.target;if(t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))return;if(e.code==='KeyZ'&&!e.shiftKey){e.preventDefault();undoTo(1);}else if(e.code==='KeyY'||e.code==='KeyZ'&&e.shiftKey){e.preventDefault();redoTo(1);}};document.addEventListener('keydown',handler);return()=>document.removeEventListener('keydown',handler);},[undoTo,redoTo]);const commitName=()=>{if(nameDraft.trim()){save({...data,projectName:nameDraft.trim()});syncProjectRegistry({name:nameDraft.trim()}).catch(()=>{});}setEditName(false);};/* top-level track: 'overview' | 'tasks' | 'template' | one of data.tracks' ids */const[track,setTrack]=useState(()=>{try{const t=sessionStorage.getItem(PENDING_TRACK_KEY);sessionStorage.removeItem(PENDING_TRACK_KEY);return t||screenGet('track')||'home';}catch{return'home';}});useEffect(()=>{screenSet('track',track);},[track]);const[autoNavReq,setAutoNavReq]=useState(null);const editAutomation=useCallback(ruleId=>{setAutoNavReq(ruleId?{ruleId}:{isNew:true});setTrack('template');},[]);const[taskNavReq,setTaskNavReq]=useState(null);const openTaskAt=useCallback((trackId,taskId,sheetId)=>{setTrack(trackId);setTaskNavReq({taskId,sheetId,n:Date.now()});},[]);const dataReady=!!data;useEffect(()=>{if(!dataReady)return;let req=null;try{req=JSON.parse(sessionStorage.getItem(PENDING_TASK_KEY)||'null');sessionStorage.removeItem(PENDING_TASK_KEY);}catch{}if(!req||req.projId!==ACTIVE_PROJECT_ID)return;const trackId=trackIdForSheet(data,req.sheetId);if(trackId)openTaskAt(trackId,req.taskId,req.sheetId);},[dataReady]);const[searchQ,setSearchQ]=useState('');useEffect(()=>{const s=e=>{setSearchQ(e.detail&&e.detail.q||'');setTrack('search');};const hub=()=>setTrack('tasks');/* Ctrl+K opens the search page from anywhere (and selects its box when already there) */const k=e=>{if(!(e.ctrlKey||e.metaKey)||e.code!=='KeyK')return;e.preventDefault();setTrack('search');setTimeout(()=>{const q=document.querySelector('.sr-q');if(q){q.focus();q.select();}},0);};document.addEventListener('keydown',k);window.addEventListener('ph:search',s);window.addEventListener('ph:go-hub',hub);const gs=()=>setTrack('settings');window.addEventListener('ph:go-settings',gs);return()=>{window.removeEventListener('ph:go-settings',gs);document.removeEventListener('keydown',k);window.removeEventListener('ph:search',s);window.removeEventListener('ph:go-hub',hub);};},[]);useEffect(()=>{if(!data)return;const o=e=>{const{sheetId,taskId}=e.detail||{};const tr=trackIdForSheet(data,sheetId);if(tr)openTaskAt(tr,taskId,sheetId);};window.addEventListener('ph:open-task',o);return()=>window.removeEventListener('ph:open-task',o);},[data]);const[projListKey,setProjListKey]=useState(null);useEffect(()=>{const o=e=>setProjListKey(e.detail&&e.detail.key||null);window.addEventListener('ph:proj-list',o);return()=>window.removeEventListener('ph:proj-list',o);},[]);const[holdUi,setHoldUi]=useState(null);useEffect(()=>{const h=e=>setHoldUi(e.detail||{});window.addEventListener('ph:hold',h);return()=>window.removeEventListener('ph:hold',h);},[]);/* a hold opened from המשימות שלי in another project arrives after the switch */useEffect(()=>{if(!dataReady)return;let req=null;try{req=JSON.parse(sessionStorage.getItem('pm_pending_hold')||'null');sessionStorage.removeItem('pm_pending_hold');}catch{}if(req&&req.projId===ACTIVE_PROJECT_ID)setHoldUi(req.action==='release'?{release:req.holdId}:{edit:req.holdId});},[dataReady]);if(!data){return/*#__PURE__*/React.createElement("div",{style:{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,padding:40}},loadError?/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{style:{fontSize:14,color:'var(--text-2)'}},"לא ניתן להתחבר לשרת השמירה המקומי"),window.showOpenFilePicker&&/*#__PURE__*/React.createElement("button",{onClick:openFileFallback,style:{background:'var(--accent)',color:'#fff',border:'none',borderRadius:6,padding:'8px 16px',fontSize:13,cursor:'pointer',fontFamily:'inherit'}},"פתח קובץ נתונים...")):/*#__PURE__*/React.createElement("div",{style:{fontSize:14,color:'var(--text-2)'}},"טוען..."));}/* quick access: only the compact window, no sidebar or pages */HOLD_INDEX=buildHoldIndex(data);if(QUICK_MODE)return/*#__PURE__*/React.createElement(QuickShell,{data:data,save:save});return/*#__PURE__*/React.createElement("div",{className:"shell"},/*#__PURE__*/React.createElement(ConfirmHost,null),projListKey&&React.createElement(ProjectListModal,{key:projListKey,data,save,listKey:projListKey,onClose:()=>setProjListKey(null)}),/*#__PURE__*/React.createElement(RegisterLinkUI.AutoLink,{data:data,save:save,canEdit:myOfficeRole()!=='viewer',hubCode:data.projectMeta?.code||(MY_PROJECTS.find(p=>p.id===ACTIVE_PROJECT_ID)||{}).code||''}),holdUi&&(holdUi.release||holdUi.delayApply)?React.createElement(HoldReleaseModal,{data,save,holdId:holdUi.release||holdUi.delayApply,mode:holdUi.delayApply?'delay':'release',onClose:()=>setHoldUi(null)}):holdUi?React.createElement(HoldModal,{data,save,holdId:holdUi.edit||null,onClose:()=>setHoldUi(null),onCreated:hd=>setHoldUi({delayApply:hd.id})}):null,readOnlyNotice?/*#__PURE__*/React.createElement("div",{role:"status",className:"ro-toast"},"צפייה בלבד — ברמת Viewer אין הרשאת עריכה"):null,saveError&&/*#__PURE__*/React.createElement("div",{style:{position:'fixed',top:0,left:0,right:0,zIndex:9999,background:'#DC2626',color:'#fff',fontSize:12,fontWeight:600,textAlign:'center',padding:'4px 0'}},"לא ניתן לשמור — השינויים האחרונים לא נשמרו"),externalNotice&&React.createElement("div",{style:{position:'fixed',top:saveError?22:0,left:0,right:0,zIndex:9999,background:'#2563EB',color:'#fff',fontSize:12,fontWeight:600,textAlign:'center',padding:'4px 0'}},"עודכן על ידי "+externalNotice),/*#__PURE__*/React.createElement(Sidebar,{track:track,setTrack:setTrack,tracks:data.tracks||[],data:data,save:save}),/*#__PURE__*/React.createElement("div",{className:"app"},/*#__PURE__*/React.createElement("div",{/* office-wide pages carry no project header */className:"proj-header"+(['home','mytasks','projects','portfolio','settings','search'].includes(track)?' hdr-home':'')},/*#__PURE__*/React.createElement("div",{className:"proj-top"},(()=>{/* the same code badge the sidebar shows for this project */const hp=MY_PROJECTS.find(p=>p.id===ACTIVE_PROJECT_ID)||{};const code=data.projectMeta?.code||hp.code||'';const color=data.projectMeta?.color||hp.color||'#2563EB';return /*#__PURE__*/React.createElement("span",{className:"sb-proj-badge proj-code-badge",style:{background:hexBg(color),color:color,border:`1px solid ${color}40`}},code);})(),editName?/*#__PURE__*/React.createElement("input",{className:"proj-name-input",autoFocus:true,value:nameDraft,onChange:e=>setNameDraft(e.target.value),onBlur:commitName,onKeyDown:e=>{if(e.key==='Enter')commitName();if(e.key==='Escape')setEditName(false);}}):/*#__PURE__*/React.createElement("span",{className:"proj-name",onClick:()=>{setNameDraft(data.projectName);setEditName(true);}},data.projectName),/*#__PURE__*/React.createElement("button",{className:"icon-btn",title:"מועדפים"},/*#__PURE__*/React.createElement(Ic,{n:"star"})),/*#__PURE__*/React.createElement(ProjectStatusSelect,{data:data,save:save}),/*#__PURE__*/React.createElement("div",{className:"hdr-right"},/*#__PURE__*/React.createElement("div",{className:"undo-pair"},/*#__PURE__*/React.createElement(UndoRedoBtn,{icon:"↩",tooltip:"ביטול (Ctrl+Z)",listTitle:"פעולות אחרונות — לחיצה חוזרת עד לשם",newestLast:true,items:pastStack,disabled:!pastStack.length,onApply:()=>undoTo(1),onGoTo:undoTo}),/*#__PURE__*/React.createElement(UndoRedoBtn,{icon:"↪",tooltip:"שחזור (Ctrl+Y)",listTitle:"שחזור — לחיצה משחזרת עד לשם",items:futureStack,disabled:!futureStack.length,onApply:()=>redoTo(1),onGoTo:redoTo})),/*#__PURE__*/React.createElement(ProjectShareControls,{data:data,save:save}))),/* the project strip belongs to מבט על and the pages it links to — not to tracks, ניהול תכנון or the template */['overview','contacts','data','notes'].includes(track)&&/*#__PURE__*/React.createElement("div",{className:"sheet-tabs",style:{borderTop:'1px solid var(--border)'}},React.createElement(ProjectHeaderNav,{track:track,setTrack:setTrack}))),!['home','mytasks','projects','portfolio','settings','search'].includes(track)&&React.createElement(HoldBanner,{data}),/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},track==='overview'&&(isAdminProject(data)?React.createElement(AdminOverview,{data,save,onNavigateToData:()=>setTrack('data'),onOpenStage:(trackId,sheetId)=>{screenSet('stage:'+ACTIVE_PROJECT_ID+':'+trackId,sheetId);screenSet('view:'+ACTIVE_PROJECT_ID+':'+trackId,'list');setTrack(trackId);}}):/*#__PURE__*/React.createElement(OverviewPage,{data:data,save:save,onNavigateToTasks:()=>setTrack('ongoing'),onNavigateToData:()=>setTrack('data')})),track==='contacts'&&/*#__PURE__*/React.createElement(ContactsView,{data:data,save:save}),track==='data'&&/*#__PURE__*/React.createElement(ProjectDataView,{data:data,save:save}),track==='notes'&&/*#__PURE__*/React.createElement(NotepadTab,{data:data,save:save}),track==='tasks'&&/*#__PURE__*/React.createElement(NihulHubView,{data:data,save:save,onNavigateToOngoing:()=>setTrack('ongoing'),onEditAutomation:editAutomation,onOpenTask:openTaskAt}),(data.tracks||[]).some(t=>t.id===track)&&/*#__PURE__*/React.createElement(TrackView,{data:data,save:save,trackId:track,onEditAutomation:editAutomation,taskNavReq:taskNavReq,onTaskNavConsumed:()=>setTaskNavReq(null)}),track==='mytasks'&&/*#__PURE__*/React.createElement(MyTasksTable,{data:data,save:save,onOpenTask:openTaskAt}),track==='search'&&React.createElement(SearchPage,{data,initialQ:searchQ}),track==='home'&&/*#__PURE__*/React.createElement(HomeView,{data:data,save:save,onNavigate:setTrack,onOpenTask:openTaskAt}),track==='projects'&&/*#__PURE__*/React.createElement(ProjectsDirectoryView,{data:data,save:save}),track==='portfolio'&&/*#__PURE__*/React.createElement(PortfolioView,null),track==='settings'&&/*#__PURE__*/React.createElement(OfficeSettingsView,{data:data,save:save}),track==='template'&&/*#__PURE__*/React.createElement(TemplateView,{data:data,save:save,autoNavReq:autoNavReq,onAutoNavConsumed:()=>setAutoNavReq(null)}))));}if(isSignedOut())location.replace('login.html');else ME_READY.then(()=>loadProjectRegistry()).finally(()=>ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(PlanProvider,null,/*#__PURE__*/React.createElement(App,null))));
+/* redo order: the next action first; each entry holds the state right after its action */const futureEntries=displaced.map((p,j)=>({label:p.label,at:p.at,snapshot:j<displaced.length-1?displaced[j+1].snapshot:{...data}}));const restored={...displaced[0].snapshot,_ts:Date.now()};setPastStack(newPast);setFutureStack(fut=>[...futureEntries,...fut].slice(0,MAX_HIST));setData(restored);persist(restored);},[data,pastStack,persist]);const redoTo=useCallback(steps=>{const n=Math.min(steps,futureStack.length);if(!n)return;const displaced=futureStack.slice(0,n);const newFuture=futureStack.slice(n);const pastEntries=[{snapshot:{...data},label:displaced[0].label},...displaced.slice(1).map((f,i)=>({snapshot:displaced[i].snapshot,label:f.label}))];const restored={...displaced[n-1].snapshot,_ts:Date.now()};setPastStack(p=>[...p.slice(-(MAX_HIST-n)),...pastEntries]);setFutureStack(newFuture);setData(restored);persist(restored);},[data,futureStack,persist]);React.useEffect(()=>{/* Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z by physical key, so a Hebrew layout works; inside a text field they stay the field's own undo */const handler=e=>{if(!(e.ctrlKey||e.metaKey)||e.altKey)return;const t=e.target;if(t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))return;if(document.querySelector('.mt-table-page:not(.mt-proj-only)'))return;if(e.code==='KeyZ'&&!e.shiftKey){e.preventDefault();undoTo(1);}else if(e.code==='KeyY'||e.code==='KeyZ'&&e.shiftKey){e.preventDefault();redoTo(1);}};document.addEventListener('keydown',handler);return()=>document.removeEventListener('keydown',handler);},[undoTo,redoTo]);const commitName=()=>{if(nameDraft.trim()){save({...data,projectName:nameDraft.trim()});syncProjectRegistry({name:nameDraft.trim()}).catch(()=>{});}setEditName(false);};/* top-level track: 'overview' | 'tasks' | 'template' | one of data.tracks' ids */const[track,setTrack]=useState(()=>{try{const t=sessionStorage.getItem(PENDING_TRACK_KEY);sessionStorage.removeItem(PENDING_TRACK_KEY);return t||screenGet('track')||'home';}catch{return'home';}});useEffect(()=>{screenSet('track',track);},[track]);const[autoNavReq,setAutoNavReq]=useState(null);const editAutomation=useCallback(ruleId=>{setAutoNavReq(ruleId?{ruleId}:{isNew:true});setTrack('template');},[]);const[taskNavReq,setTaskNavReq]=useState(null);const openTaskAt=useCallback((trackId,taskId,sheetId)=>{setTrack(trackId);setTaskNavReq({taskId,sheetId,n:Date.now()});},[]);const dataReady=!!data;useEffect(()=>{if(!dataReady)return;let req=null;try{req=JSON.parse(sessionStorage.getItem(PENDING_TASK_KEY)||'null');sessionStorage.removeItem(PENDING_TASK_KEY);}catch{}if(!req||req.projId!==ACTIVE_PROJECT_ID)return;const trackId=trackIdForSheet(data,req.sheetId);if(trackId)openTaskAt(trackId,req.taskId,req.sheetId);},[dataReady]);const[searchQ,setSearchQ]=useState('');useEffect(()=>{const s=e=>{setSearchQ(e.detail&&e.detail.q||'');setTrack('search');};const hub=()=>setTrack('tasks');/* Ctrl+K opens the search page from anywhere (and selects its box when already there) */const k=e=>{if(!(e.ctrlKey||e.metaKey)||e.code!=='KeyK')return;e.preventDefault();setTrack('search');setTimeout(()=>{const q=document.querySelector('.sr-q');if(q){q.focus();q.select();}},0);};document.addEventListener('keydown',k);window.addEventListener('ph:search',s);window.addEventListener('ph:go-hub',hub);const gs=()=>setTrack('settings');window.addEventListener('ph:go-settings',gs);return()=>{window.removeEventListener('ph:go-settings',gs);document.removeEventListener('keydown',k);window.removeEventListener('ph:search',s);window.removeEventListener('ph:go-hub',hub);};},[]);useEffect(()=>{if(!data)return;const o=e=>{const{sheetId,taskId}=e.detail||{};const tr=trackIdForSheet(data,sheetId);if(tr)openTaskAt(tr,taskId,sheetId);};window.addEventListener('ph:open-task',o);return()=>window.removeEventListener('ph:open-task',o);},[data]);const[projListKey,setProjListKey]=useState(null);useEffect(()=>{const o=e=>setProjListKey(e.detail&&e.detail.key||null);window.addEventListener('ph:proj-list',o);return()=>window.removeEventListener('ph:proj-list',o);},[]);const[holdUi,setHoldUi]=useState(null);useEffect(()=>{const h=e=>setHoldUi(e.detail||{});window.addEventListener('ph:hold',h);return()=>window.removeEventListener('ph:hold',h);},[]);/* a hold opened from המשימות שלי in another project arrives after the switch */useEffect(()=>{if(!dataReady)return;let req=null;try{req=JSON.parse(sessionStorage.getItem('pm_pending_hold')||'null');sessionStorage.removeItem('pm_pending_hold');}catch{}if(req&&req.projId===ACTIVE_PROJECT_ID)setHoldUi(req.action==='release'?{release:req.holdId}:{edit:req.holdId});},[dataReady]);if(!data){return/*#__PURE__*/React.createElement("div",{style:{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,padding:40}},loadError?/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{style:{fontSize:14,color:'var(--text-2)'}},"לא ניתן להתחבר לשרת השמירה המקומי"),window.showOpenFilePicker&&/*#__PURE__*/React.createElement("button",{onClick:openFileFallback,style:{background:'var(--accent)',color:'#fff',border:'none',borderRadius:6,padding:'8px 16px',fontSize:13,cursor:'pointer',fontFamily:'inherit'}},"פתח קובץ נתונים...")):/*#__PURE__*/React.createElement("div",{style:{fontSize:14,color:'var(--text-2)'}},"טוען..."));}/* quick access: only the compact window, no sidebar or pages */HOLD_INDEX=buildHoldIndex(data);if(QUICK_MODE)return/*#__PURE__*/React.createElement(QuickShell,{data:data,save:save});return/*#__PURE__*/React.createElement("div",{className:"shell"},/*#__PURE__*/React.createElement(ConfirmHost,null),projListKey&&React.createElement(ProjectListModal,{key:projListKey,data,save,listKey:projListKey,onClose:()=>setProjListKey(null)}),/*#__PURE__*/React.createElement(RegisterLinkUI.AutoLink,{data:data,save:save,canEdit:myOfficeRole()!=='viewer',hubCode:data.projectMeta?.code||(MY_PROJECTS.find(p=>p.id===ACTIVE_PROJECT_ID)||{}).code||''}),holdUi&&(holdUi.release||holdUi.delayApply)?React.createElement(HoldReleaseModal,{data,save,holdId:holdUi.release||holdUi.delayApply,mode:holdUi.delayApply?'delay':'release',onClose:()=>setHoldUi(null)}):holdUi?React.createElement(HoldModal,{data,save,holdId:holdUi.edit||null,onClose:()=>setHoldUi(null),onCreated:hd=>setHoldUi({delayApply:hd.id})}):null,readOnlyNotice?/*#__PURE__*/React.createElement("div",{role:"status",className:"ro-toast"},"צפייה בלבד — ברמת Viewer אין הרשאת עריכה"):null,saveError&&/*#__PURE__*/React.createElement("div",{style:{position:'fixed',top:0,left:0,right:0,zIndex:9999,background:'#DC2626',color:'#fff',fontSize:12,fontWeight:600,textAlign:'center',padding:'4px 0'}},"לא ניתן לשמור — השינויים האחרונים לא נשמרו"),externalNotice&&React.createElement("div",{style:{position:'fixed',top:saveError?22:0,left:0,right:0,zIndex:9999,background:'#2563EB',color:'#fff',fontSize:12,fontWeight:600,textAlign:'center',padding:'4px 0'}},"עודכן על ידי "+externalNotice),/*#__PURE__*/React.createElement(Sidebar,{track:track,setTrack:setTrack,tracks:data.tracks||[],data:data,save:save}),/*#__PURE__*/React.createElement("div",{className:"app"},/*#__PURE__*/React.createElement("div",{/* office-wide pages carry no project header */className:"proj-header"+(['home','mytasks','projects','portfolio','settings','search'].includes(track)?' hdr-home':'')},/*#__PURE__*/React.createElement("div",{className:"proj-top"},(()=>{/* the same code badge the sidebar shows for this project */const hp=MY_PROJECTS.find(p=>p.id===ACTIVE_PROJECT_ID)||{};const code=data.projectMeta?.code||hp.code||'';const color=data.projectMeta?.color||hp.color||'#2563EB';return /*#__PURE__*/React.createElement("span",{className:"sb-proj-badge proj-code-badge",style:{background:hexBg(color),color:color,border:`1px solid ${color}40`}},code);})(),editName?/*#__PURE__*/React.createElement("input",{className:"proj-name-input",autoFocus:true,value:nameDraft,onChange:e=>setNameDraft(e.target.value),onBlur:commitName,onKeyDown:e=>{if(e.key==='Enter')commitName();if(e.key==='Escape')setEditName(false);}}):/*#__PURE__*/React.createElement("span",{className:"proj-name",onClick:()=>{setNameDraft(data.projectName);setEditName(true);}},data.projectName),/*#__PURE__*/React.createElement("button",{className:"icon-btn",title:"מועדפים"},/*#__PURE__*/React.createElement(Ic,{n:"star"})),/*#__PURE__*/React.createElement(ProjectStatusSelect,{data:data,save:save}),/*#__PURE__*/React.createElement("div",{className:"hdr-right"},/*#__PURE__*/React.createElement("div",{className:"undo-pair"},/*#__PURE__*/React.createElement(UndoRedoBtn,{icon:"↩",tooltip:"ביטול (Ctrl+Z)",listTitle:"פעולות אחרונות — לחיצה חוזרת עד לשם",newestLast:true,items:pastStack,disabled:!pastStack.length,onApply:()=>undoTo(1),onGoTo:undoTo}),/*#__PURE__*/React.createElement(UndoRedoBtn,{icon:"↪",tooltip:"שחזור (Ctrl+Y)",listTitle:"שחזור — לחיצה משחזרת עד לשם",items:futureStack,disabled:!futureStack.length,onApply:()=>redoTo(1),onGoTo:redoTo})),/*#__PURE__*/React.createElement(ProjectShareControls,{data:data,save:save}))),/* the project strip belongs to מבט על and the pages it links to — not to tracks, ניהול תכנון or the template */['overview','contacts','data','notes'].includes(track)&&/*#__PURE__*/React.createElement("div",{className:"sheet-tabs",style:{borderTop:'1px solid var(--border)'}},React.createElement(ProjectHeaderNav,{track:track,setTrack:setTrack}))),!['home','mytasks','projects','portfolio','settings','search'].includes(track)&&React.createElement(HoldBanner,{data}),/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},track==='overview'&&(isAdminProject(data)?React.createElement(AdminOverview,{data,save,onNavigateToData:()=>setTrack('data'),onOpenStage:(trackId,sheetId)=>{screenSet('stage:'+ACTIVE_PROJECT_ID+':'+trackId,sheetId);screenSet('view:'+ACTIVE_PROJECT_ID+':'+trackId,'list');setTrack(trackId);}}):/*#__PURE__*/React.createElement(OverviewPage,{data:data,save:save,onNavigateToTasks:()=>setTrack('ongoing'),onNavigateToData:()=>setTrack('data')})),track==='contacts'&&/*#__PURE__*/React.createElement(ContactsView,{data:data,save:save}),track==='data'&&/*#__PURE__*/React.createElement(ProjectDataView,{data:data,save:save}),track==='notes'&&/*#__PURE__*/React.createElement(NotepadTab,{data:data,save:save}),track==='tasks'&&/*#__PURE__*/React.createElement(NihulHubView,{data:data,save:save,onNavigateToOngoing:()=>setTrack('ongoing'),onEditAutomation:editAutomation,onOpenTask:openTaskAt}),(data.tracks||[]).some(t=>t.id===track)&&/*#__PURE__*/React.createElement(TrackView,{data:data,save:save,trackId:track,onEditAutomation:editAutomation,taskNavReq:taskNavReq,onTaskNavConsumed:()=>setTaskNavReq(null)}),track==='mytasks'&&/*#__PURE__*/React.createElement(MyTasksTable,{data:data,save:save,onOpenTask:openTaskAt}),track==='search'&&React.createElement(SearchPage,{data,initialQ:searchQ}),track==='home'&&/*#__PURE__*/React.createElement(HomeView,{data:data,save:save,onNavigate:setTrack,onOpenTask:openTaskAt}),track==='projects'&&/*#__PURE__*/React.createElement(ProjectsDirectoryView,{data:data,save:save}),track==='portfolio'&&/*#__PURE__*/React.createElement(PortfolioView,null),track==='settings'&&/*#__PURE__*/React.createElement(OfficeSettingsView,{data:data,save:save}),track==='template'&&/*#__PURE__*/React.createElement(TemplateView,{data:data,save:save,autoNavReq:autoNavReq,onAutoNavConsumed:()=>setAutoNavReq(null)}))));}if(isSignedOut())location.replace('login.html');else ME_READY.then(()=>loadProjectRegistry()).finally(()=>ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(PlanProvider,null,/*#__PURE__*/React.createElement(App,null))));
 </script>
 <script src="i18n-dict.js"></script>
 <script src="i18n.js"></script>
