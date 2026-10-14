@@ -1070,6 +1070,13 @@ html[data-appearance="dark"] .mtp-tag.pri-high{color:#FDBA74;}
 .mtp .mtp-row{display:grid;grid-template-columns:12px 40px minmax(0,1fr) 44px 92px 64px;gap:5px;}
 .mtp .mtp-row.with-who{grid-template-columns:12px 40px minmax(0,1fr) 44px 44px 92px 64px;}
 .mtp .mtp-row.in-plan{grid-template-columns:12px 40px minmax(0,1fr) 44px 92px 48px;}
+.mtp .mtp-row.mtp-exrow{grid-template-columns:40px minmax(0,1fr) 92px;cursor:pointer;}
+.mtp-exrow:hover{border-color:var(--border-strong);}
+.mtp-exrow:hover .mtp-title{color:var(--accent);text-decoration:underline;}
+.mtp-exmain{display:flex;align-items:center;gap:6px;min-width:0;}
+.mtp-exmain .ex-pill{margin-inline-end:0;flex-shrink:0;}
+.mtp-exmain .ex-num{flex-shrink:0;color:var(--text-2);}
+.mtp-a-exec{margin-bottom:6px;}
 .mtp .mtp-row.in-plan.with-who{grid-template-columns:12px 40px minmax(0,1fr) 44px 44px 92px 48px;}
 .mtp-c{display:flex;align-items:center;min-width:0;}
 .mtp-c .mtp-tag{width:100%;box-sizing:border-box;text-align:center;overflow:hidden;text-overflow:ellipsis;}
@@ -11121,7 +11128,9 @@ function MtPlanner({
   onStage,
   ownersOf,
   onOpen,
-  onDone
+  onDone,
+  execItems = [],
+  onOpenExec
 }) {
   const h = React.createElement;
   const planCtx = useContext(PlanCtx);
@@ -11318,7 +11327,45 @@ function MtPlanner({
     onChange: e => onTeamToo(e.target.checked)
   }), tx('כולל משימות הצוות בניהולי ({n})', {
     n: teamCount
-  }))), h("div", {
+  }))), execItems.length > 0 && h("div", {
+    className: "mtp-sec mtp-a-exec"
+  }, h("div", {
+    className: "mtp-sec-h"
+  }, h("span", null, "פריטי ביצוע אצלי"), h("span", {
+    className: "mtp-n"
+  }, execItems.length)), rowsOf('a-exec', execItems, it => h("div", {
+    key: it.__projId + ':' + it.id,
+    className: "mtp-row mtp-exrow",
+    role: "button",
+    tabIndex: 0,
+    title: it.mtProject + ' · ' + it.number,
+    onClick: () => onOpenExec && onOpenExec(it),
+    onKeyDown: e => { if (e.key === 'Enter') { e.preventDefault(); onOpenExec && onOpenExec(it); } }
+  }, h("span", {
+    className: "sb-proj-badge mt-badge",
+    style: {
+      background: hexBg(it.mtProjColor),
+      color: it.mtProjColor,
+      border: `1px solid ${it.mtProjColor}40`
+    },
+    "data-i18n-skip": ""
+  }, it.mtProjCode), h("span", {
+    className: "mtp-exmain"
+  }, h("span", {
+    className: 'ex-pill ex-pill-' + it.type
+  }, (EXEC_TYPES[it.type] || {}).label || it.type), h("span", {
+    className: "ex-num",
+    "data-i18n-skip": ""
+  }, it.number), h("span", {
+    className: "mtp-title",
+    "data-i18n-skip": ""
+  }, it.title || '—')), h("span", {
+    className: "mtp-c mtp-c-due"
+  }, h("span", {
+    className: 'mtp-tag' + (it.waiting > 7 ? ' bad' : it.waiting >= 5 ? ' warn' : '')
+  }, tx('ממתין {n} ימים', {
+    n: it.waiting || 0
+  })))))), h("div", {
     className: "mtp-cards"
   }, counts.map(c => h("div", {
     key: c.id,
@@ -11702,10 +11749,20 @@ function MyTasksTable({
   }, [personal]);
   const whenOf = (due, done) => !due ? 'ללא תאריך' : due < today ? done ? 'עבר' : 'באיחור' : due === today ? 'היום' : due <= weekEnd ? 'השבוע' : 'מאוחר יותר';
   const tasks = [];
+  const execMine = [];
   loaded.forEach(p => {
     const doc = docOf(p);
     const me = (doc.team || []).find(m => m.staffId === CURRENT_USER.id);
     const iManageIt = !!me && memberAccess(me) === 'manager';
+    /* execution items where the ball is with the office and I own it (or I manage the project and nobody owns it) */
+    execForMe(doc.execItems || [], CURRENT_USER.id, iManageIt).forEach(it => execMine.push({
+      ...it,
+      __projId: p.id,
+      mtProject: p.name,
+      mtProjCode: p.code,
+      mtProjColor: p.color || '#2563EB',
+      waiting: execWaiting(it, today)
+    }));
     const threshold = doc.builtinConfig?.__owner_status?.delayThreshold ?? null;
     (doc.sheets || []).filter(s => s.type === 'list').forEach(s => {
       (s.tasks || []).forEach(t => {
@@ -11788,6 +11845,14 @@ function MyTasksTable({
   };
   const projOfTask = t => t.__src === 'me' ? '__me' : t.__projId;
   const visTasks = tasks.filter(t => !hideProj[projOfTask(t)]);
+  const visExec = execMine.filter(it => !hideProj[it.__projId]).sort((a, b) => (b.waiting || 0) - (a.waiting || 0));
+  /* an execution item opens on the project's ביצוע tab (same route as the search page) */
+  const openExecItem = it => {
+    const hub = { tab: 'supervision', execItemId: it.id };
+    try { sessionStorage.setItem('pm_pending_hub', JSON.stringify(hub)); } catch {}
+    if (it.__projId === ACTIVE_PROJECT_ID) { window.dispatchEvent(new CustomEvent('ph:go-hub', { detail: hub })); return; }
+    switchProject(it.__projId, 'tasks');
+  };
   const projItems = [...projects.map(p => ({
     id: p.id,
     name: p.name,
@@ -12198,6 +12263,8 @@ function MyTasksTable({
     role: "alert"
   }, err || personalErr), mtMode === 'planner' ? React.createElement(MtPlanner, {
     tasks: visTasks,
+    execItems: visExec,
+    onOpenExec: openExecItem,
     priorities,
     urgentOnly: !!mtPrefs.mtUrgentOnly,
     onUrgentOnly: v => setMtPref('mtUrgentOnly', v),
