@@ -8,7 +8,7 @@ const m = html.match(/\/\* ═══ exec-logic ═══ \*\/([\s\S]*?)\/\* ═
 if (!m) throw new Error('exec-logic block not found in project_hub_01.html');
 let n = 0;
 const uid = () => 'x' + ++n;
-const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel};')(uid);
+const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays};')(uid);
 
 const T0 = '2026-10-04T08:00:00.000Z'; // Sunday
 const mk = (over = {}) => L.execNewItem(over.items || [], { type: 'rfi', title: 'גובה תקרה', description: 'שאלה', openedBy: { party: 'contractor', name: 'דנה' }, ballTo: { party: 'architect', name: '' }, ...over }, T0);
@@ -113,4 +113,12 @@ test('counts, ball split, my items and log order', () => {
   assert.strictEqual(L.execPartyLabel({ party: 'consultant', name: 'מיזוג' }), 'יועץ מיזוג');
   assert.strictEqual(L.execPartyLabel({ party: 'contractor', name: 'דנה' }), 'קבלן · דנה');
   assert.strictEqual(L.execPartyLabel(null), '—');
+});
+
+test('add workdays skips Friday and Saturday', () => {
+  assert.strictEqual(L.execAddWorkdays('2026-10-08', 1), '2026-10-11'); // Thu → Sun
+  assert.strictEqual(L.execAddWorkdays('2026-10-04', 7), '2026-10-13'); // Sun + 7 workdays
+  assert.strictEqual(L.execAddWorkdays('2026-10-09T10:00:00Z', 0), '2026-10-09');
+  assert.strictEqual(L.execAddWorkdays('', 3), '');
+  assert.strictEqual(L.execWorkdays('2026-10-04', L.execAddWorkdays('2026-10-04', 10)), 10);
 });
