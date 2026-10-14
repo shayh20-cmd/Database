@@ -3680,9 +3680,9 @@ function MeetingTable({data,save,meeting,onChange}){
       /* read again after the await: the doc may have been saved (or merged) meanwhile */const d=dataRef.current,m=meetingRef.current;const has=(d.meetings||[]).some(x=>x.id===m.id);save({...d,meetings:has?(d.meetings||[]).map(x=>x.id===m.id?m:x):[...(d.meetings||[]),m]});}
     exGoHub({tab:'supervision',execItemId:itemId});};
   const execPill=item=>{const r=item.execRef;if(!r)return null;const ex=execItems.find(e=>e.id===r.itemId);const lbl=(EXEC_TYPES[r.type]||{}).label||r.type;const txt=String(item.topic||'').trim().startsWith(r.number)?lbl:r.number;
-    return ex?h("span",{key:'x',role:"button",tabIndex:0,className:"ex-pill ex-pill-"+r.type+" mtg-ex-pill","data-i18n-skip":txt===r.number?"":undefined,title:r.number+' — פתח את פריט הביצוע',onClick:()=>goExec(ex.id),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();goExec(ex.id);}}},txt)
-      :h("span",{key:'x',className:"ex-pill ex-pill-"+r.type+" mtg-ex-pill mtg-ex-gone","data-i18n-skip":txt===r.number?"":undefined,title:r.number+' — הפריט נמחק'},txt);};
-  const execAge=item=>{const r=item.execRef;const ex=r&&execItems.find(e=>e.id===r.itemId);if(!ex)return null;return h("div",{className:"mtg-carried mtg-ex-age"},execIsClosed(ex)?'נסגר':'פתוח '+mtgDaysSince(ex.createdAt,today)+' ימים');};
+    return ex?h("span",{key:'x',role:"button",tabIndex:0,className:"ex-pill ex-pill-"+r.type+" mtg-ex-pill","data-i18n-skip":txt===r.number?"":undefined,title:r.number+tx(' — פתח את פריט הביצוע'),onClick:()=>goExec(ex.id),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();goExec(ex.id);}}},txt)
+      :h("span",{key:'x',className:"ex-pill ex-pill-"+r.type+" mtg-ex-pill mtg-ex-gone","data-i18n-skip":txt===r.number?"":undefined,title:r.number+tx(' — הפריט נמחק')},txt);};
+  const execAge=item=>{const r=item.execRef;const ex=r&&execItems.find(e=>e.id===r.itemId);if(!ex)return null;return h("div",{className:"mtg-carried mtg-ex-age"},execIsClosed(ex)?'נסגר':tx('פתוח {n} ימים',{n:mtgDaysSince(ex.createdAt,today)}));};
   const linkAs=(item,type)=>{setMenuId(null);if(type==='principle'||type==='goal'||type==='milestone'){updateItem(item.id,{itemType:type});linkItemAsRecord(item,type);}else setCreateItemFor({id:item.id,type});};
   const menu=(item,isSub)=>h("span",{className:"meeting-print-hide",style:{position:'relative',flexShrink:0}},
     h("button",{className:"mtg-menu-btn"+(menuId===item.id?' open':''),title:"אפשרויות",onClick:e=>{e.stopPropagation();setMenuId(m=>m===item.id?null:item.id);}},"⋯"),
@@ -4104,12 +4104,12 @@ const statusOf=i=>{const st=((EXEC_TYPES[i.type]||{}).statuses||[]).find(x=>x.id
 const now=new Date();const printDate=String(now.getDate()).padStart(2,'0')+'/'+String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear();
 return React.createElement("div",{className:"ex-wrap"},
 React.createElement("div",{className:"ex-kpis"},
-kpi('rfi','RFI פתוחים',c.rfiOpen,c.rfiLate>0?c.rfiLate+' עברו 7 ימי עבודה':'אין חריגות',c.rfiLate>0),
-kpi('submittal','הגשות ממתינות',c.subPending,c.subRound3+' בסבב שלישי ומעלה',false),
+kpi('rfi','RFI פתוחים',c.rfiOpen,c.rfiLate>0?tx('{n} עברו 7 ימי עבודה',{n:c.rfiLate}):'אין חריגות',c.rfiLate>0),
+kpi('submittal','הגשות ממתינות',c.subPending,tx('{n} בסבב שלישי ומעלה',{n:c.subRound3}),false),
 kpi('issue','Issues חריגים',c.issuesLate,'פתוחים מעל 14 ימי עבודה',c.issuesLate>0),
-kpi('mine','הכדור אצלנו',c.mine,'ממוצע '+c.mineAvg+' ימים',false,true)),
+kpi('mine','הכדור אצלנו',c.mine,tx('ממוצע {n} ימים',{n:c.mineAvg}),false,true)),
 React.createElement("div",{className:"ex-ball"},
-React.createElement("div",{className:"ex-ball-h"},'אצל מי הכדור',React.createElement("span",null,openCount+' פריטים פתוחים')),
+React.createElement("div",{className:"ex-ball-h"},'אצל מי הכדור',React.createElement("span",null,tx('{n} פריטים פתוחים',{n:openCount}))),
 React.createElement("div",{className:"ex-bar"},splitTotal>0&&EXEC_PARTIES.map(p=>split[p.id]>0&&React.createElement("i",{key:p.id,title:(p.id==='consultant'?'יועצים':p.label)+' · '+split[p.id],style:{flex:split[p.id],background:EX_PARTY_COLORS[p.id]}}))),
 React.createElement("div",{className:"ex-legend"},EXEC_PARTIES.map(p=>React.createElement("span",{key:p.id,className:"ex-chip"},React.createElement("i",{className:"ex-dot",style:{background:EX_PARTY_COLORS[p.id]}}),(p.id==='consultant'?'יועצים':p.label)+' '+split[p.id])))),
 React.createElement("div",{className:"ex-tools"},
@@ -4135,7 +4135,7 @@ React.createElement("td",{className:"ex-nw "+waitCls(i,w)},closed||!i.ball?'—'
 React.createElement("td",null,React.createElement("span",{className:"ex-st"+(closed?" ex-st-closed":i.status==='rejected'?" ex-st-rejected":"")},statusOf(i))),
 React.createElement("td",{className:!closed&&i.dueDate&&i.dueDate<today?"ex-wait-bad":""},exDdMm(i.dueDate)));}))):
 React.createElement("div",{className:"ex-empty"},items.length?'אין פריטים להצגה בסינון הזה.':'אין עדיין פריטי ביצוע. פתח Issue, RFI או הגשה.')),
-onOpenTasks&&React.createElement("div",{className:"ex-foot"},React.createElement("button",{type:"button",className:"ex-link",onClick:onOpenTasks},'משימות תכנון שוטפות ('+tasksOpen+' פתוחות) ←')),
+onOpenTasks&&React.createElement("div",{className:"ex-foot"},React.createElement("button",{type:"button",className:"ex-link",onClick:onOpenTasks},tx('משימות תכנון שוטפות ({n} פתוחות) ←',{n:tasksOpen}))),
 newType&&React.createElement(ExNewItemDialog,{data:data,type:newType,onClose:()=>setNewType(null),onCreate:create}),
 /* hook point for the item panel (Task 3) */
 openId&&typeof ExecItemPanel==='function'&&React.createElement(ExecItemPanel,{data:data,save:save,itemId:openId,guardRef:panelGuard,onClose:()=>setOpenId(null)}));}
@@ -4200,7 +4200,7 @@ function ExFilesInput({up}){return React.createElement("div",{className:"ex-atta
 React.createElement("label",{className:"ex-btn ex-btn-sm"},'📎 צרף קבצים',React.createElement("input",{type:"file",multiple:true,hidden:true,onChange:e=>{up.add(e.target.files);e.target.value='';}})),
 (up.files.length>0||up.busy>0)&&React.createElement("div",{className:"ex-files"},up.files.map(x=>React.createElement("div",{key:x.id,className:"ex-file"},React.createElement("span",{"data-i18n-skip":""},x.name),React.createElement("button",{type:"button",title:'הסר',onClick:()=>up.setFiles(p=>p.filter(y=>y.id!==x.id))},'×'))),up.busy>0&&React.createElement("div",{className:"ex-file"},'מעלה…')),
 up.err&&React.createElement("div",{className:"ex-err"},up.err));}
-function ExFileLinks({files}){if(!files||!files.length)return null;return React.createElement("div",{className:"ex-flinks"},files.map(f=>React.createElement("a",{key:f.id||f.url,href:f.url,target:"_blank",rel:"noopener","data-i18n-skip":""},'📎 '+(f.name||'קובץ'))));}
+function ExFileLinks({files}){if(!files||!files.length)return null;return React.createElement("div",{className:"ex-flinks"},files.map(f=>React.createElement("a",{key:f.id||f.url,href:f.url,target:"_blank",rel:"noopener","data-i18n-skip":""},'📎 '+(f.name||tx('קובץ')))));}
 function ExBallPicker({value,onChange,listId}){
 const opts=[{id:'contractor',label:'קבלן'},{id:'supervisor',label:'מפקח'},{id:'consultant',label:'יועץ'},{id:'architect',label:'אדריכל'},{id:'keep',label:'ללא שינוי'}];
 return React.createElement("div",{className:"ex-ballpick"},'העבר את הכדור ל:',
@@ -4242,10 +4242,10 @@ const canSend=!!(body.trim()||up.files.length)&&!up.busy;
 const respond=(kind,ballTo)=>{const r={kind,party:author.party,name:author.name.trim(),body:body.trim(),files:up.files,ballTo};upd(x=>execRespond(x,r));resetComposer();};
 const send=()=>{if(canSend)respond('reply',closed?null:exBallOf(ball));};
 const answer=()=>{if(canSend)respond('answer',ball.choice==='keep'?{party:'contractor',name:''}:exBallOf(ball));};
-const closeItem=async()=>{if(up.busy)return;const issue=item.type==='issue';if(!(await askConfirm(issue?'לסמן את '+item.number+' כנפתר?':'לסגור את '+item.number+'?',{confirmLabel:issue?'סמן כנפתר':'סגור',danger:false})))return;respond('close',null);};
+const closeItem=async()=>{if(up.busy)return;const issue=item.type==='issue';if(!(await askConfirm(issue?tx('לסמן את {n} כנפתר?',{n:item.number}):tx('לסגור את {n}?',{n:item.number}),{confirmLabel:issue?'סמן כנפתר':'סגור',danger:false})))return;respond('close',null);};
 const reopen=()=>{setMenu(null);upd(x=>execRespond(x,{kind:'reopen',party:'architect',name:me,body:'',ballTo:{party:'architect',name:''}}));};
 const setStatus=sid=>{setMenu(null);upd(x=>execSetStatus(x,sid,{name:me}));};
-const del=async()=>{setMenu(null);if(!(await askConfirm('למחוק את '+item.number+'? כל השרשור והסבבים יימחקו.')))return;const d=dataRef.current;const refd=t=>t.execRef&&t.execRef.itemId===itemId;
+const del=async()=>{setMenu(null);if(!(await askConfirm(tx('למחוק את {n}? כל השרשור והסבבים יימחקו.',{n:item.number}))))return;const d=dataRef.current;const refd=t=>t.execRef&&t.execRef.itemId===itemId;
 saveRef.current({...d,execItems:(d.execItems||[]).filter(x=>x.id!==itemId),sheets:(d.sheets||[]).map(sh=>(sh.tasks||[]).some(refd)?{...sh,tasks:sh.tasks.map(t=>{if(!refd(t))return t;const{execRef,...rest}=t;return rest;})}:sh)});onClose();};
 const commitTitle=()=>{const v=titleDraft.trim();setEditTitle(false);if(v&&v!==item.title)patch({title:v});};
 /* submittal rounds */
@@ -4262,7 +4262,7 @@ const openTask=(sheetId,taskId)=>window.dispatchEvent(new CustomEvent('ph:open-t
 const unlink=l=>{const d=dataRef.current;const same=y=>y===l||(l.id&&y.id===l.id)||(y.kind===l.kind&&y.taskId===l.taskId&&y.meetingId===l.meetingId&&y.itemId===l.itemId);
 const refd=t=>l.kind==='task'&&t.id===l.taskId&&t.execRef&&t.execRef.itemId===itemId;
 saveRef.current({...d,execItems:(d.execItems||[]).map(x=>x.id===itemId?{...x,links:(x.links||[]).filter(y=>!same(y))}:x),sheets:(d.sheets||[]).map(sh=>(sh.tasks||[]).some(refd)?{...sh,tasks:sh.tasks.map(t=>{if(!refd(t))return t;const{execRef,...rest}=t;return rest;})}:sh)});};
-const openTaskForm=()=>{const def=listSheets.find(sh=>sh.track==='execution')||listSheets.find(sh=>!sh.track)||listSheets[0];setTaskForm({sheetId:def?def.id:'',title:'עדכון לפי '+item.number+': '+(item.title||''),assignee:item.ownerId||'',dueDate:item.dueDate||''});};
+const openTaskForm=()=>{const def=listSheets.find(sh=>sh.track==='execution')||listSheets.find(sh=>!sh.track)||listSheets[0];setTaskForm({sheetId:def?def.id:'',title:tx('עדכון לפי {n}',{n:item.number})+': '+(item.title||''),assignee:item.ownerId||'',dueDate:item.dueDate||''});};
 const createTask=()=>{const f=taskForm;if(!f||!f.title.trim()||!f.sheetId)return;const d=dataRef.current;const sheet=(d.sheets||[]).find(sh=>sh.id===f.sheetId);if(!sheet)return;const g=(sheet.groups||[])[0];
 const task={id:uid(),groupId:g?g.id:null,title:f.title.trim(),statusId:'N',priority:'medium',discipline:item.discipline||null,startDate:'',dueDate:f.dueDate||'',done:false,taskType:'simple',fieldValues:{},subtasks:[],assigneeIds:f.assignee?[f.assignee]:[],execRef:{itemId:item.id,number:item.number}};
 saveRef.current({...d,sheets:d.sheets.map(sh=>sh.id===sheet.id?{...sh,tasks:[...(sh.tasks||[]),task]}:sh),execItems:(d.execItems||[]).map(x=>x.id===item.id?{...x,links:[...(x.links||[]),{id:uid(),kind:'task',sheetId:sheet.id,taskId:task.id}]}:x)});setTaskForm(null);};
@@ -4295,10 +4295,10 @@ React.createElement("div",{className:"ex-acts"},
 item.type==='issue'&&!closed&&React.createElement("button",{type:"button",className:"ex-btn ex-btn-ok",onClick:closeItem},'סמן כנפתר'),
 item.type==='rfi'&&!closed&&React.createElement("button",{type:"button",className:"ex-btn",onClick:closeItem},'סגור'),
 closed&&React.createElement("button",{type:"button",className:"ex-btn",onClick:reopen},'פתח מחדש'),
-item.type==='rfi'&&!closed&&React.createElement("button",{type:"button",className:"ex-btn",disabled:!canSend,onClick:answer,"aria-description":'הסטטוס יהפוך ל"נענה"; הכדור עובר לקבלן אלא אם נבחר אחרת'},'תשובה רשמית'),
+item.type==='rfi'&&!closed&&React.createElement("button",{type:"button",className:"ex-btn",disabled:!canSend,onClick:answer,"aria-description":tx('הסטטוס יהפוך ל"נענה"; הכדור עובר לקבלן אלא אם נבחר אחרת')},'תשובה רשמית'),
 React.createElement("button",{type:"button",className:"ex-btn ex-btn-pri",disabled:!canSend,onClick:send,"aria-keyshortcuts":"Control+Enter"},'שלח')));
 const rounds=item.type==='submittal'&&React.createElement("div",{className:"ex-rounds"},
-React.createElement("div",{className:"ex-sec-h"},'סבבי הגשה',React.createElement("span",null,(item.revisions||[]).length+' סבבים')),
+React.createElement("div",{className:"ex-sec-h"},'סבבי הגשה',React.createElement("span",null,tx('{n} סבבים',{n:(item.revisions||[]).length}))),
 (item.revisions||[]).map(rv=>React.createElement("div",{key:rv.id,className:"ex-rev"},
 React.createElement("div",{className:"ex-rev-h"},React.createElement("b",{className:"ex-num"},'Rev '+rv.label),React.createElement("span",{className:"ex-muted"},'הוגש '+exDateTime(rv.submittedAt)),React.createElement("span",{className:"ex-sp"}),React.createElement(ExDecisionPill,{d:rv.decision})),
 React.createElement(ExFileLinks,{files:rv.files}),
@@ -4322,25 +4322,25 @@ const taskLinks=(item.links||[]).filter(l=>l.kind==='task');const mtgLinks=(item
 const side=React.createElement("div",{className:"ex-side"},
 React.createElement("div",{className:"ex-side-box"},
 row('הכדור אצל',closed?React.createElement("span",{className:"ex-muted"},'— (סגור)'):React.createElement(ExPartyChip,{ball:item.ball})),
-!closed&&item.ball&&row('ממתין',React.createElement("span",{className:waiting>(item.type==='rfi'?EXEC_RFI_LATE:EXEC_ISSUE_LATE)?"ex-wait-bad":waiting>=5?"ex-wait-warn":""},waiting+' ימי עבודה')),
+!closed&&item.ball&&row('ממתין',React.createElement("span",{className:waiting>(item.type==='rfi'?EXEC_RFI_LATE:EXEC_ISSUE_LATE)?"ex-wait-bad":waiting>=5?"ex-wait-warn":""},tx('{n} ימי עבודה',{n:waiting}))),
 row('יעד',React.createElement("span",{className:dueBad?"ex-due-bad":""},React.createElement(DateField,{value:item.dueDate||'',onChange:v=>patch({dueDate:v||''}),clearable:true,disabled:ro,title:dueBad?'תאריך היעד עבר':undefined}))),
 row('נפתח ע"י',React.createElement("span",null,React.createElement(ExPartyChip,{ball:item.openedBy}),React.createElement("span",{className:"ex-muted ex-small"},' · '+exDateTime(item.createdAt)))),
 row('תחום',React.createElement("select",{className:"ex-in",value:item.discipline||'',disabled:ro,onChange:e=>patch({discipline:e.target.value})},React.createElement("option",{value:''},'—'),disciplines.map(d=>React.createElement("option",{key:d.id,value:d.id},DISCIPLINE_FULL_NAMES[d.id]||d.label||d.id)))),
 item.type==='submittal'&&row('סעיף מפרט',React.createElement("input",{className:"ex-in",key:item.id+'|'+(item.specSection||''),defaultValue:item.specSection||'',disabled:ro,placeholder:'למשל 08.04.010',onBlur:e=>{const v=e.target.value.trim();if(v!==(item.specSection||''))patch({specSection:v});},onKeyDown:e=>{if(e.key==='Enter')e.target.blur();}})),
 row('אחראי במשרד',React.createElement("select",{className:"ex-in",value:item.ownerId||'',disabled:ro,onChange:e=>patch({ownerId:e.target.value||null})},React.createElement("option",{value:''},'— ללא —'),team.map(p=>React.createElement("option",{key:p.id,value:p.staffId||p.id,"data-i18n-skip":""},p.name)))),
-row('מקור',src?React.createElement("span",null,EX_SOURCE_LABEL[src.kind]||src.kind,srcMeeting&&React.createElement(React.Fragment,null,' · ',React.createElement("button",{type:"button",className:"ex-link","data-i18n-skip":"",onClick:()=>exGoHub({tab:'meetings',meetingId:srcMeeting.id})},(srcMeeting.title||'ישיבה')+(srcMeeting.date?' '+exDdMm(srcMeeting.date):'')+' ↗'))):React.createElement("span",{className:"ex-muted"},'—'))),
+row('מקור',src?React.createElement("span",null,EX_SOURCE_LABEL[src.kind]||src.kind,srcMeeting&&React.createElement(React.Fragment,null,' · ',React.createElement("button",{type:"button",className:"ex-link","data-i18n-skip":"",onClick:()=>exGoHub({tab:'meetings',meetingId:srcMeeting.id})},(srcMeeting.title||tx('ישיבה'))+(srcMeeting.date?' '+exDdMm(srcMeeting.date):'')+' ↗'))):React.createElement("span",{className:"ex-muted"},'—'))),
 React.createElement("div",{className:"ex-side-sec"},
-React.createElement("div",{className:"ex-sec-h"},'ימי המתנה לפי צד',React.createElement("span",null,totalDays+' ימי עבודה')),
+React.createElement("div",{className:"ex-sec-h"},'ימי המתנה לפי צד',React.createElement("span",null,tx('{n} ימי עבודה',{n:totalDays}))),
 ballDays.length?React.createElement(React.Fragment,null,
-React.createElement("div",{className:"ex-bar"},totalDays>0&&ballDays.map(b=>b.days>0&&React.createElement("i",{key:b.party+'|'+b.name,title:execPartyLabel(b)+' · '+b.days,style:{flex:b.days,background:EX_PARTY_COLORS[b.party]||'#888780'}}))),
+React.createElement("div",{className:"ex-bar"},totalDays>0&&ballDays.map(b=>b.days>0&&React.createElement("i",{key:b.party+'|'+b.name,title:execPartyLabel({...b,name:asTyped(String(b.name||'').trim())})+' · '+b.days,style:{flex:b.days,background:EX_PARTY_COLORS[b.party]||'#888780'}}))),
 React.createElement("div",{className:"ex-bd-rows"},ballDays.map(b=>React.createElement("div",{key:b.party+'|'+b.name,className:"ex-bd-row"},React.createElement(ExPartyChip,{ball:b}),React.createElement("span",{className:"ex-sp"}),React.createElement("b",null,b.days),React.createElement("span",{className:"ex-muted ex-small"},'ימים'))))):
 React.createElement("div",{className:"ex-muted ex-small"},'אין עדיין נתוני המתנה')),
 React.createElement("div",{className:"ex-side-sec"},
 React.createElement("div",{className:"ex-sec-h"},'קישורים',React.createElement("span",null,(taskLinks.length+mtgLinks.length)||'')),
 taskLinks.map((l,i)=>{const f=findTask(l);const done=f&&(f.task.done||f.task.statusId==='C');return React.createElement("div",{key:'t'+i,className:"ex-lk"},React.createElement("span",{title:'משימה'},'☑'),
-f?React.createElement("button",{type:"button",className:"ex-link"+(done?" ex-lk-done":""),"data-i18n-skip":"",title:sheetLabel(f.sheet)+' — פתח את המשימה',onClick:()=>openTask(f.sheet.id,f.task.id)},f.task.title||'(ללא שם)'):React.createElement("span",{className:"ex-muted",style:{flex:1}},'המשימה נמחקה'),
+f?React.createElement("button",{type:"button",className:"ex-link"+(done?" ex-lk-done":""),"data-i18n-skip":"",title:asTyped(sheetLabel(f.sheet))+tx(' — פתח את המשימה'),onClick:()=>openTask(f.sheet.id,f.task.id)},f.task.title||tx('(ללא שם)')):React.createElement("span",{className:"ex-muted",style:{flex:1}},'המשימה נמחקה'),
 !ro&&React.createElement("button",{type:"button",className:"ex-link",style:{flex:'none'},title:'הסר קישור',onClick:()=>unlink(l)},'×'));}),
-mtgLinks.map((l,i)=>{const m=meetingOf(l.meetingId);return React.createElement("div",{key:'m'+i,className:"ex-lk"},React.createElement("span",null,'🗓'),m?React.createElement("button",{type:"button",className:"ex-link","data-i18n-skip":"",onClick:()=>exGoHub({tab:'meetings',meetingId:m.id})},(m.title||'ישיבה')+(m.date?' · '+exDdMm(m.date):'')):React.createElement("span",{className:"ex-muted",style:{flex:1}},'הישיבה נמחקה'));}),
+mtgLinks.map((l,i)=>{const m=meetingOf(l.meetingId);return React.createElement("div",{key:'m'+i,className:"ex-lk"},React.createElement("span",null,'🗓'),m?React.createElement("button",{type:"button",className:"ex-link","data-i18n-skip":"",onClick:()=>exGoHub({tab:'meetings',meetingId:m.id})},(m.title||tx('ישיבה'))+(m.date?' · '+exDdMm(m.date):'')):React.createElement("span",{className:"ex-muted",style:{flex:1}},'הישיבה נמחקה'));}),
 !ro&&(taskForm?React.createElement("div",{className:"ex-tform",style:{marginTop:8}},
 React.createElement("select",{className:"ex-in","aria-label":'רשימת משימות',value:taskForm.sheetId,onChange:e=>setTaskForm(f=>({...f,sheetId:e.target.value}))},listSheets.map(sh=>React.createElement("option",{key:sh.id,value:sh.id,"data-i18n-skip":""},sheetLabel(sh)))),
 React.createElement("input",{className:"ex-in",autoFocus:true,value:taskForm.title,"aria-label":'שם המשימה',onChange:e=>setTaskForm(f=>({...f,title:e.target.value})),onKeyDown:e=>{if(e.key==='Enter')createTask();}}),
@@ -4355,7 +4355,7 @@ React.createElement("div",{className:"tds-panel ex-panel",role:"dialog","aria-la
 React.createElement("div",{className:"tds-hdr ex-p-hdr"},
 React.createElement(ExTypePill,{type:item.type}),React.createElement("span",{className:"ex-num","data-i18n-skip":""},item.number),
 editTitle?React.createElement("input",{className:"ex-p-title-in",autoFocus:true,value:titleDraft,onChange:e=>setTitleDraft(e.target.value),onBlur:commitTitle,onKeyDown:e=>{if(e.key==='Enter')commitTitle();if(e.key==='Escape'){e.stopPropagation();setEditTitle(false);}}}):
-React.createElement("div",{className:"tds-title ex-p-title","data-i18n-skip":"",title:ro?item.title:'לחץ לעריכת הכותרת',onClick:()=>{if(ro)return;setTitleDraft(item.title||'');setEditTitle(true);}},item.title||'(ללא כותרת)'),
+React.createElement("div",{className:"tds-title ex-p-title","data-i18n-skip":"",title:ro?item.title:tx('לחץ לעריכת הכותרת'),onClick:()=>{if(ro)return;setTitleDraft(item.title||'');setEditTitle(true);}},item.title||tx('(ללא כותרת)')),
 React.createElement(ExStatusPill,{item}),
 !ro&&React.createElement("div",{className:"ex-menu-wrap"},
 React.createElement("button",{type:"button",className:"ms-panel-btn",title:'אפשרויות',"aria-expanded":!!menu,onClick:()=>setMenu(m=>m?null:'main')},'⋯'),
@@ -4368,7 +4368,7 @@ canDelete&&mbtn('מחק פריט',del,'ex-danger')]:
 React.createElement("button",{type:"button",className:"ms-panel-btn",title:'סגור',onClick:requestClose},'×')),
 React.createElement("div",{className:"tds-body ex-p-body"},React.createElement("div",{className:"ex-p-grid"},
 React.createElement("div",{className:"ex-p-main"},
-React.createElement("div",null,React.createElement("div",{className:"ex-sec-h"},'שרשור',React.createElement("span",null,(item.responses||[]).length+' רשומות')),React.createElement("div",{className:"ex-thread"},thread)),
+React.createElement("div",null,React.createElement("div",{className:"ex-sec-h"},'שרשור',React.createElement("span",null,tx('{n} רשומות',{n:(item.responses||[]).length}))),React.createElement("div",{className:"ex-thread"},thread)),
 rounds,composer),
 side)),
 consultantNames.length>0&&React.createElement("datalist",{id:listId},consultantNames.map(n=>React.createElement("option",{key:n,value:n}))))),document.body);}
