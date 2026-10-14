@@ -326,3 +326,57 @@ Commit: `feat(project-hub): meetings pull open execution items and open new ones
 - Browser walk-through on "אולם ספורט לוד" (local): switch phase to ביצוע; create RFI, Issue, Submittal; reply and hand the ball around; RFI official answer → close; submittal reject → Rev B → approve with notes; create a linked task and see the reverse link in the task panel; My Work planner shows the items with the ball at the architect; a new meeting pulls open items, opens a new Issue from a row; PDF print preview markup of the log; dark mode; English; no console errors. Then delete every test item, task and meeting created, and set the phase back to תכנון.
 
 Commit: `feat(project-hub): execution track translations`.
+
+
+---
+
+## Round 2 — Finishes schedule and contractor changes (approved by the user 2026-10-14)
+
+**Decisions:** a contractor change / value-engineering request is a full execution item of a new type `change` (CHG-001): thread, ball, waiting days, My Work, meetings — plus fields `tenderSpec` (what the tender specified), `tenderRef` (spec/BOQ clause), `proposed` (what the contractor offers), `saving` (₪, number), `approvedText` (what was approved in practice; filled by the decision). The finishes schedule is a separate list `doc.finishes` (rows, not items), fed from approved submittals with one click, or added manually. Both are tabs of the execution track next to "יומן ביצוע": `יומן ביצוע | לוח גמרים | ויתורים ושינויים | stages…`.
+
+```js
+doc.finishes = [{ id, category, element, location, material, finish, color, colorHex, supplier,
+  approvedAt, approvedBy, files:[{id,url,name}], image:{url,name}|null,
+  submittalId, changeId, specSection, discipline, notes }]
+```
+
+### Task 7: logic for `change` items and finishes (exec-logic) + tests
+
+Add to the exec-logic block (inside the markers), TDD in tests/exec-logic.test.js:
+
+- `EXEC_TYPES.change = {prefix:'CHG',label:'שינוי',statuses:[{id:'requested',label:'הוגשה'},{id:'in_review',label:'בבדיקה'},{id:'approved',label:'אושר',closed:true},{id:'approved_cond',label:'אושר בתנאי',closed:true},{id:'rejected',label:'נדחה',closed:true}]}`.
+- `execNewItem`: when `type==='change'` also set `tenderSpec, tenderRef, proposed` (strings), `saving` (Number(o.saving)||0), `approvedText:''`.
+- `execRespond`: `kind:'reply'` on a change in `requested` → `in_review`; `kind:'reopen'` on a change → status `requested`, `approvedText:''`.
+- `execDecideChange(item,{decision,approvedText,notes,name,files},now)`: no-op if the item is closed or not a change; sets `status=decision`, `approvedText = decision==='rejected' ? '' : (approvedText||item.proposed)`, appends a `decision` response (body = notes, files), `closedAt=at`, ball → null (via execSetBall).
+- `execChangeSummary(items)` → `{count, pending, proposed, approved, rejected, rejectedSum}`: proposed = sum of saving over all change items; approved = sum over approved + approved_cond; pending = open change items; rejected = count, rejectedSum = their saving sum.
+- `finishStatus(row, items)` → `'approved' | 'pending'`: with `submittalId`: approved iff that submittal's status is approved / approved_notes; without: approved iff `row.approvedAt`.
+- `finishFromSubmittal(item)` → a new finishes row: `{id:uid(), category:'', element:item.title, location:'', material:'', finish:'', color:'', colorHex:'', supplier:'', approvedAt:(last revision decidedAt||'').slice(0,10), approvedBy:last revision decidedBy||'', files:[...last revision files, ...files of the last 'decision' response], image:null, submittalId:item.id, changeId:null, specSection:item.specSection||'', discipline:item.discipline||'', notes:last revision notes||''}`.
+- `finishCategories(rows)` → unique non-empty categories, first-appearance order.
+- `execCounts` unchanged (changes are counted in their own tab); `execLogRows` and `execForMe` include changes.
+
+Tests: numbering CHG-001; reply → in_review; decide approved with default approvedText = proposed; decide rejected clears approvedText and closes; decide twice is a no-op; reopen → requested; summary sums; finishStatus both ways; finishFromSubmittal fields from the last decided revision.
+Commit: `feat(project-hub): exec-logic — change requests and finishes schedule helpers`.
+
+### Task 8: changes UI (ויתורים ושינויים)
+
+- New-item menu/dialog gains "שינוי / ויתור" (type change): fields במכרז (tenderSpec, textarea), סעיף (tenderRef), מה מוצע (proposed, textarea), חיסכון ₪ (saving, number), plus the common fields; default opened by contractor, ball → architect, due date +7 workdays.
+- Log: change pill (bg #FAEEDA / text #633806, dark-mode variant), filter "שינויים N" in the type control.
+- ExecItemPanel for changes: a "במכרז → מוצע" block at the top (two columns, saving amount); while open, a decision block: אושר / אושר בתנאי / נדחה + "מה אושר בפועל" (prefilled with proposed, editable) + notes (required for אושר בתנאי and נדחה) → `execDecideChange`. If the decision is approved / approved_cond, offer an optional select "עדכן שורה בלוח הגמרים": sets `changeId` on that finishes row and appends to its notes `שונה לפי CHG-xxx: {approvedText}`.
+- New tab "ויתורים ושינויים" in the execution track (after "לוח גמרים"): KPI cards from execChangeSummary (בקשות + pending, חיסכון שאושר מתוך מה שהוצע, נדחו + sum) and a table: מס' (pill), במכרז (tenderSpec + tenderRef small), מה אושר בפועל (approvedText; while open show "מוצע: {proposed}" muted), חיסכון (₪ with thousands separators; struck through when rejected), החלטה (status + date; open → "ממתין · הכדור אצל X"), תיעוד (source meeting / links). Row click opens the panel. Filter: הכל / ממתינים / אושרו / נדחו. PDF export like the log.
+- Meetings pull and My Work include change items automatically (check; make sure the pill colour exists in .mtg-page and print CSS).
+Commit: `feat(project-hub): contractor change requests — tender vs approved`.
+
+### Task 9: finishes schedule UI (לוח גמרים)
+
+- New tab "לוח גמרים" (after "יומן ביצוע"): category filter chips (finishCategories + הכל), "ייצוא PDF", "+ גמר". Columns: swatch/thumbnail (image thumbnail if `image`, else colorHex swatch, else empty), אלמנט / מיקום, חומר · גמר · גוון, ספק / יצרן, אושר (dd/mm + approvedBy; "ממתין לאישור" amber when finishStatus is pending), מסמך (first file "📎 name", +N), הגשה (submittal pill with number + "Rev X"; click opens the submittal panel), שינוי (CHG pill if changeId). Row click → edit dialog.
+- Add/edit dialog: קטגוריה (input + datalist of existing categories + defaults חזיתות, ריצוף, תקרות, אלומיניום, קירות, סניטריה, נגרות, מסגרות), אלמנט, מיקום, חומר, גמר, גוון, צבע (color input → colorHex, optional), ספק/יצרן, תאריך אישור, אושר ע"י, תמונה (image upload), מסמכים (multiple uploads), הגשה מקושרת (select of submittals), הערות; delete (askConfirm).
+- ExecItemPanel for a submittal with status approved / approved_notes: button "הוסף ללוח הגמרים" → dialog prefilled from `finishFromSubmittal(item)`; if a row already links this submittal the button reads "פתח בלוח הגמרים" and opens that row.
+- PDF: the finishes table prints with project name + date header, swatches/thumbnails printed (print-color-adjust exact).
+Commit: `feat(project-hub): approved finishes schedule linked to submittals`.
+
+### Task 10: translations, sample data, walk-through
+
+- i18n entries for all new strings; data-i18n-skip on user content.
+- Sample data in the local אולם ספורט לוד project (the user asked for samples): 8 change items (mixed statuses, savings 20k–90k, some from meetings) and 12 finishes rows (half linked to the existing approved submittals, with colorHex swatches; others manual; 2 pending), via a seed script using the app's exec-logic functions, after backing up the data file (keep the backup).
+- Browser walk-through of tabs, dialogs, panel decision, add-from-submittal, PDF markup, dark mode, English; no console errors.
+Commit: `feat(project-hub): finishes and changes translations`.
