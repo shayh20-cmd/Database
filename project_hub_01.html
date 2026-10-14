@@ -3829,7 +3829,8 @@ React.createElement("label",{style:{flex:2,minWidth:240}},'תפוצה: ',React.c
 const EXEC_TYPES={
   issue:{prefix:'ISS',label:'Issue',statuses:[{id:'open',label:'פתוח'},{id:'in_progress',label:'בטיפול'},{id:'resolved',label:'נפתר',closed:true}]},
   rfi:{prefix:'RFI',label:'RFI',statuses:[{id:'pending',label:'ממתין'},{id:'answered',label:'נענה'},{id:'closed',label:'נסגר',closed:true}]},
-  submittal:{prefix:'SUB',label:'הגשה',statuses:[{id:'submitted',label:'הוגש'},{id:'approved',label:'אושר',closed:true},{id:'approved_notes',label:'אושר עם הערות',closed:true},{id:'rejected',label:'נדחה – להגשה מחדש'}]}
+  submittal:{prefix:'SUB',label:'הגשה',statuses:[{id:'submitted',label:'הוגש'},{id:'approved',label:'אושר',closed:true},{id:'approved_notes',label:'אושר עם הערות',closed:true},{id:'rejected',label:'נדחה – להגשה מחדש'}]},
+  change:{prefix:'CHG',label:'שינוי',statuses:[{id:'requested',label:'הוגשה'},{id:'in_review',label:'בבדיקה'},{id:'approved',label:'אושר',closed:true},{id:'approved_cond',label:'אושר בתנאי',closed:true},{id:'rejected',label:'נדחה',closed:true}]}
 };
 const EXEC_PARTIES=[{id:'architect',label:'אדריכל'},{id:'contractor',label:'קבלן'},{id:'supervisor',label:'מפקח'},{id:'consultant',label:'יועץ'}];
 const EXEC_RFI_LATE=7,EXEC_ISSUE_LATE=14;
@@ -3861,6 +3862,7 @@ function execNewItem(items,o,now,seqMap){
     responses:[{id:uid(),at,party:openedBy.party,name:openedBy.name,body:o.description||'',files:o.files||[],ballTo:o.ballTo||null,kind:'open'}],
     revisions:o.type==='submittal'?[{id:uid(),label:'A',files:o.files||[],submittedAt:at,decision:null,notes:'',decidedBy:'',decidedAt:null}]:[],
     ballHistory:[],links:[]};
+  if(o.type==='change')it={...it,tenderSpec:o.tenderSpec||'',tenderRef:o.tenderRef||'',proposed:o.proposed||'',saving:Number(o.saving)||0,approvedText:''};
   return o.ballTo?execSetBall(it,o.ballTo,at):it;
 }
 function execRespond(item,r,now){
@@ -3871,9 +3873,10 @@ function execRespond(item,r,now){
   let next={...item,responses:[...(item.responses||[]),{id:uid(),at,party:r.party,name:r.name||'',body:r.body||'',files:r.files||[],ballTo,kind}]};
   if(kind==='close'){next.status=item.type==='issue'?'resolved':item.type==='rfi'?'closed':item.status;next.closedAt=at;return execSetBall(next,null,at);}
   if(resubmit){next.status='rejected';next.closedAt=null;return execSetBall(next,ballTo,at);}
-  if(kind==='reopen'){next.status=EXEC_TYPES[item.type].statuses[0].id;next.closedAt=null;}
+  if(kind==='reopen'){next.status=EXEC_TYPES[item.type].statuses[0].id;next.closedAt=null;if(item.type==='change')next.approvedText='';}
   if(kind==='answer'&&item.type==='rfi')next.status='answered';
   if(kind==='reply'&&item.type==='issue'&&item.status==='open')next.status='in_progress';
+  if(kind==='reply'&&item.type==='change'&&item.status==='requested')next.status='in_review';
   return r.ballTo?execSetBall(next,r.ballTo,at):next;
 }
 function execAddRevision(item,r,now){
@@ -3891,6 +3894,31 @@ function execDecide(item,d,now){
   const closed=execIsClosed(next);next.closedAt=closed?at:null;
   return execSetBall(next,closed?null:(d.ballTo||{party:'contractor',name:''}),at);
 }
+/* contractor change / value-engineering request: one decision closes it; approvedText records what was approved in practice */
+function execDecideChange(item,d,now){
+  if(item.type!=='change'||execIsClosed(item))return item;
+  const at=now||new Date().toISOString();
+  const next={...item,status:d.decision,approvedText:d.decision==='rejected'?'':(d.approvedText||item.proposed||''),closedAt:at,
+    responses:[...(item.responses||[]),{id:uid(),at,party:'architect',name:d.name||'',body:d.notes||'',files:d.files||[],ballTo:null,kind:'decision'}]};
+  return execSetBall(next,null,at);
+}
+function execChangeSummary(items){
+  const ch=(items||[]).filter(i=>i.type==='change');const sum=l=>l.reduce((s,i)=>s+(Number(i.saving)||0),0);
+  const rej=ch.filter(i=>i.status==='rejected');
+  return{count:ch.length,pending:ch.filter(i=>!execIsClosed(i)).length,proposed:sum(ch),approved:sum(ch.filter(i=>i.status==='approved'||i.status==='approved_cond')),rejected:rej.length,rejectedSum:sum(rej)};
+}
+/* finishes schedule (doc.finishes): a row linked to a submittal is approved only while that submittal is */
+function finishStatus(row,items){
+  if(row.submittalId){const s=(items||[]).find(i=>i.id===row.submittalId);return s&&(s.status==='approved'||s.status==='approved_notes')?'approved':'pending';}
+  return row.approvedAt?'approved':'pending';
+}
+function finishFromSubmittal(item){
+  const rev=(item.revisions||[]).slice(-1)[0]||{};const dec=(item.responses||[]).filter(r=>r.kind==='decision').slice(-1)[0];
+  return{id:uid(),category:'',element:item.title||'',location:'',material:'',finish:'',color:'',colorHex:'',supplier:'',
+    approvedAt:String(rev.decidedAt||'').slice(0,10),approvedBy:rev.decidedBy||'',files:[...(rev.files||[]),...((dec&&dec.files)||[])],image:null,
+    submittalId:item.id,changeId:null,specSection:item.specSection||'',discipline:item.discipline||'',notes:rev.notes||''};
+}
+function finishCategories(rows){const out=[];(rows||[]).forEach(r=>{const c=String((r&&r.category)||'').trim();if(c&&!out.includes(c))out.push(c);});return out;}
 /* manual status change (Issue / RFI only — submittals move through rounds), recorded as a 'status' line in the thread */
 function execSetStatus(item,status,by,now){
   if(item.type==='submittal'||item.status===status)return item;

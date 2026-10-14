@@ -8,7 +8,7 @@ const m = html.match(/\/\* ═══ exec-logic ═══ \*\/([\s\S]*?)\/\* ═
 if (!m) throw new Error('exec-logic block not found in project_hub_01.html');
 let n = 0;
 const uid = () => 'x' + ++n;
-const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus};')(uid);
+const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories};')(uid);
 
 const T0 = '2026-10-04T08:00:00.000Z'; // Sunday
 const mk = (over = {}) => L.execNewItem(over.items || [], { type: 'rfi', title: 'גובה תקרה', description: 'שאלה', openedBy: { party: 'contractor', name: 'דנה' }, ballTo: { party: 'architect', name: '' }, ...over }, T0);
@@ -191,4 +191,122 @@ test('ball history and links entries carry ids (merged per entry)', () => {
   a = L.execRespond(a, { party: 'architect', ballTo: { party: 'contractor' } }, '2026-10-06T08:00:00Z');
   assert.ok(a.ballHistory.length === 2 && a.ballHistory.every(h => typeof h.id === 'string'));
   assert.strictEqual(new Set(a.ballHistory.map(h => h.id)).size, 2);
+});
+
+// ── Round 2: change requests and finishes ──
+const mkChg = (over = {}) => L.execNewItem(over.items || [], { type: 'change', title: 'ריצוף לובי', tenderSpec: 'אבן טבעית', tenderRef: '11.02.010', proposed: 'פורצלן 60/120', saving: '45000', openedBy: { party: 'contractor', name: 'דנה' }, ballTo: { party: 'architect', name: '' }, ...over }, T0);
+
+test('change: numbering CHG-001, fields, first status', () => {
+  const c = mkChg();
+  assert.strictEqual(c.number, 'CHG-001');
+  assert.strictEqual(c.status, 'requested');
+  assert.strictEqual(c.tenderSpec, 'אבן טבעית');
+  assert.strictEqual(c.tenderRef, '11.02.010');
+  assert.strictEqual(c.proposed, 'פורצלן 60/120');
+  assert.strictEqual(c.saving, 45000);
+  assert.strictEqual(c.approvedText, '');
+  assert.deepStrictEqual(c.revisions, []);
+  const c2 = mkChg({ items: [c], saving: 'abc' });
+  assert.strictEqual(c2.number, 'CHG-002');
+  assert.strictEqual(c2.saving, 0);
+  const r = L.execNewItem([], { type: 'rfi', title: 'r' }, T0);
+  assert.ok(!('tenderSpec' in r) && !('approvedText' in r));
+});
+
+test('change: reply moves requested → in_review', () => {
+  let c = mkChg();
+  c = L.execRespond(c, { party: 'architect', body: 'בודקים', ballTo: { party: 'consultant', name: 'כמאי' } }, '2026-10-05T08:00:00Z');
+  assert.strictEqual(c.status, 'in_review');
+});
+
+test('change: decide approved defaults approvedText to proposed, closes, ball null', () => {
+  let c = mkChg();
+  c = L.execDecideChange(c, { decision: 'approved', notes: 'בכפוף לדוגמה', name: 'שי', files: [{ id: 'f', url: 'u', name: 'n' }] }, '2026-10-07T08:00:00Z');
+  assert.strictEqual(c.status, 'approved');
+  assert.strictEqual(c.approvedText, 'פורצלן 60/120');
+  assert.strictEqual(c.closedAt, '2026-10-07T08:00:00Z');
+  assert.strictEqual(c.ball, null);
+  assert.ok(L.execIsClosed(c));
+  const last = c.responses[c.responses.length - 1];
+  assert.strictEqual(last.kind, 'decision');
+  assert.strictEqual(last.body, 'בכפוף לדוגמה');
+  assert.strictEqual(last.files.length, 1);
+  assert.strictEqual(c.ballHistory[c.ballHistory.length - 1].party, null);
+  const c2 = L.execDecideChange(mkChg(), { decision: 'approved_cond', approvedText: 'פורצלן 80/160', notes: 'x' }, T0);
+  assert.strictEqual(c2.approvedText, 'פורצלן 80/160');
+});
+
+test('change: decide rejected clears approvedText and closes; deciding twice is a no-op', () => {
+  let c = mkChg();
+  c = L.execDecideChange(c, { decision: 'rejected', approvedText: 'משהו', notes: 'לא תואם' }, '2026-10-07T08:00:00Z');
+  assert.strictEqual(c.status, 'rejected');
+  assert.strictEqual(c.approvedText, '');
+  assert.ok(c.closedAt);
+  assert.ok(L.execIsClosed(c));
+  const again = L.execDecideChange(c, { decision: 'approved' }, '2026-10-08T08:00:00Z');
+  assert.strictEqual(again, c);
+  const rfi = mk();
+  assert.strictEqual(L.execDecideChange(rfi, { decision: 'approved' }, T0), rfi);
+});
+
+test('change: reopen → requested and clears approvedText', () => {
+  let c = L.execDecideChange(mkChg(), { decision: 'approved' }, '2026-10-07T08:00:00Z');
+  c = L.execRespond(c, { party: 'architect', kind: 'reopen', ballTo: { party: 'architect' } }, '2026-10-08T08:00:00Z');
+  assert.strictEqual(c.status, 'requested');
+  assert.strictEqual(c.approvedText, '');
+  assert.strictEqual(c.closedAt, null);
+  assert.ok(!L.execIsClosed(c));
+});
+
+test('change summary sums savings; counts and log rows', () => {
+  const a = mkChg({ saving: 10000 });
+  const b = L.execDecideChange(mkChg({ items: [a], saving: 20000 }), { decision: 'approved' }, T0);
+  const c = L.execDecideChange(mkChg({ items: [a, b], saving: 30000 }), { decision: 'approved_cond', notes: 'x' }, T0);
+  const d = L.execDecideChange(mkChg({ items: [a, b, c], saving: 40000 }), { decision: 'rejected', notes: 'x' }, T0);
+  const r = mk();
+  const sum = L.execChangeSummary([a, b, c, d, r]);
+  assert.deepStrictEqual(sum, { count: 4, pending: 1, proposed: 100000, approved: 50000, rejected: 1, rejectedSum: 40000 });
+  assert.deepStrictEqual(L.execChangeSummary([]), { count: 0, pending: 0, proposed: 0, approved: 0, rejected: 0, rejectedSum: 0 });
+  assert.strictEqual(L.execLogRows([a, r], 'all', '2026-10-10').length, 2);
+  assert.deepStrictEqual(L.execLogRows([a, r], 'change', '2026-10-10').map(i => i.id), [a.id]);
+  assert.deepStrictEqual(L.execForMe([a], 's1', true).map(i => i.id), [a.id]);
+  assert.strictEqual(L.execCounts([a], '2026-10-10').rfiOpen, 0);
+});
+
+const mkSub = () => L.execNewItem([], { type: 'submittal', title: 'אריח חזית', specSection: '14.01', discipline: 'arch', files: [{ id: 'a1', url: 'ua', name: 'revA.pdf' }], openedBy: { party: 'contractor' }, ballTo: { party: 'architect' } }, T0);
+
+test('finishStatus: by linked submittal or by approvedAt', () => {
+  let s = mkSub();
+  const row = { id: 'r1', submittalId: s.id };
+  assert.strictEqual(L.finishStatus(row, [s]), 'pending');
+  const ok = L.execDecide(s, { decision: 'approved_notes', notes: 'n', name: 'שי' }, '2026-10-06T08:00:00Z');
+  assert.strictEqual(L.finishStatus(row, [ok]), 'approved');
+  assert.strictEqual(L.finishStatus(row, []), 'pending');
+  assert.strictEqual(L.finishStatus({ id: 'r2', approvedAt: '2026-10-01' }, []), 'approved');
+  assert.strictEqual(L.finishStatus({ id: 'r3', approvedAt: '' }, []), 'pending');
+});
+
+test('finishFromSubmittal takes fields from the last decided revision', () => {
+  let s = mkSub();
+  s = L.execDecide(s, { decision: 'rejected', notes: 'גוון שגוי', name: 'רון' }, '2026-10-05T08:00:00Z');
+  s = L.execAddRevision(s, { files: [{ id: 'b1', url: 'ub', name: 'revB.pdf' }] }, '2026-10-06T08:00:00Z');
+  s = L.execDecide(s, { decision: 'approved', notes: 'מאושר', name: 'שי', files: [{ id: 'd1', url: 'ud', name: 'stamp.pdf' }] }, '2026-10-07T08:00:00Z');
+  const f = L.finishFromSubmittal(s);
+  assert.ok(typeof f.id === 'string' && f.id);
+  assert.strictEqual(f.element, 'אריח חזית');
+  assert.strictEqual(f.approvedAt, '2026-10-07');
+  assert.strictEqual(f.approvedBy, 'שי');
+  assert.strictEqual(f.notes, 'מאושר');
+  assert.deepStrictEqual(f.files.map(x => x.id), ['b1', 'd1']);
+  assert.strictEqual(f.submittalId, s.id);
+  assert.strictEqual(f.changeId, null);
+  assert.strictEqual(f.image, null);
+  assert.strictEqual(f.specSection, '14.01');
+  assert.strictEqual(f.discipline, 'arch');
+  for (const k of ['category', 'location', 'material', 'finish', 'color', 'colorHex', 'supplier']) assert.strictEqual(f[k], '');
+});
+
+test('finishCategories: unique non-empty, first-appearance order', () => {
+  assert.deepStrictEqual(L.finishCategories([{ category: 'ריצוף' }, { category: '' }, { category: 'חזיתות' }, { category: 'ריצוף' }, {}]), ['ריצוף', 'חזיתות']);
+  assert.deepStrictEqual(L.finishCategories(null), []);
 });
