@@ -8,7 +8,7 @@ const m = html.match(/\/\* ═══ exec-logic ═══ \*\/([\s\S]*?)\/\* ═
 if (!m) throw new Error('exec-logic block not found in project_hub_01.html');
 let n = 0;
 const uid = () => 'x' + ++n;
-const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays};')(uid);
+const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus};')(uid);
 
 const T0 = '2026-10-04T08:00:00.000Z'; // Sunday
 const mk = (over = {}) => L.execNewItem(over.items || [], { type: 'rfi', title: 'גובה תקרה', description: 'שאלה', openedBy: { party: 'contractor', name: 'דנה' }, ballTo: { party: 'architect', name: '' }, ...over }, T0);
@@ -121,4 +121,74 @@ test('add workdays skips Friday and Saturday', () => {
   assert.strictEqual(L.execAddWorkdays('2026-10-09T10:00:00Z', 0), '2026-10-09');
   assert.strictEqual(L.execAddWorkdays('', 3), '');
   assert.strictEqual(L.execWorkdays('2026-10-04', L.execAddWorkdays('2026-10-04', 10)), 10);
+});
+
+test('a decided revision is never overwritten: deciding twice keeps the first decision', () => {
+  let s = L.execNewItem([], { type: 'submittal', title: 'HPL', openedBy: { party: 'contractor' }, ballTo: { party: 'architect' } }, T0);
+  s = L.execDecide(s, { decision: 'approved', notes: '', name: 'שי' }, '2026-10-06T08:00:00Z');
+  const again = L.execDecide(s, { decision: 'rejected', notes: 'שינוי דעה', name: 'רון' }, '2026-10-07T08:00:00Z');
+  assert.strictEqual(again, s, 'returned unchanged');
+  assert.strictEqual(again.revisions[0].decision, 'approved');
+  assert.strictEqual(again.revisions[0].decidedBy, 'שי');
+});
+
+test('reopening a decided submittal awaits resubmission (Rev B) and keeps the Rev A decision', () => {
+  let s = L.execNewItem([], { type: 'submittal', title: 'HPL', openedBy: { party: 'contractor' }, ballTo: { party: 'architect' } }, T0);
+  s = L.execDecide(s, { decision: 'approved', notes: 'ok', name: 'שי' }, '2026-10-06T08:00:00Z');
+  assert.ok(L.execIsClosed(s));
+  s = L.execRespond(s, { kind: 'reopen', party: 'architect', name: 'שי', ballTo: { party: 'architect' } }, '2026-10-07T08:00:00Z');
+  assert.strictEqual(s.status, 'rejected');
+  assert.strictEqual(s.closedAt, null);
+  assert.strictEqual(s.ball.party, 'contractor');
+  assert.strictEqual(s.revisions.length, 1);
+  assert.deepStrictEqual([s.revisions[0].decision, s.revisions[0].notes, s.revisions[0].decidedBy], ['approved', 'ok', 'שי']);
+  assert.strictEqual(L.execDecide(s, { decision: 'rejected', name: 'x' }, '2026-10-07T09:00:00Z'), s, 'no decision on an already decided revision');
+  s = L.execAddRevision(s, { party: 'contractor', name: 'דנה' }, '2026-10-08T08:00:00Z');
+  assert.deepStrictEqual(s.revisions.map(r => [r.label, r.decision]), [['A', 'approved'], ['B', null]]);
+  assert.strictEqual(s.status, 'submitted');
+  s = L.execDecide(s, { decision: 'approved_notes', notes: 'גוון', name: 'שי' }, '2026-10-11T08:00:00Z');
+  assert.deepStrictEqual(s.revisions.map(r => r.decision), ['approved', 'approved_notes']);
+});
+
+test('numbers are never reused: the per-type counter survives deleting the highest item', () => {
+  const a = L.execNewItem([], { type: 'rfi', title: 'a', openedBy: { party: 'contractor' } }, T0);
+  let seq = L.execBumpSeq({}, a);
+  const b = L.execNewItem([a], { type: 'rfi', title: 'b', openedBy: { party: 'contractor' } }, T0, seq);
+  seq = L.execBumpSeq(seq, b);
+  assert.strictEqual(b.number, 'RFI-002');
+  assert.deepStrictEqual(seq, { rfi: 2 });
+  const c = L.execNewItem([a], { type: 'rfi', title: 'c', openedBy: { party: 'contractor' } }, T0, seq); // RFI-002 deleted
+  assert.strictEqual(c.number, 'RFI-003');
+  assert.strictEqual(L.execNewItem([a], { type: 'issue', title: 'i', openedBy: { party: 'architect' } }, T0, seq).number, 'ISS-001');
+  assert.deepStrictEqual(L.execNextNumber([a, b], 'rfi', { rfi: 1 }), { seq: 3, number: 'RFI-003' }, 'existing items win over a stale counter');
+  assert.deepStrictEqual(L.execNextNumber([a], 'rfi'), { seq: 2, number: 'RFI-002' }, 'no counter yet');
+  assert.deepStrictEqual(L.execBumpSeq(undefined, a), { rfi: 1 });
+  assert.deepStrictEqual(L.execBumpSeq({ rfi: 5, issue: 2 }, a), { rfi: 5, issue: 2 });
+});
+
+test('manual status change is recorded in the thread and moves the ball', () => {
+  let i = L.execNewItem([], { type: 'issue', title: 'x', openedBy: { party: 'architect' }, ballTo: { party: 'contractor' } }, T0);
+  i = L.execSetStatus(i, 'resolved', { name: 'שי' }, '2026-10-06T08:00:00Z');
+  assert.strictEqual(i.status, 'resolved');
+  assert.strictEqual(i.closedAt, '2026-10-06T08:00:00Z');
+  assert.strictEqual(i.ball, null);
+  const last = i.responses[i.responses.length - 1];
+  assert.deepStrictEqual([last.kind, last.party, last.name, last.body], ['status', 'architect', 'שי', 'סטטוס שונה ל־נפתר']);
+  i = L.execSetStatus(i, 'in_progress', { name: 'שי' }, '2026-10-07T08:00:00Z');
+  assert.strictEqual(i.closedAt, null);
+  assert.deepStrictEqual(i.ball, { party: 'architect', name: '' });
+  assert.strictEqual(i.responses.length, 3);
+  const r = L.execNewItem([], { type: 'rfi', title: 'r', openedBy: { party: 'contractor' }, ballTo: { party: 'consultant', name: 'מיזוג' } }, T0);
+  const r2 = L.execSetStatus(r, 'answered', { name: 'שי' }, T0);
+  assert.deepStrictEqual(r2.ball, { party: 'consultant', name: 'מיזוג' }, 'open → open keeps the ball');
+  assert.strictEqual(L.execSetStatus(r2, 'answered', { name: 'שי' }, T0), r2, 'same status: unchanged');
+  const s = L.execNewItem([], { type: 'submittal', title: 's', openedBy: { party: 'contractor' } }, T0);
+  assert.strictEqual(L.execSetStatus(s, 'approved', { name: 'שי' }, T0), s, 'submittals change status only through rounds');
+});
+
+test('ball history and links entries carry ids (merged per entry)', () => {
+  let a = mk();
+  a = L.execRespond(a, { party: 'architect', ballTo: { party: 'contractor' } }, '2026-10-06T08:00:00Z');
+  assert.ok(a.ballHistory.length === 2 && a.ballHistory.every(h => typeof h.id === 'string'));
+  assert.strictEqual(new Set(a.ballHistory.map(h => h.id)).size, 2);
 });

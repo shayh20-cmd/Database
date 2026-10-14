@@ -166,16 +166,31 @@ test('mtgPullOpenExec adds a topic of open items, refreshes existing rows, keeps
   assert.deepStrictEqual(p1.sections.map(x => x.title), ['פריטים פתוחים'], 'an untitled blank topic is reused');
   assert.strictEqual(p1.items.length, 1);
   assert.deepStrictEqual([p1.items[0].topic, p1.items[0].assignee, p1.items[0].person, p1.items[0].dueDate], ['RFI-001 גובה', 'STRC', 'architect', '2026-10-20']);
-  assert.deepStrictEqual(p1.items[0].execRef, { itemId: 'x1', number: 'RFI-001', type: 'rfi' });
+  assert.deepStrictEqual(p1.items[0].execRef, { itemId: 'x1', number: 'RFI-001', type: 'rfi', auto: { topic: 'RFI-001 גובה', person: 'architect', dueDate: '2026-10-20' } });
   const sid = p1.sections[0].id;
   const withUser = { ...p1, items: [...p1.items, { id: 'u', sectionId: sid, parentId: null, topic: 'שורה שלי', photos: [] }] };
   const p2 = L.mtgPullOpenExec(withUser, [{ ...e1, ball: { party: 'contractor' }, dueDate: '2026-11-01' }, e2], lbl);
   assert.strictEqual(p2.sections.length, 1);
   assert.deepStrictEqual(p2.items.map(i => i.topic), ['RFI-001 גובה', 'שורה שלי', 'ISS-001 סדק']);
   assert.deepStrictEqual([p2.items[0].id, p2.items[0].person, p2.items[0].dueDate], [p1.items[0].id, 'contractor', '2026-11-01']);
+  assert.deepStrictEqual(p2.items[0].execRef.auto, { topic: 'RFI-001 גובה', person: 'contractor', dueDate: '2026-11-01' });
   const p3 = L.mtgPullOpenExec({ sections: [{ id: 'k', title: 'כללי' }], items: [{ id: 'z', sectionId: 'k', parentId: null, topic: 'a', photos: [] }] }, [e2], lbl);
   assert.deepStrictEqual(p3.sections.map(x => x.title), ['כללי', 'פריטים פתוחים'], 'a titled topic is not reused');
   assert.strictEqual(L.mtgDaysSince('2026-10-01T09:00:00Z', '2026-10-14'), 13);
+});
+
+test('mtgPullOpenExec keeps what the user edited on a pulled row and refreshes the rest', () => {
+  const lbl = b => b ? b.party : '—';
+  const e1 = { id: 'x1', type: 'rfi', number: 'RFI-001', title: 'גובה', discipline: '', ball: { party: 'architect' }, dueDate: '2026-10-20' };
+  const p1 = L.mtgPullOpenExec({ sections: [], items: [] }, [e1], lbl);
+  const edited = { ...p1, items: p1.items.map(it => ({ ...it, topic: 'RFI-001 גובה — לבדוק מול הקונסטרוקטור' })) };
+  const p2 = L.mtgPullOpenExec(edited, [{ ...e1, title: 'גובה תקרה', ball: { party: 'contractor' }, dueDate: '2026-11-01' }], lbl);
+  assert.strictEqual(p2.items.length, 1);
+  assert.strictEqual(p2.items[0].topic, 'RFI-001 גובה — לבדוק מול הקונסטרוקטור', 'user-edited topic is kept');
+  assert.deepStrictEqual([p2.items[0].person, p2.items[0].dueDate], ['contractor', '2026-11-01'], 'untouched fields still update');
+  assert.deepStrictEqual(p2.items[0].execRef.auto, { topic: 'RFI-001 גובה', person: 'contractor', dueDate: '2026-11-01' }, 'auto keeps the last generated topic');
+  const f = L.followUpMeeting({ id: 'M', date: '2026-10-01', sections: p2.sections, items: p2.items }, { id: 'M2', date: '2026-10-14' });
+  assert.deepStrictEqual(f.items[0].execRef, p2.items[0].execRef, 'follow-up keeps execRef with auto');
 });
 
 // ── display order (array order must follow display order) ──

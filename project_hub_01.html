@@ -3825,7 +3825,9 @@ const EXEC_PARTIES=[{id:'architect',label:'אדריכל'},{id:'contractor',label
 const EXEC_RFI_LATE=7,EXEC_ISSUE_LATE=14;
 function execPartyLabel(b){if(!b||!b.party)return '—';const p=(EXEC_PARTIES.find(x=>x.id===b.party)||{}).label||b.party;const nm=String(b.name||'').trim();return !nm?p:b.party==='consultant'?p+' '+nm:p+' · '+nm;}
 function execIsClosed(it){const t=EXEC_TYPES[it.type];const s=t&&t.statuses.find(x=>x.id===it.status);return !!(s&&s.closed);}
-function execNextNumber(items,type){const seq=Math.max(0,...(items||[]).filter(i=>i.type===type).map(i=>i.seq||0))+1;return{seq,number:EXEC_TYPES[type].prefix+'-'+String(seq).padStart(3,'0')};}
+/* numbers are official and never reused: doc.execSeq keeps the highest number given per type, so deleting the last item does not free its number */
+function execNextNumber(items,type,seqMap){const seq=Math.max((seqMap&&seqMap[type])||0,0,...(items||[]).filter(i=>i.type===type).map(i=>i.seq||0))+1;return{seq,number:EXEC_TYPES[type].prefix+'-'+String(seq).padStart(3,'0')};}
+function execBumpSeq(seqMap,item){return{...(seqMap||{}),[item.type]:Math.max((seqMap&&seqMap[item.type])||0,item.seq||0)};}
 function execWorkdays(fromISO,toISO){
   if(!fromISO||!toISO)return 0;const a=String(fromISO).slice(0,10),b=String(toISO).slice(0,10);if(b<=a)return 0;
   const d=new Date(a+'T00:00:00Z'),end=new Date(b+'T00:00:00Z');let n=0;
@@ -3840,10 +3842,10 @@ function execAddWorkdays(iso,n){
 function execSetBall(item,ball,at){
   const cur=item.ball;const same=(!cur&&!ball)||(cur&&ball&&cur.party===ball.party&&String(cur.name||'')===String(ball.name||''));
   if(same)return item;
-  return{...item,ball:ball?{party:ball.party,name:ball.name||''}:null,ballHistory:[...(item.ballHistory||[]),{party:ball?ball.party:null,name:ball?ball.name||'':'',from:at}]};
+  return{...item,ball:ball?{party:ball.party,name:ball.name||''}:null,ballHistory:[...(item.ballHistory||[]),{id:uid(),party:ball?ball.party:null,name:ball?ball.name||'':'',from:at}]};
 }
-function execNewItem(items,o,now){
-  const at=now||new Date().toISOString();const{seq,number}=execNextNumber(items,o.type);
+function execNewItem(items,o,now,seqMap){
+  const at=now||new Date().toISOString();const{seq,number}=execNextNumber(items,o.type,seqMap);
   const openedBy={party:(o.openedBy||{}).party||'architect',name:(o.openedBy||{}).name||''};
   let it={id:uid(),type:o.type,seq,number,title:o.title||'',description:o.description||'',status:EXEC_TYPES[o.type].statuses[0].id,openedBy,ball:null,ownerId:o.ownerId||null,dueDate:o.dueDate||'',discipline:o.discipline||'',specSection:o.specSection||'',source:o.source||null,createdAt:at,closedAt:null,
     responses:[{id:uid(),at,party:openedBy.party,name:openedBy.name,body:o.description||'',files:o.files||[],ballTo:o.ballTo||null,kind:'open'}],
@@ -3853,8 +3855,12 @@ function execNewItem(items,o,now){
 }
 function execRespond(item,r,now){
   const at=now||new Date().toISOString();const kind=r.kind||'reply';
-  let next={...item,responses:[...(item.responses||[]),{id:uid(),at,party:r.party,name:r.name||'',body:r.body||'',files:r.files||[],ballTo:kind==='close'?null:(r.ballTo||null),kind}]};
+  /* a decided submittal round is history: reopening it waits for the contractor's next revision instead of undoing the decision */
+  const lastRev=(item.revisions||[]).slice(-1)[0];const resubmit=kind==='reopen'&&item.type==='submittal'&&!!(lastRev&&lastRev.decision);
+  const ballTo=kind==='close'?null:resubmit?{party:'contractor',name:''}:(r.ballTo||null);
+  let next={...item,responses:[...(item.responses||[]),{id:uid(),at,party:r.party,name:r.name||'',body:r.body||'',files:r.files||[],ballTo,kind}]};
   if(kind==='close'){next.status=item.type==='issue'?'resolved':item.type==='rfi'?'closed':item.status;next.closedAt=at;return execSetBall(next,null,at);}
+  if(resubmit){next.status='rejected';next.closedAt=null;return execSetBall(next,ballTo,at);}
   if(kind==='reopen'){next.status=EXEC_TYPES[item.type].statuses[0].id;next.closedAt=null;}
   if(kind==='answer'&&item.type==='rfi')next.status='answered';
   if(kind==='reply'&&item.type==='issue'&&item.status==='open')next.status='in_progress';
@@ -3869,10 +3875,21 @@ function execAddRevision(item,r,now){
 }
 function execDecide(item,d,now){
   const at=now||new Date().toISOString();const revs=(item.revisions||[]).slice();const i=revs.length-1;
+  if(i>=0&&revs[i].decision)return item; /* a round is decided once; the next decision needs a new revision */
   if(i>=0)revs[i]={...revs[i],decision:d.decision,notes:d.notes||'',decidedBy:d.name||'',decidedAt:at};
   let next={...item,revisions:revs,status:d.decision,responses:[...(item.responses||[]),{id:uid(),at,party:'architect',name:d.name||'',body:d.notes||'',files:d.files||[],ballTo:null,kind:'decision'}]};
   const closed=execIsClosed(next);next.closedAt=closed?at:null;
   return execSetBall(next,closed?null:(d.ballTo||{party:'contractor',name:''}),at);
+}
+/* manual status change (Issue / RFI only — submittals move through rounds), recorded as a 'status' line in the thread */
+function execSetStatus(item,status,by,now){
+  if(item.type==='submittal'||item.status===status)return item;
+  const st=((EXEC_TYPES[item.type]||{}).statuses||[]).find(x=>x.id===status);if(!st)return item;
+  const at=now||new Date().toISOString();const wasClosed=execIsClosed(item);
+  let n={...item,status,responses:[...(item.responses||[]),{id:uid(),at,party:'architect',name:(by&&by.name)||'',body:'סטטוס שונה ל־'+st.label,files:[],ballTo:null,kind:'status',status}]};
+  const c=execIsClosed(n);n.closedAt=c?(item.closedAt||at):null;
+  if(c)return execSetBall(n,null,at);
+  return wasClosed?execSetBall(n,{party:'architect',name:''},at):n;
 }
 function execWaiting(item,today){const h=item.ballHistory||[];if(!item.ball||!h.length)return 0;return execWorkdays(h[h.length-1].from,today);}
 function execBallDays(item,today){
@@ -3897,7 +3914,7 @@ function execBallSplit(items){const out={architect:0,contractor:0,supervisor:0,c
 function execForMe(items,staffId,iManage){return(items||[]).filter(i=>!execIsClosed(i)&&i.ball&&i.ball.party==='architect'&&(i.ownerId?i.ownerId===staffId:iManage));}
 function execLogRows(items,filter,today){
   const list=(items||[]).filter(i=>filter==='all'||!filter||i.type===filter);
-  const open=list.filter(i=>!execIsClosed(i)).sort((a,b)=>execWaiting(b,today)-execWaiting(a,today)||(a.seq-b.seq));
+  const open=list.filter(i=>!execIsClosed(i)).map(i=>({i,w:execWaiting(i,today)})).sort((a,b)=>b.w-a.w||(a.i.seq-b.i.seq)).map(x=>x.i);
   const closed=list.filter(i=>execIsClosed(i)).sort((a,b)=>String(b.closedAt||'').localeCompare(String(a.closedAt||'')));
   return[...open,...closed];
 }
@@ -3990,7 +4007,8 @@ function followUpMeeting(prev,{id,date}){
   return{id,trackId:m.trackId??null,title:m.title||'',date,participants:(m.participants||[]).map(p=>({...p,id:uid()})),sections,items,recordedBy:m.recordedBy||'',distribution:m.distribution||'',createdAt:new Date().toISOString(),basedOnMeetingId:m.id};
 }
 /* "+ משוך פריטים פתוחים": one row per open execution item under the topic "פריטים פתוחים".
-   Rows already pointing at an item (execRef.itemId, anywhere in the meeting) get fresh text / ball / date;
+   Rows already pointing at an item (execRef.itemId, anywhere in the meeting) get fresh text / ball / date —
+   each field only while it still holds the value last generated (execRef.auto), so the user's edits stay;
    missing items are added; user rows stay. An untitled topic holding only blank rows is reused. */
 const MTG_EXEC_TOPIC='פריטים פתוחים';
 function mtgBlankItem(it){return !it.topic&&!it.assignee&&!String(it.person||'').trim()&&!it.dueDate&&!(it.photos||[]).length&&!it.itemType&&!it.linkedRecordId&&!it.execRef;}
@@ -4004,9 +4022,13 @@ function mtgPullOpenExec(m,open,personOf){
   }
   const text=e=>(e.number+' '+(e.title||'')).trim();
   const byId=new Map((open||[]).map(e=>[e.id,e]));
-  const out=items.map(it=>{const e=it.execRef&&byId.get(it.execRef.itemId);return e?{...it,topic:text(e),person:personOf(e.ball),dueDate:e.dueDate||'',execRef:{itemId:e.id,number:e.number,type:e.type}}:it;});
+  const gen=e=>({topic:text(e),person:personOf(e.ball),dueDate:e.dueDate||''});
+  const out=items.map(it=>{const e=it.execRef&&byId.get(it.execRef.itemId);if(!e)return it;const g=gen(e),old=it.execRef.auto,next={...it},auto={};
+    /* a row from before execRef.auto existed is treated as untouched */
+    ['topic','person','dueDate'].forEach(k=>{if(!old||String(it[k]||'')===String(old[k]||'')){next[k]=g[k];auto[k]=g[k];}else auto[k]=old[k]||'';});
+    return{...next,execRef:{...it.execRef,itemId:e.id,number:e.number,type:e.type,auto}};});
   const have=new Set(out.filter(it=>it.execRef).map(it=>it.execRef.itemId));
-  const add=(open||[]).filter(e=>!have.has(e.id)).map(e=>({...mtgNewItem(sec.id,null),topic:text(e),assignee:e.discipline||null,person:personOf(e.ball),dueDate:e.dueDate||'',execRef:{itemId:e.id,number:e.number,type:e.type}}));
+  const add=(open||[]).filter(e=>!have.has(e.id)).map(e=>{const g=gen(e);return{...mtgNewItem(sec.id,null),...g,assignee:e.discipline||null,execRef:{itemId:e.id,number:e.number,type:e.type,auto:g}};});
   return{sections,items:orderItems([...out,...add],sections)};
 }
 function mtgDaysSince(iso,today){if(!iso||!today)return 0;return Math.max(0,Math.round((Date.parse(String(today).slice(0,10))-Date.parse(String(iso).slice(0,10)))/86400000));}
