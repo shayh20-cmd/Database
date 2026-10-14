@@ -1012,6 +1012,8 @@ textarea.ex-in{resize:vertical;min-height:64px;}
 .ex-flinks a{color:var(--accent);text-decoration:none;}
 .ex-flinks a:hover{text-decoration:underline;}
 .ex-hand{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-2);margin:-2px 14px 8px;}
+.ex-sys{display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:11.5px;color:var(--text-3);margin:0 14px 8px;}
+.ex-sys b{font-weight:600;color:var(--text-2);}
 .ex-comp,.ex-rounds,.ex-tform{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;}
 .ex-comp-h{font-size:12.5px;font-weight:700;}
 .ex-decide,.ex-revform{background:var(--surface);border:1px dashed var(--border-strong);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:8px;}
@@ -3661,13 +3663,21 @@ function MeetingTable({data,save,meeting,onChange}){
   /* execution items: pull the open ones into the meeting, open a row as a new item, jump to an item */
   const execItems=data.execItems||[];const openExec=execItems.filter(e=>!execIsClosed(e));const today=todayISO();
   const pullOpenExec=()=>onChange(prev=>mtgPullOpenExec(prev,openExec,execPartyLabel));
-  /* like the other link actions the item is saved to the project now; the meeting row's execRef waits for שמור */
-  const openAsExec=(item,type)=>{setMenuId(null);const disc=item.assignee&&item.assignee!=='לידיעה'?item.assignee:'';
-    const ex=execNewItem(execItems,{type,title:String(item.topic||'').trim(),description:'',openedBy:{party:'architect',name:CURRENT_USER.name},ballTo:type==='rfi'?{party:'architect'}:{party:'contractor'},discipline:disc,dueDate:item.dueDate||'',source:{kind:'meeting',ref:meeting.id}});
-    save({...data,execItems:[...execItems,{...ex,links:[...(ex.links||[]),{kind:'meeting',meetingId:meeting.id,itemId:item.id}]}]});
-    updateItem(item.id,{execRef:{itemId:ex.id,number:ex.number,type}});};
-  const goExec=async itemId=>{const stored=(data.meetings||[]).find(x=>x.id===meeting.id);const dirty=!stored||JSON.stringify(migrateMeeting(stored))!==JSON.stringify(meeting);
-    if(dirty){if(!(await askConfirm('השינויים בישיבה עוד לא נשמרו. לשמור אותם ולעבור לפריט?',{confirmLabel:'שמור ועבור',danger:false})))return;save({...data,meetings:stored?(data.meetings||[]).map(x=>x.id===meeting.id?meeting:x):[...(data.meetings||[]),meeting]});}
+  /* like the other link actions the item is saved to the project now; the meeting row's execRef waits for שמור.
+     A row already opened as an item (its meeting link exists, even if the meeting was not saved since) is linked again, not duplicated. */
+  const execRO=myOfficeRole()==='viewer';const dataRef=useRef(data);dataRef.current=data;const meetingRef=useRef(meeting);meetingRef.current=meeting;
+  const rowAuto=item=>({topic:item.topic||'',person:item.person||'',dueDate:item.dueDate||''});
+  const openAsExec=(item,type)=>{setMenuId(null);if(execRO)return;const title=String(item.topic||'').trim();if(!title){alert(tx('כתוב קודם את הסעיף'));return;}
+    const d=dataRef.current;const all=d.execItems||[];
+    const linked=all.find(e=>(e.links||[]).some(l=>l.kind==='meeting'&&l.meetingId===meeting.id&&l.itemId===item.id));
+    if(linked){updateItem(item.id,{execRef:{itemId:linked.id,number:linked.number,type:linked.type,auto:rowAuto(item)}});return;}
+    const disc=item.assignee&&item.assignee!=='לידיעה'?item.assignee:'';
+    const ex=execNewItem(all,{type,title,description:'',openedBy:{party:'architect',name:CURRENT_USER.name},ballTo:type==='rfi'?{party:'architect'}:{party:'contractor'},discipline:disc,dueDate:item.dueDate||'',source:{kind:'meeting',ref:meeting.id}},undefined,d.execSeq||{});
+    save({...d,execItems:[...all,{...ex,createdById:CURRENT_USER.id,links:[...(ex.links||[]),{id:uid(),kind:'meeting',meetingId:meeting.id,itemId:item.id}]}],execSeq:execBumpSeq(d.execSeq||{},ex)});
+    updateItem(item.id,{execRef:{itemId:ex.id,number:ex.number,type,auto:rowAuto(item)}});};
+  const goExec=async itemId=>{const d0=dataRef.current;const stored=(d0.meetings||[]).find(x=>x.id===meeting.id);const dirty=!stored||JSON.stringify(migrateMeeting(stored))!==JSON.stringify(meetingRef.current);
+    if(dirty){if(!(await askConfirm('השינויים בישיבה עוד לא נשמרו. לשמור אותם ולעבור לפריט?',{confirmLabel:'שמור ועבור',danger:false})))return;
+      /* read again after the await: the doc may have been saved (or merged) meanwhile */const d=dataRef.current,m=meetingRef.current;const has=(d.meetings||[]).some(x=>x.id===m.id);save({...d,meetings:has?(d.meetings||[]).map(x=>x.id===m.id?m:x):[...(d.meetings||[]),m]});}
     exGoHub({tab:'supervision',execItemId:itemId});};
   const execPill=item=>{const r=item.execRef;if(!r)return null;const ex=execItems.find(e=>e.id===r.itemId);const lbl=(EXEC_TYPES[r.type]||{}).label||r.type;const txt=String(item.topic||'').trim().startsWith(r.number)?lbl:r.number;
     return ex?h("span",{key:'x',role:"button",tabIndex:0,className:"ex-pill ex-pill-"+r.type+" mtg-ex-pill","data-i18n-skip":txt===r.number?"":undefined,title:r.number+' — פתח את פריט הביצוע',onClick:()=>goExec(ex.id),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();goExec(ex.id);}}},txt)
@@ -3685,7 +3695,7 @@ function MeetingTable({data,save,meeting,onChange}){
       ...ITEM_TYPES.map(t=>h("button",{key:t.id,onClick:()=>linkAs(item,t.id)},"קשר כ",t.label)),
       item.itemType&&h("button",{onClick:()=>{updateItem(item.id,{itemType:null,createdTaskTrackId:null,linkedRecordId:null,linkedRecordKind:null});setMenuId(null);}},"נקה קישור"),
       !item.execRef&&h("hr"),
-      ...(item.execRef?[]:Object.keys(EXEC_TYPES).map(t=>h("button",{key:'ex-'+t,onClick:()=>openAsExec(item,t)},"פתח כ־",EXEC_TYPES[t].label))),
+      ...(item.execRef||execRO?[]:Object.keys(EXEC_TYPES).map(t=>h("button",{key:'ex-'+t,onClick:()=>openAsExec(item,t)},"פתח כ־",EXEC_TYPES[t].label))),
       h("hr"),
       h("button",{style:{color:'#EF4444'},onClick:async()=>{setMenuId(null);if((items.some(x=>x.parentId===item.id)||(item.photos||[]).length)&&!(await askConfirm('למחוק את הסעיף? יימחקו גם תתי הסעיפים והתמונות שלו.',{confirmLabel:'מחק'})))return;deleteItem(item.id);}},"✕ מחק סעיף")));
   const extras=item=>{const letters=appendix.filter(a=>a.item.id===item.id).map(a=>a.letter);const t=item.itemType&&ITEM_TYPES.find(x=>x.id===item.itemType);return[
@@ -4066,23 +4076,29 @@ const EX_DUE_WORKDAYS={rfi:7,submittal:10};
 const exDdMm=iso=>iso?String(iso).slice(8,10)+'/'+String(iso).slice(5,7):'—';
 const exDiscName=(data,id)=>{if(!id)return '';const d=(projList(data,'disciplines')||[]).find(x=>x.id===id);return DISCIPLINE_FULL_NAMES[id]||(d&&d.label)||id;};
 function ExTypePill({type}){return React.createElement("span",{className:"ex-pill ex-pill-"+type},(EXEC_TYPES[type]||{}).label||type);}
-function ExPartyChip({ball}){if(!ball||!ball.party)return React.createElement("span",{className:"ex-muted"},'—');return React.createElement("span",{className:"ex-chip","data-i18n-skip":ball.name?"":undefined},React.createElement("i",{className:"ex-dot",style:{background:EX_PARTY_COLORS[ball.party]||'#888780'}}),execPartyLabel(ball));}
+function ExPartyChip({ball}){if(!ball||!ball.party)return React.createElement("span",{className:"ex-muted"},'—');const p=(EXEC_PARTIES.find(x=>x.id===ball.party)||{}).label||ball.party;const nm=String(ball.name||'').trim();
+/* same text as execPartyLabel; only the name is skipped by the translator */
+return React.createElement("span",{className:"ex-chip"},React.createElement("i",{className:"ex-dot",style:{background:EX_PARTY_COLORS[ball.party]||'#888780'}}),p,nm?(ball.party==='consultant'?' ':' · '):null,nm?React.createElement("span",{"data-i18n-skip":""},nm):null);}
 function ExecutionView({data,save,openItemId=null,onConsumeOpen,onOpenTasks}){
 const items=data.execItems||[];const today=todayISO();const viewer=myOfficeRole()==='viewer';
 const[filter,setFilter]=useState('all');const[showClosed,setShowClosed]=useState(false);const[menu,setMenu]=useState(false);const[newType,setNewType]=useState(null);
 /* the item open in the side panel (ExecItemPanel, Task 3); also set from ph:go-hub {execItemId} via openItemId */
 const[openId,setOpenId]=useState(null);
-useEffect(()=>{if(openItemId){setOpenId(openItemId);onConsumeOpen&&onConsumeOpen();}},[openItemId]);
-const c=execCounts(items,today);const split=execBallSplit(items);const openCount=items.filter(i=>!execIsClosed(i)).length;const splitTotal=Object.values(split).reduce((a,b)=>a+b,0);
+/* the open panel's "discard the unsent reply?" check (set by ExecItemPanel) — asked before another item replaces it */
+const panelGuard=useRef(null);
+useEffect(()=>{if(!openItemId)return;const want=openItemId;onConsumeOpen&&onConsumeOpen();(async()=>{if(openId&&openId!==want&&panelGuard.current&&!(await panelGuard.current()))return;setOpenId(want);})();},[openItemId]);
 const isMine=i=>!execIsClosed(i)&&i.ball&&i.ball.party==='architect';
-const cnt=t=>items.filter(i=>(showClosed||!execIsClosed(i))&&(t==='all'||(t==='mine'?isMine(i):i.type===t))).length;
+const stats=useMemo(()=>{const shown=items.filter(i=>showClosed||!execIsClosed(i));const n={all:shown.length,mine:shown.filter(isMine).length};['issue','rfi','submittal'].forEach(t=>{n[t]=shown.filter(i=>i.type===t).length;});
+return{c:execCounts(items,today),split:execBallSplit(items),openCount:items.filter(i=>!execIsClosed(i)).length,n};},[items,today,showClosed]);
+const{c,split,openCount}=stats;const splitTotal=Object.values(split).reduce((a,b)=>a+b,0);
+const cnt=t=>stats.n[t]||0;
 const rows=(filter==='mine'?execLogRows(items,'all',today).filter(isMine):execLogRows(items,filter,today)).filter(i=>showClosed||!execIsClosed(i));
 const pickFilter=f=>setFilter(cur=>cur===f&&f!=='all'?'all':f);
-const create=o=>{const it={...execNewItem(items,o),createdById:CURRENT_USER.id};save({...data,execItems:[...items,it]});setNewType(null);setOpenId(it.id);};
+const create=o=>{const seq=data.execSeq||{};const it={...execNewItem(items,o,undefined,seq),createdById:CURRENT_USER.id};save({...data,execItems:[...items,it],execSeq:execBumpSeq(seq,it)});setNewType(null);setOpenId(it.id);};
 const FILTERS=[{id:'all',label:'הכל'},{id:'issue',label:'Issues'},{id:'rfi',label:'RFI'},{id:'submittal',label:'הגשות'},...(filter==='mine'?[{id:'mine',label:'אצלנו'}]:[])];
 const filterLabel=(FILTERS.find(f=>f.id===filter)||FILTERS[0]).label;
 const kpi=(f,label,value,sub,bad,accent)=>React.createElement("button",{type:"button",key:f,className:"ex-kpi"+(accent?" ex-kpi-accent":"")+(filter===f?" on":""),onClick:()=>pickFilter(f),title:'הצג ביומן'},React.createElement("span",{className:"ex-kpi-l"},label),React.createElement("span",{className:"ex-kpi-v"},value),React.createElement("span",{className:"ex-kpi-s"+(bad?" bad":"")},sub));
-const tasksOpen=(data.sheets||[]).filter(s=>s.type==='list'&&!s.track).reduce((n,s)=>n+(s.tasks||[]).filter(t=>!t.done).length,0);
+const tasksOpen=(data.sheets||[]).filter(s=>s.type==='list'&&!s.track).reduce((n,s)=>n+(s.tasks||[]).filter(t=>!t.done&&t.statusId!=='C'&&taskStatusEff(t)!=='C').length,0);
 const waitCls=(i,w)=>{if(execIsClosed(i))return '';if((i.dueDate&&i.dueDate<today)||(i.type==='rfi'&&w>EXEC_RFI_LATE)||(i.type==='issue'&&w>EXEC_ISSUE_LATE))return 'ex-wait-bad';return w>=5?'ex-wait-warn':'';};
 const statusOf=i=>{const st=((EXEC_TYPES[i.type]||{}).statuses||[]).find(x=>x.id===i.status);return st?st.label:i.status;};
 const now=new Date();const printDate=String(now.getDate()).padStart(2,'0')+'/'+String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear();
@@ -4111,7 +4127,7 @@ rows.length?React.createElement("table",{className:"ex-table"},
 React.createElement("thead",null,React.createElement("tr",null,["מס'",'נושא','תחום','הכדור אצל','ממתין','סטטוס','יעד'].map(h=>React.createElement("th",{key:h},h)))),
 React.createElement("tbody",null,rows.map(i=>{const closed=execIsClosed(i);const w=execWaiting(i,today);const disc=exDiscName(data,i.discipline);const spec=i.type==='submittal'&&i.specSection?i.specSection:'';
 return React.createElement("tr",{key:i.id,className:(closed?"ex-row-closed":"")+(openId===i.id?" on":""),onClick:()=>setOpenId(i.id)},
-React.createElement("td",{className:"ex-num"},React.createElement(ExTypePill,{type:i.type}),i.number),
+React.createElement("td",{className:"ex-num"},React.createElement(ExTypePill,{type:i.type}),React.createElement("span",{"data-i18n-skip":""},i.number)),
 React.createElement("td",{"data-i18n-skip":""},i.title||'—'),
 React.createElement("td",null,disc||spec?[disc,spec].filter(Boolean).join(' · '):React.createElement("span",{className:"ex-muted"},'—')),
 React.createElement("td",null,React.createElement(ExPartyChip,{ball:i.ball})),
@@ -4122,7 +4138,7 @@ React.createElement("div",{className:"ex-empty"},items.length?'אין פריטי
 onOpenTasks&&React.createElement("div",{className:"ex-foot"},React.createElement("button",{type:"button",className:"ex-link",onClick:onOpenTasks},'משימות תכנון שוטפות ('+tasksOpen+' פתוחות) ←')),
 newType&&React.createElement(ExNewItemDialog,{data:data,type:newType,onClose:()=>setNewType(null),onCreate:create}),
 /* hook point for the item panel (Task 3) */
-openId&&typeof ExecItemPanel==='function'&&React.createElement(ExecItemPanel,{data:data,save:save,itemId:openId,onClose:()=>setOpenId(null)}));}
+openId&&typeof ExecItemPanel==='function'&&React.createElement(ExecItemPanel,{data:data,save:save,itemId:openId,guardRef:panelGuard,onClose:()=>setOpenId(null)}));}
 function ExNewItemDialog({data,type:type0,onClose,onCreate}){
 const today=todayISO();
 const defaultsFor=t=>({opened:t==='issue'?{party:'architect',name:CURRENT_USER.name}:{party:'contractor',name:''},due:EX_DUE_WORKDAYS[t]?execAddWorkdays(today,EX_DUE_WORKDAYS[t]):''});
@@ -4135,13 +4151,15 @@ const setType=t=>{const d=defaultsFor(t);setTypeRaw(t);setOpened(d.opened);setDu
 const disciplines=visOpts(projList(data,'disciplines'));const team=data.team||[];
 const addFiles=async list=>{for(const f of Array.from(list||[])){setBusy(b=>b+1);setErr('');try{const url=await uploadAttachment(f,f.name);setFiles(prev=>[...prev,{id:uid(),url,name:f.name}]);}catch(e){setErr('הקובץ לא נשמר — '+(e.message||e));}setBusy(b=>b-1);}};
 const ok=title.trim()&&!busy;
+const asking=useRef(false);
+const requestClose=async()=>{if(asking.current)return;if(title.trim()||description.trim()||files.length||busy){asking.current=true;const yes=await askConfirm('לסגור בלי ליצור את הפריט? מה שנכתב לא יישמר.',{confirmLabel:'סגור בלי לשמור'});asking.current=false;if(!yes)return;}onClose();};
 const submit=()=>{if(!ok)return;onCreate({type,title:title.trim(),description:description.trim(),openedBy:{party:opened.party,name:opened.name.trim()},ballTo:{party:ball.party,name:ball.name.trim()},discipline,specSection:type==='submittal'?specSection.trim():'',dueDate,ownerId:ownerId||null,files,source:{kind:'manual',ref:null}});};
 const partyRow=(v,set)=>React.createElement("div",{className:"ex-row2"},
 React.createElement("select",{className:"ex-in",value:v.party,onChange:e=>set({...v,party:e.target.value})},EXEC_PARTIES.map(p=>React.createElement("option",{key:p.id,value:p.id},p.label))),
 React.createElement("input",{className:"ex-in",value:v.name,placeholder:v.party==='consultant'?'שם / תחום':'שם (לא חובה)',onChange:e=>set({...v,name:e.target.value})}));
 const f=(label,child,key)=>React.createElement("div",{className:"ex-f",key},React.createElement("label",null,label),child);
-return React.createElement("div",{className:"ex-dlg-back",onClick:e=>{if(e.target===e.currentTarget)onClose();}},
-React.createElement("div",{className:"ex-dlg",role:"dialog","aria-modal":"true",onKeyDown:e=>{if(e.key==='Escape')onClose();}},
+return React.createElement("div",{className:"ex-dlg-back",onClick:e=>{if(e.target===e.currentTarget)requestClose();}},
+React.createElement("div",{className:"ex-dlg",role:"dialog","aria-modal":"true",onKeyDown:e=>{if(e.key==='Escape')requestClose();}},
 React.createElement("div",{className:"ex-dlg-t"},'פריט ביצוע חדש',React.createElement(ExTypePill,{type})),
 f('סוג',React.createElement("div",{className:"ex-seg",role:"group",style:{display:'inline-flex'}},['issue','rfi','submittal'].map(t=>React.createElement("button",{key:t,type:"button",className:type===t?"on":"",onClick:()=>setType(t)},EXEC_TYPES[t].label)))),
 f('כותרת *',React.createElement("input",{className:"ex-in",autoFocus:true,value:title,onChange:e=>setTitle(e.target.value),onKeyDown:e=>{if(e.key==='Enter')submit();}})),
@@ -4159,13 +4177,13 @@ React.createElement("input",{type:"file",multiple:true,onChange:e=>{addFiles(e.t
 (files.length>0||busy>0)&&React.createElement("div",{className:"ex-files"},files.map(x=>React.createElement("div",{key:x.id,className:"ex-file"},React.createElement("span",{"data-i18n-skip":""},x.name),React.createElement("button",{type:"button",title:'הסר',onClick:()=>setFiles(prev=>prev.filter(y=>y.id!==x.id))},'×'))),busy>0&&React.createElement("div",{className:"ex-file"},'מעלה…')),
 err&&React.createElement("div",{className:"ex-err"},err))),
 React.createElement("div",{className:"ex-dlg-acts"},
-React.createElement("button",{type:"button",className:"ex-btn",onClick:onClose},'ביטול'),
+React.createElement("button",{type:"button",className:"ex-btn",onClick:requestClose},'ביטול'),
 React.createElement("button",{type:"button",className:"ex-btn ex-btn-pri",disabled:!ok,onClick:submit},'צור '+EXEC_TYPES[type].label))));}
 /* ══ Execution item panel (ExecItemPanel) ══
    One Issue / RFI / Submittal in a side panel: reply thread with ball handoffs, submittal rounds,
    waiting days per party and linked tasks. Opened from the log in ExecutionView (and ph:go-hub {execItemId}).
    Every write goes through updateItem, reading the latest doc from a ref so a save after an await is never stale. */
-const EX_KIND_LABEL={open:'פתיחה',reply:'תגובה',answer:'תשובה רשמית',close:'נסגר',reopen:'נפתח מחדש',revision:'הגשה חוזרת',decision:'החלטה'};
+const EX_KIND_LABEL={open:'פתיחה',reply:'תגובה',answer:'תשובה רשמית',close:'נסגר',reopen:'נפתח מחדש',revision:'הגשה חוזרת',decision:'החלטה',status:'שינוי סטטוס'};
 const EX_DECISIONS=[{id:'approved',label:'אושר'},{id:'approved_notes',label:'אושר עם הערות'},{id:'rejected',label:'נדחה – להגשה מחדש'}];
 const EX_SOURCE_LABEL={meeting:'ישיבה',site_visit:'סיור באתר',email:'מייל',manual:'ידני'};
 const exDateTime=iso=>{if(!iso)return '';const d=new Date(iso);if(isNaN(d))return '';const p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+String(d.getFullYear()).slice(2)+' '+p(d.getHours())+':'+p(d.getMinutes());};
@@ -4188,7 +4206,7 @@ const opts=[{id:'contractor',label:'קבלן'},{id:'supervisor',label:'מפקח'
 return React.createElement("div",{className:"ex-ballpick"},'העבר את הכדור ל:',
 React.createElement("div",{className:"ex-seg",role:"group"},opts.map(o=>React.createElement("button",{key:o.id,type:"button",className:value.choice===o.id?"on":"","aria-pressed":value.choice===o.id,onClick:()=>onChange({...value,choice:o.id})},o.id!=='keep'&&React.createElement("i",{className:"ex-dot",style:{background:EX_PARTY_COLORS[o.id]}}),o.label))),
 value.choice==='consultant'&&React.createElement("input",{className:"ex-in ex-in-sm",list:listId,value:value.name,placeholder:'שם / תחום היועץ',onChange:e=>onChange({...value,name:e.target.value})}));}
-function ExecItemPanel({data,save,itemId,onClose}){
+function ExecItemPanel({data,save,itemId,onClose,guardRef}){
 const dataRef=useRef(data);dataRef.current=data;const saveRef=useRef(save);saveRef.current=save;
 const item=(data.execItems||[]).find(x=>x.id===itemId);
 const today=todayISO();const me=CURRENT_USER.name;const role=myOfficeRole();const ro=role==='viewer';
@@ -4200,8 +4218,15 @@ const[decNotes,setDecNotes]=useState('');
 const[revOpen,setRevOpen]=useState(false);const[revName,setRevName]=useState('');const[revBody,setRevBody]=useState('');const revUp=useExUploads();
 const[taskForm,setTaskForm]=useState(null);
 const resetComposer=()=>{setBody('');up.reset();setBall({choice:'keep',name:''});setAuthor({party:'architect',name:me});};
+/* an unsent reply (or Rev form) is not thrown away silently: overlay, ×, Escape and switching items ask first (deleting the item does not) */
+const dirtyRef=useRef(false);dirtyRef.current=!!(body.trim()||up.files.length||up.busy||(revOpen&&(revBody.trim()||revUp.files.length||revUp.busy)));
+const askingRef=useRef(false);
+const confirmDiscard=async()=>{if(!dirtyRef.current)return true;if(askingRef.current)return false;askingRef.current=true;try{return await askConfirm('לסגור בלי לשלוח את התגובה?',{confirmLabel:'סגור בלי לשלוח'});}finally{askingRef.current=false;}};
+const requestClose=async()=>{if(await confirmDiscard())onClose();};
+if(guardRef)guardRef.current=confirmDiscard;
+useEffect(()=>()=>{if(guardRef)guardRef.current=null;},[]);
 useEffect(()=>{resetComposer();setDecNotes('');setRevOpen(false);setTaskForm(null);setEditTitle(false);setMenu(null);},[itemId]);
-useEffect(()=>{const k=e=>{if(e.key!=='Escape'||document.querySelector('.df-pop,.af-overlay'))return;if(menu){setMenu(null);return;}const ae=document.activeElement;if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)){ae.blur();return;}onClose();};document.addEventListener('keydown',k);return()=>document.removeEventListener('keydown',k);},[menu,onClose]);
+useEffect(()=>{const k=e=>{if(e.key!=='Escape'||document.querySelector('.df-pop,.af-overlay'))return;if(menu){setMenu(null);return;}const ae=document.activeElement;if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)){ae.blur();return;}requestClose();};document.addEventListener('keydown',k);return()=>document.removeEventListener('keydown',k);},[menu,onClose]);
 useEffect(()=>{if(!item)onClose();},[!!item]);
 if(!item)return null;
 const T=EXEC_TYPES[item.type]||EXEC_TYPES.issue;const closed=execIsClosed(item);
@@ -4219,12 +4244,12 @@ const send=()=>{if(canSend)respond('reply',closed?null:exBallOf(ball));};
 const answer=()=>{if(canSend)respond('answer',ball.choice==='keep'?{party:'contractor',name:''}:exBallOf(ball));};
 const closeItem=async()=>{if(up.busy)return;const issue=item.type==='issue';if(!(await askConfirm(issue?'לסמן את '+item.number+' כנפתר?':'לסגור את '+item.number+'?',{confirmLabel:issue?'סמן כנפתר':'סגור',danger:false})))return;respond('close',null);};
 const reopen=()=>{setMenu(null);upd(x=>execRespond(x,{kind:'reopen',party:'architect',name:me,body:'',ballTo:{party:'architect',name:''}}));};
-const setStatus=sid=>{setMenu(null);upd(x=>{if(x.status===sid)return x;const at=new Date().toISOString();let n={...x,status:sid};const c=execIsClosed(n);n.closedAt=c?(x.closedAt||at):null;if(c)n=execSetBall(n,null,at);else if(!x.ball)n=execSetBall(n,{party:'architect',name:''},at);return n;});};
+const setStatus=sid=>{setMenu(null);upd(x=>execSetStatus(x,sid,{name:me}));};
 const del=async()=>{setMenu(null);if(!(await askConfirm('למחוק את '+item.number+'? כל השרשור והסבבים יימחקו.')))return;const d=dataRef.current;const refd=t=>t.execRef&&t.execRef.itemId===itemId;
 saveRef.current({...d,execItems:(d.execItems||[]).filter(x=>x.id!==itemId),sheets:(d.sheets||[]).map(sh=>(sh.tasks||[]).some(refd)?{...sh,tasks:sh.tasks.map(t=>{if(!refd(t))return t;const{execRef,...rest}=t;return rest;})}:sh)});onClose();};
 const commitTitle=()=>{const v=titleDraft.trim();setEditTitle(false);if(v&&v!==item.title)patch({title:v});};
 /* submittal rounds */
-const undecided=!closed&&item.status==='submitted'&&(item.revisions||[]).length>0;
+/* only the last round can be decided, and only once */const lastRev=(item.revisions||[]).slice(-1)[0];const undecided=!!(lastRev&&!lastRev.decision);
 const decide=dec=>{const notes=decNotes.trim();upd(x=>execDecide(x,{decision:dec,notes,name:me}));setDecNotes('');};
 const nextRev=String.fromCharCode(65+(item.revisions||[]).length);
 const addRev=()=>{if(revUp.busy||(!revUp.files.length&&!revBody.trim()))return;const r={party:'contractor',name:revName.trim(),body:revBody.trim(),files:revUp.files};upd(x=>execAddRevision(x,r));setRevOpen(false);setRevName('');setRevBody('');revUp.reset();};
@@ -4233,23 +4258,30 @@ const addRev=()=>{if(revUp.busy||(!revUp.files.length&&!revBody.trim()))return;c
 const sheetLabel=sh=>{const tr=(data.tracks||[]).find(t=>(t.trackValue??null)===(sh.track??null));return(tr?nameForLang(tr.label)+' · ':'')+(sh.name||'');};
 const findTask=l=>{const sh=(data.sheets||[]).find(x=>x.id===l.sheetId&&(x.tasks||[]).some(t=>t.id===l.taskId))||(data.sheets||[]).find(x=>(x.tasks||[]).some(t=>t.id===l.taskId));return sh?{sheet:sh,task:sh.tasks.find(t=>t.id===l.taskId)}:null;};
 const openTask=(sheetId,taskId)=>window.dispatchEvent(new CustomEvent('ph:open-task',{detail:{sheetId,taskId}}));
-const unlink=l=>upd(x=>({...x,links:(x.links||[]).filter(y=>y!==l&&!(y.kind===l.kind&&y.taskId===l.taskId&&y.meetingId===l.meetingId&&y.itemId===l.itemId))}));
+/* unlinking a task also clears the task's execRef back to this item */
+const unlink=l=>{const d=dataRef.current;const same=y=>y===l||(l.id&&y.id===l.id)||(y.kind===l.kind&&y.taskId===l.taskId&&y.meetingId===l.meetingId&&y.itemId===l.itemId);
+const refd=t=>l.kind==='task'&&t.id===l.taskId&&t.execRef&&t.execRef.itemId===itemId;
+saveRef.current({...d,execItems:(d.execItems||[]).map(x=>x.id===itemId?{...x,links:(x.links||[]).filter(y=>!same(y))}:x),sheets:(d.sheets||[]).map(sh=>(sh.tasks||[]).some(refd)?{...sh,tasks:sh.tasks.map(t=>{if(!refd(t))return t;const{execRef,...rest}=t;return rest;})}:sh)});};
 const openTaskForm=()=>{const def=listSheets.find(sh=>sh.track==='execution')||listSheets.find(sh=>!sh.track)||listSheets[0];setTaskForm({sheetId:def?def.id:'',title:'עדכון לפי '+item.number+': '+(item.title||''),assignee:item.ownerId||'',dueDate:item.dueDate||''});};
 const createTask=()=>{const f=taskForm;if(!f||!f.title.trim()||!f.sheetId)return;const d=dataRef.current;const sheet=(d.sheets||[]).find(sh=>sh.id===f.sheetId);if(!sheet)return;const g=(sheet.groups||[])[0];
 const task={id:uid(),groupId:g?g.id:null,title:f.title.trim(),statusId:'N',priority:'medium',discipline:item.discipline||null,startDate:'',dueDate:f.dueDate||'',done:false,taskType:'simple',fieldValues:{},subtasks:[],assigneeIds:f.assignee?[f.assignee]:[],execRef:{itemId:item.id,number:item.number}};
-saveRef.current({...d,sheets:d.sheets.map(sh=>sh.id===sheet.id?{...sh,tasks:[...(sh.tasks||[]),task]}:sh),execItems:(d.execItems||[]).map(x=>x.id===item.id?{...x,links:[...(x.links||[]),{kind:'task',sheetId:sheet.id,taskId:task.id}]}:x)});setTaskForm(null);};
+saveRef.current({...d,sheets:d.sheets.map(sh=>sh.id===sheet.id?{...sh,tasks:[...(sh.tasks||[]),task]}:sh),execItems:(d.execItems||[]).map(x=>x.id===item.id?{...x,links:[...(x.links||[]),{id:uid(),kind:'task',sheetId:sheet.id,taskId:task.id}]}:x)});setTaskForm(null);};
 const meetingOf=id=>(data.meetings||[]).find(m=>m.id===id);
 /* thread: a handoff marker follows the response whose time opened a ballHistory entry */
 const hist=item.ballHistory||[];let revK=0;
 const kindLabel=r=>{if(r.kind==='open')return item.type==='submittal'?'הוגשה Rev A':'פתח';if(r.kind==='revision'){revK++;return 'הוגשה Rev '+String.fromCharCode(65+revK);}return EX_KIND_LABEL[r.kind]||r.kind;};
 const thread=(item.responses||[]).map(r=>{const moved=hist.filter(h=>h.from===r.at&&h.party).pop();const dec=r.kind==='decision'?(item.revisions||[]).find(v=>v.decidedAt===r.at):null;
+const hand=moved&&React.createElement("div",{className:"ex-hand"},'↳ הכדור עבר ל',React.createElement(ExPartyChip,{ball:moved}));
+/* a manual status change is a small system line, not a card */
+if(r.kind==='status'){const st=r.status&&T.statuses.find(s=>s.id===r.status);return React.createElement(React.Fragment,{key:r.id},
+React.createElement("div",{className:"ex-sys"},'⟳ ',st?React.createElement(React.Fragment,null,'סטטוס שונה ל־',React.createElement("b",null,st.label)):r.body,r.name&&React.createElement(React.Fragment,null,' · ',React.createElement("span",{"data-i18n-skip":""},r.name)),' · '+exDateTime(r.at)),hand);}
 return React.createElement(React.Fragment,{key:r.id},
 React.createElement("div",{className:"ex-card ex-card-"+r.kind},
 React.createElement("div",{className:"ex-card-h"},React.createElement(ExPartyChip,{ball:{party:r.party,name:r.name}}),React.createElement("span",{className:"ex-kind"},kindLabel(r)),React.createElement("span",{className:"ex-card-d"},exDateTime(r.at))),
 r.kind==='decision'&&React.createElement("div",{className:"ex-card-dec"},React.createElement(ExDecisionPill,{d:dec?dec.decision:null}),dec&&React.createElement("span",{className:"ex-muted ex-small"},' Rev '+dec.label)),
 r.body&&React.createElement("div",{className:"ex-card-b","data-i18n-skip":""},r.body),
 React.createElement(ExFileLinks,{files:r.files})),
-moved&&React.createElement("div",{className:"ex-hand"},'↳ הכדור עבר ל',React.createElement(ExPartyChip,{ball:moved})));});
+hand);});
 const partyRow=(v,setParty,setName)=>React.createElement("div",{className:"ex-row2"},
 React.createElement("select",{className:"ex-in",value:v.party,"aria-label":'כותב',onChange:e=>setParty(e.target.value)},EXEC_PARTIES.map(p=>React.createElement("option",{key:p.id,value:p.id},p.label))),
 React.createElement("input",{className:"ex-in",value:v.name,list:v.party==='consultant'?listId:undefined,placeholder:v.party==='consultant'?'שם / תחום היועץ':'שם (לא חובה)',onChange:e=>setName(e.target.value)}));
@@ -4318,10 +4350,10 @@ React.createElement("div",{className:"ex-acts"},React.createElement("button",{ty
 listSheets.length>0&&React.createElement("button",{type:"button",className:"ex-link",style:{marginTop:8},onClick:openTaskForm},'+ צור משימה מקושרת'))));
 const mbtn=(label,fn,cls)=>React.createElement("button",{key:label,type:"button",role:"menuitem",className:cls||'',onClick:fn},label);
 return ReactDOM.createPortal(React.createElement(React.Fragment,null,
-React.createElement("div",{className:"tds-overlay",onClick:onClose}),
+React.createElement("div",{className:"tds-overlay",onClick:requestClose}),
 React.createElement("div",{className:"tds-panel ex-panel",role:"dialog","aria-label":item.number,onClick:e=>e.stopPropagation()},
 React.createElement("div",{className:"tds-hdr ex-p-hdr"},
-React.createElement(ExTypePill,{type:item.type}),React.createElement("span",{className:"ex-num"},item.number),
+React.createElement(ExTypePill,{type:item.type}),React.createElement("span",{className:"ex-num","data-i18n-skip":""},item.number),
 editTitle?React.createElement("input",{className:"ex-p-title-in",autoFocus:true,value:titleDraft,onChange:e=>setTitleDraft(e.target.value),onBlur:commitTitle,onKeyDown:e=>{if(e.key==='Enter')commitTitle();if(e.key==='Escape'){e.stopPropagation();setEditTitle(false);}}}):
 React.createElement("div",{className:"tds-title ex-p-title","data-i18n-skip":"",title:ro?item.title:'לחץ לעריכת הכותרת',onClick:()=>{if(ro)return;setTitleDraft(item.title||'');setEditTitle(true);}},item.title||'(ללא כותרת)'),
 React.createElement(ExStatusPill,{item}),
@@ -4329,11 +4361,11 @@ React.createElement(ExStatusPill,{item}),
 React.createElement("button",{type:"button",className:"ms-panel-btn",title:'אפשרויות',"aria-expanded":!!menu,onClick:()=>setMenu(m=>m?null:'main')},'⋯'),
 menu&&React.createElement(React.Fragment,null,React.createElement("div",{style:{position:'fixed',inset:0,zIndex:59},onClick:()=>setMenu(null)}),
 React.createElement("div",{className:"ex-menu",role:"menu"},menu==='main'?[
-mbtn('שנה סטטוס ›',()=>setMenu('status')),
+/* submittals change status only through decisions on rounds */item.type!=='submittal'&&mbtn('שנה סטטוס ›',()=>setMenu('status')),
 closed&&mbtn('פתח מחדש',reopen),
 canDelete&&mbtn('מחק פריט',del,'ex-danger')]:
 [mbtn('‹ חזרה',()=>setMenu('main')),...T.statuses.map(st=>mbtn((st.id===item.status?'✓ ':'')+st.label,()=>setStatus(st.id)))]))),
-React.createElement("button",{type:"button",className:"ms-panel-btn",title:'סגור',onClick:onClose},'×')),
+React.createElement("button",{type:"button",className:"ms-panel-btn",title:'סגור',onClick:requestClose},'×')),
 React.createElement("div",{className:"tds-body ex-p-body"},React.createElement("div",{className:"ex-p-grid"},
 React.createElement("div",{className:"ex-p-main"},
 React.createElement("div",null,React.createElement("div",{className:"ex-sec-h"},'שרשור',React.createElement("span",null,(item.responses||[]).length+' רשומות')),React.createElement("div",{className:"ex-thread"},thread)),
