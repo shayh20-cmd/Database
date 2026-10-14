@@ -310,3 +310,14 @@ test('finishCategories: unique non-empty, first-appearance order', () => {
   assert.deepStrictEqual(L.finishCategories([{ category: 'ריצוף' }, { category: '' }, { category: 'חזיתות' }, { category: 'ריצוף' }, {}]), ['ריצוף', 'חזיתות']);
   assert.deepStrictEqual(L.finishCategories(null), []);
 });
+
+test('change: the decision line records the decision and what was approved; manual status change is ignored', () => {
+  const c = L.execDecideChange(mkChg(), { decision: 'approved_cond', approvedText: 'פורצלן 80/160', notes: 'בכפוף לדוגמה' }, T0);
+  const last = c.responses[c.responses.length - 1];
+  assert.strictEqual(last.decision, 'approved_cond');
+  assert.strictEqual(last.approvedText, 'פורצלן 80/160');
+  const r = L.execDecideChange(mkChg(), { decision: 'rejected', notes: 'x' }, T0);
+  assert.strictEqual(r.responses[r.responses.length - 1].approvedText, '');
+  const open = mkChg();
+  assert.strictEqual(L.execSetStatus(open, 'approved', { name: 'שי' }, T0), open, 'changes are decided only through execDecideChange');
+});
