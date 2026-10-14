@@ -1715,6 +1715,11 @@ tr:hover .mtg-orig-btn,.mtg-orig-btn:focus-visible,.mtg-orig-btn.on{opacity:.75}
 .mtg-line:hover .mtg-subadd,.mtg-subadd:focus-visible{opacity:.8}
 .mtg-subadd:hover{opacity:1;color:var(--accent);background:rgba(37,99,235,.08)}
 .mtg-photo-ref{font-size:10px;color:#555;white-space:nowrap;flex-shrink:0}
+.mtg-ex-pill{flex-shrink:0;margin:1px 0 0;cursor:pointer;font-size:10px;line-height:1.5;white-space:nowrap}
+.mtg-ex-pill.mtg-ex-gone{cursor:default;opacity:.45;text-decoration:line-through}
+:root[data-appearance="dark"] .mtg-page .ex-pill-issue{background:#FAECE7;color:#712B13}
+:root[data-appearance="dark"] .mtg-page .ex-pill-rfi{background:#EEEDFE;color:#3C3489}
+:root[data-appearance="dark"] .mtg-page .ex-pill-submittal{background:#E1F5EE;color:#085041}
 .mtg-chip{font-size:10px;color:var(--accent);border:1px solid var(--accent);border-radius:9px;padding:0 6px;white-space:nowrap;flex-shrink:0}
 .mtg-sel,.mtg-person{width:100%;font-size:11px;font-family:inherit;border:1px solid #ddd;border-radius:4px;padding:2px 4px;background:#fff;box-sizing:border-box}
 .mtg-person{margin-top:3px}
@@ -1776,6 +1781,10 @@ tr:hover .mtg-orig-btn,.mtg-orig-btn:focus-visible,.mtg-orig-btn.on{opacity:.75}
   .meeting-doc input, .meeting-doc textarea, .meeting-doc select { border: none !important; outline: none !important; background: transparent !important; padding: 0 !important; font-family: inherit; }
   .meeting-doc input[type='date'] { -webkit-appearance: none; }
   .meeting-print-group-header { font-weight: 700; text-decoration: underline; }
+  .meeting-doc .ex-pill-issue { background: #FAECE7 !important; color: #712B13 !important; }
+  .meeting-doc .ex-pill-rfi { background: #EEEDFE !important; color: #3C3489 !important; }
+  .meeting-doc .ex-pill-submittal { background: #E1F5EE !important; color: #085041 !important; }
+  .meeting-doc .ex-pill { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   /* execution log (ביצוע → ייצוא PDF): only the log, with a project + date header */
   .ex-print-doc, .ex-print-doc * { visibility: visible; }
   .ex-print-doc { position: absolute; top: 0; left: 0; width: 100% !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; border: none !important; border-radius: 0 !important; background: #fff !important; }
@@ -3595,7 +3604,8 @@ function MtgText({value,onChange,onKeyDown,placeholder,dataId,bold}){
   const ref=useRef(null);
   const fit=()=>{const el=ref.current;if(el){el.style.height='auto';el.style.height=el.scrollHeight+'px';}};
   React.useLayoutEffect(fit,[value]);
-  useEffect(()=>{window.addEventListener('resize',fit);return()=>window.removeEventListener('resize',fit);},[]);
+  /* refit when the box gets narrower or wider (a pill appears beside it, the window resizes) */
+  useEffect(()=>{const el=ref.current;if(!el||typeof ResizeObserver==='undefined'){window.addEventListener('resize',fit);return()=>window.removeEventListener('resize',fit);}let w=el.clientWidth;const ro=new ResizeObserver(()=>{if(el.clientWidth!==w){w=el.clientWidth;fit();}});ro.observe(el);return()=>ro.disconnect();},[]);
   return React.createElement(React.Fragment,null,
     React.createElement("textarea",{ref,rows:1,value:value||'',placeholder,"data-mtg-item":dataId,"data-i18n-skip":"",className:"mtg-text meeting-print-hide"+(bold?" mtg-text-b":""),onChange:e=>onChange(e.target.value),onKeyDown}),
     React.createElement("div",{className:"mtg-text-print meeting-print-only"+(bold?" mtg-text-b":""),"data-i18n-skip":""},value||''));
@@ -3631,13 +3641,13 @@ function MeetingTable({data,save,meeting,onChange}){
   const addItem=sectionId=>insertAt(its=>{let k=-1;its.forEach((x,i)=>{if(x.sectionId===sectionId)k=i;});return k<0?its.length:k+1;},mtgNewItem(sectionId,null));
   const addSection=()=>{const sec={id:uid(),title:''};const it=mtgNewItem(sec.id,null);onChange(prev=>({sections:[...(prev.sections||[]),sec],items:[...(prev.items||[]),it]}));setFocusId('sec-'+sec.id);};
   const deleteItem=id=>{if(createItemFor&&id===createItemFor.id)setCreateItemFor(null);setItems(its=>its.filter(x=>x.id!==id&&x.parentId!==id));};
-  const deleteSection=async sec=>{const filled=x=>x.topic||(x.photos||[]).length||x.assignee||x.person||x.dueDate;const has=String(sec.title||'').trim()||items.some(x=>x.sectionId===sec.id&&filled(x));if(has&&!(await askConfirm('למחוק את הנושא וכל הסעיפים שבו?',{confirmLabel:'מחק'})))return;onChange(prev=>({sections:(prev.sections||[]).filter(s=>s.id!==sec.id),items:(prev.items||[]).filter(x=>x.sectionId!==sec.id)}));};
+  const deleteSection=async sec=>{const filled=x=>x.topic||(x.photos||[]).length||x.assignee||x.person||x.dueDate||x.execRef;const has=String(sec.title||'').trim()||items.some(x=>x.sectionId===sec.id&&filled(x));if(has&&!(await askConfirm('למחוק את הנושא וכל הסעיפים שבו?',{confirmLabel:'מחק'})))return;onChange(prev=>({sections:(prev.sections||[]).filter(s=>s.id!==sec.id),items:(prev.items||[]).filter(x=>x.sectionId!==sec.id)}));};
   const onKey=(e,it)=>{
     if(e.nativeEvent&&e.nativeEvent.isComposing)return;
     if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();const n=mtgNewItem(it.sectionId,it.parentId);insertAt(its=>{const k=its.findIndex(x=>x.id===it.id);return k<0?its.length:it.parentId?k+1:endOf(its,it.id)+1;},n);return;}
     if(e.key==='Tab'){e.preventDefault();const out=e.shiftKey;setItems(its=>out?outdentItem(its,it.id):indentItem(its,it.id));setFocusId(it.id);return;}
     /* Backspace removes a row only when it is completely blank */
-    const blank=!it.topic&&!(it.photos||[]).length&&!it.itemType&&!it.linkedRecordId&&!it.assignee&&!String(it.person||'').trim()&&!it.dueDate&&!it.carriedFrom&&!items.some(x=>x.parentId===it.id);
+    const blank=!it.topic&&!(it.photos||[]).length&&!it.itemType&&!it.linkedRecordId&&!it.execRef&&!it.assignee&&!String(it.person||'').trim()&&!it.dueDate&&!it.carriedFrom&&!items.some(x=>x.parentId===it.id);
     if(e.key==='Backspace'&&blank){e.preventDefault();const prev=items.find(x=>x.id===order[order.indexOf(it.id)-1]);deleteItem(it.id);setFocusId(prev&&prev.sectionId===it.sectionId?prev.id:'sec-'+it.sectionId);}
   };
   const uploadPhotos=async(itemId,files)=>{
@@ -3648,6 +3658,21 @@ function MeetingTable({data,save,meeting,onChange}){
   };
   const removePhoto=(itemId,photoId)=>onChange(prev=>({items:(prev.items||[]).map(it=>it.id===itemId?{...it,photos:(it.photos||[]).filter(p=>p.id!==photoId)}:it)}));
   const linkItemAsRecord=(item,kind)=>{const disc=item.assignee&&item.assignee!=='לידיעה'?item.assignee:'';const id=uid();if(kind==='principle'){save({...data,standalonePrinciples:[...(data.standalonePrinciples||[]),{id,description:item.topic||'',discipline:disc,createdAt:item.startDate||todayISO(),sourceMeetingId:meeting.id,sourceMeetingItemId:item.id}]});}else if(kind==='goal'){save({...data,licensingGoals:[...(data.licensingGoals||[]),{id,title:item.topic||'',targetDate:item.dueDate||'',startDate:todayISO(),status:'not_started',done:false,stageId:null}]});}else if(kind==='milestone'){save({...data,licensingMilestones:[...(data.licensingMilestones||[]),{id,title:item.topic||'',date:item.dueDate||'',startDate:todayISO(),status:'not_started',done:false,stageId:null}]});}updateItem(item.id,{linkedRecordId:id,linkedRecordKind:kind});};
+  /* execution items: pull the open ones into the meeting, open a row as a new item, jump to an item */
+  const execItems=data.execItems||[];const openExec=execItems.filter(e=>!execIsClosed(e));const today=todayISO();
+  const pullOpenExec=()=>onChange(prev=>mtgPullOpenExec(prev,openExec,execPartyLabel));
+  /* like the other link actions the item is saved to the project now; the meeting row's execRef waits for שמור */
+  const openAsExec=(item,type)=>{setMenuId(null);const disc=item.assignee&&item.assignee!=='לידיעה'?item.assignee:'';
+    const ex=execNewItem(execItems,{type,title:String(item.topic||'').trim(),description:'',openedBy:{party:'architect',name:CURRENT_USER.name},ballTo:type==='rfi'?{party:'architect'}:{party:'contractor'},discipline:disc,dueDate:item.dueDate||'',source:{kind:'meeting',ref:meeting.id}});
+    save({...data,execItems:[...execItems,{...ex,links:[...(ex.links||[]),{kind:'meeting',meetingId:meeting.id,itemId:item.id}]}]});
+    updateItem(item.id,{execRef:{itemId:ex.id,number:ex.number,type}});};
+  const goExec=async itemId=>{const stored=(data.meetings||[]).find(x=>x.id===meeting.id);const dirty=!stored||JSON.stringify(migrateMeeting(stored))!==JSON.stringify(meeting);
+    if(dirty){if(!(await askConfirm('השינויים בישיבה עוד לא נשמרו. לשמור אותם ולעבור לפריט?',{confirmLabel:'שמור ועבור',danger:false})))return;save({...data,meetings:stored?(data.meetings||[]).map(x=>x.id===meeting.id?meeting:x):[...(data.meetings||[]),meeting]});}
+    exGoHub({tab:'supervision',execItemId:itemId});};
+  const execPill=item=>{const r=item.execRef;if(!r)return null;const ex=execItems.find(e=>e.id===r.itemId);const lbl=(EXEC_TYPES[r.type]||{}).label||r.type;const txt=String(item.topic||'').trim().startsWith(r.number)?lbl:r.number;
+    return ex?h("span",{key:'x',role:"button",tabIndex:0,className:"ex-pill ex-pill-"+r.type+" mtg-ex-pill","data-i18n-skip":txt===r.number?"":undefined,title:r.number+' — פתח את פריט הביצוע',onClick:()=>goExec(ex.id),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();goExec(ex.id);}}},txt)
+      :h("span",{key:'x',className:"ex-pill ex-pill-"+r.type+" mtg-ex-pill mtg-ex-gone","data-i18n-skip":txt===r.number?"":undefined,title:r.number+' — הפריט נמחק'},txt);};
+  const execAge=item=>{const r=item.execRef;const ex=r&&execItems.find(e=>e.id===r.itemId);if(!ex)return null;return h("div",{className:"mtg-carried mtg-ex-age"},execIsClosed(ex)?'נסגר':'פתוח '+mtgDaysSince(ex.createdAt,today)+' ימים');};
   const linkAs=(item,type)=>{setMenuId(null);if(type==='principle'||type==='goal'||type==='milestone'){updateItem(item.id,{itemType:type});linkItemAsRecord(item,type);}else setCreateItemFor({id:item.id,type});};
   const menu=(item,isSub)=>h("span",{className:"meeting-print-hide",style:{position:'relative',flexShrink:0}},
     h("button",{className:"mtg-menu-btn"+(menuId===item.id?' open':''),title:"אפשרויות",onClick:e=>{e.stopPropagation();setMenuId(m=>m===item.id?null:item.id);}},"⋯"),
@@ -3659,6 +3684,8 @@ function MeetingTable({data,save,meeting,onChange}){
       h("hr"),
       ...ITEM_TYPES.map(t=>h("button",{key:t.id,onClick:()=>linkAs(item,t.id)},"קשר כ",t.label)),
       item.itemType&&h("button",{onClick:()=>{updateItem(item.id,{itemType:null,createdTaskTrackId:null,linkedRecordId:null,linkedRecordKind:null});setMenuId(null);}},"נקה קישור"),
+      !item.execRef&&h("hr"),
+      ...(item.execRef?[]:Object.keys(EXEC_TYPES).map(t=>h("button",{key:'ex-'+t,onClick:()=>openAsExec(item,t)},"פתח כ־",EXEC_TYPES[t].label))),
       h("hr"),
       h("button",{style:{color:'#EF4444'},onClick:async()=>{setMenuId(null);if((items.some(x=>x.parentId===item.id)||(item.photos||[]).length)&&!(await askConfirm('למחוק את הסעיף? יימחקו גם תתי הסעיפים והתמונות שלו.',{confirmLabel:'מחק'})))return;deleteItem(item.id);}},"✕ מחק סעיף")));
   const extras=item=>{const letters=appendix.filter(a=>a.item.id===item.id).map(a=>a.letter);const t=item.itemType&&ITEM_TYPES.find(x=>x.id===item.itemType);return[
@@ -3666,6 +3693,7 @@ function MeetingTable({data,save,meeting,onChange}){
     t&&h("span",{key:'c',className:"mtg-chip meeting-print-hide"},t.label," ↗")];};
   const line=(e,isSub)=>h("div",{key:e.item.id,className:"mtg-line"+(isSub?" mtg-sub":"")},
     h("span",{className:"mtg-n"},e.number),
+    execPill(e.item),
     h(MtgText,{value:e.item.topic,dataId:e.item.id,placeholder:isSub?"תת סעיף":"תיאור הסעיף",onChange:v=>updateItem(e.item.id,{topic:v}),onKeyDown:ev=>onKey(ev,e.item)}),
     ...extras(e.item),
     !isSub&&h("button",{className:"mtg-subadd meeting-print-hide",title:"הוסף תת סעיף (או Tab בתחילת סעיף חדש)",onClick:()=>insertAt(its=>endOf(its,e.item.id)+1,mtgNewItem(e.item.sectionId,e.item.id))},"+ תת סעיף"),
@@ -3682,6 +3710,7 @@ function MeetingTable({data,save,meeting,onChange}){
       origFor===x.item.id&&h("div",{className:"meeting-print-hide mtg-orig-edit"},h("span",null,"יעד מקורי"),h(DateField,{value:x.item.origDue||'',clearable:true,onChange:v=>{updateItem(x.item.id,{origDue:v||null});setOrigFor(null);},style:{fontSize:11}})),
       h("div",{className:"meeting-print-only"},mtgDate(x.item.dueDate)),
       x.item.origDue&&x.item.origDue!==x.item.dueDate&&h("div",{className:"mtg-carried"},"יעד מקורי ",mtgDate(x.item.origDue)),
+      execAge(x.item),
       x.item.carriedFrom&&h("div",{className:"mtg-carried"},"מישיבה ",mtgDate(x.item.carriedFrom.date)))];
   return h("div",null,
     h("datalist",{id:"mtg-roles"},[...discOptions.filter(o=>o.id).map(o=>o.label),...roles].map(v=>h("option",{key:v,value:v}))),
@@ -3705,6 +3734,7 @@ function MeetingTable({data,save,meeting,onChange}){
               h("button",{className:"mtg-tool",title:"מחק נושא",onClick:()=>deleteSection(r.section)},"✕"))),
           x?itemCells(x):h("td",{colSpan:3},h("button",{className:"mtg-tool meeting-print-hide",onClick:()=>addItem(r.section.id)},"+ סעיף")))));})),
     h("button",{className:"mtg-add meeting-print-hide",onClick:addSection},"+ נושא"),
+    openExec.length>0&&h("button",{className:"mtg-add meeting-print-hide",style:{marginInlineStart:8},title:"מוסיף נושא \"פריטים פתוחים\" עם כל פריטי הביצוע הפתוחים, או מרענן אותו אם כבר קיים",onClick:pullOpenExec},"+ משוך פריטים פתוחים"),
     appendix.length>0&&h("div",{className:"mtg-appendix"},
       h("div",{className:"mtg-app-title"},"נספח תמונות"),
       h("div",{className:"mtg-app-grid"},appendix.map(a=>h("figure",{key:a.photo.id,className:"mtg-fig"},
@@ -3876,7 +3906,7 @@ function execLogRows(items,filter,today){
 /* Meeting summaries: topics (sections) hold items; an item with parentId is a sub-item.
    Numbers are never stored — meetingRows derives them from the order. */
 const MTG_LETTERS='אבגדהוזחטיכלמנסעפצקרשת';
-function mtgNewItem(sectionId,parentId){return{id:uid(),sectionId,parentId:parentId||null,topic:'',assignee:null,person:'',dueDate:'',startDate:'',carriedFrom:null,photos:[],itemType:null,createdTaskTrackId:null,linkedRecordId:null,linkedRecordKind:null};}
+function mtgNewItem(sectionId,parentId){return{id:uid(),sectionId,parentId:parentId||null,topic:'',assignee:null,person:'',dueDate:'',startDate:'',carriedFrom:null,photos:[],itemType:null,createdTaskTrackId:null,linkedRecordId:null,linkedRecordKind:null,execRef:null};}
 function mtgDate(iso){if(!iso)return '';const[y,mo,d]=String(iso).slice(0,10).split('-');return d&&mo&&y?d+'/'+mo+'/'+y:'';}
 function orderItems(items,sections){
   const sids=(sections||[]).map(s=>s.id);items.forEach(it=>{if(!sids.includes(it.sectionId))sids.push(it.sectionId);});
@@ -3898,7 +3928,7 @@ function migrateMeeting(m){
   const rows=[...olds.filter(o=>o.segs).sort((a,b)=>mtgCmpSegs(a.segs,b.segs)),...olds.filter(o=>!o.segs)];
   let lastSec=sections.length?sections[sections.length-1]:null;
   const general=()=>{if(!lastSec){lastSec={id:uid(),title:'כללי'};sections.push(lastSec);}return lastSec;};
-  const base=it=>({...mtgNewItem(null,null),id:it.id||uid(),topic:it.topic||'',assignee:it.assignee||null,person:it.person||'',dueDate:it.dueDate||'',startDate:it.startDate||'',carriedFrom:it.carriedFrom||null,photos:it.photos||[],itemType:it.itemType||null,createdTaskTrackId:it.createdTaskTrackId||null,linkedRecordId:it.linkedRecordId||null,linkedRecordKind:it.linkedRecordKind||null});
+  const base=it=>({...mtgNewItem(null,null),id:it.id||uid(),topic:it.topic||'',assignee:it.assignee||null,person:it.person||'',dueDate:it.dueDate||'',startDate:it.startDate||'',carriedFrom:it.carriedFrom||null,photos:it.photos||[],itemType:it.itemType||null,createdTaskTrackId:it.createdTaskTrackId||null,linkedRecordId:it.linkedRecordId||null,linkedRecordKind:it.linkedRecordKind||null,execRef:it.execRef||null});
   for(const{it,segs:sg}of rows){
     const segs=sg||[],valid=!!sg;
     if(valid&&segs.length===1){
@@ -3959,6 +3989,27 @@ function followUpMeeting(prev,{id,date}){
   const items=src.map(it=>({...it,id:itemMap[it.id],sectionId:secMap[it.sectionId],parentId:it.parentId?itemMap[it.parentId]||null:null,carriedFrom:it.carriedFrom||{meetingId:m.id,date:m.date||''},photos:[],itemType:null,createdTaskTrackId:null,linkedRecordId:null,linkedRecordKind:null}));
   return{id,trackId:m.trackId??null,title:m.title||'',date,participants:(m.participants||[]).map(p=>({...p,id:uid()})),sections,items,recordedBy:m.recordedBy||'',distribution:m.distribution||'',createdAt:new Date().toISOString(),basedOnMeetingId:m.id};
 }
+/* "+ משוך פריטים פתוחים": one row per open execution item under the topic "פריטים פתוחים".
+   Rows already pointing at an item (execRef.itemId, anywhere in the meeting) get fresh text / ball / date;
+   missing items are added; user rows stay. An untitled topic holding only blank rows is reused. */
+const MTG_EXEC_TOPIC='פריטים פתוחים';
+function mtgBlankItem(it){return !it.topic&&!it.assignee&&!String(it.person||'').trim()&&!it.dueDate&&!(it.photos||[]).length&&!it.itemType&&!it.linkedRecordId&&!it.execRef;}
+function mtgPullOpenExec(m,open,personOf){
+  let sections=m.sections||[],items=m.items||[];
+  let sec=sections.find(x=>String(x.title||'').trim()===MTG_EXEC_TOPIC);
+  if(!sec){
+    const empty=sections.find(x=>!String(x.title||'').trim()&&items.filter(it=>it.sectionId===x.id).every(mtgBlankItem));
+    if(empty){sec={...empty,title:MTG_EXEC_TOPIC};sections=sections.map(x=>x.id===empty.id?sec:x);items=items.filter(it=>it.sectionId!==empty.id);}
+    else{sec={id:uid(),title:MTG_EXEC_TOPIC};sections=[...sections,sec];}
+  }
+  const text=e=>(e.number+' '+(e.title||'')).trim();
+  const byId=new Map((open||[]).map(e=>[e.id,e]));
+  const out=items.map(it=>{const e=it.execRef&&byId.get(it.execRef.itemId);return e?{...it,topic:text(e),person:personOf(e.ball),dueDate:e.dueDate||'',execRef:{itemId:e.id,number:e.number,type:e.type}}:it;});
+  const have=new Set(out.filter(it=>it.execRef).map(it=>it.execRef.itemId));
+  const add=(open||[]).filter(e=>!have.has(e.id)).map(e=>({...mtgNewItem(sec.id,null),topic:text(e),assignee:e.discipline||null,person:personOf(e.ball),dueDate:e.dueDate||'',execRef:{itemId:e.id,number:e.number,type:e.type}}));
+  return{sections,items:orderItems([...out,...add],sections)};
+}
+function mtgDaysSince(iso,today){if(!iso||!today)return 0;return Math.max(0,Math.round((Date.parse(String(today).slice(0,10))-Date.parse(String(iso).slice(0,10)))/86400000));}
 function prevMeetingOf(meetings,trackId){
   const same=(meetings||[]).filter(m=>(m.trackId??null)===(trackId??null));if(!same.length)return null;
   return same.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||String(b.createdAt||'').localeCompare(String(a.createdAt||'')))[0];
