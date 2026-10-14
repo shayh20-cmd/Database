@@ -927,7 +927,7 @@ html[data-appearance="dark"] .rv-verify{background:rgba(245,158,11,.18);color:#F
 .ex-bar{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--muted-bg);}
 .ex-bar i{display:block;height:100%;}
 .ex-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:8px;font-size:12px;color:var(--text-2);}
-.ex-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-inline-end:5px;flex-shrink:0;}
+.ex-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-inline-end:1px;flex-shrink:0;}
 .ex-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
 .ex-seg{display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden;}
 .ex-seg button{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;font-size:12px;}
@@ -958,7 +958,7 @@ html[data-appearance="dark"] .rv-verify{background:rgba(245,158,11,.18);color:#F
 :root[data-appearance="dark"] .ex-pill-issue{background:rgba(216,90,48,.24);color:#F5BCA6;}
 :root[data-appearance="dark"] .ex-pill-rfi{background:rgba(127,119,221,.26);color:#CBC6F7;}
 :root[data-appearance="dark"] .ex-pill-submittal{background:rgba(29,158,117,.24);color:#A2E4CB;}
-.ex-chip{display:inline-flex;align-items:center;white-space:nowrap;}
+.ex-chip{display:inline-flex;align-items:center;white-space:nowrap;gap:4px;}
 .ex-muted{color:var(--text-3);}
 .ex-nw{white-space:nowrap;}
 .ex-wait-bad{color:var(--danger-text);font-weight:700;}
@@ -4078,7 +4078,7 @@ const exDiscName=(data,id)=>{if(!id)return '';const d=(projList(data,'discipline
 function ExTypePill({type}){return React.createElement("span",{className:"ex-pill ex-pill-"+type},(EXEC_TYPES[type]||{}).label||type);}
 function ExPartyChip({ball}){if(!ball||!ball.party)return React.createElement("span",{className:"ex-muted"},'—');const p=(EXEC_PARTIES.find(x=>x.id===ball.party)||{}).label||ball.party;const nm=String(ball.name||'').trim();
 /* same text as execPartyLabel; only the name is skipped by the translator */
-return React.createElement("span",{className:"ex-chip"},React.createElement("i",{className:"ex-dot",style:{background:EX_PARTY_COLORS[ball.party]||'#888780'}}),p,nm?(ball.party==='consultant'?' ':' · '):null,nm?React.createElement("span",{"data-i18n-skip":""},nm):null);}
+return React.createElement("span",{className:"ex-chip"},React.createElement("i",{className:"ex-dot",style:{background:EX_PARTY_COLORS[ball.party]||'#888780'}}),p,nm&&ball.party!=='consultant'?'·':null,nm?React.createElement("span",{"data-i18n-skip":""},nm):null);}
 function ExecutionView({data,save,openItemId=null,onConsumeOpen,onOpenTasks}){
 const items=data.execItems||[];const today=todayISO();const viewer=myOfficeRole()==='viewer';
 const[filter,setFilter]=useState('all');const[showClosed,setShowClosed]=useState(false);const[menu,setMenu]=useState(false);const[newType,setNewType]=useState(null);
