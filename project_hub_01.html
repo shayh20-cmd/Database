@@ -3619,6 +3619,90 @@ React.createElement(MeetingTable,{data:data,save:save,meeting:m,onChange:update}
 React.createElement("div",{style:{display:'flex',gap:12,marginTop:18,flexWrap:'wrap',fontSize:12}},
 React.createElement("label",{style:{flex:1,minWidth:180}},'רשם: ',React.createElement("input",{value:m.recordedBy||'',onChange:e=>update({recordedBy:e.target.value}),placeholder:'שם הרושם',style:{border:'none',borderBottom:'1px solid #ddd',outline:'none',background:'transparent',fontFamily:'inherit',fontSize:12,width:'70%'}})),
 React.createElement("label",{style:{flex:2,minWidth:240}},'תפוצה: ',React.createElement("input",{value:m.distribution||'',onChange:e=>update({distribution:e.target.value}),placeholder:'רשימת תפוצה',style:{border:'none',borderBottom:'1px solid #ddd',outline:'none',background:'transparent',fontFamily:'inherit',fontSize:12,width:'80%'}}))))));}
+/* ═══ exec-logic ═══ */
+/* Execution phase items (Issue / RFI / Submittal) kept in doc.execItems. The office enters
+   every party's replies; "ball" says who must act now. Waiting days are working days, Sun–Thu. */
+const EXEC_TYPES={
+  issue:{prefix:'ISS',label:'Issue',statuses:[{id:'open',label:'פתוח'},{id:'in_progress',label:'בטיפול'},{id:'resolved',label:'נפתר',closed:true}]},
+  rfi:{prefix:'RFI',label:'RFI',statuses:[{id:'pending',label:'ממתין'},{id:'answered',label:'נענה'},{id:'closed',label:'נסגר',closed:true}]},
+  submittal:{prefix:'SUB',label:'הגשה',statuses:[{id:'submitted',label:'הוגש'},{id:'approved',label:'אושר',closed:true},{id:'approved_notes',label:'אושר עם הערות',closed:true},{id:'rejected',label:'נדחה – להגשה מחדש'}]}
+};
+const EXEC_PARTIES=[{id:'architect',label:'אדריכל'},{id:'contractor',label:'קבלן'},{id:'supervisor',label:'מפקח'},{id:'consultant',label:'יועץ'}];
+const EXEC_RFI_LATE=7,EXEC_ISSUE_LATE=14;
+function execPartyLabel(b){if(!b||!b.party)return '—';const p=(EXEC_PARTIES.find(x=>x.id===b.party)||{}).label||b.party;const nm=String(b.name||'').trim();return !nm?p:b.party==='consultant'?p+' '+nm:p+' · '+nm;}
+function execIsClosed(it){const t=EXEC_TYPES[it.type];const s=t&&t.statuses.find(x=>x.id===it.status);return !!(s&&s.closed);}
+function execNextNumber(items,type){const seq=Math.max(0,...(items||[]).filter(i=>i.type===type).map(i=>i.seq||0))+1;return{seq,number:EXEC_TYPES[type].prefix+'-'+String(seq).padStart(3,'0')};}
+function execWorkdays(fromISO,toISO){
+  if(!fromISO||!toISO)return 0;const a=String(fromISO).slice(0,10),b=String(toISO).slice(0,10);if(b<=a)return 0;
+  const d=new Date(a+'T00:00:00Z'),end=new Date(b+'T00:00:00Z');let n=0;
+  while(d<end){d.setUTCDate(d.getUTCDate()+1);const w=d.getUTCDay();if(w!==5&&w!==6)n++;}
+  return n;
+}
+function execSetBall(item,ball,at){
+  const cur=item.ball;const same=(!cur&&!ball)||(cur&&ball&&cur.party===ball.party&&String(cur.name||'')===String(ball.name||''));
+  if(same)return item;
+  return{...item,ball:ball?{party:ball.party,name:ball.name||''}:null,ballHistory:[...(item.ballHistory||[]),{party:ball?ball.party:null,name:ball?ball.name||'':'',from:at}]};
+}
+function execNewItem(items,o,now){
+  const at=now||new Date().toISOString();const{seq,number}=execNextNumber(items,o.type);
+  const openedBy={party:(o.openedBy||{}).party||'architect',name:(o.openedBy||{}).name||''};
+  let it={id:uid(),type:o.type,seq,number,title:o.title||'',description:o.description||'',status:EXEC_TYPES[o.type].statuses[0].id,openedBy,ball:null,ownerId:o.ownerId||null,dueDate:o.dueDate||'',discipline:o.discipline||'',specSection:o.specSection||'',source:o.source||null,createdAt:at,closedAt:null,
+    responses:[{id:uid(),at,party:openedBy.party,name:openedBy.name,body:o.description||'',files:o.files||[],ballTo:o.ballTo||null,kind:'open'}],
+    revisions:o.type==='submittal'?[{id:uid(),label:'A',files:o.files||[],submittedAt:at,decision:null,notes:'',decidedBy:'',decidedAt:null}]:[],
+    ballHistory:[],links:[]};
+  return o.ballTo?execSetBall(it,o.ballTo,at):it;
+}
+function execRespond(item,r,now){
+  const at=now||new Date().toISOString();const kind=r.kind||'reply';
+  let next={...item,responses:[...(item.responses||[]),{id:uid(),at,party:r.party,name:r.name||'',body:r.body||'',files:r.files||[],ballTo:kind==='close'?null:(r.ballTo||null),kind}]};
+  if(kind==='close'){next.status=item.type==='issue'?'resolved':item.type==='rfi'?'closed':item.status;next.closedAt=at;return execSetBall(next,null,at);}
+  if(kind==='reopen'){next.status=EXEC_TYPES[item.type].statuses[0].id;next.closedAt=null;}
+  if(kind==='answer'&&item.type==='rfi')next.status='answered';
+  if(kind==='reply'&&item.type==='issue'&&item.status==='open')next.status='in_progress';
+  return r.ballTo?execSetBall(next,r.ballTo,at):next;
+}
+function execAddRevision(item,r,now){
+  const at=now||new Date().toISOString();const revs=item.revisions||[];
+  const label=String.fromCharCode(65+revs.length);
+  let next={...item,status:'submitted',closedAt:null,revisions:[...revs,{id:uid(),label,files:r.files||[],submittedAt:at,decision:null,notes:'',decidedBy:'',decidedAt:null}],
+    responses:[...(item.responses||[]),{id:uid(),at,party:r.party||'contractor',name:r.name||'',body:r.body||'',files:r.files||[],ballTo:{party:'architect',name:''},kind:'revision'}]};
+  return execSetBall(next,{party:'architect',name:''},at);
+}
+function execDecide(item,d,now){
+  const at=now||new Date().toISOString();const revs=(item.revisions||[]).slice();const i=revs.length-1;
+  if(i>=0)revs[i]={...revs[i],decision:d.decision,notes:d.notes||'',decidedBy:d.name||'',decidedAt:at};
+  let next={...item,revisions:revs,status:d.decision,responses:[...(item.responses||[]),{id:uid(),at,party:'architect',name:d.name||'',body:d.notes||'',files:d.files||[],ballTo:null,kind:'decision'}]};
+  const closed=execIsClosed(next);next.closedAt=closed?at:null;
+  return execSetBall(next,closed?null:(d.ballTo||{party:'contractor',name:''}),at);
+}
+function execWaiting(item,today){const h=item.ballHistory||[];if(!item.ball||!h.length)return 0;return execWorkdays(h[h.length-1].from,today);}
+function execBallDays(item,today){
+  const h=item.ballHistory||[];const acc={};
+  h.forEach((e,i)=>{if(!e.party)return;const end=i+1<h.length?h[i+1].from:(item.closedAt||today);const k=e.party+'|'+(e.name||'');acc[k]=acc[k]||{party:e.party,name:e.name||'',days:0};acc[k].days+=execWorkdays(e.from,end);});
+  return Object.values(acc).sort((a,b)=>b.days-a.days);
+}
+function execCounts(items,today){
+  const open=(items||[]).filter(i=>!execIsClosed(i));
+  const rfi=open.filter(i=>i.type==='rfi');const mine=open.filter(i=>i.ball&&i.ball.party==='architect');
+  return{
+    rfiOpen:rfi.length,
+    rfiLate:rfi.filter(i=>(i.dueDate&&i.dueDate<today)||execWaiting(i,today)>EXEC_RFI_LATE).length,
+    subPending:open.filter(i=>i.type==='submittal'&&i.status==='submitted').length,
+    subRound3:open.filter(i=>i.type==='submittal'&&(i.revisions||[]).length>=3).length,
+    issuesLate:open.filter(i=>i.type==='issue'&&execWorkdays(i.createdAt,today)>EXEC_ISSUE_LATE).length,
+    mine:mine.length,
+    mineAvg:mine.length?Math.round(mine.reduce((s,i)=>s+execWaiting(i,today),0)/mine.length*10)/10:0
+  };
+}
+function execBallSplit(items){const out={architect:0,contractor:0,supervisor:0,consultant:0};(items||[]).forEach(i=>{if(!execIsClosed(i)&&i.ball&&out[i.ball.party]!=null)out[i.ball.party]++;});return out;}
+function execForMe(items,staffId,iManage){return(items||[]).filter(i=>!execIsClosed(i)&&i.ball&&i.ball.party==='architect'&&(i.ownerId?i.ownerId===staffId:iManage));}
+function execLogRows(items,filter,today){
+  const list=(items||[]).filter(i=>filter==='all'||!filter||i.type===filter);
+  const open=list.filter(i=>!execIsClosed(i)).sort((a,b)=>execWaiting(b,today)-execWaiting(a,today)||(a.seq-b.seq));
+  const closed=list.filter(i=>execIsClosed(i)).sort((a,b)=>String(b.closedAt||'').localeCompare(String(a.closedAt||'')));
+  return[...open,...closed];
+}
+/* ═══ /exec-logic ═══ */
 /* ═══ meeting-logic ═══ */
 /* Meeting summaries: topics (sections) hold items; an item with parentId is a sub-item.
    Numbers are never stored — meetingRows derives them from the order. */
