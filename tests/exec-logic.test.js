@@ -8,7 +8,7 @@ const m = html.match(/\/\* ═══ exec-logic ═══ \*\/([\s\S]*?)\/\* ═
 if (!m) throw new Error('exec-logic block not found in project_hub_01.html');
 let n = 0;
 const uid = () => 'x' + ++n;
-const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories};')(uid);
+const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories,finishNoteForChange,finishUnlinkItem};')(uid);
 
 const T0 = '2026-10-04T08:00:00.000Z'; // Sunday
 const mk = (over = {}) => L.execNewItem(over.items || [], { type: 'rfi', title: 'גובה תקרה', description: 'שאלה', openedBy: { party: 'contractor', name: 'דנה' }, ballTo: { party: 'architect', name: '' }, ...over }, T0);
@@ -320,4 +320,35 @@ test('change: the decision line records the decision and what was approved; manu
   assert.strictEqual(r.responses[r.responses.length - 1].approvedText, '');
   const open = mkChg();
   assert.strictEqual(L.execSetStatus(open, 'approved', { name: 'שי' }, T0), open, 'changes are decided only through execDecideChange');
+});
+
+// ── Round 2 review: finishes links survive deletes and reopened changes ──
+test('finishStatus: a link to a deleted submittal falls back to approvedAt', () => {
+  assert.strictEqual(L.finishStatus({ id: 'r1', submittalId: 'gone', approvedAt: '2026-10-07' }, []), 'approved');
+  assert.strictEqual(L.finishStatus({ id: 'r2', submittalId: 'gone', approvedAt: '' }, []), 'pending');
+  const s = mkSub(); // linked and still pending: the link wins over approvedAt
+  assert.strictEqual(L.finishStatus({ id: 'r3', submittalId: s.id, approvedAt: '2026-10-07' }, [s]), 'pending');
+});
+
+test('finishNoteForChange appends once, then replaces the line for the same change', () => {
+  assert.strictEqual(L.finishNoteForChange('', 'CHG-001', 'פורצלן'), 'שונה לפי CHG-001: פורצלן');
+  assert.strictEqual(L.finishNoteForChange(null, 'CHG-001', 'פורצלן'), 'שונה לפי CHG-001: פורצלן');
+  const a = L.finishNoteForChange('הערה קיימת', 'CHG-001', 'פורצלן');
+  assert.strictEqual(a, 'הערה קיימת\nשונה לפי CHG-001: פורצלן');
+  const b = L.finishNoteForChange(a + '\nשונה לפי CHG-002: אחר', 'CHG-001', 'גרניט');
+  assert.strictEqual(b, 'הערה קיימת\nשונה לפי CHG-001: גרניט\nשונה לפי CHG-002: אחר');
+  assert.strictEqual(L.finishNoteForChange(b, 'CHG-001', 'גרניט'), b, 'idempotent');
+  // CHG-001 does not match CHG-0010
+  assert.strictEqual(L.finishNoteForChange('שונה לפי CHG-0010: x', 'CHG-001', 'y'), 'שונה לפי CHG-0010: x\nשונה לפי CHG-001: y');
+  // duplicates from before the fix collapse into one line
+  assert.strictEqual(L.finishNoteForChange('שונה לפי CHG-001: a\nשונה לפי CHG-001: b', 'CHG-001', 'c'), 'שונה לפי CHG-001: c');
+});
+
+test('finishUnlinkItem clears submittalId / changeId pointing at a deleted item', () => {
+  const rows = [{ id: 'a', submittalId: 's1', changeId: 'c1' }, { id: 'b', submittalId: 's2', changeId: 's1' }, { id: 'c', submittalId: null, changeId: null }];
+  const out = L.finishUnlinkItem(rows, 's1');
+  assert.deepStrictEqual(out.rows.map(r => [r.submittalId, r.changeId]), [[null, 'c1'], ['s2', null], [null, null]]);
+  assert.strictEqual(out.count, 2);
+  assert.strictEqual(out.rows[2], rows[2], 'untouched rows keep identity');
+  assert.deepStrictEqual(L.finishUnlinkItem(null, 's1'), { rows: [], count: 0 });
 });

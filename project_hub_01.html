@@ -1075,6 +1075,9 @@ html[dir="ltr"] .ex-cmp-arrow{transform:scaleX(-1);}
 .ex-sw-none{border:1px dashed var(--border-strong);background:none;}
 .ex-fin-table td.ex-sw-cell{width:34px;padding-inline-end:2px;}
 .ex-fin-el{font-weight:600;}
+.ex-chg-st{font-size:11px;color:var(--text-2);margin-inline-start:5px;}
+.ex-chg-stale .ex-pill{opacity:.55;text-decoration:line-through;}
+.ex-chg-stale .ex-chg-st{color:var(--warn-text);}
 .ex-fin-pend{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;background:var(--warn-bg);color:var(--warn-text);white-space:nowrap;}
 .ex-fin-doc{color:var(--accent);text-decoration:none;font-size:12px;white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:middle;}
 .ex-fin-doc:hover{text-decoration:underline;}
@@ -3961,11 +3964,22 @@ function execChangeSummary(items){
   const rej=ch.filter(i=>i.status==='rejected');
   return{count:ch.length,pending:ch.filter(i=>!execIsClosed(i)).length,proposed:sum(ch),approved:sum(ch.filter(i=>i.status==='approved'||i.status==='approved_cond')),rejected:rej.length,rejectedSum:sum(rej)};
 }
-/* finishes schedule (doc.finishes): a row linked to a submittal is approved only while that submittal is */
+/* finishes schedule (doc.finishes): a row linked to a submittal is approved only while that submittal is;
+   a link to a submittal that no longer exists falls back to the row's own approval date */
 function finishStatus(row,items){
-  if(row.submittalId){const s=(items||[]).find(i=>i.id===row.submittalId);return s&&(s.status==='approved'||s.status==='approved_notes')?'approved':'pending';}
+  const s=row.submittalId?(items||[]).find(i=>i.id===row.submittalId):null;
+  if(s)return s.status==='approved'||s.status==='approved_notes'?'approved':'pending';
   return row.approvedAt?'approved':'pending';
 }
+/* the note line a change decision writes on a finishes row: deciding the same change again replaces its line (no duplicates) */
+function finishNoteForChange(notes,number,approvedText){
+  const pre='שונה לפי '+number+':';const line=(pre+' '+String(approvedText||'').trim()).trim();const out=[];let put=false;
+  String(notes||'').split(/\r?\n/).forEach(l=>{if(l.trim().startsWith(pre)){if(!put){out.push(line);put=true;}}else out.push(l);});
+  if(!put)out.push(line);
+  return out.join('\n').trim();
+}
+/* deleting an exec item: finishes rows that link it (as submittal or change) lose the link */
+function finishUnlinkItem(rows,itemId){let count=0;const out=(rows||[]).map(r=>{const s=r.submittalId===itemId,c=r.changeId===itemId;if(!s&&!c)return r;count++;return{...r,...(s?{submittalId:null}:{}),...(c?{changeId:null}:{})};});return{rows:out,count};}
 function finishFromSubmittal(item){
   const rev=(item.revisions||[]).slice(-1)[0]||{};const dec=(item.responses||[]).filter(r=>r.kind==='decision').slice(-1)[0];
   return{id:uid(),category:'',element:item.title||'',location:'',material:'',finish:'',color:'',colorHex:'',supplier:'',
@@ -4258,7 +4272,7 @@ const decCell=i=>execIsClosed(i)?React.createElement("span",{className:"ex-nw"},
 React.createElement("span",{className:"ex-chip"},React.createElement("span",{className:"ex-muted"},'ממתין · הכדור אצל'),' ',React.createElement(ExPartyChip,{ball:i.ball}));
 return React.createElement("div",{className:"ex-wrap"},
 React.createElement("div",{className:"ex-kpis ex-kpis-3"},
-kpi('pending','בקשות',sum.count,tx('{n} ממתינות להחלטה',{n:sum.pending})),
+kpi('all','בקשות',sum.count,tx('{n} ממתינות להחלטה',{n:sum.pending})),
 kpi('approved','חיסכון שאושר',exMoney(sum.approved),tx('מתוך {s} שהוצעו',{s:exMoney(sum.proposed)}),true),
 kpi('rejected','נדחו',sum.rejected,tx('{s} בבקשות שנדחו',{s:exMoney(sum.rejectedSum)}))),
 React.createElement("div",{className:"ex-tools"},
@@ -4288,9 +4302,13 @@ openId&&React.createElement(ExecItemPanel,{data:data,save:save,itemId:openId,gua
    (ExecItemPanel). A row linked to a submittal is approved only while that submittal is (finishStatus).
    Rows open ExFinishDialog; the submittal / change pills open the same ExecItemPanel as the log. */
 const EX_FIN_DEFAULT_CATS=['חזיתות','ריצוף','תקרות','אלומיניום','קירות','סניטריה','נגרות','מסגרות'];
+/* a finishes row's CHG pill with the change's current status: muted and struck through unless approved (reopened / rejected) */
+function ExChgLinkPill({chg,onOpen}){const ok=chg.status==='approved'||chg.status==='approved_cond';const st=(EXEC_TYPES.change.statuses.find(s=>s.id===chg.status)||{}).label||chg.status;
+const num=React.createElement("span",{"data-i18n-skip":""},chg.number);
+return React.createElement("span",{className:"ex-nw ex-chg-link"+(ok?"":" ex-chg-stale")},onOpen?React.createElement("button",{type:"button",className:"ex-pill ex-pill-change ex-pill-btn",title:tx('פתח את השינוי'),onClick:onOpen},num):React.createElement("span",{className:"ex-pill ex-pill-change"},num),React.createElement("span",{className:"ex-chg-st"},st));}
 const exFinLabel=r=>[r.category,r.element,r.location].map(x=>String(x||'').trim()).filter(Boolean).join(' · ')||tx('(ללא שם)');
 function ExFinSwatch({row}){
-return row.image&&row.image.url?React.createElement("img",{className:"ex-sw",src:row.image.url,alt:"",loading:"lazy"}):
+return row.image&&row.image.url?React.createElement("img",{className:"ex-sw",src:row.image.url,alt:""}):
 row.colorHex?React.createElement("span",{className:"ex-sw",style:{background:row.colorHex},title:row.colorHex}):React.createElement("span",{className:"ex-sw ex-sw-none"});}
 function ExFinishesView({data,save,openRowId=null,onConsumeOpen}){
 const items=data.execItems||[];const all=data.finishes||[];const viewer=myOfficeRole()==='viewer';
@@ -4334,7 +4352,7 @@ React.createElement("td",null,r.supplier?React.createElement("span",{"data-i18n-
 React.createElement("td",null,st==='approved'?React.createElement(React.Fragment,null,React.createElement("span",{className:"ex-nw"},r.approvedAt?exDdMm(r.approvedAt):'אושר'),r.approvedBy&&React.createElement("span",{className:"ex-sub","data-i18n-skip":""},r.approvedBy)):React.createElement("span",{className:"ex-fin-pend"},'ממתין לאישור')),
 React.createElement("td",null,files.length?React.createElement("span",{className:"ex-nw"},React.createElement("a",{className:"ex-fin-doc",href:files[0].url,target:"_blank",rel:"noopener","data-i18n-skip":"",title:files[0].name,onClick:e=>e.stopPropagation()},'📎 '+(files[0].name||tx('קובץ'))),files.length>1&&React.createElement("span",{className:"ex-muted ex-small"},' +'+(files.length-1))):React.createElement("span",{className:"ex-muted"},'—')),
 React.createElement("td",null,sub?React.createElement("button",{type:"button",className:"ex-pill ex-pill-submittal ex-pill-btn",title:tx('פתח את ההגשה'),onClick:stop(()=>setOpenId(sub.id))},React.createElement("span",{"data-i18n-skip":""},sub.number),rev?' · Rev '+rev.label:''):r.submittalId?React.createElement("span",{className:"ex-muted ex-small"},'ההגשה נמחקה'):React.createElement("span",{className:"ex-muted"},'—')),
-React.createElement("td",null,chg?React.createElement("button",{type:"button",className:"ex-pill ex-pill-change ex-pill-btn",title:tx('פתח את השינוי'),onClick:stop(()=>setOpenId(chg.id))},React.createElement("span",{"data-i18n-skip":""},chg.number)):React.createElement("span",{className:"ex-muted"},'—')));}))):
+React.createElement("td",null,chg?React.createElement(ExChgLinkPill,{chg,onOpen:stop(()=>setOpenId(chg.id))}):r.changeId?React.createElement("span",{className:"ex-muted ex-small"},'השינוי נמחק'):React.createElement("span",{className:"ex-muted"},'—')));}))):
 React.createElement("div",{className:"ex-empty"},all.length?'אין שורות בקטגוריה הזו.':'אין עדיין שורות בלוח הגמרים. הוסף גמר ידנית, או מהגשה שאושרה (בחלון ההגשה: "הוסף ללוח הגמרים").')),
 edit&&React.createElement(ExFinishDialog,{data:data,save:save,row:edit.row,isNew:edit.isNew,onClose:()=>setEdit(null)}),
 openId&&React.createElement(ExecItemPanel,{data:data,save:save,itemId:openId,guardRef:panelGuard,onClose:()=>setOpenId(null)}));}
@@ -4346,9 +4364,11 @@ const[init]=useState(()=>({...row,files:row.files||[],image:row.image||null}));
 const[d,setD]=useState(init);const set=(k,v)=>setD(x=>({...x,[k]:v}));
 const[busy,setBusy]=useState(0);const[err,setErr]=useState('');
 /* an upload error stays visible until the next pick (a later file in the same pick does not clear it) */const up=async f=>{setBusy(b=>b+1);try{return await uploadAttachment(f,f.name);}catch(e){setErr('הקובץ לא נשמר — '+(e.message||e));return null;}finally{setBusy(b=>b-1);}};
-const addImage=async f=>{if(!f)return;setErr('');if(!/^image\//.test(f.type||'')){setErr('יש לבחור קובץ תמונה');return;}const url=await up(f);if(url)set('image',{url,name:f.name});};
+/* a slower earlier pick (or one removed meanwhile) must not overwrite the latest */const imgSeq=useRef(0);
+const addImage=async f=>{if(!f)return;setErr('');if(!/^image\//.test(f.type||'')){setErr('יש לבחור קובץ תמונה');return;}const my=++imgSeq.current;const url=await up(f);if(url&&my===imgSeq.current)set('image',{url,name:f.name});};
 const addDocs=async list=>{setErr('');for(const f of Array.from(list||[])){const url=await up(f);if(url)setD(x=>({...x,files:[...(x.files||[]),{id:uid(),url,name:f.name}]}));}};
 const items=data.execItems||[];const subs=items.filter(i=>i.type==='submittal');const chg=d.changeId?items.find(i=>i.id===d.changeId):null;
+const subGone=!!d.submittalId&&!subs.some(s=>s.id===d.submittalId);
 const cats=[...new Set([...finishCategories(data.finishes),...EX_FIN_DEFAULT_CATS])];
 const t=v=>String(v||'').trim();
 const clean=x=>({...x,category:t(x.category),element:t(x.element),location:t(x.location),material:t(x.material),finish:t(x.finish),color:t(x.color),supplier:t(x.supplier),approvedBy:t(x.approvedBy),notes:t(x.notes),submittalId:x.submittalId||null,changeId:x.changeId||null});
@@ -4357,7 +4377,10 @@ const dirty=JSON.stringify(d)!==JSON.stringify(init);
 const ok=!ro&&!!t(d.element)&&!busy;
 const asking=useRef(false);
 const requestClose=async()=>{if(asking.current)return;if(!ro&&(busy||dirty)){asking.current=true;const yes=await askConfirm(isNew?'לסגור בלי להוסיף את השורה? מה שנכתב לא יישמר.':'לסגור בלי לשמור את השינויים?',{confirmLabel:'סגור בלי לשמור'});asking.current=false;if(!yes)return;}onClose();};
-const submit=()=>{if(!ok)return;const r=clean(d);const cur=dataRef.current;const list=cur.finishes||[];save({...cur,finishes:list.some(x=>x.id===r.id)?list.map(x=>x.id===r.id?r:x):[...list,r]});onClose();};
+const submit=()=>{if(!ok)return;const r=clean(d);const cur=dataRef.current;const list=cur.finishes||[];
+/* the row was deleted elsewhere while this dialog was open: do not bring it back */
+if(!isNew&&!list.some(x=>x.id===r.id)){alert(tx('השורה נמחקה בינתיים'));onClose();return;}
+save({...cur,finishes:list.some(x=>x.id===r.id)?list.map(x=>x.id===r.id?r:x):[...list,r]});onClose();};
 /* Escape anywhere (focus may already be on body) closes the dialog — not while a date picker or a confirm is open */
 const closeRef=useRef(null);closeRef.current=requestClose;
 useEffect(()=>{const k=e=>{if(e.key==='Escape'&&!document.querySelector('.df-pop,.af-overlay'))closeRef.current();};document.addEventListener('keydown',k);return()=>document.removeEventListener('keydown',k);},[]);
@@ -4387,15 +4410,15 @@ React.createElement("div",{className:"ex-row2"},
 f('תמונה',React.createElement("div",{className:"ex-fin-img"},
 d.image&&d.image.url&&React.createElement("a",{href:d.image.url,target:"_blank",rel:"noopener",title:d.image.name||''},React.createElement("img",{src:d.image.url,alt:"",className:"ex-fin-thumb"})),
 !ro&&React.createElement("label",{className:"ex-btn ex-btn-sm"},d.image?'החלף':'🖼 העלה תמונה',React.createElement("input",{type:"file",accept:"image/*",hidden:true,className:"ex-fin-img-in",onChange:e=>{addImage(e.target.files&&e.target.files[0]);e.target.value='';}})),
-d.image&&!ro&&React.createElement("button",{type:"button",className:"ex-link",onClick:()=>set('image',null)},'הסר'),
+d.image&&!ro&&React.createElement("button",{type:"button",className:"ex-link",onClick:()=>{imgSeq.current++;set('image',null);}},'הסר'),
 ro&&!d.image&&React.createElement("span",{className:"ex-muted"},'—'))),
 f('מסמכים',React.createElement("div",{className:"ex-attach"},
 !ro&&React.createElement("label",{className:"ex-btn ex-btn-sm"},'📎 צרף מסמכים',React.createElement("input",{type:"file",multiple:true,hidden:true,className:"ex-fin-doc-in",onChange:e=>{addDocs(e.target.files);e.target.value='';}})),
 ((d.files||[]).length>0||busy>0)&&React.createElement("div",{className:"ex-files"},(d.files||[]).map(x=>React.createElement("div",{key:x.id||x.url,className:"ex-file"},React.createElement("a",{href:x.url,target:"_blank",rel:"noopener","data-i18n-skip":"",className:"ex-fin-doc"},x.name||tx('קובץ')),!ro&&React.createElement("button",{type:"button",title:'הסר',onClick:()=>setD(y=>({...y,files:(y.files||[]).filter(z=>z!==x)}))},'×'))),busy>0&&React.createElement("div",{className:"ex-file"},'מעלה…')),
 ro&&!(d.files||[]).length&&React.createElement("span",{className:"ex-muted"},'—')))),
-f('הגשה מקושרת',React.createElement("select",{className:"ex-in",value:d.submittalId||'',disabled:ro,onChange:e=>set('submittalId',e.target.value||null)},React.createElement("option",{value:''},'— ללא (האישור לפי תאריך האישור) —'),
+f('הגשה מקושרת',subGone?React.createElement("span",{className:"ex-chip"},React.createElement("span",{className:"ex-muted"},'ההגשה נמחקה'),!ro&&React.createElement("button",{type:"button",className:"ex-link",onClick:()=>set('submittalId',null)},'הסר קישור')):React.createElement("select",{className:"ex-in",value:d.submittalId||'',disabled:ro,onChange:e=>set('submittalId',e.target.value||null)},React.createElement("option",{value:''},'— ללא (האישור לפי תאריך האישור) —'),
 subs.map(s=>React.createElement("option",{key:s.id,value:s.id,"data-i18n-skip":""},s.number+' · '+(s.title||'')+(s.status==='approved'||s.status==='approved_notes'?' ✓':''))))),
-chg&&f('שינוי',React.createElement("span",{className:"ex-chip"},React.createElement("span",{className:"ex-pill ex-pill-change"},React.createElement("span",{"data-i18n-skip":""},chg.number)),React.createElement("span",{className:"ex-muted ex-small","data-i18n-skip":""},chg.approvedText||chg.title||''),!ro&&React.createElement("button",{type:"button",className:"ex-link",onClick:()=>set('changeId',null)},'הסר קישור'))),
+d.changeId&&f('שינוי',React.createElement("span",{className:"ex-chip"},chg?React.createElement(React.Fragment,null,React.createElement(ExChgLinkPill,{chg}),React.createElement("span",{className:"ex-muted ex-small","data-i18n-skip":""},chg.approvedText||chg.title||'')):React.createElement("span",{className:"ex-muted"},'השינוי נמחק'),!ro&&React.createElement("button",{type:"button",className:"ex-link",onClick:()=>set('changeId',null)},'הסר קישור'))),
 f('הערות',React.createElement("textarea",{className:"ex-in",rows:3,value:d.notes||'',disabled:ro,"data-i18n-skip":"",onChange:e=>set('notes',e.target.value)})),
 err&&React.createElement("div",{className:"ex-err"},err),
 React.createElement("div",{className:"ex-dlg-acts"},
@@ -4493,22 +4516,24 @@ const upd=fn=>updateItem(itemId,fn);
 const[menu,setMenu]=useState(null);const[editTitle,setEditTitle]=useState(false);const[titleDraft,setTitleDraft]=useState('');
 const[author,setAuthor]=useState({party:'architect',name:me});const[body,setBody]=useState('');const[ball,setBall]=useState({choice:'keep',name:''});const up=useExUploads();
 const[decNotes,setDecNotes]=useState('');
-const[chgApproved,setChgApproved]=useState('');const[chgNotes,setChgNotes]=useState('');const[chgFin,setChgFin]=useState('');const[chgEdit,setChgEdit]=useState(null);
+const[chgApproved,setChgApproved]=useState(()=>(item&&item.proposed)||'');const[chgNotes,setChgNotes]=useState('');const[chgFin,setChgFin]=useState('');const[chgEdit,setChgEdit]=useState(null);
 const[revOpen,setRevOpen]=useState(false);const[revName,setRevName]=useState('');const[revBody,setRevBody]=useState('');const revUp=useExUploads();
 const[taskForm,setTaskForm]=useState(null);
 /* "הוסף ללוח הגמרים": a new finishes row prefilled from this submittal, edited in ExFinishDialog over the panel */
 const[finDraft,setFinDraft]=useState(null);
 const resetComposer=()=>{setBody('');up.reset();setBall({choice:'keep',name:''});setAuthor({party:'architect',name:me});};
 /* an unsent reply (or Rev form) is not thrown away silently: overlay, ×, Escape and switching items ask first (deleting the item does not) */
-const dirtyRef=useRef(false);dirtyRef.current=!!(body.trim()||up.files.length||up.busy||(revOpen&&(revBody.trim()||revUp.files.length||revUp.busy))||chgNotes.trim()||chgEdit);
+const dirtyRef=useRef(false);dirtyRef.current=!!(body.trim()||up.files.length||up.busy||(revOpen&&(revBody.trim()||revUp.files.length||revUp.busy))||chgNotes.trim()||chgEdit||!!(item&&item.type==='change'&&!execIsClosed(item)&&chgApproved.trim()!==String(item.proposed||'').trim()));
 const askingRef=useRef(false);
 const confirmDiscard=async()=>{if(!dirtyRef.current)return true;if(askingRef.current)return false;askingRef.current=true;try{return await askConfirm('לסגור בלי לשלוח את התגובה?',{confirmLabel:'סגור בלי לשלוח'});}finally{askingRef.current=false;}};
 const requestClose=async()=>{if(await confirmDiscard())onClose();};
 if(guardRef)guardRef.current=confirmDiscard;
 useEffect(()=>()=>{if(guardRef)guardRef.current=null;},[]);
 useEffect(()=>{resetComposer();setDecNotes('');setRevOpen(false);setTaskForm(null);setEditTitle(false);setMenu(null);setFinDraft(null);},[itemId]);
-/* the change decision form starts from what was proposed */
-useEffect(()=>{setChgApproved((item&&item.proposed)||'');setChgNotes('');setChgFin('');setChgEdit(null);},[itemId,item&&item.proposed,item&&item.status]);
+/* the change decision form starts from what was proposed; it resets on another item or when the item closes / reopens —
+   not on a reply (requested → in_review) or a saved "✎ ערוך", which would wipe what was typed */
+const itemClosed=!!item&&execIsClosed(item);
+useEffect(()=>{setChgApproved((item&&item.proposed)||'');setChgNotes('');setChgFin('');setChgEdit(null);},[itemId,itemClosed]);
 useEffect(()=>{const k=e=>{if(e.key!=='Escape'||document.querySelector('.df-pop,.af-overlay,.ex-fin-dlg'))return;if(menu){setMenu(null);return;}const ae=document.activeElement;if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)){ae.blur();return;}requestClose();};document.addEventListener('keydown',k);return()=>document.removeEventListener('keydown',k);},[menu,onClose]);
 useEffect(()=>{if(!item)onClose();},[!!item]);
 if(!item)return null;
@@ -4528,8 +4553,11 @@ const answer=()=>{if(canSend)respond('answer',ball.choice==='keep'?{party:'contr
 const closeItem=async()=>{if(up.busy)return;const issue=item.type==='issue';if(!(await askConfirm(issue?tx('לסמן את {n} כנפתר?',{n:item.number}):tx('לסגור את {n}?',{n:item.number}),{confirmLabel:issue?'סמן כנפתר':'סגור',danger:false})))return;respond('close',null);};
 const reopen=()=>{setMenu(null);upd(x=>execRespond(x,{kind:'reopen',party:'architect',name:me,body:'',ballTo:{party:'architect',name:''}}));};
 const setStatus=sid=>{setMenu(null);upd(x=>execSetStatus(x,sid,{name:me}));};
-const del=async()=>{setMenu(null);if(!(await askConfirm(tx('למחוק את {n}? כל השרשור והסבבים יימחקו.',{n:item.number}))))return;const d=dataRef.current;const refd=t=>t.execRef&&t.execRef.itemId===itemId;
-saveRef.current({...d,execItems:(d.execItems||[]).filter(x=>x.id!==itemId),sheets:(d.sheets||[]).map(sh=>(sh.tasks||[]).some(refd)?{...sh,tasks:sh.tasks.map(t=>{if(!refd(t))return t;const{execRef,...rest}=t;return rest;})}:sh)});onClose();};
+/* finishes rows that link the item (as submittal or change) lose the link in the same save */
+const del=async()=>{setMenu(null);const k=finishUnlinkItem(dataRef.current.finishes,itemId).count;
+const msg=k===0?tx('למחוק את {n}? כל השרשור והסבבים יימחקו.',{n:item.number}):k===1?tx('למחוק את {n}? כל השרשור והסבבים יימחקו, ושורה אחת בלוח הגמרים תאבד את הקישור.',{n:item.number}):tx('למחוק את {n}? כל השרשור והסבבים יימחקו, ו־{k} שורות בלוח הגמרים יאבדו את הקישור.',{n:item.number,k});
+if(!(await askConfirm(msg)))return;const d=dataRef.current;const refd=t=>t.execRef&&t.execRef.itemId===itemId;const fu=finishUnlinkItem(d.finishes,itemId);
+saveRef.current({...d,execItems:(d.execItems||[]).filter(x=>x.id!==itemId),sheets:(d.sheets||[]).map(sh=>(sh.tasks||[]).some(refd)?{...sh,tasks:sh.tasks.map(t=>{if(!refd(t))return t;const{execRef,...rest}=t;return rest;})}:sh),...(fu.count?{finishes:fu.rows}:{})});onClose();};
 const commitTitle=()=>{const v=titleDraft.trim();setEditTitle(false);if(v&&v!==item.title)patch({title:v});};
 /* submittal rounds */
 /* only the last round can be decided, and only once */const lastRev=(item.revisions||[]).slice(-1)[0];const undecided=!!(lastRev&&!lastRev.decision);
@@ -4608,7 +4636,7 @@ React.createElement("div",null,React.createElement("button",{type:"button",class
 /* contractor change: tender vs proposed (editable while open) and the decision */
 const isChg=item.type==='change';const finRows=data.finishes||[];
 const finLabel=r=>[r.category,r.element,r.location].map(x=>String(x||'').trim()).filter(Boolean).join(' · ')||tx('(ללא שם)');
-const saveChgEdit=()=>{const e=chgEdit;if(!e)return;patch({tenderSpec:e.tenderSpec.trim(),tenderRef:e.tenderRef.trim(),proposed:e.proposed.trim(),saving:Number(e.saving)||0});setChgEdit(null);};
+const saveChgEdit=()=>{const e=chgEdit;if(!e)return;if(chgApproved.trim()===String(item.proposed||'').trim())setChgApproved(e.proposed.trim());patch({tenderSpec:e.tenderSpec.trim(),tenderRef:e.tenderRef.trim(),proposed:e.proposed.trim(),saving:Number(e.saving)||0});setChgEdit(null);};
 const setCE=(k,v)=>setChgEdit(c=>({...c,[k]:v}));
 const chgBlock=isChg&&(chgEdit?React.createElement("div",{className:"ex-decide"},
 React.createElement("div",{className:"ex-comp-h"},'עריכת פרטי הבקשה'),
@@ -4629,8 +4657,8 @@ closed&&item.status!=='rejected'&&React.createElement(React.Fragment,null,' · �
 /* one save: the decision and, when approved, the chosen finishes row (changeId + a note) */
 const decideChange=dec=>{const notes=chgNotes.trim();if(dec!=='approved'&&!notes)return;const d=dataRef.current;const cur=(d.execItems||[]).find(x=>x.id===itemId);if(!cur)return;
 const next=execDecideChange(cur,{decision:dec,approvedText:chgApproved.trim(),notes,name:me});if(next===cur)return;
-const fin=dec!=='rejected'&&chgFin?(d.finishes||[]).find(r=>r.id===chgFin):null;const line='שונה לפי '+cur.number+': '+next.approvedText;
-saveRef.current({...d,execItems:(d.execItems||[]).map(x=>x.id===itemId?next:x),...(fin?{finishes:(d.finishes||[]).map(r=>r.id===fin.id?{...r,changeId:cur.id,notes:[String(r.notes||'').trim(),line].filter(Boolean).join('\n')}:r)}:{})});
+const fin=dec!=='rejected'&&chgFin?(d.finishes||[]).find(r=>r.id===chgFin):null;
+saveRef.current({...d,execItems:(d.execItems||[]).map(x=>x.id===itemId?next:x),...(fin?{finishes:(d.finishes||[]).map(r=>r.id===fin.id?{...r,changeId:cur.id,notes:finishNoteForChange(r.notes,cur.number,next.approvedText)}:r)}:{})});
 setChgNotes('');setChgFin('');};
 const chgDecide=isChg&&!closed&&!ro&&React.createElement("div",{className:"ex-decide"},
 React.createElement("div",{className:"ex-comp-h"},'החלטה על הבקשה'),

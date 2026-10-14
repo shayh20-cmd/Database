@@ -2927,7 +2927,13 @@ Object.assign(HE_EN, {
 "החלטה על הבקשה": "Decision on the request",
 "ריק = המוצע": "Empty = as proposed",
 "הערות / תנאים (חובה ב\"אושר בתנאי\" וב\"נדחה\")": "Notes / conditions (required for \"Approved with conditions\" and \"Rejected\")",
-"עדכן שורה בלוח הגמרים (באישור, לא חובה)": "Update a finishes schedule row (on approval, optional)"
+"עדכן שורה בלוח הגמרים (באישור, לא חובה)": "Update a finishes schedule row (on approval, optional)",
+"למחוק את {n}? כל השרשור והסבבים יימחקו, ושורה אחת בלוח הגמרים תאבד את הקישור.": "Delete {n}? The whole thread and all rounds will be deleted, and one finishes schedule row will lose its link.",
+"למחוק את {n}? כל השרשור והסבבים יימחקו, ו־{k} שורות בלוח הגמרים יאבדו את הקישור.": "Delete {n}? The whole thread and all rounds will be deleted, and {k} finishes schedule rows will lose their link.",
+"השינוי נמחק": "The change was deleted",
+"השורה נמחקה בינתיים": "The row was deleted in the meantime",
+"גמר רצפה לפי חלל": "Floor finish by space",
+"גמרים לפי חומר, עם מקרא": "Finishes by material, with a legend"
 });
 
 window.I18N_HE_EN = HE_EN;
