@@ -1055,6 +1055,7 @@ textarea.ex-in{resize:vertical;min-height:64px;}
 .ex-cmp{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:stretch;}
 .ex-cmp-col{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;min-width:0;}
 .ex-cmp-arrow{align-self:center;color:var(--text-3);font-size:16px;}
+html[dir="ltr"] .ex-cmp-arrow{transform:scaleX(-1);}
 .ex-cmp-l{display:flex;align-items:baseline;gap:6px;font-size:11.5px;font-weight:600;color:var(--text-2);margin-bottom:4px;}
 .ex-cmp-b{font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word;}
 .ex-cmp-f{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:var(--text-2);}
@@ -3882,7 +3883,7 @@ const EXEC_TYPES={
   issue:{prefix:'ISS',label:'Issue',statuses:[{id:'open',label:'פתוח'},{id:'in_progress',label:'בטיפול'},{id:'resolved',label:'נפתר',closed:true}]},
   rfi:{prefix:'RFI',label:'RFI',statuses:[{id:'pending',label:'ממתין'},{id:'answered',label:'נענה'},{id:'closed',label:'נסגר',closed:true}]},
   submittal:{prefix:'SUB',label:'הגשה',statuses:[{id:'submitted',label:'הוגש'},{id:'approved',label:'אושר',closed:true},{id:'approved_notes',label:'אושר עם הערות',closed:true},{id:'rejected',label:'נדחה – להגשה מחדש'}]},
-  change:{prefix:'CHG',label:'שינוי',statuses:[{id:'requested',label:'הוגשה'},{id:'in_review',label:'בבדיקה'},{id:'approved',label:'אושר',closed:true},{id:'approved_cond',label:'אושר בתנאי',closed:true},{id:'rejected',label:'נדחה',closed:true}]}
+  change:{prefix:'CHG',label:'שינוי',statuses:[{id:'requested',label:'הוגשה'},{id:'in_review',label:'בבדיקה'},{id:'approved',label:'אושר',closed:true},{id:'approved_cond',label:'אושר בתנאי',closed:true},{id:'rejected',label:'נדחה⁠',closed:true}]}
 };
 const EXEC_PARTIES=[{id:'architect',label:'אדריכל'},{id:'contractor',label:'קבלן'},{id:'supervisor',label:'מפקח'},{id:'consultant',label:'יועץ'}];
 const EXEC_RFI_LATE=7,EXEC_ISSUE_LATE=14;
@@ -4362,7 +4363,7 @@ const closeRef=useRef(null);closeRef.current=requestClose;
 useEffect(()=>{const k=e=>{if(e.key==='Escape'&&!document.querySelector('.df-pop,.af-overlay'))closeRef.current();};document.addEventListener('keydown',k);return()=>document.removeEventListener('keydown',k);},[]);
 const del=async()=>{if(!(await askConfirm(tx('למחוק את השורה "{n}" מלוח הגמרים?',{n:exFinLabel(init)}))))return;const cur=dataRef.current;save({...cur,finishes:(cur.finishes||[]).filter(x=>x.id!==d.id)});onClose();};
 const f=(label,child,key)=>React.createElement("div",{className:"ex-f",key},React.createElement("label",null,label),child);
-const inp=(k,ph,extra)=>React.createElement("input",{className:"ex-in",value:d[k]||'',placeholder:ph,disabled:ro,"data-i18n-skip":"",onChange:e=>set(k,e.target.value),...(extra||{})});
+const inp=(k,ph,extra)=>React.createElement("input",{className:"ex-in",value:d[k]||'',placeholder:ph?tx(ph):ph,disabled:ro,"data-i18n-skip":"",onChange:e=>set(k,e.target.value),...(extra||{})});
 const listId='ex-fin-cats';
 return ReactDOM.createPortal(React.createElement("div",{className:"ex-dlg-back ex-fin-dlg",onClick:e=>{if(e.target===e.currentTarget)requestClose();}},
 React.createElement("div",{className:"ex-dlg ex-dlg-wide",role:"dialog","aria-modal":"true"},
@@ -4418,18 +4419,21 @@ const ok=title.trim()&&!busy;
 const asking=useRef(false);
 const requestClose=async()=>{if(asking.current)return;if(title.trim()||description.trim()||files.length||busy||(type==='change'&&Object.values(chg).some(v=>String(v).trim()))){asking.current=true;const yes=await askConfirm('לסגור בלי ליצור את הפריט? מה שנכתב לא יישמר.',{confirmLabel:'סגור בלי לשמור'});asking.current=false;if(!yes)return;}onClose();};
 const submit=()=>{if(!ok)return;onCreate({type,title:title.trim(),description:description.trim(),openedBy:{party:opened.party,name:opened.name.trim()},ballTo:{party:ball.party,name:ball.name.trim()},discipline,specSection:type==='submittal'?specSection.trim():'',dueDate,ownerId:ownerId||null,files,source:{kind:'manual',ref:null},...(type==='change'?{tenderSpec:chg.tenderSpec.trim(),tenderRef:chg.tenderRef.trim(),proposed:chg.proposed.trim(),saving:Number(chg.saving)||0}:{})});};
+/* Escape anywhere (focus may already be on body) closes the dialog — not while a date picker or a confirm is open */
+const closeRef=useRef(null);closeRef.current=requestClose;
+useEffect(()=>{const k=e=>{if(e.key==='Escape'&&!document.querySelector('.df-pop,.af-overlay'))closeRef.current();};document.addEventListener('keydown',k);return()=>document.removeEventListener('keydown',k);},[]);
 const partyRow=(v,set)=>React.createElement("div",{className:"ex-row2"},
 React.createElement("select",{className:"ex-in",value:v.party,onChange:e=>set({...v,party:e.target.value})},EXEC_PARTIES.map(p=>React.createElement("option",{key:p.id,value:p.id},p.label))),
 React.createElement("input",{className:"ex-in",value:v.name,placeholder:v.party==='consultant'?'שם / תחום':'שם (לא חובה)',onChange:e=>set({...v,name:e.target.value})}));
 const f=(label,child,key)=>React.createElement("div",{className:"ex-f",key},React.createElement("label",null,label),child);
 return React.createElement("div",{className:"ex-dlg-back",onClick:e=>{if(e.target===e.currentTarget)requestClose();}},
-React.createElement("div",{className:"ex-dlg",role:"dialog","aria-modal":"true",onKeyDown:e=>{if(e.key==='Escape')requestClose();}},
+React.createElement("div",{className:"ex-dlg",role:"dialog","aria-modal":"true"},
 React.createElement("div",{className:"ex-dlg-t"},'פריט ביצוע חדש',React.createElement(ExTypePill,{type})),
 f('סוג',React.createElement("div",{className:"ex-seg",role:"group",style:{display:'inline-flex'}},EX_TYPE_ORDER.map(t=>React.createElement("button",{key:t,type:"button",className:type===t?"on":"",onClick:()=>setType(t)},EXEC_TYPES[t].label)))),
 f('כותרת *',React.createElement("input",{className:"ex-in",autoFocus:true,value:title,onChange:e=>setTitle(e.target.value),onKeyDown:e=>{if(e.key==='Enter')submit();}})),
 type==='change'&&React.createElement(React.Fragment,null,
-f('במכרז',React.createElement("textarea",{className:"ex-in",rows:2,value:chg.tenderSpec,placeholder:'מה נקבע במכרז / במפרט',onChange:e=>setC('tenderSpec',e.target.value)})),
-f('מה מוצע',React.createElement("textarea",{className:"ex-in",rows:2,value:chg.proposed,placeholder:'מה הקבלן מציע במקום',onChange:e=>setC('proposed',e.target.value)})),
+f('במכרז',React.createElement("textarea",{className:"ex-in",rows:2,value:chg.tenderSpec,"data-i18n-skip":"",placeholder:tx('מה נקבע במכרז / במפרט'),onChange:e=>setC('tenderSpec',e.target.value)})),
+f('מה מוצע',React.createElement("textarea",{className:"ex-in",rows:2,value:chg.proposed,"data-i18n-skip":"",placeholder:tx('מה הקבלן מציע במקום'),onChange:e=>setC('proposed',e.target.value)})),
 React.createElement("div",{className:"ex-row2"},
 f('סעיף',React.createElement("input",{className:"ex-in",value:chg.tenderRef,placeholder:'סעיף מפרט / כתב כמויות',onChange:e=>setC('tenderRef',e.target.value)})),
 f('חיסכון ₪',React.createElement("input",{className:"ex-in",type:"number",min:0,step:1000,value:chg.saving,placeholder:'0',onChange:e=>setC('saving',e.target.value)})))),
@@ -4455,8 +4459,9 @@ React.createElement("button",{type:"button",className:"ex-btn ex-btn-pri",disabl
    Every write goes through updateItem, reading the latest doc from a ref so a save after an await is never stale. */
 const EX_KIND_LABEL={open:'פתיחה',reply:'תגובה',answer:'תשובה רשמית',close:'נסגר',reopen:'נפתח מחדש',revision:'הגשה חוזרת',decision:'החלטה',status:'שינוי סטטוס'};
 const EX_DECISIONS=[{id:'approved',label:'אושר'},{id:'approved_notes',label:'אושר עם הערות'},{id:'rejected',label:'נדחה – להגשה מחדש'}];
-/* change decisions (execDecideChange): notes are required except for a plain approval */
-const EX_CHG_DECISIONS=[{id:'approved',label:'אושר'},{id:'approved_cond',label:'אושר בתנאי'},{id:'rejected',label:'נדחה'}];
+/* change decisions (execDecideChange): notes are required except for a plain approval.
+   'נדחה\u2060' (word joiner, invisible): the dictionary key נדחה alone is the planner's "carried over" */
+const EX_CHG_DECISIONS=[{id:'approved',label:'אושר'},{id:'approved_cond',label:'אושר בתנאי'},{id:'rejected',label:'נדחה⁠'}];
 function ExChgDecisionPill({d}){const x=EX_CHG_DECISIONS.find(y=>y.id===d);return x?React.createElement("span",{className:"ex-st "+(d==='rejected'?"ex-st-rejected":"ex-st-closed")},x.label):null;}
 const EX_SOURCE_LABEL={meeting:'ישיבה',site_visit:'סיור באתר',email:'מייל',manual:'ידני'};
 const exDateTime=iso=>{if(!iso)return '';const d=new Date(iso);if(isNaN(d))return '';const p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+String(d.getFullYear()).slice(2)+' '+p(d.getHours())+':'+p(d.getMinutes());};
@@ -4607,8 +4612,8 @@ const saveChgEdit=()=>{const e=chgEdit;if(!e)return;patch({tenderSpec:e.tenderSp
 const setCE=(k,v)=>setChgEdit(c=>({...c,[k]:v}));
 const chgBlock=isChg&&(chgEdit?React.createElement("div",{className:"ex-decide"},
 React.createElement("div",{className:"ex-comp-h"},'עריכת פרטי הבקשה'),
-React.createElement("div",{className:"ex-f"},React.createElement("label",null,'במכרז'),React.createElement("textarea",{className:"ex-in",rows:2,value:chgEdit.tenderSpec,onChange:e=>setCE('tenderSpec',e.target.value)})),
-React.createElement("div",{className:"ex-f"},React.createElement("label",null,'מה מוצע'),React.createElement("textarea",{className:"ex-in",rows:2,value:chgEdit.proposed,onChange:e=>setCE('proposed',e.target.value)})),
+React.createElement("div",{className:"ex-f"},React.createElement("label",null,'במכרז'),React.createElement("textarea",{className:"ex-in",rows:2,value:chgEdit.tenderSpec,"data-i18n-skip":"",onChange:e=>setCE('tenderSpec',e.target.value)})),
+React.createElement("div",{className:"ex-f"},React.createElement("label",null,'מה מוצע'),React.createElement("textarea",{className:"ex-in",rows:2,value:chgEdit.proposed,"data-i18n-skip":"",onChange:e=>setCE('proposed',e.target.value)})),
 React.createElement("div",{className:"ex-row2"},
 React.createElement("div",{className:"ex-f"},React.createElement("label",null,'סעיף'),React.createElement("input",{className:"ex-in",value:chgEdit.tenderRef,placeholder:'סעיף מפרט / כתב כמויות',onChange:e=>setCE('tenderRef',e.target.value)})),
 React.createElement("div",{className:"ex-f"},React.createElement("label",null,'חיסכון ₪'),React.createElement("input",{className:"ex-in",type:"number",min:0,step:1000,value:chgEdit.saving,onChange:e=>setCE('saving',e.target.value)}))),
@@ -4629,8 +4634,8 @@ saveRef.current({...d,execItems:(d.execItems||[]).map(x=>x.id===itemId?next:x),.
 setChgNotes('');setChgFin('');};
 const chgDecide=isChg&&!closed&&!ro&&React.createElement("div",{className:"ex-decide"},
 React.createElement("div",{className:"ex-comp-h"},'החלטה על הבקשה'),
-React.createElement("div",{className:"ex-f"},React.createElement("label",null,'מה אושר בפועל'),React.createElement("textarea",{className:"ex-in",rows:2,value:chgApproved,placeholder:'ריק = המוצע',onChange:e=>setChgApproved(e.target.value)})),
-React.createElement("textarea",{className:"ex-in",rows:2,value:chgNotes,"aria-label":'הערות',placeholder:'הערות / תנאים (חובה ב"אושר בתנאי" וב"נדחה")',onChange:e=>setChgNotes(e.target.value)}),
+React.createElement("div",{className:"ex-f"},React.createElement("label",null,'מה אושר בפועל'),React.createElement("textarea",{className:"ex-in",rows:2,value:chgApproved,"data-i18n-skip":"",placeholder:tx('ריק = המוצע'),onChange:e=>setChgApproved(e.target.value)})),
+React.createElement("textarea",{className:"ex-in",rows:2,value:chgNotes,"data-i18n-skip":"","aria-label":tx('הערות'),placeholder:tx('הערות / תנאים (חובה ב"אושר בתנאי" וב"נדחה")'),onChange:e=>setChgNotes(e.target.value)}),
 finRows.length>0&&React.createElement("div",{className:"ex-f"},React.createElement("label",null,'עדכן שורה בלוח הגמרים (באישור, לא חובה)'),
 React.createElement("select",{className:"ex-in",value:chgFin,onChange:e=>setChgFin(e.target.value)},React.createElement("option",{value:''},'— ללא —'),finRows.map(r=>React.createElement("option",{key:r.id,value:r.id,"data-i18n-skip":""},finLabel(r))))),
 React.createElement("div",{className:"ex-acts"},EX_CHG_DECISIONS.map(dd=>React.createElement("button",{key:dd.id,type:"button",className:"ex-btn"+(dd.id==='approved'?" ex-btn-ok":dd.id==='rejected'?" ex-btn-bad":""),disabled:dd.id!=='approved'&&!chgNotes.trim(),onClick:()=>decideChange(dd.id)},dd.label))));
