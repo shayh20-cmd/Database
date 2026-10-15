@@ -194,7 +194,7 @@ test('ball history and links entries carry ids (merged per entry)', () => {
 });
 
 // ── Round 2: change requests and finishes ──
-const mkChg = (over = {}) => L.execNewItem(over.items || [], { type: 'change', title: 'ריצוף לובי', tenderSpec: 'אבן טבעית', tenderRef: '11.02.010', proposed: 'פורצלן 60/120', saving: '45000', openedBy: { party: 'contractor', name: 'דנה' }, ballTo: { party: 'architect', name: '' }, ...over }, T0);
+const mkChg = (over = {}) => L.execNewItem(over.items || [], { type: 'change', title: 'ריצוף לובי', tenderSpec: 'אבן טבעית', tenderRef: '11.02.010', proposed: 'פורצלן 60/120', openedBy: { party: 'contractor', name: 'דנה' }, ballTo: { party: 'architect', name: '' }, ...over }, T0);
 
 test('change: numbering CHG-001, fields, first status', () => {
   const c = mkChg();
@@ -203,12 +203,11 @@ test('change: numbering CHG-001, fields, first status', () => {
   assert.strictEqual(c.tenderSpec, 'אבן טבעית');
   assert.strictEqual(c.tenderRef, '11.02.010');
   assert.strictEqual(c.proposed, 'פורצלן 60/120');
-  assert.strictEqual(c.saving, 45000);
+  assert.ok(!('saving' in c));
   assert.strictEqual(c.approvedText, '');
   assert.deepStrictEqual(c.revisions, []);
-  const c2 = mkChg({ items: [c], saving: 'abc' });
+  const c2 = mkChg({ items: [c] });
   assert.strictEqual(c2.number, 'CHG-002');
-  assert.strictEqual(c2.saving, 0);
   const r = L.execNewItem([], { type: 'rfi', title: 'r' }, T0);
   assert.ok(!('tenderSpec' in r) && !('approvedText' in r));
 });
@@ -258,15 +257,15 @@ test('change: reopen → requested and clears approvedText', () => {
   assert.ok(!L.execIsClosed(c));
 });
 
-test('change summary sums savings; counts and log rows', () => {
-  const a = mkChg({ saving: 10000 });
-  const b = L.execDecideChange(mkChg({ items: [a], saving: 20000 }), { decision: 'approved' }, T0);
-  const c = L.execDecideChange(mkChg({ items: [a, b], saving: 30000 }), { decision: 'approved_cond', notes: 'x' }, T0);
-  const d = L.execDecideChange(mkChg({ items: [a, b, c], saving: 40000 }), { decision: 'rejected', notes: 'x' }, T0);
+test('change summary counts decisions; counts and log rows', () => {
+  const a = mkChg();
+  const b = L.execDecideChange(mkChg({ items: [a] }), { decision: 'approved' }, T0);
+  const c = L.execDecideChange(mkChg({ items: [a, b] }), { decision: 'approved_cond', notes: 'x' }, T0);
+  const d = L.execDecideChange(mkChg({ items: [a, b, c] }), { decision: 'rejected', notes: 'x' }, T0);
   const r = mk();
   const sum = L.execChangeSummary([a, b, c, d, r]);
-  assert.deepStrictEqual(sum, { count: 4, pending: 1, proposed: 100000, approved: 50000, rejected: 1, rejectedSum: 40000 });
-  assert.deepStrictEqual(L.execChangeSummary([]), { count: 0, pending: 0, proposed: 0, approved: 0, rejected: 0, rejectedSum: 0 });
+  assert.deepStrictEqual(sum, { count: 4, pending: 1, approved: 2, approvedCond: 1, rejected: 1 });
+  assert.deepStrictEqual(L.execChangeSummary([]), { count: 0, pending: 0, approved: 0, approvedCond: 0, rejected: 0 });
   assert.strictEqual(L.execLogRows([a, r], 'all', '2026-10-10').length, 2);
   assert.deepStrictEqual(L.execLogRows([a, r], 'change', '2026-10-10').map(i => i.id), [a.id]);
   assert.deepStrictEqual(L.execForMe([a], 's1', true).map(i => i.id), [a.id]);

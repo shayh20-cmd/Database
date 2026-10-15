@@ -396,7 +396,7 @@ module.exports = function createMcp(ctx) {
       due: it.dueDate || null, discipline: discLabel(doc, c, it.discipline) || undefined, spec_section: it.specSection || undefined,
       opened_by: L.execPartyLabel(it.openedBy), created: String(it.createdAt || '').slice(0, 10),
       ...(it.type === 'submittal' ? { round: ((it.revisions || []).slice(-1)[0] || {}).label } : {}),
-      ...(it.type === 'change' ? { tender_spec: it.tenderSpec, tender_ref: it.tenderRef || undefined, proposed: it.proposed, saving: it.saving, approved_text: it.approvedText || undefined } : {})
+      ...(it.type === 'change' ? { tender_spec: it.tenderSpec, tender_ref: it.tenderRef || undefined, proposed: it.proposed, approved_text: it.approvedText || undefined } : {})
     };
   }
   const execLinkOf = (base, projId, itemId) => `${base}/project_hub_01?project=${encodeURIComponent(projId)}&exec=${encodeURIComponent(itemId)}`;
@@ -944,8 +944,7 @@ module.exports = function createMcp(ctx) {
           spec_section: { type: 'string', description: 'Spec / BOQ section' },
           tender_spec: { type: 'string', description: 'change: what the tender specified' },
           tender_ref: { type: 'string', description: 'change: tender clause' },
-          proposed: { type: 'string', description: 'change: what the contractor proposes instead' },
-          saving: { type: 'number', description: 'change: saving in ₪' }
+          proposed: { type: 'string', description: 'change: what the contractor proposes instead' }
         },
         required: ['project', 'type', 'title'], additionalProperties: false
       },
@@ -968,7 +967,7 @@ module.exports = function createMcp(ctx) {
               dueDate: args.due_date || (dd ? L.execAddWorkdays(now.slice(0, 10), dd) : ''),
               discipline: args.discipline ? pickOption(projList(doc, 'disciplines', c.reg), args.discipline, 'discipline') : '',
               specSection: args.spec_section || '', source: { kind: 'claude' },
-              tenderSpec: args.tender_spec, tenderRef: args.tender_ref, proposed: args.proposed, saving: args.saving
+              tenderSpec: args.tender_spec, tenderRef: args.tender_ref, proposed: args.proposed
             }, now, seqMap),
             createdById: c.me.id
           };
@@ -1001,7 +1000,7 @@ module.exports = function createMcp(ctx) {
             type: 'object',
             properties: {
               title: { type: 'string' }, description: { type: 'string' }, due_date: { type: 'string' }, discipline: { type: 'string' }, spec_section: { type: 'string' },
-              tender_spec: { type: 'string' }, tender_ref: { type: 'string' }, proposed: { type: 'string' }, saving: { type: 'number' }
+              tender_spec: { type: 'string' }, tender_ref: { type: 'string' }, proposed: { type: 'string' }
             },
             additionalProperties: false
           }
@@ -1033,8 +1032,7 @@ module.exports = function createMcp(ctx) {
             if (f.tender_spec != null) set('tenderSpec', String(f.tender_spec), 'במכרז');
             if (f.tender_ref != null) set('tenderRef', String(f.tender_ref), 'סעיף מכרז');
             if (f.proposed != null) set('proposed', String(f.proposed), 'מוצע');
-            if (f.saving != null) set('saving', Number(f.saving) || 0, 'חיסכון');
-          } else if (['tender_spec', 'tender_ref', 'proposed', 'saving'].some(k => f[k] != null)) throw new ToolError('tender_spec / tender_ref / proposed / saving belong to change requests only');
+          } else if (['tender_spec', 'tender_ref', 'proposed'].some(k => f[k] != null)) throw new ToolError('tender_spec / tender_ref / proposed belong to change requests only');
           let finRow = null;
           const a = args.action;
           if (a === 'reply' || a === 'answer' || a === 'close' || a === 'reopen') {

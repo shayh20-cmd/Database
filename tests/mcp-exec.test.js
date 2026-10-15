@@ -92,7 +92,7 @@ test('submittal decision, then a finishes row from it', async () => {
 
 test('change request: approved changes a finishes row, numbers continue', async () => {
   reset();
-  const c = await call(SHAY, 'create_exec_item', { project: 'PH01', type: 'change', title: 'החלפת ריצוף', tender_spec: 'גרניט פורצלן', proposed: 'טרצו', saving: 40000 });
+  const c = await call(SHAY, 'create_exec_item', { project: 'PH01', type: 'change', title: 'החלפת ריצוף', tender_spec: 'גרניט פורצלן', proposed: 'טרצו' });
   assert.strictEqual(c.created.ball, 'אדריכל');
   await assert.rejects(call(SHAY, 'update_exec_item', { project: 'PH01', item: 'CHG-001', action: 'decide', decision: 'rejected' }), /needs notes/);
   const d = await call(SHAY, 'update_exec_item', { project: 'PH01', item: 'CHG-001', action: 'decide', decision: 'approved', finish_row: 'f1' });
@@ -100,8 +100,8 @@ test('change request: approved changes a finishes row, numbers continue', async 
   const row = readJson(PH01).finishes[0];
   assert.strictEqual(row.changeId, readJson(PH01).execItems[0].id);
   assert.match(row.notes, /שונה לפי CHG-001: טרצו/);
-  const e = await call(SHAY, 'update_exec_item', { project: 'PH01', item: 'CHG-001', fields: { saving: 45000 } });
-  assert.deepStrictEqual(e.changed, ['חיסכון']);
+  const e = await call(SHAY, 'update_exec_item', { project: 'PH01', item: 'CHG-001', fields: { tender_ref: '11.02.010' } });
+  assert.deepStrictEqual(e.changed, ['סעיף מכרז']);
   const c2 = await call(SHAY, 'create_exec_item', { project: 'PH01', type: 'change', title: 'ב' });
   assert.strictEqual(c2.created.number, 'CHG-002');
   assert.strictEqual(readJson(PH01).execSeq.change, 2);

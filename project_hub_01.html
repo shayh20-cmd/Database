@@ -1099,8 +1099,8 @@ html[dir="ltr"] .ex-cmp-arrow{transform:scaleX(-1);}
 .ex-cmp-b{font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word;}
 .ex-cmp-f{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:var(--text-2);}
 @container (max-width:520px){.ex-cmp{grid-template-columns:minmax(0,1fr);}.ex-cmp-arrow{display:none;}}
-.ex-money{white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:600;color:var(--text);}
-.ex-money-x{text-decoration:line-through;color:var(--text-3);font-weight:400;}
+
+
 .ex-sub{display:block;font-size:11px;color:var(--text-3);margin-top:2px;}
 .ex-cell-t{white-space:pre-wrap;word-break:break-word;max-width:340px;}
 .ex-decide .ex-f{margin:0;}
@@ -3963,7 +3963,7 @@ function execNewItem(items,o,now,seqMap){
     responses:[{id:uid(),at,party:openedBy.party,name:openedBy.name,body:o.description||'',files:o.files||[],ballTo:o.ballTo||null,kind:'open'}],
     revisions:o.type==='submittal'?[{id:uid(),label:'A',files:o.files||[],submittedAt:at,decision:null,notes:'',decidedBy:'',decidedAt:null}]:[],
     ballHistory:[],links:[]};
-  if(o.type==='change')it={...it,tenderSpec:o.tenderSpec||'',tenderRef:o.tenderRef||'',proposed:o.proposed||'',saving:Number(o.saving)||0,approvedText:''};
+  if(o.type==='change')it={...it,tenderSpec:o.tenderSpec||'',tenderRef:o.tenderRef||'',proposed:o.proposed||'',approvedText:''};
   return o.ballTo?execSetBall(it,o.ballTo,at):it;
 }
 function execRespond(item,r,now){
@@ -4005,9 +4005,8 @@ function execDecideChange(item,d,now){
   return execSetBall(next,null,at);
 }
 function execChangeSummary(items){
-  const ch=(items||[]).filter(i=>i.type==='change');const sum=l=>l.reduce((s,i)=>s+(Number(i.saving)||0),0);
-  const rej=ch.filter(i=>i.status==='rejected');
-  return{count:ch.length,pending:ch.filter(i=>!execIsClosed(i)).length,proposed:sum(ch),approved:sum(ch.filter(i=>i.status==='approved'||i.status==='approved_cond')),rejected:rej.length,rejectedSum:sum(rej)};
+  const ch=(items||[]).filter(i=>i.type==='change');const n=st=>ch.filter(i=>i.status===st).length;
+  return{count:ch.length,pending:ch.filter(i=>!execIsClosed(i)).length,approved:n('approved')+n('approved_cond'),approvedCond:n('approved_cond'),rejected:n('rejected')};
 }
 /* finishes schedule (doc.finishes): a row linked to a submittal is approved only while that submittal is;
    a link to a submittal that no longer exists falls back to the row's own approval date */
@@ -4227,7 +4226,6 @@ const EX_TYPE_ORDER=['issue','rfi','submittal','change'];
 const EX_NEW_LABEL={issue:'בעיה באתר',rfi:'בקשת הבהרה',submittal:'הגשה לאישור',change:'שינוי / ויתור'};
 /* waiting-days limit per type (changes wait like an RFI); submittals have none in the log */
 const exLateLimit=t=>t==='rfi'||t==='change'?EXEC_RFI_LATE:t==='issue'?EXEC_ISSUE_LATE:null;
-const exMoney=n=>'₪'+Math.round(Number(n)||0).toLocaleString('he-IL');
 /* permanent tabs of the execution track before its stages (ids are remembered like stage ids) */
 const EX_VTABS=[{id:'__exlog',label:'יומן ביצוע',icon:'supervision'},{id:'__exfin',label:'לוח גמרים'},{id:'__exchg',label:'ויתורים ושינויים'}];
 const exDdMm=iso=>iso?String(iso).slice(8,10)+'/'+String(iso).slice(5,7):'—';
@@ -4301,7 +4299,7 @@ newType&&React.createElement(ExNewItemDialog,{data:data,type:newType,onClose:()=
 openId&&typeof ExecItemPanel==='function'&&React.createElement(ExecItemPanel,{data:data,save:save,itemId:openId,guardRef:panelGuard,onClose:()=>setOpenId(null)}));}
 /* ══ ויתורים ושינויים (execution track tab '__exchg') ══
    Contractor change / value-engineering requests (doc.execItems of type change): what the tender specified,
-   what was approved in practice and the saving. Rows open the same ExecItemPanel as the log. */
+   and what was approved in practice. Rows open the same ExecItemPanel as the log. */
 const EX_CHG_FILTERS=[{id:'all',label:'הכל'},{id:'pending',label:'ממתינים'},{id:'approved',label:'אושרו'},{id:'rejected',label:'נדחו'}];
 const exChgBucket=i=>!execIsClosed(i)?'pending':i.status==='rejected'?'rejected':'approved';
 function ExChangesView({data,save}){
@@ -4311,7 +4309,7 @@ const sum=useMemo(()=>execChangeSummary(items),[items]);
 const all=useMemo(()=>execLogRows(items,'change',today),[items,today]);
 const n={all:all.length,pending:0,approved:0,rejected:0};all.forEach(i=>{n[exChgBucket(i)]++;});
 const[sorts,setSorts]=useExSort('chg');
-const chgVal=(i,k)=>{const closed=execIsClosed(i);switch(k){case 'num':return i.seq||0;case 'tender':return i.tenderSpec;case 'approved':return !closed?i.proposed:i.status==='rejected'?'':i.approvedText;case 'saving':return Number(i.saving)||0;case 'status':return exStLabel(i);}};
+const chgVal=(i,k)=>{const closed=execIsClosed(i);switch(k){case 'num':return i.seq||0;case 'tender':return i.tenderSpec;case 'approved':return !closed?i.proposed:i.status==='rejected'?'':i.approvedText;case 'status':return exStLabel(i);}};
 const rows=execSortRows(filter==='all'?all:all.filter(i=>exChgBucket(i)===filter),sorts,chgVal);
 const pick=f=>setFilter(cur=>cur===f&&f!=='all'?'all':f);
 const create=o=>{const seq=data.execSeq||{};const it={...execNewItem(items,o,undefined,seq),createdById:CURRENT_USER.id};save({...data,execItems:[...items,it],execSeq:execBumpSeq(seq,it)});setAdding(false);setOpenId(it.id);};
@@ -4332,8 +4330,8 @@ React.createElement("span",{className:"ex-chip"},React.createElement("span",{cla
 return React.createElement("div",{className:"ex-wrap"},
 React.createElement("div",{className:"ex-kpis ex-kpis-3"},
 kpi('all','בקשות',sum.count,tx('{n} ממתינות להחלטה',{n:sum.pending})),
-kpi('approved','חיסכון שאושר',exMoney(sum.approved),tx('מתוך {s} שהוצעו',{s:exMoney(sum.proposed)}),true),
-kpi('rejected','נדחו',sum.rejected,tx('{s} בבקשות שנדחו',{s:exMoney(sum.rejectedSum)}))),
+kpi('approved','אושרו',sum.approved,sum.approvedCond?tx('{n} מהן בתנאי',{n:sum.approvedCond}):tx('מתוך {n} שהוחלטו',{n:sum.approved+sum.rejected}),true),
+kpi('rejected','נדחו',sum.rejected,tx('מתוך {n} שהוחלטו',{n:sum.approved+sum.rejected}))),
 React.createElement("div",{className:"ex-tools"},
 React.createElement("div",{className:"ex-seg",role:"group"},EX_CHG_FILTERS.map(f=>React.createElement("button",{key:f.id,type:"button",className:filter===f.id?"on":"",onClick:()=>setFilter(f.id)},f.label,React.createElement("b",null,n[f.id]||0)))),
 React.createElement("span",{className:"ex-sp"}),
@@ -4342,7 +4340,7 @@ React.createElement("button",{type:"button",className:"ex-btn",disabled:!rows.le
 React.createElement("div",{className:"ex-log ex-print-doc"},
 React.createElement("div",{className:"ex-print-only"},React.createElement("h2",{"data-i18n-skip":""},data.projectName||''),
 React.createElement("div",null,'ויתורים ושינויים · '+filterLabel+' · '+printDate),
-React.createElement("div",null,tx('{c} בקשות · חיסכון שאושר {a} מתוך {p} שהוצעו · נדחו {r}',{c:sum.count,a:exMoney(sum.approved),p:exMoney(sum.proposed),r:sum.rejected}))),
+React.createElement("div",null,tx('{c} בקשות · אושרו {a} · נדחו {r}',{c:sum.count,a:sum.approved,r:sum.rejected}))),
 rows.length?React.createElement("table",{className:"ex-table"},
 exSortHead(EX_CHG_COLS,sorts,setSorts),
 React.createElement("tbody",null,rows.map(i=>{const closed=execIsClosed(i);const rej=i.status==='rejected';
@@ -4350,7 +4348,6 @@ return React.createElement("tr",{key:i.id,className:openId===i.id?"on":"",onClic
 React.createElement("td",null,React.createElement("span",{className:"ex-num"},React.createElement(ExTypePill,{type:i.type}),React.createElement("span",{"data-i18n-skip":""},i.number)),React.createElement("span",{className:"ex-sub","data-i18n-skip":""},i.title||'')),
 React.createElement("td",null,React.createElement("div",{className:"ex-cell-t","data-i18n-skip":""},i.tenderSpec||'—'),i.tenderRef&&React.createElement("span",{className:"ex-sub ex-num","data-i18n-skip":""},i.tenderRef)),
 React.createElement("td",null,!closed?React.createElement("div",{className:"ex-cell-t ex-muted"},'מוצע: ',React.createElement("span",{"data-i18n-skip":""},i.proposed||'—')):rej?React.createElement("span",{className:"ex-muted"},'—'):React.createElement("div",{className:"ex-cell-t","data-i18n-skip":""},i.approvedText||'—')),
-React.createElement("td",null,React.createElement("span",{className:"ex-money"+(rej?" ex-money-x":"")},exMoney(i.saving))),
 React.createElement("td",null,decCell(i)),
 React.createElement("td",null,docCell(i)));}))):
 React.createElement("div",{className:"ex-empty"},all.length?'אין בקשות להצגה בסינון הזה.':'אין עדיין בקשות שינוי או ויתור מהקבלן.')),
@@ -4501,7 +4498,7 @@ function exSortBar(cols,sorts,setSorts){if(!sorts.length)return null;const lab=k
     React.createElement("button",{type:"button",className:"ex-link",onClick:()=>setSorts([])},'נקה מיון'));}
 const exStLabel=i=>String((((EXEC_TYPES[i.type]||{}).statuses||[]).find(x=>x.id===i.status)||{}).label||i.status||'').replace(/\u2060/g,'');
 const EX_LOG_COLS=[{key:'num',label:"מס'"},{key:'title',label:'נושא'},{key:'disc',label:'תחום'},{key:'ball',label:'הכדור אצל'},{key:'wait',label:'ממתין'},{key:'status',label:'סטטוס'},{key:'due',label:'יעד'}];
-const EX_CHG_COLS=[{key:'num',label:"מס'"},{key:'tender',label:'במכרז'},{key:'approved',label:'מה אושר בפועל'},{key:'saving',label:'חיסכון'},{key:'status',label:'החלטה'},{label:'תיעוד'}];
+const EX_CHG_COLS=[{key:'num',label:"מס'"},{key:'tender',label:'במכרז'},{key:'approved',label:'מה אושר בפועל'},{key:'status',label:'החלטה'},{label:'תיעוד'}];
 const EX_FIN_COLS=[{label:''},{key:'element',label:'אלמנט / מיקום'},{key:'mfc',label:'חומר · גמר · גוון'},{key:'supplier',label:'ספק / יצרן'},{key:'approved',label:'אושר'},{label:'מסמך'},{key:'sub',label:'הגשה'},{key:'chg',label:'שינוי'}];
 function ExNewItemDialog({data,type:type0,onClose,onCreate}){
 const today=todayISO();
@@ -4511,14 +4508,14 @@ const[type,setTypeRaw]=useState(type0);const[title,setTitle]=useState('');const[
 const[opened,setOpened]=useState(d0.opened);const[ball,setBall]=useState({party:'architect',name:''});
 const[discipline,setDiscipline]=useState('');const[specSection,setSpecSection]=useState('');const[dueDate,setDueDate]=useState(d0.due);
 const[files,setFiles]=useState([]);const[busy,setBusy]=useState(0);const[err,setErr]=useState('');
-const[chg,setChg]=useState({tenderSpec:'',tenderRef:'',proposed:'',saving:''});const setC=(k,v)=>setChg(c=>({...c,[k]:v}));
+const[chg,setChg]=useState({tenderSpec:'',tenderRef:'',proposed:''});const setC=(k,v)=>setChg(c=>({...c,[k]:v}));
 const setType=t=>{const d=defaultsFor(t);setTypeRaw(t);setOpened(d.opened);setDueDate(d.due);setBall({party:'architect',name:''});};
 const disciplines=visOpts(projList(data,'disciplines'));const team=data.team||[];
 const addFiles=async list=>{for(const f of Array.from(list||[])){setBusy(b=>b+1);setErr('');try{const url=await uploadAttachment(f,f.name);setFiles(prev=>[...prev,{id:uid(),url,name:f.name}]);}catch(e){setErr('הקובץ לא נשמר — '+(e.message||e));}setBusy(b=>b-1);}};
 const ok=title.trim()&&!busy;
 const asking=useRef(false);
 const requestClose=async()=>{if(asking.current)return;if(title.trim()||description.trim()||files.length||busy||(type==='change'&&Object.values(chg).some(v=>String(v).trim()))){asking.current=true;const yes=await askConfirm('לסגור בלי ליצור את הפריט? מה שנכתב לא יישמר.',{confirmLabel:'סגור בלי לשמור'});asking.current=false;if(!yes)return;}onClose();};
-const submit=()=>{if(!ok)return;onCreate({type,title:title.trim(),description:description.trim(),openedBy:{party:opened.party,name:''},ballTo:{party:ball.party,name:''},discipline,specSection:type==='submittal'?specSection.trim():'',dueDate,ownerId:null,files,source:{kind:'manual',ref:null},...(type==='change'?{tenderSpec:chg.tenderSpec.trim(),tenderRef:chg.tenderRef.trim(),proposed:chg.proposed.trim(),saving:Number(chg.saving)||0}:{})});};
+const submit=()=>{if(!ok)return;onCreate({type,title:title.trim(),description:description.trim(),openedBy:{party:opened.party,name:''},ballTo:{party:ball.party,name:''},discipline,specSection:type==='submittal'?specSection.trim():'',dueDate,ownerId:null,files,source:{kind:'manual',ref:null},...(type==='change'?{tenderSpec:chg.tenderSpec.trim(),tenderRef:chg.tenderRef.trim(),proposed:chg.proposed.trim()}:{})});};
 /* Escape anywhere (focus may already be on body) closes the dialog — not while a date picker or a confirm is open */
 const closeRef=useRef(null);closeRef.current=requestClose;
 useEffect(()=>{const k=e=>{if(e.key==='Escape'&&!document.querySelector('.df-pop,.af-overlay'))closeRef.current();};document.addEventListener('keydown',k);return()=>document.removeEventListener('keydown',k);},[]);
@@ -4532,9 +4529,7 @@ f('כותרת *',React.createElement("input",{className:"ex-in",autoFocus:true,v
 type==='change'&&React.createElement(React.Fragment,null,
 f('במכרז',React.createElement("textarea",{className:"ex-in",rows:2,value:chg.tenderSpec,"data-i18n-skip":"",placeholder:tx('מה נקבע במכרז / במפרט'),onChange:e=>setC('tenderSpec',e.target.value)})),
 f('מה מוצע',React.createElement("textarea",{className:"ex-in",rows:2,value:chg.proposed,"data-i18n-skip":"",placeholder:tx('מה הקבלן מציע במקום'),onChange:e=>setC('proposed',e.target.value)})),
-React.createElement("div",{className:"ex-row2"},
-f('סעיף',React.createElement("input",{className:"ex-in",value:chg.tenderRef,placeholder:'סעיף מפרט / כתב כמויות',onChange:e=>setC('tenderRef',e.target.value)})),
-f('חיסכון ₪',React.createElement("input",{className:"ex-in",type:"number",min:0,step:1000,value:chg.saving,placeholder:'0',onChange:e=>setC('saving',e.target.value)})))),
+f('סעיף',React.createElement("input",{className:"ex-in",value:chg.tenderRef,placeholder:'סעיף מפרט / כתב כמויות',onChange:e=>setC('tenderRef',e.target.value)}))),
 f('תיאור',React.createElement("textarea",{className:"ex-in",value:description,rows:3,onChange:e=>setDescription(e.target.value)})),
 React.createElement("div",{className:"ex-row2"},
 f('נפתח ע"י',partyRow(opened,setOpened)),
@@ -4704,24 +4699,21 @@ React.createElement("div",null,React.createElement("button",{type:"button",class
 /* contractor change: tender vs proposed (editable while open) and the decision */
 const isChg=item.type==='change';const finRows=data.finishes||[];
 const finLabel=r=>[r.category,r.element,r.location].map(x=>String(x||'').trim()).filter(Boolean).join(' · ')||tx('(ללא שם)');
-const saveChgEdit=()=>{const e=chgEdit;if(!e)return;if(chgApproved.trim()===String(item.proposed||'').trim())setChgApproved(e.proposed.trim());patch({tenderSpec:e.tenderSpec.trim(),tenderRef:e.tenderRef.trim(),proposed:e.proposed.trim(),saving:Number(e.saving)||0});setChgEdit(null);};
+const saveChgEdit=()=>{const e=chgEdit;if(!e)return;if(chgApproved.trim()===String(item.proposed||'').trim())setChgApproved(e.proposed.trim());patch({tenderSpec:e.tenderSpec.trim(),tenderRef:e.tenderRef.trim(),proposed:e.proposed.trim()});setChgEdit(null);};
 const setCE=(k,v)=>setChgEdit(c=>({...c,[k]:v}));
 const chgBlock=isChg&&(chgEdit?React.createElement("div",{className:"ex-decide"},
 React.createElement("div",{className:"ex-comp-h"},'עריכת פרטי הבקשה'),
 React.createElement("div",{className:"ex-f"},React.createElement("label",null,'במכרז'),React.createElement("textarea",{className:"ex-in",rows:2,value:chgEdit.tenderSpec,"data-i18n-skip":"",onChange:e=>setCE('tenderSpec',e.target.value)})),
 React.createElement("div",{className:"ex-f"},React.createElement("label",null,'מה מוצע'),React.createElement("textarea",{className:"ex-in",rows:2,value:chgEdit.proposed,"data-i18n-skip":"",onChange:e=>setCE('proposed',e.target.value)})),
-React.createElement("div",{className:"ex-row2"},
 React.createElement("div",{className:"ex-f"},React.createElement("label",null,'סעיף'),React.createElement("input",{className:"ex-in",value:chgEdit.tenderRef,placeholder:'סעיף מפרט / כתב כמויות',onChange:e=>setCE('tenderRef',e.target.value)})),
-React.createElement("div",{className:"ex-f"},React.createElement("label",null,'חיסכון ₪'),React.createElement("input",{className:"ex-in",type:"number",min:0,step:1000,value:chgEdit.saving,onChange:e=>setCE('saving',e.target.value)}))),
 React.createElement("div",{className:"ex-acts"},React.createElement("button",{type:"button",className:"ex-btn ex-btn-sm",onClick:()=>setChgEdit(null)},'ביטול'),React.createElement("button",{type:"button",className:"ex-btn ex-btn-sm ex-btn-pri",onClick:saveChgEdit},'שמור'))):
 React.createElement("div",null,
-React.createElement("div",{className:"ex-sec-h"},'במכרז ← מוצע',!ro&&!closed&&React.createElement("button",{type:"button",className:"ex-link",onClick:()=>setChgEdit({tenderSpec:item.tenderSpec||'',tenderRef:item.tenderRef||'',proposed:item.proposed||'',saving:item.saving?String(item.saving):''})},'✎ ערוך')),
+React.createElement("div",{className:"ex-sec-h"},'במכרז ← מוצע',!ro&&!closed&&React.createElement("button",{type:"button",className:"ex-link",onClick:()=>setChgEdit({tenderSpec:item.tenderSpec||'',tenderRef:item.tenderRef||'',proposed:item.proposed||''})},'✎ ערוך')),
 React.createElement("div",{className:"ex-cmp"},
 React.createElement("div",{className:"ex-cmp-col"},React.createElement("div",{className:"ex-cmp-l"},'במכרז',item.tenderRef&&React.createElement("span",{className:"ex-num ex-muted","data-i18n-skip":""},item.tenderRef)),React.createElement("div",{className:"ex-cmp-b","data-i18n-skip":""},item.tenderSpec||'—')),
 React.createElement("div",{className:"ex-cmp-arrow","aria-hidden":"true"},'←'),
 React.createElement("div",{className:"ex-cmp-col"},React.createElement("div",{className:"ex-cmp-l"},'מוצע'),React.createElement("div",{className:"ex-cmp-b","data-i18n-skip":""},item.proposed||'—'))),
-React.createElement("div",{className:"ex-cmp-f"},'חיסכון:',React.createElement("span",{className:"ex-money"+(item.status==='rejected'?" ex-money-x":"")},exMoney(item.saving)),
-closed&&item.status!=='rejected'&&React.createElement(React.Fragment,null,' · אושר בפועל: ',React.createElement("b",{"data-i18n-skip":""},item.approvedText||'—')))));
+closed&&item.status!=='rejected'&&React.createElement("div",{className:"ex-cmp-f"},'אושר בפועל: ',React.createElement("b",{"data-i18n-skip":""},item.approvedText||'—'))));
 /* one save: the decision and, when approved, the chosen finishes row (changeId + a note) */
 const decideChange=dec=>{const notes=chgNotes.trim();if(dec!=='approved'&&!notes)return;const d=dataRef.current;const cur=(d.execItems||[]).find(x=>x.id===itemId);if(!cur)return;
 const next=execDecideChange(cur,{decision:dec,approvedText:chgApproved.trim(),notes,name:me});if(next===cur)return;
