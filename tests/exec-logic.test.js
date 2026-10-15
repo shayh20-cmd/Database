@@ -8,7 +8,7 @@ const m = html.match(/\/\* ═══ exec-logic ═══ \*\/([\s\S]*?)\/\* ═
 if (!m) throw new Error('exec-logic block not found in project_hub_01.html');
 let n = 0;
 const uid = () => 'x' + ++n;
-const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories,finishNoteForChange,finishUnlinkItem};')(uid);
+const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories,finishNoteForChange,finishUnlinkItem,execSortToggle,execSortRows};')(uid);
 
 const T0 = '2026-10-04T08:00:00.000Z'; // Sunday
 const mk = (over = {}) => L.execNewItem(over.items || [], { type: 'rfi', title: 'גובה תקרה', description: 'שאלה', openedBy: { party: 'contractor', name: 'דנה' }, ballTo: { party: 'architect', name: '' }, ...over }, T0);
@@ -351,4 +351,26 @@ test('finishUnlinkItem clears submittalId / changeId pointing at a deleted item'
   assert.strictEqual(out.count, 2);
   assert.strictEqual(out.rows[2], rows[2], 'untouched rows keep identity');
   assert.deepStrictEqual(L.finishUnlinkItem(null, 's1'), { rows: [], count: 0 });
+});
+
+test('header clicks build a sort hierarchy: add, flip, drop', () => {
+  let s = L.execSortToggle([], 'due');
+  assert.deepStrictEqual(s, [{ key: 'due', dir: 'asc' }]);
+  s = L.execSortToggle(s, 'ball');
+  assert.deepStrictEqual(s.map(x => x.key), ['due', 'ball']);
+  s = L.execSortToggle(s, 'due');
+  assert.deepStrictEqual(s, [{ key: 'due', dir: 'desc' }, { key: 'ball', dir: 'asc' }]);
+  s = L.execSortToggle(s, 'due');
+  assert.deepStrictEqual(s, [{ key: 'ball', dir: 'asc' }]);
+});
+
+test('multi-level sort: second key breaks ties, empties last both ways, stable otherwise', () => {
+  const rows = [{ id: 1, p: 'קבלן', d: '2026-10-20' }, { id: 2, p: 'אדריכל', d: '' }, { id: 3, p: 'קבלן', d: '2026-10-10' }, { id: 4, p: 'אדריכל', d: '2026-10-12' }];
+  const v = (r, k) => k === 'party' ? r.p : r.d;
+  assert.deepStrictEqual(L.execSortRows(rows, [{ key: 'party', dir: 'asc' }, { key: 'due', dir: 'asc' }], v).map(r => r.id), [4, 2, 3, 1]);
+  assert.deepStrictEqual(L.execSortRows(rows, [{ key: 'due', dir: 'desc' }], v).map(r => r.id), [1, 4, 3, 2]);
+  assert.deepStrictEqual(L.execSortRows(rows, [{ key: 'party', dir: 'desc' }], v).map(r => r.id), [1, 3, 2, 4]);
+  assert.strictEqual(L.execSortRows(rows, [], v), rows);
+  const nums = [{ n: 10 }, { n: 9 }, { n: null }, { n: 100 }];
+  assert.deepStrictEqual(L.execSortRows(nums, [{ key: 'n', dir: 'asc' }], r => r.n).map(r => r.n), [9, 10, 100, null]);
 });

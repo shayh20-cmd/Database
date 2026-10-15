@@ -958,7 +958,6 @@ module.exports = function createMcp(ctx) {
         checkDates(args.due_date);
         const res = writeProject(p, c.me, doc => {
           const openedBy = pickParty(L, args.opened_by || { party: type === 'issue' ? 'architect' : 'contractor' }, 'opened_by') ;
-          if (!openedBy.name && openedBy.party === 'architect') openedBy.name = c.me.name;
           const ballTo = args.ball_to ? pickParty(L, args.ball_to, 'ball_to') : { party: openedBy.party === 'architect' ? 'contractor' : 'architect', name: '' };
           const now = new Date().toISOString();
           const dd = execLogic().dueDays[type];
