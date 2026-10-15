@@ -8,7 +8,7 @@ const m = html.match(/\/\* ═══ exec-logic ═══ \*\/([\s\S]*?)\/\* ═
 if (!m) throw new Error('exec-logic block not found in project_hub_01.html');
 let n = 0;
 const uid = () => 'x' + ++n;
-const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories,finishNoteForChange,finishUnlinkItem,execSortToggle,execSortRows};')(uid);
+const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories,finishNoteForChange,finishUnlinkItem,execSortToggle,execSortRows,FINISH_ZONES,finishZone,finishCat,finishGroups};')(uid);
 
 const T0 = '2026-10-04T08:00:00.000Z'; // Sunday
 const mk = (over = {}) => L.execNewItem(over.items || [], { type: 'rfi', title: 'גובה תקרה', description: 'שאלה', openedBy: { party: 'contractor', name: 'דנה' }, ballTo: { party: 'architect', name: '' }, ...over }, T0);
@@ -372,4 +372,26 @@ test('multi-level sort: second key breaks ties, empties last both ways, stable o
   assert.strictEqual(L.execSortRows(rows, [], v), rows);
   const nums = [{ n: 10 }, { n: 9 }, { n: null }, { n: 100 }];
   assert.deepStrictEqual(L.execSortRows(nums, [{ key: 'n', dir: 'asc' }], r => r.n).map(r => r.n), [9, 10, 100, null]);
+});
+
+test('finishes: exterior / interior zones, legacy categories mapped', () => {
+  assert.strictEqual(L.finishZone({ zone: 'exterior', category: 'ריצוף' }), 'exterior');
+  assert.strictEqual(L.finishZone({ category: 'חזיתות' }), 'exterior');
+  assert.strictEqual(L.finishCat({ category: 'חזיתות' }), 'קירות');
+  assert.strictEqual(L.finishCat({ category: 'אלומיניום' }), 'אלומיניום וזכוכית');
+  assert.strictEqual(L.finishZone({ category: 'אלומיניום' }), 'interior');
+  assert.strictEqual(L.finishZone({ category: 'תאורה' }), 'interior');
+  assert.ok(!L.FINISH_ZONES[0].cats.includes('נגרות') && L.FINISH_ZONES[1].cats.includes('נגרות'));
+});
+
+test('finishGroups: zone order, the zone\'s categories first, others after, uncategorized last, input order kept', () => {
+  const rows = [
+    { id: 1, category: 'תאורה' }, { id: 2, zone: 'interior', category: 'ריצוף' }, { id: 3, category: 'חזיתות' },
+    { id: 4, zone: 'interior', category: '' }, { id: 5, zone: 'exterior', category: 'ריצוף' }, { id: 6, zone: 'interior', category: 'ריצוף' }
+  ];
+  const g = L.finishGroups(rows);
+  assert.deepStrictEqual(g.map(z => [z.zone, z.count]), [['exterior', 2], ['interior', 4]]);
+  assert.deepStrictEqual(g[0].groups.map(x => [x.category, x.rows.map(r => r.id)]), [['ריצוף', [5]], ['קירות', [3]]]);
+  assert.deepStrictEqual(g[1].groups.map(x => [x.category, x.rows.map(r => r.id)]), [['ריצוף', [2, 6]], ['תאורה', [1]], ['', [4]]]);
+  assert.deepStrictEqual(L.finishGroups([]), []);
 });

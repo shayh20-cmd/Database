@@ -983,6 +983,12 @@ html[data-appearance="dark"] .rv-verify{background:rgba(245,158,11,.18);color:#F
 .ex-sort-ind sub{font-size:9px;margin-inline-start:1px;}
 .ex-sortbar{display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:12px;color:var(--text-2);margin:0 0 6px;}
 .ex-sortbar .ex-link{margin-inline-start:8px;}
+.ex-table tr.ex-grp-zone td{background:var(--surface-2);font-weight:700;font-size:13px;color:var(--text);padding:9px 10px;cursor:default;}
+.ex-table tr.ex-grp-cat td{font-weight:600;font-size:12px;color:var(--text-2);padding:7px 10px 5px 10px;padding-inline-start:18px;cursor:default;}
+.ex-table tr.ex-grp-zone td b,.ex-table tr.ex-grp-cat td b{font-weight:500;color:var(--text-3);margin-inline-start:6px;font-size:11px;}
+.ex-table tbody tr.ex-grp-zone:hover,.ex-table tbody tr.ex-grp-cat:hover{background:none;}
+.ex-table tbody tr.ex-grp-zone:hover td{background:var(--surface-2);}
+@media print{.ex-table tr.ex-grp-zone td{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
 @media print{.ex-sort-ind{display:none;}}
 .ex-table tbody tr{cursor:pointer;}
 .ex-table tbody tr:hover{background:var(--row-hover);}
@@ -4026,7 +4032,7 @@ function finishNoteForChange(notes,number,approvedText){
 function finishUnlinkItem(rows,itemId){let count=0;const out=(rows||[]).map(r=>{const s=r.submittalId===itemId,c=r.changeId===itemId;if(!s&&!c)return r;count++;return{...r,...(s?{submittalId:null}:{}),...(c?{changeId:null}:{})};});return{rows:out,count};}
 function finishFromSubmittal(item){
   const rev=(item.revisions||[]).slice(-1)[0]||{};const dec=(item.responses||[]).filter(r=>r.kind==='decision').slice(-1)[0];
-  return{id:uid(),category:'',element:item.title||'',location:'',material:'',finish:'',color:'',colorHex:'',supplier:'',
+  return{id:uid(),zone:'interior',category:'',element:item.title||'',location:'',material:'',finish:'',color:'',colorHex:'',supplier:'',
     approvedAt:String(rev.decidedAt||'').slice(0,10),approvedBy:rev.decidedBy||'',files:[...(rev.files||[]),...((dec&&dec.files)||[])],image:null,
     submittalId:item.id,changeId:null,specSection:item.specSection||'',discipline:item.discipline||'',notes:rev.notes||''};
 }
@@ -4038,6 +4044,24 @@ function execSortRows(rows,sorts,valueOf){
   const empty=v=>v==null||v==='';
   const cmp=(a,b)=>typeof a==='number'&&typeof b==='number'?a-b:String(a).localeCompare(String(b),'he',{numeric:true,sensitivity:'base'});
   return rows.map((r,i)=>({r,i})).sort((x,y)=>{for(const s of sorts){const a=valueOf(x.r,s.key),b=valueOf(y.r,s.key);if(empty(a)||empty(b)){if(empty(a)&&empty(b))continue;return empty(a)?1:-1;}const c=cmp(a,b);if(c)return s.dir==='desc'?-c:c;}return x.i-y.i;}).map(x=>x.r);
+}
+/* the finishes schedule is split into exterior and interior finishes, each in categories (row.zone, row.category).
+   Rows from before the split: חזיתות → exterior walls, אלומיניום → אלומיניום וזכוכית, סניטריה → משטחים וכיורים; no zone = interior. */
+const FINISH_ZONES=[
+  {id:'exterior',label:'גמרי חוץ',cats:['ריצוף','קירות','אלומיניום וזכוכית','תקרות','מסגרות']},
+  {id:'interior',label:'גמרי פנים',cats:['ריצוף','קירות','אלומיניום וזכוכית','תקרות','מסגרות','נגרות','מחיצות קלות בשירותים','משטחים וכיורים','מעליות']}
+];
+const FINISH_LEGACY_CATS={'חזיתות':{zone:'exterior',category:'קירות'},'אלומיניום':{category:'אלומיניום וזכוכית'},'סניטריה':{zone:'interior',category:'משטחים וכיורים'}};
+function finishZone(row){const z=row&&row.zone;if(z==='exterior'||z==='interior')return z;const l=FINISH_LEGACY_CATS[String((row&&row.category)||'').trim()];return(l&&l.zone)||'interior';}
+function finishCat(row){const c=String((row&&row.category)||'').trim();const l=FINISH_LEGACY_CATS[c];return l?l.category:c;}
+/* zone → category groups for the table: the zone's own categories in their order, then other categories by first appearance, uncategorized last; empty groups are left out */
+function finishGroups(rows){
+  return FINISH_ZONES.map(z=>{
+    const mine=(rows||[]).filter(r=>finishZone(r)===z.id);const extra=[];
+    mine.forEach(r=>{const c=finishCat(r);if(c&&!z.cats.includes(c)&&!extra.includes(c))extra.push(c);});
+    const groups=[...z.cats,...extra,''].map(c=>({category:c,rows:mine.filter(r=>finishCat(r)===c)})).filter(g=>g.rows.length);
+    return{zone:z.id,label:z.label,count:mine.length,groups};
+  }).filter(z=>z.count);
 }
 function finishCategories(rows){const out=[];(rows||[]).forEach(r=>{const c=String((r&&r.category)||'').trim();if(c&&!out.includes(c))out.push(c);});return out;}
 /* manual status change (Issue / RFI only — submittals move through rounds, changes through execDecideChange), recorded as a 'status' line in the thread */
@@ -4357,7 +4381,6 @@ openId&&React.createElement(ExecItemPanel,{data:data,save:save,itemId:openId,gua
    The approved finishes schedule (doc.finishes): rows added by hand or from an approved submittal in one click
    (ExecItemPanel). A row linked to a submittal is approved only while that submittal is (finishStatus).
    Rows open ExFinishDialog; the submittal / change pills open the same ExecItemPanel as the log. */
-const EX_FIN_DEFAULT_CATS=['חזיתות','ריצוף','תקרות','אלומיניום','קירות','סניטריה','נגרות','מסגרות'];
 /* a finishes row's CHG pill with the change's current status: muted and struck through unless approved (reopened / rejected) */
 function ExChgLinkPill({chg,onOpen}){const ok=chg.status==='approved'||chg.status==='approved_cond';const st=(EXEC_TYPES.change.statuses.find(s=>s.id===chg.status)||{}).label||chg.status;
 const num=React.createElement("span",{"data-i18n-skip":""},chg.number);
@@ -4368,40 +4391,38 @@ return row.image&&row.image.url?React.createElement("img",{className:"ex-sw",src
 row.colorHex?React.createElement("span",{className:"ex-sw",style:{background:row.colorHex},title:row.colorHex}):React.createElement("span",{className:"ex-sw ex-sw-none"});}
 function ExFinishesView({data,save,openRowId=null,onConsumeOpen}){
 const items=data.execItems||[];const all=data.finishes||[];const viewer=myOfficeRole()==='viewer';
-const[cat,setCat]=useState('all');const[edit,setEdit]=useState(null);const[openId,setOpenId]=useState(null);const panelGuard=useRef(null);
+const[zone,setZone]=useState('all');const[edit,setEdit]=useState(null);const[openId,setOpenId]=useState(null);const panelGuard=useRef(null);
 /* "פתח בלוח הגמרים" from a submittal (via TrackView): the panel already asked about an unsent reply */
-useEffect(()=>{if(!openRowId)return;const id=openRowId;onConsumeOpen&&onConsumeOpen();const r=(data.finishes||[]).find(x=>x.id===id);setOpenId(null);if(r){setCat('all');setEdit({row:r,isNew:false});}},[openRowId]);
-const cats=finishCategories(all);
-useEffect(()=>{if(cat!=='all'&&!cats.includes(cat))setCat('all');},[cats.join('|')]);
-/* grouped by category (first-appearance order, uncategorized last), otherwise in the order they were added */
-const ord=c=>{const i=cats.indexOf(String(c||'').trim());return i<0?cats.length:i;};
-const sorted=all.map((r,i)=>({r,i})).sort((a,b)=>ord(a.r.category)-ord(b.r.category)||a.i-b.i).map(x=>x.r);
+useEffect(()=>{if(!openRowId)return;const id=openRowId;onConsumeOpen&&onConsumeOpen();const r=(data.finishes||[]).find(x=>x.id===id);setOpenId(null);if(r){setZone('all');setEdit({row:r,isNew:false});}},[openRowId]);
 const[sorts,setSorts]=useExSort('fin');
 const finVal=(r,k)=>{const it=id=>id?items.find(i=>i.id===id):null;switch(k){case 'element':return r.element;case 'mfc':return [r.material,r.finish,r.color].map(x=>String(x||'').trim()).filter(Boolean).join(' · ');case 'supplier':return r.supplier;case 'approved':return finishStatus(r,items)==='approved'?(r.approvedAt||'0000'):null;case 'sub':{const s=it(r.submittalId);return s?s.seq:null;}case 'chg':{const c=it(r.changeId);return c?c.seq:null;}}};
-const rows=execSortRows(cat==='all'?sorted:sorted.filter(r=>String(r.category||'').trim()===cat),sorts,finVal);
+/* header sorts apply inside each zone › category group (finishGroups keeps the order it is given) */
+const rows=execSortRows(zone==='all'?all:all.filter(r=>finishZone(r)===zone),sorts,finVal);
+const zones=finishGroups(rows);
 const byId=id=>id?items.find(i=>i.id===id):null;
 const pending=all.filter(r=>finishStatus(r,items)==='pending').length;
-const count=c=>c==='all'?all.length:all.filter(r=>String(r.category||'').trim()===c).length;
+const count=z=>z==='all'?all.length:all.filter(r=>finishZone(r)===z).length;
 const now=new Date();const printDate=String(now.getDate()).padStart(2,'0')+'/'+String(now.getMonth()+1).padStart(2,'0')+'/'+now.getFullYear();
-const blank=()=>({id:uid(),category:cat!=='all'?cat:'',element:'',location:'',material:'',finish:'',color:'',colorHex:'',supplier:'',approvedAt:'',approvedBy:'',files:[],image:null,submittalId:null,changeId:null,specSection:'',discipline:'',notes:''});
+const blank=()=>({id:uid(),zone:zone!=='all'?zone:'interior',category:'',element:'',location:'',material:'',finish:'',color:'',colorHex:'',supplier:'',approvedAt:'',approvedBy:'',files:[],image:null,submittalId:null,changeId:null,specSection:'',discipline:'',notes:''});
 const stop=fn=>e=>{e.stopPropagation();fn();};
 return React.createElement("div",{className:"ex-wrap"},
 React.createElement("div",{className:"ex-tools"},
-React.createElement("div",{className:"ex-fchips",role:"group","aria-label":'קטגוריה'},
-React.createElement("button",{type:"button",className:"ex-fchip"+(cat==='all'?" on":""),"aria-pressed":cat==='all',onClick:()=>setCat('all')},'הכל',React.createElement("b",null,count('all'))),
-cats.map(c=>React.createElement("button",{key:c,type:"button",className:"ex-fchip"+(cat===c?" on":""),"aria-pressed":cat===c,onClick:()=>setCat(cur=>cur===c?'all':c)},React.createElement("span",{"data-i18n-skip":""},c),React.createElement("b",null,count(c))))),
+React.createElement("div",{className:"ex-fchips",role:"group","aria-label":'חוץ / פנים'},
+[{id:'all',label:'הכל'},...FINISH_ZONES].map(z=>React.createElement("button",{key:z.id,type:"button",className:"ex-fchip"+(zone===z.id?" on":""),"aria-pressed":zone===z.id,onClick:()=>setZone(cur=>cur===z.id&&z.id!=='all'?'all':z.id)},z.label,React.createElement("b",null,count(z.id))))),
 React.createElement("span",{className:"ex-sp"}),
 pending>0&&React.createElement("span",{className:"ex-fin-pend"},tx('{n} ממתינים לאישור',{n:pending})),
 React.createElement("button",{type:"button",className:"ex-btn",disabled:!rows.length,onClick:()=>window.print(),title:'הדפסה / שמירה כ־PDF של הטבלה המוצגת'},'ייצוא PDF'),
 !viewer&&React.createElement("button",{type:"button",className:"ex-btn ex-btn-pri",onClick:()=>setEdit({row:blank(),isNew:true})},'+ גמר')),
 React.createElement("div",{className:"ex-log ex-print-doc"},
 React.createElement("div",{className:"ex-print-only"},React.createElement("h2",{"data-i18n-skip":""},data.projectName||''),
-React.createElement("div",null,'לוח גמרים · ',cat==='all'?'הכל':React.createElement("span",{"data-i18n-skip":""},cat),' · '+printDate)),
+React.createElement("div",null,'לוח גמרים · ',zone==='all'?'הכל':(FINISH_ZONES.find(z=>z.id===zone)||{}).label,' · '+printDate)),
 rows.length?React.createElement("table",{className:"ex-table ex-fin-table"},
 exSortHead(EX_FIN_COLS,sorts,setSorts),
-React.createElement("tbody",null,rows.map(r=>{const st=finishStatus(r,items);const sub=byId(r.submittalId);const chg=byId(r.changeId);const rev=sub&&(sub.revisions||[]).slice(-1)[0];const files=r.files||[];
+zones.map(z=>React.createElement("tbody",{key:z.zone,className:"ex-fin-zone"},
+React.createElement("tr",{className:"ex-grp-zone"},React.createElement("td",{colSpan:EX_FIN_COLS.length},z.label,React.createElement("b",null,z.count))),
+z.groups.map(g=>[React.createElement("tr",{key:'h-'+g.category,className:"ex-grp-cat"},React.createElement("td",{colSpan:EX_FIN_COLS.length},g.category?React.createElement("span",{"data-i18n-skip":""},g.category):'ללא קטגוריה',React.createElement("b",null,g.rows.length))),...g.rows.map(r=>{const st=finishStatus(r,items);const sub=byId(r.submittalId);const chg=byId(r.changeId);const rev=sub&&(sub.revisions||[]).slice(-1)[0];const files=r.files||[];
 const mfc=[r.material,r.finish,r.color].map(x=>String(x||'').trim()).filter(Boolean).join(' · ');
-const where=[r.location,cat==='all'?r.category:''].map(x=>String(x||'').trim()).filter(Boolean).join(' · ');
+const where=String(r.location||'').trim();
 return React.createElement("tr",{key:r.id,className:edit&&edit.row.id===r.id?"on":"",onClick:()=>setEdit({row:r,isNew:false})},
 React.createElement("td",{className:"ex-sw-cell"},React.createElement(ExFinSwatch,{row:r})),
 React.createElement("td",null,React.createElement("div",{className:"ex-fin-el","data-i18n-skip":""},r.element||'—'),where&&React.createElement("span",{className:"ex-sub","data-i18n-skip":""},where)),
@@ -4410,15 +4431,15 @@ React.createElement("td",null,r.supplier?React.createElement("span",{"data-i18n-
 React.createElement("td",null,st==='approved'?React.createElement(React.Fragment,null,React.createElement("span",{className:"ex-nw"},r.approvedAt?exDdMm(r.approvedAt):'אושר'),r.approvedBy&&React.createElement("span",{className:"ex-sub","data-i18n-skip":""},r.approvedBy)):React.createElement("span",{className:"ex-fin-pend"},'ממתין לאישור')),
 React.createElement("td",null,files.length?React.createElement("span",{className:"ex-nw"},React.createElement("a",{className:"ex-fin-doc",href:files[0].url,target:"_blank",rel:"noopener","data-i18n-skip":"",title:files[0].name,onClick:e=>e.stopPropagation()},'📎 '+(files[0].name||tx('קובץ'))),files.length>1&&React.createElement("span",{className:"ex-muted ex-small"},' +'+(files.length-1))):React.createElement("span",{className:"ex-muted"},'—')),
 React.createElement("td",null,sub?React.createElement("button",{type:"button",className:"ex-pill ex-pill-submittal ex-pill-btn",title:tx('פתח את ההגשה'),onClick:stop(()=>setOpenId(sub.id))},React.createElement("span",{"data-i18n-skip":""},sub.number),rev?' · Rev '+rev.label:''):r.submittalId?React.createElement("span",{className:"ex-muted ex-small"},'ההגשה נמחקה'):React.createElement("span",{className:"ex-muted"},'—')),
-React.createElement("td",null,chg?React.createElement(ExChgLinkPill,{chg,onOpen:stop(()=>setOpenId(chg.id))}):r.changeId?React.createElement("span",{className:"ex-muted ex-small"},'השינוי נמחק'):React.createElement("span",{className:"ex-muted"},'—')));}))):
-React.createElement("div",{className:"ex-empty"},all.length?'אין שורות בקטגוריה הזו.':'אין עדיין שורות בלוח הגמרים. הוסף גמר ידנית, או מהגשה שאושרה (בחלון ההגשה: "הוסף ללוח הגמרים").')),
+React.createElement("td",null,chg?React.createElement(ExChgLinkPill,{chg,onOpen:stop(()=>setOpenId(chg.id))}):r.changeId?React.createElement("span",{className:"ex-muted ex-small"},'השינוי נמחק'):React.createElement("span",{className:"ex-muted"},'—')));})])))):
+React.createElement("div",{className:"ex-empty"},all.length?'אין שורות בחלק הזה.':'אין עדיין שורות בלוח הגמרים. הוסף גמר ידנית, או מהגשה שאושרה (בחלון ההגשה: "הוסף ללוח הגמרים").')),
 edit&&React.createElement(ExFinishDialog,{data:data,save:save,row:edit.row,isNew:edit.isNew,onClose:()=>setEdit(null)}),
 openId&&React.createElement(ExecItemPanel,{data:data,save:save,itemId:openId,guardRef:panelGuard,onClose:()=>setOpenId(null)}));}
 /* add / edit one finishes row (also opened over ExecItemPanel, prefilled by finishFromSubmittal). Uploads finish
    before the save, which reads the freshest doc from a ref. Viewers see the row read-only. */
 function ExFinishDialog({data,save,row,isNew,onClose}){
 const dataRef=useRef(data);dataRef.current=data;const ro=myOfficeRole()==='viewer';
-const[init]=useState(()=>({...row,files:row.files||[],image:row.image||null}));
+const[init]=useState(()=>({...row,zone:finishZone(row),category:finishCat(row),files:row.files||[],image:row.image||null}));
 const[d,setD]=useState(init);const set=(k,v)=>setD(x=>({...x,[k]:v}));
 const[busy,setBusy]=useState(0);const[err,setErr]=useState('');
 /* an upload error stays visible until the next pick (a later file in the same pick does not clear it) */const up=async f=>{setBusy(b=>b+1);try{return await uploadAttachment(f,f.name);}catch(e){setErr('הקובץ לא נשמר — '+(e.message||e));return null;}finally{setBusy(b=>b-1);}};
@@ -4427,9 +4448,9 @@ const addImage=async f=>{if(!f)return;setErr('');if(!/^image\//.test(f.type||'')
 const addDocs=async list=>{setErr('');for(const f of Array.from(list||[])){const url=await up(f);if(url)setD(x=>({...x,files:[...(x.files||[]),{id:uid(),url,name:f.name}]}));}};
 const items=data.execItems||[];const subs=items.filter(i=>i.type==='submittal');const chg=d.changeId?items.find(i=>i.id===d.changeId):null;
 const subGone=!!d.submittalId&&!subs.some(s=>s.id===d.submittalId);
-const cats=[...new Set([...finishCategories(data.finishes),...EX_FIN_DEFAULT_CATS])];
+const cats=[...new Set([...(FINISH_ZONES.find(z=>z.id===d.zone)||FINISH_ZONES[1]).cats,...(data.finishes||[]).filter(r=>finishZone(r)===d.zone).map(finishCat).filter(Boolean)])];
 const t=v=>String(v||'').trim();
-const clean=x=>({...x,category:t(x.category),element:t(x.element),location:t(x.location),material:t(x.material),finish:t(x.finish),color:t(x.color),supplier:t(x.supplier),approvedBy:t(x.approvedBy),notes:t(x.notes),submittalId:x.submittalId||null,changeId:x.changeId||null});
+const clean=x=>({...x,zone:x.zone==='exterior'?'exterior':'interior',category:t(x.category),element:t(x.element),location:t(x.location),material:t(x.material),finish:t(x.finish),color:t(x.color),supplier:t(x.supplier),approvedBy:t(x.approvedBy),notes:t(x.notes),submittalId:x.submittalId||null,changeId:x.changeId||null});
 const st=finishStatus(clean(d),items);
 const dirty=JSON.stringify(d)!==JSON.stringify(init);
 const ok=!ro&&!!t(d.element)&&!busy;
@@ -4450,8 +4471,9 @@ return ReactDOM.createPortal(React.createElement("div",{className:"ex-dlg-back e
 React.createElement("div",{className:"ex-dlg ex-dlg-wide",role:"dialog","aria-modal":"true"},
 React.createElement("div",{className:"ex-dlg-t"},isNew?'שורה חדשה בלוח הגמרים':ro?'שורה בלוח הגמרים':'עריכת שורה בלוח הגמרים',
 st==='approved'?React.createElement("span",{className:"ex-st ex-st-closed"},'מאושר'):React.createElement("span",{className:"ex-fin-pend"},'ממתין לאישור')),
+f('חוץ / פנים',React.createElement("div",{className:"ex-seg",role:"group",style:{display:'inline-flex'}},FINISH_ZONES.map(z=>React.createElement("button",{key:z.id,type:"button",disabled:ro,className:d.zone===z.id?"on":"","aria-pressed":d.zone===z.id,onClick:()=>set('zone',z.id)},z.label)))),
 React.createElement("div",{className:"ex-row2"},
-f('קטגוריה',inp('category','למשל ריצוף',{list:listId})),
+f('קטגוריה',inp('category','בחר או כתוב',{list:listId})),
 f('אלמנט *',inp('element','למשל ריצוף לובי',{autoFocus:isNew&&!d.element}))),
 f('מיקום',inp('location','קומה / חלל / חזית')),
 React.createElement("div",{className:"ex-row2"},f('חומר',inp('material','למשל גרניט פורצלן')),f('גמר',inp('finish','למשל מט / מלוטש')),f('גוון',inp('color','שם / קוד גוון'))),

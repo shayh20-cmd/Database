@@ -55,6 +55,13 @@ test('update a finishes row: material, colour, approval', async () => {
   assert.strictEqual(row.approvedAt, '2026-10-15');
   assert.strictEqual(row.supplier, 'נגב');
   await assert.rejects(call(SHAY, 'update_finish', { project: 'PH01', row: 'אין כזה' }), /No finishes row/);
+  const z = await call(SHAY, 'update_finish', { project: 'PH01', element: 'ריצוף רחבת כניסה', zone: 'חוץ', category: 'ריצוף' });
+  assert.strictEqual(z.row.zone, 'חוץ');
+  const a = await call(SHAY, 'update_finish', { project: 'PH01', element: 'מעקות', category: 'אלומיניום' });
+  assert.strictEqual(a.row.zone, 'פנים');
+  assert.strictEqual(a.row.category, 'אלומיניום וזכוכית');
+  const ext = await call(SHAY, 'list_finishes', { project: 'PH01', zone: 'exterior' });
+  assert.deepStrictEqual(ext.rows.map(r => r.element), ['ריצוף רחבת כניסה']);
 });
 
 test('RFI: open, answer passing the ball, close', async () => {

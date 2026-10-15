@@ -343,7 +343,7 @@ module.exports = function createMcp(ctx) {
     const html = fs.readFileSync(file, 'utf8');
     const m = html.match(/\/\* ═══ exec-logic ═══ \*\/([\s\S]*?)\/\* ═══ \/exec-logic ═══ \*\//);
     if (!m) throw new ToolError('could not read the execution logic from the page');
-    const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNewItem,execBumpSeq,execRespond,execAddRevision,execDecide,execDecideChange,execSetStatus,execWaiting,execBallDays,execPartyLabel,execAddWorkdays,finishStatus,finishFromSubmittal,finishNoteForChange,finishUnlinkItem};')(uid);
+    const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNewItem,execBumpSeq,execRespond,execAddRevision,execDecide,execDecideChange,execSetStatus,execWaiting,execBallDays,execPartyLabel,execAddWorkdays,finishStatus,finishFromSubmittal,finishNoteForChange,finishUnlinkItem,FINISH_ZONES,finishZone,finishCat};')(uid);
     const tr = html.match(/const EXEC_TRIAL_USERS = (\[[^\]]*\]);/);
     const due = html.match(/const EX_DUE_WORKDAYS=(\{[^}]*\});/);
     execLib = { mtime: st.mtimeMs, L, trial: tr ? Function('"use strict";return (' + tr[1] + ')')() : null, dueDays: due ? Function('"use strict";return (' + due[1] + ')')() : {} };
@@ -400,13 +400,13 @@ module.exports = function createMcp(ctx) {
     };
   }
   const execLinkOf = (base, projId, itemId) => `${base}/project_hub_01?project=${encodeURIComponent(projId)}&exec=${encodeURIComponent(itemId)}`;
-  const FINISH_FIELDS = { category: 'category', element: 'element', location: 'location', material: 'material', finish: 'finish', color: 'color', color_hex: 'colorHex', supplier: 'supplier', approved_at: 'approvedAt', approved_by: 'approvedBy', spec_section: 'specSection', notes: 'notes' };
+  const FINISH_FIELDS = { element: 'element', location: 'location', material: 'material', finish: 'finish', color: 'color', color_hex: 'colorHex', supplier: 'supplier', approved_at: 'approvedAt', approved_by: 'approvedBy', spec_section: 'specSection', notes: 'notes' };
   function finishBrief(doc, c, L, r) {
     const items = doc.execItems || [];
     const sub = r.submittalId ? items.find(i => i.id === r.submittalId) : null;
     const chg = r.changeId ? items.find(i => i.id === r.changeId) : null;
     return {
-      id: r.id, category: r.category || '', element: r.element || '', location: r.location || '', material: r.material || '', finish: r.finish || '',
+      id: r.id, zone: L.finishZone(r) === 'exterior' ? 'חוץ' : 'פנים', category: L.finishCat(r), element: r.element || '', location: r.location || '', material: r.material || '', finish: r.finish || '',
       color: r.color || '', color_hex: r.colorHex || undefined, supplier: r.supplier || '', approved_at: r.approvedAt || null, approved_by: r.approvedBy || undefined,
       status: L.finishStatus(r, items) === 'approved' ? 'מאושר' : 'ממתין לאישור',
       submittal: sub ? sub.number + ' (' + stLabel(L, sub) + ')' : undefined, change: chg ? chg.number + ' (' + stLabel(L, chg) + ')' : undefined,
@@ -424,6 +424,19 @@ module.exports = function createMcp(ctx) {
     const list = rows.slice(0, 15).map(r => r.id + ' ' + [r.element, r.location, r.material].filter(Boolean).join(' · ')).join(' | ');
     if (loose.length > 1) throw new ToolError(`"${ref}" matches ${loose.length} finishes rows; pass the row id. ` + loose.slice(0, 10).map(r => r.id + ' ' + [r.element, r.location, r.material].filter(Boolean).join(' · ')).join(' | '));
     throw new ToolError(`No finishes row "${ref}". Rows: ` + (list || 'none') + '. Use list_finishes.');
+  }
+  function pickZone(L, ref) {
+    const r = norm(ref);
+    const hit = L.FINISH_ZONES.find(z => z.id === r || norm(z.label) === r || bare(z.label).includes(bare(ref)));
+    if (!hit) throw new ToolError(`Unknown zone "${ref}". Zones: exterior (חוץ), interior (פנים)`);
+    return hit.id;
+  }
+  // a category the zone knows ("אלומיניום" → "אלומיניום וזכוכית"), else the text as given
+  function pickFinishCat(L, zone, ref) {
+    const t = String(ref || '').trim();
+    if (!t) return '';
+    const cats = (L.FINISH_ZONES.find(z => z.id === zone) || {}).cats || [];
+    return cats.find(c => bare(c) === bare(t)) || cats.find(c => bare(c).startsWith(bare(t))) || t;
   }
   const PARTY_SCHEMA = { type: 'object', properties: { party: { type: 'string', description: 'architect | contractor | supervisor | consultant (or אדריכל / קבלן / מפקח / יועץ)' }, name: { type: 'string', description: 'Person or company, e.g. the consultant\'s field' } }, required: ['party'], additionalProperties: false };
 
@@ -1083,15 +1096,16 @@ module.exports = function createMcp(ctx) {
       name: 'list_finishes',
       exec: true,
       title: 'Finishes schedule',
-      description: 'A project\'s approved finishes schedule (לוח גמרים): per row the element and location, material · finish · colour, supplier, approval date and status, and the linked submittal / change request. Row ids are for update_finish.',
-      inputSchema: { type: 'object', properties: { project: { type: 'string' }, category: { type: 'string' }, query: { type: 'string', description: 'Words in any column' } }, required: ['project'], additionalProperties: false },
+      description: 'A project\'s approved finishes schedule (לוח גמרים), split into exterior (גמרי חוץ) and interior (גמרי פנים) finishes, each by category: per row the element and location, material · finish · colour, supplier, approval date and status, and the linked submittal / change request. Row ids are for update_finish.',
+      inputSchema: { type: 'object', properties: { project: { type: 'string' }, zone: { type: 'string', description: 'exterior (חוץ) | interior (פנים)' }, category: { type: 'string' }, query: { type: 'string', description: 'Words in any column' } }, required: ['project'], additionalProperties: false },
       annotations: { readOnlyHint: true, openWorldHint: false },
       run(args, c) {
         const L = execGate(c.me);
         const p = findProject(c.me, c.reg, args.project);
         const doc = readJson(p.file);
         const text = r => [r.category, r.element, r.location, r.material, r.finish, r.color, r.supplier, r.notes, r.specSection].join(' ');
-        const rows = (doc.finishes || []).filter(r => (!args.category || bare(r.category).includes(bare(args.category))) && (!args.query || bare(text(r)).includes(bare(args.query))));
+        const zone = args.zone ? pickZone(L, args.zone) : null;
+        const rows = (doc.finishes || []).filter(r => (!zone || L.finishZone(r) === zone) && (!args.category || bare(L.finishCat(r)).includes(bare(args.category))) && (!args.query || bare(text(r)).includes(bare(args.query))));
         return { project: p.code + ' ' + p.name, count: rows.length, rows: rows.map(r => finishBrief(doc, c, L, r)) };
       }
     },
@@ -1106,7 +1120,8 @@ module.exports = function createMcp(ctx) {
           project: { type: 'string' },
           row: { type: 'string', description: 'Row id (from list_finishes) or words that identify one row; omit to add a row' },
           from_submittal: { type: 'string', description: 'New row only: the submittal number to fill it from' },
-          category: { type: 'string', description: 'e.g. חזיתות, ריצוף, תקרות, אלומיניום, קירות, סניטריה, נגרות, מסגרות' },
+          zone: { type: 'string', description: 'exterior (גמרי חוץ) | interior (גמרי פנים); a new row defaults to interior' },
+          category: { type: 'string', description: 'Exterior and interior: ריצוף, קירות, אלומיניום וזכוכית, תקרות, מסגרות. Interior only: נגרות, מחיצות קלות בשירותים, משטחים וכיורים, מעליות. Another name makes its own group.' },
           element: { type: 'string' }, location: { type: 'string' }, material: { type: 'string' }, finish: { type: 'string' },
           color: { type: 'string', description: 'Colour name / code, e.g. RAL 9016' },
           color_hex: { type: 'string', description: '#RRGGBB swatch' },
@@ -1139,8 +1154,12 @@ module.exports = function createMcp(ctx) {
               const dup = (doc.finishes || []).find(r => r.submittalId === s.id);
               if (dup) throw new ToolError(`${s.number} already has a finishes row (${dup.id} ${dup.element}); change that row instead`);
               row = L.finishFromSubmittal(s);
-            } else row = { id: uid(), category: '', element: '', location: '', material: '', finish: '', color: '', colorHex: '', supplier: '', approvedAt: '', approvedBy: '', files: [], image: null, submittalId: null, changeId: null, specSection: '', discipline: '', notes: '' };
+            } else row = { id: uid(), zone: 'interior', category: '', element: '', location: '', material: '', finish: '', color: '', colorHex: '', supplier: '', approvedAt: '', approvedBy: '', files: [], image: null, submittalId: null, changeId: null, specSection: '', discipline: '', notes: '' };
           } else row = { ...findFinish(doc, args.row) };
+          // a row from before the exterior / interior split is written in the new form
+          row.zone = L.finishZone(row); row.category = L.finishCat(row);
+          if (args.zone != null) row.zone = pickZone(L, args.zone);
+          if (args.category != null) row.category = pickFinishCat(L, row.zone, args.category);
           for (const [k, key] of Object.entries(FINISH_FIELDS)) if (args[k] != null) row[key] = String(args[k]).trim();
           if (args.discipline != null) row.discipline = args.discipline ? pickOption(projList(doc, 'disciplines', c.reg), args.discipline, 'discipline') : '';
           const link = (ref, type) => {
