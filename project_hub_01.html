@@ -10614,6 +10614,21 @@ try {
     }
   }
 } catch {}
+/* A link to one execution item (from the connector): ?project=&exec= — the execution track opens on it. */
+try {
+  const q = new URLSearchParams(location.search);
+  const ex = q.get('exec');
+  if (ex && !QUICK_MODE) {
+    const proj = q.get('project') || ACTIVE_PROJECT_ID;
+    sessionStorage.setItem('pm_pending_exec', JSON.stringify({ projId: proj, execItemId: ex }));
+    sessionStorage.setItem(PENDING_TRACK_KEY, 'execution');
+    history.replaceState(null, '', location.pathname);
+    if (proj !== ACTIVE_PROJECT_ID) {
+      localStorage.setItem(ACTIVE_PROJECT_KEY, proj);
+      location.reload();
+    }
+  }
+} catch {}
 const taskLinkOf = ref => ref && ref.personal ? '/project_hub_01?go=mytasks' : '/project_hub_01?project=' + encodeURIComponent(ref.projId) + '&sheet=' + encodeURIComponent(ref.sheetId) + '&task=' + encodeURIComponent(ref.taskId);
 try {
   const go = new URLSearchParams(location.search).get('go');
