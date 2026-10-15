@@ -331,6 +331,115 @@ module.exports = function createMcp(ctx) {
   }
   const putTask = (doc, sheetId, n) => { doc.sheets = doc.sheets.map(sh => sh.id === sheetId ? { ...sh, tasks: sh.tasks.map(x => x.id === n.id ? n : x) } : sh); };
 
+  /* ── the execution track (doc.execItems, doc.finishes), with the page's own exec-logic so
+     numbers, ball handoffs and statuses behave exactly as on the screen. In trial: only the
+     page's EXEC_TRIAL_USERS see these tools. ── */
+  let execLib = null;
+  function execLogic() {
+    const file = path.join(STATIC_ROOT, 'project_hub_01.html');
+    let st;
+    try { st = fs.statSync(file); } catch (e) { throw new ToolError('Project Hub page not found on the server'); }
+    if (execLib && execLib.mtime === st.mtimeMs) return execLib;
+    const html = fs.readFileSync(file, 'utf8');
+    const m = html.match(/\/\* ═══ exec-logic ═══ \*\/([\s\S]*?)\/\* ═══ \/exec-logic ═══ \*\//);
+    if (!m) throw new ToolError('could not read the execution logic from the page');
+    const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNewItem,execBumpSeq,execRespond,execAddRevision,execDecide,execDecideChange,execSetStatus,execWaiting,execBallDays,execPartyLabel,execAddWorkdays,finishStatus,finishFromSubmittal,finishNoteForChange,finishUnlinkItem,FINISH_ZONES,finishZone,finishCat};')(uid);
+    const tr = html.match(/const EXEC_TRIAL_USERS = (\[[^\]]*\]);/);
+    const due = html.match(/const EX_DUE_WORKDAYS=(\{[^}]*\});/);
+    execLib = { mtime: st.mtimeMs, L, trial: tr ? Function('"use strict";return (' + tr[1] + ')')() : null, dueDays: due ? Function('"use strict";return (' + due[1] + ')')() : {} };
+    return execLib;
+  }
+  // null trial list = the track is open to everyone
+  const canExec = me => { const t = execLogic().trial; return !t || t.includes(me.id); };
+  function execGate(me) { if (!canExec(me)) throw new ToolError('The execution track (מסלול ביצוע) is not open to you yet.'); return execLogic().L; }
+  const EXEC_TYPE_IDS = ['issue', 'rfi', 'submittal', 'change'];
+  function pickExecType(L, ref) {
+    if (!ref) return null;
+    const r = norm(ref);
+    const hit = EXEC_TYPE_IDS.find(k => k === r || norm(L.EXEC_TYPES[k].prefix) === r || norm(L.EXEC_TYPES[k].label) === r);
+    if (!hit) throw new ToolError(`Unknown item type "${ref}". Types: issue (ISS), rfi (RFI), submittal (SUB, הגשה), change (CHG, שינוי / ויתור)`);
+    return hit;
+  }
+  function pickParty(L, b, what) {
+    if (b == null) return null;
+    const o = typeof b === 'string' ? { party: b } : b;
+    const r = norm(o.party);
+    const hit = L.EXEC_PARTIES.find(p => p.id === r || norm(p.label) === r || bare(p.label) === bare(o.party));
+    if (!hit) throw new ToolError(`Unknown ${what || 'party'} "${o.party}". Parties: ` + L.EXEC_PARTIES.map(p => p.id + ' (' + p.label + ')').join(', '));
+    return { party: hit.id, name: String(o.name || '').trim() };
+  }
+  function pickExecStatus(L, type, ref) {
+    const sts = L.EXEC_TYPES[type].statuses;
+    const r = norm(ref);
+    const hit = sts.find(s => s.id === r) || sts.find(s => norm(s.label.replace(/⁠/g, '')) === r) || sts.find(s => bare(s.label.replace(/⁠/g, '')).startsWith(bare(ref)));
+    if (!hit) throw new ToolError(`Unknown status "${ref}" for ${L.EXEC_TYPES[type].label}. Statuses: ` + sts.map(s => s.id + ' (' + s.label.replace(/⁠/g, '') + ')').join(', '));
+    return hit.id;
+  }
+  function findExec(doc, ref, L) {
+    const items = doc.execItems || [];
+    const r = String(ref || '').trim();
+    const num = r.toUpperCase().replace(/\s+/g, '');
+    let hit = items.find(i => i.id === r) || items.find(i => i.number === num);
+    if (!hit) { const mm = num.match(/^([A-Z]+)-?(\d+)$/); if (mm) hit = items.find(i => L.EXEC_TYPES[i.type] && L.EXEC_TYPES[i.type].prefix === mm[1] && i.seq === +mm[2]); }
+    if (hit) return hit;
+    const loose = items.filter(i => r && bare(i.title).includes(bare(r)));
+    if (loose.length === 1) return loose[0];
+    if (loose.length > 1) throw new ToolError(`"${ref}" matches ${loose.length} items: ` + loose.slice(0, 10).map(i => i.number + ' ' + i.title).join(' | ') + '. Pass the number.');
+    throw new ToolError(`No execution item "${ref}" in this project. Use list_exec_items.`);
+  }
+  const stLabel = (L, it) => ((L.EXEC_TYPES[it.type].statuses.find(s => s.id === it.status) || {}).label || it.status).replace(/⁠/g, '');
+  const discLabel = (doc, c, id) => id ? ((projList(doc, 'disciplines', c.reg).find(o => o.id === id) || {}).label || id) : '';
+  function execBrief(doc, c, L, it, today) {
+    return {
+      id: it.id, number: it.number, type: it.type, title: it.title, status: stLabel(L, it), closed: L.execIsClosed(it),
+      ball: it.ball ? L.execPartyLabel(it.ball) : null, waiting_workdays: L.execWaiting(it, today) || 0,
+      due: it.dueDate || null, discipline: discLabel(doc, c, it.discipline) || undefined, spec_section: it.specSection || undefined,
+      opened_by: L.execPartyLabel(it.openedBy), created: String(it.createdAt || '').slice(0, 10),
+      ...(it.type === 'submittal' ? { round: ((it.revisions || []).slice(-1)[0] || {}).label } : {}),
+      ...(it.type === 'change' ? { tender_spec: it.tenderSpec, tender_ref: it.tenderRef || undefined, proposed: it.proposed, approved_text: it.approvedText || undefined } : {})
+    };
+  }
+  const execLinkOf = (base, projId, itemId) => `${base}/project_hub_01?project=${encodeURIComponent(projId)}&exec=${encodeURIComponent(itemId)}`;
+  const FINISH_FIELDS = { element: 'element', location: 'location', material: 'material', finish: 'finish', color: 'color', color_hex: 'colorHex', supplier: 'supplier', approved_at: 'approvedAt', approved_by: 'approvedBy', spec_section: 'specSection', notes: 'notes' };
+  function finishBrief(doc, c, L, r) {
+    const items = doc.execItems || [];
+    const sub = r.submittalId ? items.find(i => i.id === r.submittalId) : null;
+    const chg = r.changeId ? items.find(i => i.id === r.changeId) : null;
+    return {
+      id: r.id, zone: L.finishZone(r) === 'exterior' ? 'חוץ' : 'פנים', category: L.finishCat(r), element: r.element || '', location: r.location || '', material: r.material || '', finish: r.finish || '',
+      color: r.color || '', color_hex: r.colorHex || undefined, supplier: r.supplier || '', approved_at: r.approvedAt || null, approved_by: r.approvedBy || undefined,
+      status: L.finishStatus(r, items) === 'approved' ? 'מאושר' : 'ממתין לאישור',
+      submittal: sub ? sub.number + ' (' + stLabel(L, sub) + ')' : undefined, change: chg ? chg.number + ' (' + stLabel(L, chg) + ')' : undefined,
+      spec_section: r.specSection || undefined, discipline: discLabel(doc, c, r.discipline) || undefined, notes: r.notes || undefined,
+      files: (r.files || []).length || undefined, image: r.image ? true : undefined
+    };
+  }
+  function findFinish(doc, ref) {
+    const rows = doc.finishes || [];
+    const hit = rows.find(r => r.id === ref);
+    if (hit) return hit;
+    const text = r => [r.category, r.element, r.location, r.material, r.finish, r.color, r.supplier].join(' ');
+    const loose = rows.filter(r => ref && bare(text(r)).includes(bare(ref)));
+    if (loose.length === 1) return loose[0];
+    const list = rows.slice(0, 15).map(r => r.id + ' ' + [r.element, r.location, r.material].filter(Boolean).join(' · ')).join(' | ');
+    if (loose.length > 1) throw new ToolError(`"${ref}" matches ${loose.length} finishes rows; pass the row id. ` + loose.slice(0, 10).map(r => r.id + ' ' + [r.element, r.location, r.material].filter(Boolean).join(' · ')).join(' | '));
+    throw new ToolError(`No finishes row "${ref}". Rows: ` + (list || 'none') + '. Use list_finishes.');
+  }
+  function pickZone(L, ref) {
+    const r = norm(ref);
+    const hit = L.FINISH_ZONES.find(z => z.id === r || norm(z.label) === r || bare(z.label).includes(bare(ref)));
+    if (!hit) throw new ToolError(`Unknown zone "${ref}". Zones: exterior (חוץ), interior (פנים)`);
+    return hit.id;
+  }
+  // a category the zone knows ("אלומיניום" → "אלומיניום וזכוכית"), else the text as given
+  function pickFinishCat(L, zone, ref) {
+    const t = String(ref || '').trim();
+    if (!t) return '';
+    const cats = (L.FINISH_ZONES.find(z => z.id === zone) || {}).cats || [];
+    return cats.find(c => bare(c) === bare(t)) || cats.find(c => bare(c).startsWith(bare(t))) || t;
+  }
+  const PARTY_SCHEMA = { type: 'object', properties: { party: { type: 'string', description: 'architect | contractor | supervisor | consultant (or אדריכל / קבלן / מפקח / יועץ)' }, name: { type: 'string', description: 'Person or company, e.g. the consultant\'s field' } }, required: ['party'], additionalProperties: false };
+
   /* ── meetings, as the page's ישיבות screen keeps them ── */
   const ITEM_ACTIONS = { none: null, task: 'משימה', update: 'עדכון', subtask: 'תת-משימה', principle: 'עקרון תכנון', milestone: 'אבן דרך' };
   function findMeeting(doc, ref) {
@@ -774,6 +883,299 @@ module.exports = function createMcp(ctx) {
         });
         return { project: p.code + ' ' + p.name, meeting: { id: res.meeting.id, date: res.meeting.date, title: res.meeting.title }, items: res.items };
       }
+    },
+    {
+      name: 'list_exec_items',
+      exec: true,
+      title: 'Execution items',
+      description: 'The execution track (מסלול ביצוע) log of one project: Issues (ISS), RFIs, submittals (SUB, הגשות) and contractor change / waiver requests (CHG, ויתורים ושינויים) — number, status, who holds the ball and for how many working days. Open items only unless include_closed.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string' },
+          type: { type: 'string', description: 'issue | rfi | submittal | change; omit for all' },
+          query: { type: 'string', description: 'Words in the title or description' },
+          include_closed: { type: 'boolean' }
+        },
+        required: ['project'], additionalProperties: false
+      },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      run(args, c) {
+        const L = execGate(c.me);
+        const p = findProject(c.me, c.reg, args.project);
+        const doc = readJson(p.file);
+        const type = pickExecType(L, args.type);
+        const today = todayISO();
+        const items = (doc.execItems || []).filter(i => (!type || i.type === type) && (args.include_closed || !L.execIsClosed(i))
+          && (!args.query || bare(i.title + ' ' + i.description + ' ' + (i.tenderSpec || '') + ' ' + (i.proposed || '')).includes(bare(args.query))));
+        items.sort((a, b) => (L.execWaiting(b, today) - L.execWaiting(a, today)) || (a.seq - b.seq));
+        return { project: p.code + ' ' + p.name, today, count: items.length, items: items.map(i => execBrief(doc, c, L, i, today)) };
+      }
+    },
+    {
+      name: 'get_exec_item',
+      exec: true,
+      title: 'Execution item',
+      description: 'One execution item in full: description, the whole thread of replies (who wrote, who got the ball), submittal rounds (Rev A/B/C) with decisions, waiting days per party, linked tasks and finishes rows.',
+      inputSchema: { type: 'object', properties: { project: { type: 'string' }, item: { type: 'string', description: 'Number (RFI-004, SUB-2) or id' } }, required: ['project', 'item'], additionalProperties: false },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      run(args, c) {
+        const L = execGate(c.me);
+        const p = findProject(c.me, c.reg, args.project);
+        const doc = readJson(p.file);
+        const it = findExec(doc, args.item, L);
+        const today = todayISO();
+        return {
+          project: p.code + ' ' + p.name,
+          item: {
+            ...execBrief(doc, c, L, it, today), description: it.description,
+            thread: (it.responses || []).map(r => ({ at: String(r.at || '').slice(0, 10), kind: r.kind, by: L.execPartyLabel({ party: r.party, name: r.name }), text: r.body || undefined, ball_to: r.ballTo ? L.execPartyLabel(r.ballTo) : undefined, files: (r.files || []).length || undefined })),
+            rounds: it.type === 'submittal' ? (it.revisions || []).map(v => ({ rev: v.label, submitted: String(v.submittedAt || '').slice(0, 10), decision: v.decision ? stLabel(L, { type: 'submittal', status: v.decision }) : null, notes: v.notes || undefined, decided_by: v.decidedBy || undefined })) : undefined,
+            waiting_by_party: L.execBallDays(it, today).map(x => ({ party: L.execPartyLabel(x), workdays: x.days })),
+            finishes_rows: (doc.finishes || []).filter(r => r.submittalId === it.id || r.changeId === it.id).map(r => ({ id: r.id, element: r.element, material: r.material }))
+          },
+          link: execLinkOf(c.base, p.id, it.id)
+        };
+      }
+    },
+    {
+      name: 'create_exec_item',
+      exec: true,
+      title: 'Open an execution item',
+      description: 'Open a new Issue, RFI, submittal or contractor change / waiver request in a project\'s execution log. It gets the next official number. The office records every party\'s messages, so opened_by is who raised it (a contractor RFI is opened_by contractor). Confirm with the user before calling.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string' },
+          type: { type: 'string', description: 'issue | rfi | submittal | change' },
+          title: { type: 'string' },
+          description: { type: 'string', description: 'The question / problem / what is submitted' },
+          opened_by: PARTY_SCHEMA,
+          ball_to: { ...PARTY_SCHEMA, description: 'Who must act now; default the architect when another party opened it, else the contractor' },
+          due_date: { type: 'string', description: 'YYYY-MM-DD; default by type (RFI 7, submittal 10, change 7 working days)' },
+          discipline: { type: 'string', description: 'Discipline (תחום) from get_project' },
+          spec_section: { type: 'string', description: 'Spec / BOQ section' },
+          tender_spec: { type: 'string', description: 'change: what the tender specified' },
+          tender_ref: { type: 'string', description: 'change: tender clause' },
+          proposed: { type: 'string', description: 'change: what the contractor proposes instead' }
+        },
+        required: ['project', 'type', 'title'], additionalProperties: false
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      run(args, c) {
+        canWrite(c.me);
+        const L = execGate(c.me);
+        const p = findProject(c.me, c.reg, args.project);
+        const type = pickExecType(L, args.type);
+        checkDates(args.due_date);
+        const res = writeProject(p, c.me, doc => {
+          const openedBy = pickParty(L, args.opened_by || { party: type === 'issue' ? 'architect' : 'contractor' }, 'opened_by') ;
+          const ballTo = args.ball_to ? pickParty(L, args.ball_to, 'ball_to') : { party: openedBy.party === 'architect' ? 'contractor' : 'architect', name: '' };
+          const now = new Date().toISOString();
+          const dd = execLogic().dueDays[type];
+          const seqMap = doc.execSeq || {};
+          const it = {
+            ...L.execNewItem(doc.execItems || [], {
+              type, title: String(args.title).trim(), description: String(args.description || '').trim(), openedBy, ballTo,
+              dueDate: args.due_date || (dd ? L.execAddWorkdays(now.slice(0, 10), dd) : ''),
+              discipline: args.discipline ? pickOption(projList(doc, 'disciplines', c.reg), args.discipline, 'discipline') : '',
+              specSection: args.spec_section || '', source: { kind: 'claude' },
+              tenderSpec: args.tender_spec, tenderRef: args.tender_ref, proposed: args.proposed
+            }, now, seqMap),
+            createdById: c.me.id
+          };
+          doc.execItems = [...(doc.execItems || []), it];
+          doc.execSeq = L.execBumpSeq(seqMap, it);
+          return execBrief(doc, c, L, it, todayISO());
+        });
+        return { project: p.code + ' ' + p.name, created: res, link: execLinkOf(c.base, p.id, res.id) };
+      }
+    },
+    {
+      name: 'update_exec_item',
+      exec: true,
+      title: 'Update an execution item',
+      description: 'Record what happened on an execution item, the way the item panel does: a reply (optionally passing the ball), an RFI answer, closing or reopening, a manual status (Issue / RFI), a new submittal round, a decision on a submittal round or on a change request, and/or edits to its fields. Confirm with the user before calling.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string' },
+          item: { type: 'string', description: 'Number (RFI-004) or id' },
+          action: { type: 'string', enum: ['reply', 'answer', 'close', 'reopen', 'status', 'new_revision', 'decide'], description: 'reply: a message in the thread; answer: the official RFI answer; close / reopen; status: set an Issue / RFI status; new_revision: the contractor resubmits (next Rev); decide: the architect\'s decision on the current submittal round or on a change request. Omit to edit fields only.' },
+          text: { type: 'string', description: 'The message / answer / decision notes' },
+          by: { ...PARTY_SCHEMA, description: 'Who wrote it; default the architect (you)' },
+          ball_to: { ...PARTY_SCHEMA, description: 'reply / answer / reopen: who must act next' },
+          status: { type: 'string', description: 'action status: the new status (id or Hebrew label)' },
+          decision: { type: 'string', description: 'decide — submittal: approved | approved_notes | rejected; change: approved | approved_cond | rejected' },
+          approved_text: { type: 'string', description: 'decide on a change: what was approved in practice (default: what was proposed)' },
+          finish_row: { type: 'string', description: 'decide on an approved change: the finishes row it changes (id or words); it gets the change link and a "שונה לפי CHG-…" note' },
+          fields: {
+            type: 'object',
+            properties: {
+              title: { type: 'string' }, description: { type: 'string' }, due_date: { type: 'string' }, discipline: { type: 'string' }, spec_section: { type: 'string' },
+              tender_spec: { type: 'string' }, tender_ref: { type: 'string' }, proposed: { type: 'string' }
+            },
+            additionalProperties: false
+          }
+        },
+        required: ['project', 'item'], additionalProperties: false
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      run(args, c) {
+        canWrite(c.me);
+        const L = execGate(c.me);
+        const p = findProject(c.me, c.reg, args.project);
+        const f = args.fields || {};
+        checkDates(f.due_date);
+        const res = writeProject(p, c.me, doc => {
+          const cur = findExec(doc, args.item, L);
+          let it = { ...cur };
+          const by = args.by ? pickParty(L, args.by, 'by') : { party: 'architect', name: c.me.name };
+          const ballTo = args.ball_to ? pickParty(L, args.ball_to, 'ball_to') : null;
+          const text = String(args.text || '').trim();
+          const done = [];
+          // fields first, so a decision on a change uses the edited proposal
+          const set = (k, v, label) => { if (v != null && v !== it[k]) { it[k] = v; done.push(label); } };
+          if (f.title != null) set('title', String(f.title).trim(), 'כותרת');
+          if (f.description != null) set('description', String(f.description), 'תיאור');
+          if (f.due_date != null) set('dueDate', f.due_date, 'תאריך יעד');
+          if (f.discipline != null) set('discipline', f.discipline ? pickOption(projList(doc, 'disciplines', c.reg), f.discipline, 'discipline') : '', 'תחום');
+          if (f.spec_section != null) set('specSection', String(f.spec_section), 'סעיף מפרט');
+          if (it.type === 'change') {
+            if (f.tender_spec != null) set('tenderSpec', String(f.tender_spec), 'במכרז');
+            if (f.tender_ref != null) set('tenderRef', String(f.tender_ref), 'סעיף מכרז');
+            if (f.proposed != null) set('proposed', String(f.proposed), 'מוצע');
+          } else if (['tender_spec', 'tender_ref', 'proposed'].some(k => f[k] != null)) throw new ToolError('tender_spec / tender_ref / proposed belong to change requests only');
+          let finRow = null;
+          const a = args.action;
+          if (a === 'reply' || a === 'answer' || a === 'close' || a === 'reopen') {
+            if (a === 'answer' && it.type !== 'rfi') throw new ToolError('answer is for RFIs; use reply');
+            if (a === 'close' && (it.type === 'submittal' || it.type === 'change')) throw new ToolError(`A ${L.EXEC_TYPES[it.type].label} closes by a decision: use action decide`);
+            if (a === 'close' && L.execIsClosed(it)) throw new ToolError(it.number + ' is already closed');
+            if (a === 'reopen' && !L.execIsClosed(it)) throw new ToolError(it.number + ' is open');
+            if ((a === 'reply' || a === 'answer') && !text) throw new ToolError('A ' + a + ' needs text');
+            it = L.execRespond(it, { kind: a, party: by.party, name: by.name, body: text, ballTo: a === 'reopen' ? (ballTo || { party: 'architect', name: '' }) : ballTo }, new Date().toISOString());
+            done.push(a);
+          } else if (a === 'status') {
+            if (it.type === 'submittal' || it.type === 'change') throw new ToolError(`A ${L.EXEC_TYPES[it.type].label} moves by rounds and decisions, not a manual status`);
+            if (!args.status) throw new ToolError('Give the new status');
+            const next = L.execSetStatus(it, pickExecStatus(L, it.type, args.status), { name: c.me.name }, new Date().toISOString());
+            if (next !== it) { it = next; done.push('סטטוס'); }
+          } else if (a === 'new_revision') {
+            if (it.type !== 'submittal') throw new ToolError('new_revision is for submittals');
+            it = L.execAddRevision(it, { party: args.by ? by.party : 'contractor', name: args.by ? by.name : '', body: text }, new Date().toISOString());
+            done.push('סבב חדש');
+          } else if (a === 'decide') {
+            if (!args.decision) throw new ToolError('Give the decision');
+            if (it.type === 'submittal') {
+              const dec = pickExecStatus(L, 'submittal', args.decision);
+              if (dec === 'submitted') throw new ToolError('Decisions: approved, approved_notes, rejected');
+              const next = L.execDecide(it, { decision: dec, notes: text, name: c.me.name, ballTo }, new Date().toISOString());
+              if (next === it) throw new ToolError(`Rev ${((it.revisions || []).slice(-1)[0] || {}).label} of ${it.number} is already decided; a new decision needs a new round (new_revision)`);
+              it = next;
+            } else if (it.type === 'change') {
+              const dec = pickExecStatus(L, 'change', args.decision);
+              if (dec === 'requested' || dec === 'in_review') throw new ToolError('Decisions: approved, approved_cond, rejected');
+              if (dec !== 'approved' && !text) throw new ToolError('A conditional approval or a rejection needs notes (text)');
+              if (L.execIsClosed(it)) throw new ToolError(it.number + ' is already decided; reopen it first');
+              it = L.execDecideChange(it, { decision: dec, approvedText: String(args.approved_text || '').trim(), notes: text, name: c.me.name }, new Date().toISOString());
+              if (args.finish_row && dec !== 'rejected') finRow = findFinish(doc, args.finish_row);
+            } else throw new ToolError('decide is for submittals and change requests; Issues / RFIs close with action close');
+            done.push('החלטה');
+          } else if (a) throw new ToolError('Unknown action ' + a);
+          if (args.finish_row && !finRow) throw new ToolError('finish_row goes with deciding a change as approved / approved_cond');
+          if (!done.length) throw new ToolError('Nothing to change: give an action and/or fields');
+          doc.execItems = (doc.execItems || []).map(x => x.id === it.id ? it : x);
+          if (finRow) doc.finishes = doc.finishes.map(r => r.id === finRow.id ? { ...r, changeId: it.id, notes: L.finishNoteForChange(r.notes, it.number, it.approvedText) } : r);
+          return { item: execBrief(doc, c, L, it, todayISO()), changed: done, finish_row: finRow ? finRow.id : undefined };
+        });
+        return { project: p.code + ' ' + p.name, updated: res.item, changed: res.changed, finish_row: res.finish_row, link: execLinkOf(c.base, p.id, res.item.id) };
+      }
+    },
+    {
+      name: 'list_finishes',
+      exec: true,
+      title: 'Finishes schedule',
+      description: 'A project\'s approved finishes schedule (לוח גמרים), split into exterior (גמרי חוץ) and interior (גמרי פנים) finishes, each by category: per row the element and location, material · finish · colour, supplier, approval date and status, and the linked submittal / change request. Row ids are for update_finish.',
+      inputSchema: { type: 'object', properties: { project: { type: 'string' }, zone: { type: 'string', description: 'exterior (חוץ) | interior (פנים)' }, category: { type: 'string' }, query: { type: 'string', description: 'Words in any column' } }, required: ['project'], additionalProperties: false },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      run(args, c) {
+        const L = execGate(c.me);
+        const p = findProject(c.me, c.reg, args.project);
+        const doc = readJson(p.file);
+        const text = r => [r.category, r.element, r.location, r.material, r.finish, r.color, r.supplier, r.notes, r.specSection].join(' ');
+        const zone = args.zone ? pickZone(L, args.zone) : null;
+        const rows = (doc.finishes || []).filter(r => (!zone || L.finishZone(r) === zone) && (!args.category || bare(L.finishCat(r)).includes(bare(args.category))) && (!args.query || bare(text(r)).includes(bare(args.query))));
+        return { project: p.code + ' ' + p.name, count: rows.length, rows: rows.map(r => finishBrief(doc, c, L, r)) };
+      }
+    },
+    {
+      name: 'update_finish',
+      exec: true,
+      title: 'Add or change a finishes row',
+      description: 'Change a row in the finishes schedule (לוח גמרים) — material, finish, colour, supplier, approval date, notes, linked submittal or change — or add a new row (omit row). from_submittal fills a new row from an approved submittal\'s last decided round. Confirm with the user before calling. Images and signed documents are added on the screen.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string' },
+          row: { type: 'string', description: 'Row id (from list_finishes) or words that identify one row; omit to add a row' },
+          from_submittal: { type: 'string', description: 'New row only: the submittal number to fill it from' },
+          zone: { type: 'string', description: 'exterior (גמרי חוץ) | interior (גמרי פנים); a new row defaults to interior' },
+          category: { type: 'string', description: 'Exterior and interior: ריצוף, קירות, אלומיניום וזכוכית, תקרות, מסגרות. Interior only: נגרות, מחיצות קלות בשירותים, משטחים וכיורים, מעליות. Another name makes its own group.' },
+          element: { type: 'string' }, location: { type: 'string' }, material: { type: 'string' }, finish: { type: 'string' },
+          color: { type: 'string', description: 'Colour name / code, e.g. RAL 9016' },
+          color_hex: { type: 'string', description: '#RRGGBB swatch' },
+          supplier: { type: 'string' },
+          approved_at: { type: 'string', description: 'YYYY-MM-DD, or "" to clear' },
+          approved_by: { type: 'string' },
+          spec_section: { type: 'string' },
+          discipline: { type: 'string' },
+          notes: { type: 'string', description: 'Replaces the notes' },
+          submittal: { type: 'string', description: 'Link a submittal (number), or "" to unlink' },
+          change: { type: 'string', description: 'Link a change request (number), or "" to unlink' }
+        },
+        required: ['project'], additionalProperties: false
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      run(args, c) {
+        canWrite(c.me);
+        const L = execGate(c.me);
+        const p = findProject(c.me, c.reg, args.project);
+        if (args.approved_at) checkDates(args.approved_at);
+        if (args.color_hex && !/^#[0-9a-f]{6}$/i.test(args.color_hex)) throw new ToolError('color_hex is #RRGGBB');
+        const res = writeProject(p, c.me, doc => {
+          const isNew = !args.row;
+          if (!isNew && args.from_submittal) throw new ToolError('from_submittal is for a new row (omit row)');
+          let row;
+          if (isNew) {
+            if (args.from_submittal) {
+              const s = findExec(doc, args.from_submittal, L);
+              if (s.type !== 'submittal') throw new ToolError(s.number + ' is not a submittal');
+              const dup = (doc.finishes || []).find(r => r.submittalId === s.id);
+              if (dup) throw new ToolError(`${s.number} already has a finishes row (${dup.id} ${dup.element}); change that row instead`);
+              row = L.finishFromSubmittal(s);
+            } else row = { id: uid(), zone: 'interior', category: '', element: '', location: '', material: '', finish: '', color: '', colorHex: '', supplier: '', approvedAt: '', approvedBy: '', files: [], image: null, submittalId: null, changeId: null, specSection: '', discipline: '', notes: '' };
+          } else row = { ...findFinish(doc, args.row) };
+          // a row from before the exterior / interior split is written in the new form
+          row.zone = L.finishZone(row); row.category = L.finishCat(row);
+          if (args.zone != null) row.zone = pickZone(L, args.zone);
+          if (args.category != null) row.category = pickFinishCat(L, row.zone, args.category);
+          for (const [k, key] of Object.entries(FINISH_FIELDS)) if (args[k] != null) row[key] = String(args[k]).trim();
+          if (args.discipline != null) row.discipline = args.discipline ? pickOption(projList(doc, 'disciplines', c.reg), args.discipline, 'discipline') : '';
+          const link = (ref, type) => {
+            if (ref === '') return null;
+            const it = findExec(doc, ref, L);
+            if (it.type !== type) throw new ToolError(`${it.number} is not a ${type}`);
+            return it.id;
+          };
+          if (args.submittal != null) row.submittalId = link(args.submittal, 'submittal');
+          if (args.change != null) row.changeId = link(args.change, 'change');
+          if (![row.element, row.material, row.category].some(x => String(x || '').trim())) throw new ToolError('A finishes row needs at least an element, a material or a category');
+          doc.finishes = isNew ? [...(doc.finishes || []), row] : doc.finishes.map(r => r.id === row.id ? row : r);
+          return { row: finishBrief(doc, c, L, row), added: isNew };
+        });
+        return { project: p.code + ' ' + p.name, ...res };
+      }
     }
   ];
 
@@ -784,7 +1186,8 @@ module.exports = function createMcp(ctx) {
     'From meeting minutes or a summary: work out the project, then read every item and propose what each becomes — a new task, an update or subtask on an existing task (search_tasks first), a planning principle (עקרון תכנון), a milestone, or minutes only. Show a numbered table and let the user change and pick; then record it all with one create_meeting call (or add_meeting_items for a meeting already in Project Hub), so the minutes and everything made from them stay linked.',
     'Progress on an existing task is recorded as an update (update_task.add_update), not by editing the title. An update\'s owner is a discipline — who holds the ball after this step.',
     'Delete only when the user asked to delete: name the exact task (title, stage, id), get an explicit yes, then call delete_task with the id. Never delete to "clean up" on your own.',
-    'Dates are YYYY-MM-DD. Defaults: start today, due in 14 days. After writing, give the user the task links.'
+    'Dates are YYYY-MM-DD. Defaults: start today, due in 14 days. After writing, give the user the task links.',
+    'The execution track (מסלול ביצוע) is not tasks: Issues, RFIs, submittals (הגשות), contractor changes / waivers (ויתורים ושינויים) and the finishes schedule (לוח גמרים, חומרי גמר) have their own tools (list_exec_items, get_exec_item, create_exec_item, update_exec_item, list_finishes, update_finish) when the person has access. Read first, show what you will write, write after a yes.'
   ].join('\n');
 
   /* ── OAuth: storage ── */
@@ -999,7 +1402,7 @@ button.primary{background:#2563EB;border-color:#2563EB;color:#fff}.fine{font-siz
         });
       }
       case 'ping': return reply({});
-      case 'tools/list': return reply({ tools: TOOLS.map(({ run, ...t }) => t) });
+      case 'tools/list': return reply({ tools: TOOLS.filter(t => !t.exec || canExec(c.me)).map(({ run, exec, ...t }) => t) });
       case 'tools/call': {
         const name = msg.params && msg.params.name;
         const tool = TOOLS.find(t => t.name === name);
@@ -1066,5 +1469,5 @@ button.primary{background:#2563EB;border-color:#2563EB;color:#fff}.fine{font-siz
     try { authorize(req, res, url, user); } catch (e) { console.error('authorize', e); if (!res.headersSent) sendJson(res, 500, { error: 'server_error' }); }
   }
 
-  return { handlePublic, handleAuthorize, handleConnection, _test: { identify, projectsFor, projList, stagesOf, findStage, officeData } };
+  return { handlePublic, handleAuthorize, handleConnection, _test: { identify, projectsFor, projList, stagesOf, findStage, officeData, handleRpc } };
 };

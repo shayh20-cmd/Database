@@ -8,7 +8,7 @@ const m = html.match(/\/\* ═══ exec-logic ═══ \*\/([\s\S]*?)\/\* ═
 if (!m) throw new Error('exec-logic block not found in project_hub_01.html');
 let n = 0;
 const uid = () => 'x' + ++n;
-const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories,finishNoteForChange,finishUnlinkItem};')(uid);
+const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories,finishNoteForChange,finishUnlinkItem,execSortToggle,execSortRows,FINISH_ZONES,finishZone,finishCat,finishGroups};')(uid);
 
 const T0 = '2026-10-04T08:00:00.000Z'; // Sunday
 const mk = (over = {}) => L.execNewItem(over.items || [], { type: 'rfi', title: 'גובה תקרה', description: 'שאלה', openedBy: { party: 'contractor', name: 'דנה' }, ballTo: { party: 'architect', name: '' }, ...over }, T0);
@@ -194,7 +194,7 @@ test('ball history and links entries carry ids (merged per entry)', () => {
 });
 
 // ── Round 2: change requests and finishes ──
-const mkChg = (over = {}) => L.execNewItem(over.items || [], { type: 'change', title: 'ריצוף לובי', tenderSpec: 'אבן טבעית', tenderRef: '11.02.010', proposed: 'פורצלן 60/120', saving: '45000', openedBy: { party: 'contractor', name: 'דנה' }, ballTo: { party: 'architect', name: '' }, ...over }, T0);
+const mkChg = (over = {}) => L.execNewItem(over.items || [], { type: 'change', title: 'ריצוף לובי', tenderSpec: 'אבן טבעית', tenderRef: '11.02.010', proposed: 'פורצלן 60/120', openedBy: { party: 'contractor', name: 'דנה' }, ballTo: { party: 'architect', name: '' }, ...over }, T0);
 
 test('change: numbering CHG-001, fields, first status', () => {
   const c = mkChg();
@@ -203,12 +203,11 @@ test('change: numbering CHG-001, fields, first status', () => {
   assert.strictEqual(c.tenderSpec, 'אבן טבעית');
   assert.strictEqual(c.tenderRef, '11.02.010');
   assert.strictEqual(c.proposed, 'פורצלן 60/120');
-  assert.strictEqual(c.saving, 45000);
+  assert.ok(!('saving' in c));
   assert.strictEqual(c.approvedText, '');
   assert.deepStrictEqual(c.revisions, []);
-  const c2 = mkChg({ items: [c], saving: 'abc' });
+  const c2 = mkChg({ items: [c] });
   assert.strictEqual(c2.number, 'CHG-002');
-  assert.strictEqual(c2.saving, 0);
   const r = L.execNewItem([], { type: 'rfi', title: 'r' }, T0);
   assert.ok(!('tenderSpec' in r) && !('approvedText' in r));
 });
@@ -258,15 +257,15 @@ test('change: reopen → requested and clears approvedText', () => {
   assert.ok(!L.execIsClosed(c));
 });
 
-test('change summary sums savings; counts and log rows', () => {
-  const a = mkChg({ saving: 10000 });
-  const b = L.execDecideChange(mkChg({ items: [a], saving: 20000 }), { decision: 'approved' }, T0);
-  const c = L.execDecideChange(mkChg({ items: [a, b], saving: 30000 }), { decision: 'approved_cond', notes: 'x' }, T0);
-  const d = L.execDecideChange(mkChg({ items: [a, b, c], saving: 40000 }), { decision: 'rejected', notes: 'x' }, T0);
+test('change summary counts decisions; counts and log rows', () => {
+  const a = mkChg();
+  const b = L.execDecideChange(mkChg({ items: [a] }), { decision: 'approved' }, T0);
+  const c = L.execDecideChange(mkChg({ items: [a, b] }), { decision: 'approved_cond', notes: 'x' }, T0);
+  const d = L.execDecideChange(mkChg({ items: [a, b, c] }), { decision: 'rejected', notes: 'x' }, T0);
   const r = mk();
   const sum = L.execChangeSummary([a, b, c, d, r]);
-  assert.deepStrictEqual(sum, { count: 4, pending: 1, proposed: 100000, approved: 50000, rejected: 1, rejectedSum: 40000 });
-  assert.deepStrictEqual(L.execChangeSummary([]), { count: 0, pending: 0, proposed: 0, approved: 0, rejected: 0, rejectedSum: 0 });
+  assert.deepStrictEqual(sum, { count: 4, pending: 1, approved: 2, approvedCond: 1, rejected: 1 });
+  assert.deepStrictEqual(L.execChangeSummary([]), { count: 0, pending: 0, approved: 0, approvedCond: 0, rejected: 0 });
   assert.strictEqual(L.execLogRows([a, r], 'all', '2026-10-10').length, 2);
   assert.deepStrictEqual(L.execLogRows([a, r], 'change', '2026-10-10').map(i => i.id), [a.id]);
   assert.deepStrictEqual(L.execForMe([a], 's1', true).map(i => i.id), [a.id]);
@@ -351,4 +350,48 @@ test('finishUnlinkItem clears submittalId / changeId pointing at a deleted item'
   assert.strictEqual(out.count, 2);
   assert.strictEqual(out.rows[2], rows[2], 'untouched rows keep identity');
   assert.deepStrictEqual(L.finishUnlinkItem(null, 's1'), { rows: [], count: 0 });
+});
+
+test('header clicks build a sort hierarchy: add, flip, drop', () => {
+  let s = L.execSortToggle([], 'due');
+  assert.deepStrictEqual(s, [{ key: 'due', dir: 'asc' }]);
+  s = L.execSortToggle(s, 'ball');
+  assert.deepStrictEqual(s.map(x => x.key), ['due', 'ball']);
+  s = L.execSortToggle(s, 'due');
+  assert.deepStrictEqual(s, [{ key: 'due', dir: 'desc' }, { key: 'ball', dir: 'asc' }]);
+  s = L.execSortToggle(s, 'due');
+  assert.deepStrictEqual(s, [{ key: 'ball', dir: 'asc' }]);
+});
+
+test('multi-level sort: second key breaks ties, empties last both ways, stable otherwise', () => {
+  const rows = [{ id: 1, p: 'קבלן', d: '2026-10-20' }, { id: 2, p: 'אדריכל', d: '' }, { id: 3, p: 'קבלן', d: '2026-10-10' }, { id: 4, p: 'אדריכל', d: '2026-10-12' }];
+  const v = (r, k) => k === 'party' ? r.p : r.d;
+  assert.deepStrictEqual(L.execSortRows(rows, [{ key: 'party', dir: 'asc' }, { key: 'due', dir: 'asc' }], v).map(r => r.id), [4, 2, 3, 1]);
+  assert.deepStrictEqual(L.execSortRows(rows, [{ key: 'due', dir: 'desc' }], v).map(r => r.id), [1, 4, 3, 2]);
+  assert.deepStrictEqual(L.execSortRows(rows, [{ key: 'party', dir: 'desc' }], v).map(r => r.id), [1, 3, 2, 4]);
+  assert.strictEqual(L.execSortRows(rows, [], v), rows);
+  const nums = [{ n: 10 }, { n: 9 }, { n: null }, { n: 100 }];
+  assert.deepStrictEqual(L.execSortRows(nums, [{ key: 'n', dir: 'asc' }], r => r.n).map(r => r.n), [9, 10, 100, null]);
+});
+
+test('finishes: exterior / interior zones, legacy categories mapped', () => {
+  assert.strictEqual(L.finishZone({ zone: 'exterior', category: 'ריצוף' }), 'exterior');
+  assert.strictEqual(L.finishZone({ category: 'חזיתות' }), 'exterior');
+  assert.strictEqual(L.finishCat({ category: 'חזיתות' }), 'קירות');
+  assert.strictEqual(L.finishCat({ category: 'אלומיניום' }), 'אלומיניום וזכוכית');
+  assert.strictEqual(L.finishZone({ category: 'אלומיניום' }), 'interior');
+  assert.strictEqual(L.finishZone({ category: 'תאורה' }), 'interior');
+  assert.ok(!L.FINISH_ZONES[0].cats.includes('נגרות') && L.FINISH_ZONES[1].cats.includes('נגרות'));
+});
+
+test('finishGroups: zone order, the zone\'s categories first, others after, uncategorized last, input order kept', () => {
+  const rows = [
+    { id: 1, category: 'תאורה' }, { id: 2, zone: 'interior', category: 'ריצוף' }, { id: 3, category: 'חזיתות' },
+    { id: 4, zone: 'interior', category: '' }, { id: 5, zone: 'exterior', category: 'ריצוף' }, { id: 6, zone: 'interior', category: 'ריצוף' }
+  ];
+  const g = L.finishGroups(rows);
+  assert.deepStrictEqual(g.map(z => [z.zone, z.count]), [['exterior', 2], ['interior', 4]]);
+  assert.deepStrictEqual(g[0].groups.map(x => [x.category, x.rows.map(r => r.id)]), [['ריצוף', [5]], ['קירות', [3]]]);
+  assert.deepStrictEqual(g[1].groups.map(x => [x.category, x.rows.map(r => r.id)]), [['ריצוף', [2, 6]], ['תאורה', [1]], ['', [4]]]);
+  assert.deepStrictEqual(L.finishGroups([]), []);
 });
