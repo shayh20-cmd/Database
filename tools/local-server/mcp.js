@@ -234,7 +234,9 @@ module.exports = function createMcp(ctx) {
     const doc = readJson(proj.file);
     if (!doc || !doc.sheets) throw new ToolError('The project could not be read');
     const out = mutate(doc);
-    writeJsonAtomic(proj.file, { ...doc, _ts: Date.now(), _by: me.name + ' · Claude' });
+    const next = { ...doc, _ts: Date.now(), _by: me.name + ' · Claude' };
+    if (ctx.beforeProjectWrite) { try { ctx.beforeProjectWrite(proj.file, readJson(proj.file), next, me.name + ' (Claude)'); } catch (e) {} }
+    writeJsonAtomic(proj.file, next);
     return out;
   }
   const logEntry = (me, text) => ({ id: uid(), at: Date.now(), user: me.name + ' (Claude)', text });

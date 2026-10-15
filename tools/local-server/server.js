@@ -201,11 +201,52 @@ function versionOf(filePath) {
   }
 }
 
-async function handleApi(req, res, appName) {
-  return handleJsonFile(req, res, APPS[appName]);
+async function handleApi(req, res, appName, user) {
+  return handleJsonFile(req, res, APPS[appName], appName === 'project-hub-01' ? projectHook('ph01', APPS[appName], user) : null);
 }
 
-async function handleJsonFile(req, res, filePath) {
+/* A project's save first hands the old and new documents to the history (archive of
+   removed tasks, backups, large-removal log) — see history.js. */
+const { createHistory } = require('./history');
+const history = createHistory({ DATA_DIR, readJson, writeJsonAtomic });
+const projectIdOfFile = file => file === APPS['project-hub-01'] ? 'ph01' : path.basename(file, '.json');
+function projectHook(projId, filePath, user) {
+  return (oldDoc, newDoc) => history.beforeSave(projId, filePath, oldDoc, newDoc, user && user.name);
+}
+const fileOfProject = id => id === 'ph01' ? APPS['project-hub-01'] : path.join(PROJECTS_DIR, id + '.json');
+
+/* /api/archive/<project>            GET  the removed tasks, newest first
+   /api/archive/<project>/purge      POST {ids} — gone for good
+   /api/backups/<project>            GET  the backups kept
+   /api/backups/<project>/<name>     GET  one backup */
+const ARCHIVE_ROUTE = /^\/api\/archive\/([a-z0-9]{4,24})(\/purge)?$/;
+const BACKUPS_ROUTE = /^\/api\/backups\/([a-z0-9]{4,24})(?:\/([A-Za-z0-9-]+\.json))?$/;
+async function handleArchive(req, res, m) {
+  const projId = m[1];
+  if (!fs.existsSync(fileOfProject(projId))) { sendJson(res, 404, { error: 'No such project' }); return; }
+  if (!m[2] && req.method === 'GET') {
+    sendJson(res, 200, { items: history.readArchive(projId).slice().reverse() });
+    return;
+  }
+  if (m[2] && req.method === 'POST') {
+    const body = JSON.parse((await readRequestBody(req)) || '{}');
+    const ids = Array.isArray(body.ids) ? body.ids.map(String) : [];
+    sendJson(res, 200, { ok: true, purged: history.purge(projId, ids) });
+    return;
+  }
+  sendJson(res, 405, { error: 'Method not allowed' });
+}
+function handleBackups(req, res, m) {
+  if (req.method !== 'GET') { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+  const projId = m[1];
+  if (!m[2]) { sendJson(res, 200, { backups: history.listBackups(projId).reverse() }); return; }
+  const file = path.join(history.BACKUP_DIR, projId, m[2]);
+  if (!fs.existsSync(file)) { sendJson(res, 404, { error: 'Not found' }); return; }
+  res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': 'attachment; filename="' + projId + '-' + m[2] + '"', 'Cache-Control': 'no-store' });
+  fs.createReadStream(file).pipe(res);
+}
+
+async function handleJsonFile(req, res, filePath, beforeWrite = null) {
   if (req.method === 'GET') {
     const version = versionOf(filePath);
     if (req.headers['if-none-match'] === version) { res.writeHead(304, { ETag: version }); res.end(); return; }
@@ -221,6 +262,7 @@ async function handleJsonFile(req, res, filePath) {
       const ifMatch = req.headers['if-match'];
       const current = versionOf(filePath);
       if (ifMatch && ifMatch !== current) { sendJson(res, 412, { ok: false, error: 'stale', version: current }); return; }
+      if (beforeWrite) { try { beforeWrite(readJson(filePath), data); } catch (e) { console.error('history:', e.message); } }
       writeJsonAtomic(filePath, data);
       const version = versionOf(filePath);
       res.setHeader('ETag', version);
@@ -357,7 +399,8 @@ function serveGzipped(req, res, pathname) {
 /* Project Hub as a Claude connector (MCP + OAuth); see mcp.js. */
 const mcp = require('./mcp')({
   DATA_DIR, STATIC_ROOT, SITE_MODE, APPS, PROJECTS_DIR, LOCAL_USER_NAME,
-  readJson, writeJsonAtomic, sendJson, readRequestBody
+  readJson, writeJsonAtomic, sendJson, readRequestBody,
+  beforeProjectWrite: (file, oldDoc, newDoc, who) => history.beforeSave(projectIdOfFile(file), file, oldDoc, newDoc, who)
 });
 
 const server = http.createServer((req, res) => {
@@ -423,12 +466,17 @@ const server = http.createServer((req, res) => {
   }
   const projMatch = url.pathname.match(PROJECT_ROUTE);
   if (projMatch) {
-    handleJsonFile(req, res, path.join(PROJECTS_DIR, projMatch[1] + '.json')).catch(e => sendJson(res, 500, { error: e.message }));
+    const file = path.join(PROJECTS_DIR, projMatch[1] + '.json');
+    handleJsonFile(req, res, file, projectHook(projMatch[1], file, user)).catch(e => sendJson(res, 500, { error: e.message }));
     return;
   }
+  const arcMatch = url.pathname.match(ARCHIVE_ROUTE);
+  if (arcMatch) { handleArchive(req, res, arcMatch).catch(e => sendJson(res, 500, { error: e.message })); return; }
+  const bakMatch = url.pathname.match(BACKUPS_ROUTE);
+  if (bakMatch) { handleBackups(req, res, bakMatch); return; }
   const apiMatch = url.pathname.match(API_ROUTE);
   if (apiMatch) {
-    handleApi(req, res, apiMatch[1]).catch(e => sendJson(res, 500, { error: e.message }));
+    handleApi(req, res, apiMatch[1], user).catch(e => sendJson(res, 500, { error: e.message }));
     return;
   }
   const attMatch = url.pathname.match(ATTACH_ROUTE);
