@@ -20,6 +20,7 @@ const OFFICE_STAFF=[{id:'st01',name:'דנה',email:'dana@kkarc.com'},{id:'st02',
 const DEFAULT_OFFICE_ROLES = {
   st01: 'superadmin'
 };
+/* ═══ exec-logic ═══ */var EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNewItem,execBumpSeq,execRespond,execAddRevision,execDecide,execDecideChange,execSetStatus,execWaiting,execBallDays,execPartyLabel,execAddWorkdays,finishStatus,finishFromSubmittal,finishNoteForChange,finishUnlinkItem,FINISH_ZONES,finishZone,finishCat;/* ═══ /exec-logic ═══ */
 </script>`;
 
 function makeSite() {
@@ -36,6 +37,7 @@ function makeSite() {
   fs.writeFileSync(path.join(data, 'project_hub_01.json'), JSON.stringify({ projectName: 'PH01', sheets: [], tracks: [], team: [] }));
   fs.writeFileSync(path.join(data, 'projects', 'pabc123.json'), JSON.stringify({
     projectName: 'מגרש 4021',
+    finishes: [{ id: 'f1', zone: 'interior', category: 'ריצוף', element: 'ריצוף לובי', material: 'גרניט פורצלן', files: [], image: null }],
     team: [{ staffId: 'st01' }, { staffId: 'st02' }],
     listPrefs: { priorities: { hidden: ['medium'], order: [] } },
     tracks: [{ id: 'ongoing', label: 'מסלול תכנון', stageOrder: ['home'] }, { id: 'licensing', label: 'מסלול רישוי', trackValue: 'licensing', stageOrder: ['tik'] }],
@@ -232,4 +234,63 @@ test('connector: a person sees their own connection and can disconnect it', asyn
   assert.strictEqual(r.revoked, 2, 'access and refresh token');
   assert.strictEqual((await status('dana@kkarc.com')).connected, false);
   await assert.rejects(dana('list_projects', {}), 'the old token no longer works');
+});
+
+test('connector: attach_file gives a link where a photo or file is added to a task or a finishes row', async (t) => {
+  const port = 3989;
+  const base = 'http://127.0.0.1:' + port;
+  const { root, data } = makeSite();
+  const proc = spawn('node', [SERVER, root, '--port', String(port)], { stdio: 'ignore', env: { ...process.env, SITE_MODE: 'cloud', WEBSITE_AUTH_ENABLED: 'true', DATA_DIR: data } });
+  t.after(() => proc.kill());
+  for (let i = 0; i < 50; i++) { try { await fetch(base + '/health'); break; } catch { await wait(100); } }
+  const doc = () => JSON.parse(fs.readFileSync(path.join(data, 'projects', 'pabc123.json'), 'utf8'));
+  const PNG = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d4944415478da63f8ffff3f0005fe02fea7d6a4c40000000049454e44ae426082', 'hex');
+  const local = link => link.replace('https://127.0.0.1:' + port, base);
+
+  const dana = await signIn(base, 'dana@kkarc.com');
+  assert.match((await dana('attach_file', { project: 'LDPB' })).error, /either task or finish_row/);
+  let r = await dana('attach_file', { project: 'LDPB', task: 'תאום חשמל' });
+  assert.ifError(r.error);
+  assert.match(r.out.upload_link, /^https:\/\/127\.0\.0\.1:3989\/attach\?t=/);
+  const link = local(r.out.upload_link);
+  const api = link.replace('/attach?', '/api/attach?');
+
+  // the page and its info need only the link, not a Microsoft session (the phone may have none)
+  const page = await fetch(link);
+  assert.strictEqual(page.status, 200);
+  assert.match(await page.text(), /capture="environment"/);
+  const info = await (await fetch(api)).json();
+  assert.deepStrictEqual([info.kind, info.label, info.project], ['task', 'תיאום חשמל', 'LDPB מגרש 4021']);
+  assert.strictEqual((await fetch(base + '/api/attach?t=nope')).status, 410);
+
+  let up = await fetch(api + '&name=' + encodeURIComponent('תמונה.png'), { method: 'POST', headers: { 'Content-Type': 'image/png' }, body: PNG });
+  assert.strictEqual(up.status, 200);
+  const att = doc().sheets[0].tasks[0].attachments;
+  assert.strictEqual(att.length, 1);
+  assert.strictEqual(att[0].name, 'תמונה.png');
+  assert.match(att[0].url, /^\/data\/attachments\/project-hub-01\/[a-z0-9-]+\.png$/);
+  assert.match(doc().sheets[0].tasks[0].activityLog.slice(-1)[0].text, /צורף קובץ/);
+  // the stored file is served to a signed-in person
+  const got = await fetch(base + att[0].url, { headers: { 'x-ms-client-principal': principal('dana@kkarc.com') } });
+  assert.deepStrictEqual(Buffer.from(await got.arrayBuffer()), PNG);
+  assert.strictEqual((await fetch(api + '&name=x.exe', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: 'MZ' })).status, 415);
+  up = await fetch(api + '&name=spec.pdf', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: '%PDF-1.4' });
+  assert.strictEqual(up.status, 200);
+  assert.strictEqual(doc().sheets[0].tasks[0].attachments[1].type, 'application/pdf');
+
+  // finishes row: the first photo becomes the image, the rest go to its documents
+  r = await dana('attach_file', { project: 'LDPB', finish_row: 'ריצוף לובי' });
+  assert.ifError(r.error);
+  const fapi = local(r.out.upload_link).replace('/attach?', '/api/attach?');
+  assert.strictEqual((await (await fetch(fapi + '&name=a.png', { method: 'POST', headers: { 'Content-Type': 'image/png' }, body: PNG })).json()).as, 'image');
+  assert.strictEqual((await (await fetch(fapi + '&name=b.png', { method: 'POST', headers: { 'Content-Type': 'image/png' }, body: PNG })).json()).as, 'file');
+  const row = doc().finishes[0];
+  assert.strictEqual(row.image.name, 'a.png');
+  assert.deepStrictEqual(row.files.map(f => f.name), ['b.png']);
+
+  // a viewer gets no link; disconnecting Claude ends the links made through it
+  const yoav = await signIn(base, 'yoav@kkarc.com');
+  assert.match((await yoav('attach_file', { project: 'LDPB', task: 't1' })).error, /viewer/);
+  await fetch(base + '/api/claude-connection/revoke', { method: 'POST', headers: { 'x-ms-client-principal': principal('dana@kkarc.com') } });
+  assert.strictEqual((await fetch(api)).status, 410);
 });
