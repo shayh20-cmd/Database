@@ -1,11 +1,15 @@
 ﻿<# Project Hub — mail scan (pilot). Reads the messages that reached classic Outlook's Inbox since the
    last run and sends them to Project Hub, where Claude suggests tasks; the suggestions wait at the top of
-   "המשימות שלי". Run by the "Project Hub mail scan" scheduled task (Install-MailScan.ps1).
+   "המשימות שלי". Run by the "Project Hub mail scan" scheduled task (Install-MailScan.ps1) every 15 minutes;
+   each run scans only when one of the person's scan hours (Settings ← סריקת מייל) has passed since the last scan.
+   -Now scans right away (the Hub button and the Start menu shortcut) and says so when nothing is new.
    -DryRun lists what would be sent and changes nothing.
-   Spec: docs/superpowers/specs/2026-10-20-mail-task-suggestions-design.md
+   Spec: docs/superpowers/specs/2026-10-20-mail-task-suggestions-design.md,
+         docs/superpowers/specs/2026-10-21-mail-scan-schedule-contract.md
    Saved as UTF-8 with BOM: Windows PowerShell 5.1 reads the Hebrew below only that way. #>
 param(
   [switch]$DryRun,
+  [switch]$Now,
   [string]$Hub = 'https://kkarc-hub.azurewebsites.net'
 )
 $ErrorActionPreference = 'Stop'
@@ -129,9 +133,38 @@ function Show-Popup([string]$head, [string[]]$lines, [string]$url, [switch]$butt
   } catch { Write-Log "popup failed: $($_.Exception.Message)" }
 }
 
+# a schedule from the server or the state file -> @{ days = int[]; times = 'HH:MM'[] }, or $null if it is not one.
+# ConvertFrom-Json gives PSCustomObjects and loosely typed arrays; this makes them plain again.
+function ConvertTo-Schedule($j) {
+  if (-not $j -or $null -eq $j.days -or $null -eq $j.times) { return $null }
+  $days = @(@($j.days) | Where-Object { $null -ne $_ -and "$_" -match '^[0-6]$' } | ForEach-Object { [int]"$_" } | Sort-Object -Unique)
+  $times = @(@($j.times) | Where-Object { "$_" -match '^\d{1,2}:\d{2}$' } | ForEach-Object { $h, $m = "$_".Split(':'); '{0:00}:{1:00}' -f [int]$h, [int]$m } | Sort-Object -Unique)
+  return @{ days = $days; times = $times }
+}
+$DefaultSchedule = @{ days = @(0, 1, 2, 3, 4); times = @('08:00', '12:00', '16:00') }
+
+# The latest scan slot (a listed day at a listed time, local clock) at or before $now, looking back 7 days;
+# $null when there is none (no days or no times = manual scans only). Pure, so it can be tested on its own.
+function Get-LastSlot($schedule, [datetime]$now) {
+  if (-not $schedule) { return $null }
+  $days = @($schedule.days | ForEach-Object { [int]$_ })
+  $times = @($schedule.times | ForEach-Object { [timespan]::Parse([string]$_) } | Sort-Object -Descending)
+  if ($days.Count -eq 0 -or $times.Count -eq 0) { return $null }
+  for ($d = 0; $d -le 7; $d++) {
+    $day = $now.Date.AddDays(-$d)
+    if ($days -notcontains [int]$day.DayOfWeek) { continue }
+    foreach ($t in $times) {
+      $slot = $day.Add($t)
+      if ($slot -le $now) { return $slot }
+    }
+  }
+  return $null
+}
+
 function Read-State {
   # keyAlerted / noKeyAlerted: the key alerts were already shown, so they are not repeated every run
-  $s = @{ since = (Get-Date).AddDays(-2).ToString('o'); failures = 0; keyAlerted = $false; noKeyAlerted = $false }
+  # schedule: the last one fetched from the server, used when it can't be reached. lastScan: the last completed scan.
+  $s = @{ since = (Get-Date).AddDays(-2).ToString('o'); failures = 0; keyAlerted = $false; noKeyAlerted = $false; schedule = $null; lastScan = $null }
   if (Test-Path $stateFile) {
     try {
       $j = Get-Content $stateFile -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -139,11 +172,22 @@ function Read-State {
       $s.failures = [int]$j.failures
       $s.keyAlerted = [bool]$j.keyAlerted
       $s.noKeyAlerted = [bool]$j.noKeyAlerted
+      $s.schedule = ConvertTo-Schedule $j.schedule
+      if ($j.lastScan) { $s.lastScan = [string]$j.lastScan }
     } catch { }
   }
   return $s
 }
-function Save-State($s) { if (-not $DryRun) { $s | ConvertTo-Json | Set-Content -Path $stateFile -Encoding UTF8 } }
+function Save-State($s) { if (-not $DryRun) { $s | ConvertTo-Json -Depth 5 | Set-Content -Path $stateFile -Encoding UTF8 } }
+
+# a scan that reached the server (also "nothing new"): remember it, tell the server, and answer a manual scan
+$shownNew = $false
+function Complete-Scan {
+  $state.lastScan = (Get-Date).ToString('o'); Save-State $state
+  try { $null = Invoke-RestMethod -Method Post -Uri "$Hub/api/mail-intake/ran" -Headers @{ Authorization = "Bearer $key" } -TimeoutSec 20 }
+  catch { Write-Log "ran: $($_.Exception.Message)" }
+  if ($Now -and -not $script:shownNew) { Show-Toast $Title 'הסריקה הסתיימה. אין הצעות חדשות.' '' }
+}
 
 # the key is stored with DPAPI: readable only by this Windows user on this computer
 function Get-Key {
@@ -177,6 +221,27 @@ if (-not $key -and -not $DryRun) {
   Stop-Scan 1
 }
 if ($key) { $state.noKeyAlerted = $false }
+
+# The task runs every 15 minutes; scan only when a scan hour has passed since the last scan. Decided before
+# Outlook is touched, and quietly (no log line), since most runs end here.
+if (-not $Now -and -not $DryRun) {
+  $sched = $null
+  try {
+    $r = Invoke-RestMethod -Uri "$Hub/api/mail-intake/schedule" -Headers @{ Authorization = "Bearer $key" } -TimeoutSec 20
+    $sched = ConvertTo-Schedule $r.schedule
+    if ($sched) { $state.schedule = $sched; Save-State $state }
+  } catch { }
+  if (-not $sched) { $sched = $state.schedule }
+  if (-not $sched) { $sched = $DefaultSchedule }
+  $slot = Get-LastSlot $sched (Get-Date)
+  $due = $false
+  if ($slot) {
+    $prev = $null
+    if ($state.lastScan) { try { $prev = [datetime]::Parse($state.lastScan) } catch { } }
+    $due = (-not $prev) -or ($prev -lt $slot)
+  }
+  if (-not $due) { Stop-Scan 0 }
+}
 
 try {
   $ol = New-Object -ComObject Outlook.Application
@@ -237,6 +302,7 @@ if ($DryRun) {
 if ($mails.Count -eq 0) {
   $state.since = $last.ToString('o'); $state.failures = 0; Save-State $state
   Write-Log 'nothing new'
+  Complete-Scan
   Stop-Scan 0
 }
 
@@ -280,7 +346,9 @@ if ($accepted -gt 0) {
       # the small suggestions window, through the link Install-MailScan.ps1 registers; else the whole app
       $open = if (Test-Path 'HKCU:\Software\Classes\projecthub-mail') { 'projecthub-mail:open' } else { "$Hub/project_hub_01?view=mail" }
       Show-Toast ('Project Hub · {0} הצעות מהמייל' -f $s.new) $lines $open -buttons
+      $shownNew = $true
     }
   } catch { Write-Log "status: $($_.Exception.Message)" }
 }
+Complete-Scan
 Stop-Scan 0
