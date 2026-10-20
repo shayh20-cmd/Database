@@ -2972,7 +2972,20 @@ Object.assign(HE_EN, {
 "אחר כך": "Later",
 "{n} הצעות חדשות מהמייל": "{n} new suggestions from mail",
 "אין הצעות חדשות מהמייל.": "No new suggestions from mail.",
-"PROJECT HUB · הצעות מהמייל": "PROJECT HUB · Suggestions from mail"
+"PROJECT HUB · הצעות מהמייל": "PROJECT HUB · Suggestions from mail",
+"נסרק לאחרונה: {w}": "Last scanned: {w}",
+"סרוק עכשיו": "Scan now",
+"הסריקה התחילה במחשב שלך. אם לא קורה כלום — הסורק לא מותקן במחשב הזה.": "The scan has started on your computer. If nothing happens, the scanner isn't installed on this computer.",
+"מתי לסרוק": "When to scan",
+"ימי סריקה": "Scan days",
+"שעות סריקה": "Scan times",
+"הסר {t}": "Remove {t}",
+"הוסף שעה": "Add time",
+"השעות לפי השעון של המחשב שסורק. בלי ימים או בלי שעות — סורקים רק ידנית.": "Times follow the clock of the computer that scans. With no days or no times, scans are manual only.",
+"נסרק לאחרונה: {l} · הסריקה הבאה: {n}": "Last scanned: {l} · Next scan: {n}",
+"אין סריקות אוטומטיות": "no automatic scans",
+"היום {t}": "today at {t}",
+"מחר {t}": "tomorrow at {t}"
 });
 
 window.I18N_HE_EN = HE_EN;

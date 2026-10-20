@@ -2258,6 +2258,20 @@ html[dir="ltr"] .hw-resize{cursor:nwse-resize;background:linear-gradient(-45deg,
 .mail-sug-foot{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text-3);border-top:1px solid var(--border);padding-top:8px;margin-top:6px}
 .mail-sug-err{color:#b91c1c;font-size:12px}
 .mail-sug-empty{font-size:13px;color:var(--text-3);padding:12px 0}
+.mail-sug-note{font-size:12px;color:var(--text-2);margin-block-start:6px}
+.qa-sched{display:flex;flex-direction:column;gap:8px;border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:10px 12px;margin-block:4px}
+.qa-sub{font-size:14px;font-weight:700;margin:0;display:flex;gap:10px;align-items:baseline}
+.qa-saved{font-size:12px;font-weight:400;color:#15803d}
+.qa-sched-lbl{font-size:12px;color:var(--text-3)}
+.qa-sched-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.qa-day{all:unset;box-sizing:border-box;cursor:pointer;min-inline-size:32px;block-size:32px;padding-inline:6px;border-radius:999px;border:1px solid var(--border);background:var(--bg);color:var(--text-2);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:600}
+.qa-day.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.qa-day:focus-visible,.qa-time-x:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.qa-time-chip{display:inline-flex;align-items:center;gap:4px;padding-block:3px;padding-inline:10px 4px;border-radius:999px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px}
+.qa-time-x{all:unset;cursor:pointer;inline-size:18px;block-size:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--text-3);font-size:14px;line-height:1}
+.qa-time-x:hover{background:var(--border);color:var(--text)}
+.qa-time-in{font:inherit;font-size:13px;padding-block:4px;padding-inline:6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text)}
+.qa-sched-line{margin:0;font-size:13px;color:var(--text-2)}
 .mail-toast{position:fixed;inset-block-end:20px;inset-inline-end:20px;z-index:940;width:320px;max-width:calc(100vw - 32px);background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.18);padding:12px 14px;display:flex;flex-direction:column;gap:6px;animation:mailToastIn .2s ease-out}
 @keyframes mailToastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .mail-toast-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:700;font-size:13px;color:var(--text)}
@@ -13411,11 +13425,19 @@ function mailSugGroups(items){const list=items||[];const by=s=>list.filter(i=>i.
 function mailSugCount(d){return d&&d.summary?d.summary.new||0:0;}
 function fmtMailWhen(iso){if(!iso)return'';const d=new Date(iso);if(isNaN(d))return'';const p=n=>String(n).padStart(2,'0');return p(d.getDate())+'.'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes());}
 function fmtMailDay(iso){return/^\d{4}-\d{2}-\d{2}$/.test(iso||'')?iso.slice(8,10)+'.'+iso.slice(5,7):'';}
+function nextMailScan(schedule,now){const sc=schedule||{};const days=sc.days||[];const times=(sc.times||[]).filter(t=>/^\d{2}:\d{2}$/.test(t)).slice().sort();if(!days.length||!times.length)return null;for(let off=0;off<=8;off++){const day=new Date(now.getFullYear(),now.getMonth(),now.getDate()+off);if(!days.includes(day.getDay()))continue;for(const t of times){const slot=new Date(day.getFullYear(),day.getMonth(),day.getDate(),+t.slice(0,2),+t.slice(3,5));if(slot>now)return slot;}}return null;}
+function mailScanWhen(date,now){if(!date)return null;const p=n=>String(n).padStart(2,'0');const key=x=>x.getFullYear()+'-'+x.getMonth()+'-'+x.getDate();const tom=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);const day=key(date)===key(now)?'today':key(date)===key(tom)?'tomorrow':p(date.getDate())+'.'+p(date.getMonth()+1);return{day,time:p(date.getHours())+':'+p(date.getMinutes())};}
 /* MIRROR end */
 /* one fetch for the panel and the sidebar count: every minute, and after every button */
-const mailSug={data:null,subs:new Set(),timer:null,load(){return fetch('/api/mail-suggestions',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(d=>{if(d){mailSug.data=d;mailSug.subs.forEach(f=>f(d));}return mailSug.data;}).catch(()=>mailSug.data);}};
+const mailSug={data:null,subs:new Set(),timer:null,burstTimer:null,load(){return fetch('/api/mail-suggestions',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(d=>{if(d){mailSug.data=d;mailSug.subs.forEach(f=>f(d));}return mailSug.data;}).catch(()=>mailSug.data);},
+/* after "scan now": every 5 s for up to 2 minutes, until lastScanAt moves; one burst at a time, the minute poll keeps running */
+burst(){if(mailSug.burstTimer)return;const last=d=>d&&d.scan?d.scan.lastScanAt||null:undefined;const t0=Date.now();let start=last(mailSug.data);const id=setInterval(()=>{mailSug.load().then(d=>{const v=last(d);if(start===undefined)start=v;else if(v!==undefined&&v!==start)stop();if(Date.now()-t0>=120000)stop();});},5000);const stop=()=>{clearInterval(id);if(mailSug.burstTimer===id)mailSug.burstTimer=null;};mailSug.burstTimer=id;}};
 function useMailSuggestions(){const[d,setD]=useState(mailSug.data);useEffect(()=>{mailSug.subs.add(setD);if(!mailSug.timer){mailSug.load();mailSug.timer=setInterval(()=>mailSug.load(),60000);}return()=>{mailSug.subs.delete(setD);};},[]);return d;}
 function mailSugAct(id,body){return fetch('/api/mail-suggestions/'+encodeURIComponent(id),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;}).finally(()=>mailSug.load());}
+/* starts the scanner on this computer through its URL protocol (registered by Install-MailScan.ps1) */
+function mailScanNow(){location.href='projecthub-scan:now';mailSug.burst();}
+const MAIL_SCAN_NOTE='הסריקה התחילה במחשב שלך. אם לא קורה כלום — הסורק לא מותקן במחשב הזה.';
+function useMailScanNow(){const[on,setOn]=useState(false);const tm=useRef(null);useEffect(()=>()=>clearTimeout(tm.current),[]);const go=()=>{mailScanNow();setOn(true);clearTimeout(tm.current);tm.current=setTimeout(()=>setOn(false),10000);};return[on,go];}
 function MailNavBadge(){const d=useMailSuggestions();const n=mailSugCount(d);if(!n)return null;return React.createElement("span",{className:"mail-sug-badge",title:tx('{n} הצעות מהמייל',{n})},n);}
 function MailSuggestionsPanel({data,save,always=false}){
   const h=React.createElement;
@@ -13426,6 +13448,7 @@ function MailSuggestionsPanel({data,save,always=false}){
   const[editing,setEditing]=useState(null);
   const[busy,setBusy]=useState(()=>new Set());
   const[err,setErr]=useState('');
+  const[scanNote,scanNow]=useMailScanNow();
   const run=(id,body)=>{setBusy(b=>new Set(b).add(id));setErr('');return mailSugAct(id,body).catch(e=>setErr(e.message)).finally(()=>setBusy(b=>{const n=new Set(b);n.delete(id);return n;}));};
   const ed=editing&&(editing.suggestion||{});
   /* the edit form outlives the list: a poll that empties the tray must not close it */
@@ -13471,7 +13494,10 @@ function MailSuggestionsPanel({data,save,always=false}){
       showStale&&g.stale.map(it=>(it.suggestion||{}).kind==='important'?impCard(it):taskCard(it)),
       h("div",{className:"mail-sug-foot"},
         g.pending.length?h("span",null,tx('{n} מיילים ממתינים לעיבוד',{n:g.pending.length})):null,
-        h("span",null,tx('השבוע: {s} מיילים נסרקו · {g} הצעות · {a} אושרו',{s:wk.scanned,g:wk.suggested,a:wk.accepted})))),
+        h("span",null,tx('השבוע: {s} מיילים נסרקו · {g} הצעות · {a} אושרו',{s:wk.scanned,g:wk.suggested,a:wk.accepted})),
+        d.scan?h("span",null,tx('נסרק לאחרונה: {w}',{w:d.scan.lastScanAt?fmtMailWhen(d.scan.lastScanAt):tx('עדיין לא')})):null,
+        h("button",{type:"button",className:"mail-sug-link",onClick:scanNow},"סרוק עכשיו")),
+      scanNote?h("div",{className:"mail-sug-note",role:"status"},MAIL_SCAN_NOTE):null),
     modal);
 }
 /* A new suggestion while Project Hub is open: a small card in the corner; "פתח" opens a drawer at the side with
@@ -13504,12 +13530,26 @@ function QuickMail({data,save}){
   return h("div",{className:"qk-shell"},h("div",{className:"qk-hdr"},h("span",{className:"qk-brand"},"PROJECT HUB · הצעות מהמייל"),h("a",{className:"qk-open",href:"/project_hub_01?view=mail",target:"_blank",rel:"noopener"},"פתיחת Project Hub ↗")),h(MailSuggestionsPanel,{data,save,always:true}));
 }
 /* Settings ← גישה מהירה ← סריקת מייל: the scanner's personal key (shown once), and whether Claude is set up on the server. */
+const MAIL_SCHED_DEFAULT={days:[0,1,2,3,4],times:['08:00','12:00','16:00']};
 function MailScanSettings(){
   const h=React.createElement;
   const[st,setSt]=useState(null);
   const[key,setKey]=useState('');
   const[err,setErr]=useState('');
-  const load=()=>fetch('/api/mail-connection',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(setSt).catch(()=>setSt(null));
+  const[sched,setSched]=useState(MAIL_SCHED_DEFAULT);
+  const[newTime,setNewTime]=useState('');
+  const[saved,setSaved]=useState(false);
+  const[schedErr,setSchedErr]=useState('');
+  const seq=useRef(0);const savedTm=useRef(null);
+  useEffect(()=>()=>clearTimeout(savedTm.current),[]);
+  const sug=useMailSuggestions();
+  const[scanNote,scanNow]=useMailScanNow();
+  const load=()=>fetch('/api/mail-connection',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(j=>{setSt(j);if(j)setSched(j.schedule||MAIL_SCHED_DEFAULT);}).catch(()=>setSt(null));
+  /* every change saves at once; only the latest answer counts */
+  const saveSched=next=>{const n=++seq.current;setSched(next);setSaved(false);setSchedErr('');fetch('/api/mail-connection/schedule',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({days:next.days,times:next.times})}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;}).then(j=>{if(n!==seq.current)return;if(j.schedule)setSched(j.schedule);setSaved(true);clearTimeout(savedTm.current);savedTm.current=setTimeout(()=>setSaved(false),2500);}).catch(e=>{if(n!==seq.current)return;setSchedErr(e.message);load();});};
+  const toggleDay=i=>saveSched({days:sched.days.includes(i)?sched.days.filter(x=>x!==i):[...sched.days,i].sort((a,b)=>a-b),times:sched.times});
+  const addTime=()=>{if(!newTime)return;setNewTime('');if(sched.times.includes(newTime))return;saveSched({days:sched.days,times:[...sched.times,newTime].sort()});};
+  const removeTime=t=>saveSched({days:sched.days,times:sched.times.filter(x=>x!==t)});
   useEffect(()=>{load();},[]);
   const issue=()=>{if(st&&st.key&&!confirm(tx('להפיק מפתח חדש? הקודם יפסיק לעבוד.')))return;setErr('');fetch('/api/mail-connection',{method:'POST'}).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;}).then(j=>{setKey(j.key||'');load();}).catch(e=>setErr(e.message));};
   const revoke=()=>{if(!confirm(tx('לבטל את המפתח? הסריקה תיפסק עד שיופק מפתח חדש.')))return;setErr('');fetch('/api/mail-connection',{method:'DELETE'}).then(async r=>{if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||('HTTP '+r.status));}setKey('');load();}).catch(e=>setErr(e.message));};
@@ -13521,6 +13561,22 @@ function MailScanSettings(){
     key?h("div",{className:"qa-mail-key"},h("p",null,"המפתח שלך (מוצג פעם אחת בלבד):"),h("code",{"data-i18n-skip":"",style:{userSelect:'all',wordBreak:'break-all'}},key),' ',h("button",{type:"button",className:"np-btn",onClick:()=>navigator.clipboard&&navigator.clipboard.writeText(key)},"העתק")):null,
     h("p",null,has?tx('מפתח פעיל מ-{d}. שימוש אחרון: {u}',{d:fmtMailWhen(st.key.created),u:st.key.lastUsed?fmtMailWhen(st.key.lastUsed):tx('עדיין לא')}):"אין מפתח פעיל."),
     h("div",{style:{display:'flex',gap:8,flexWrap:'wrap'}},h("button",{type:"button",className:"np-btn primary",onClick:issue},has?"הפק מפתח חדש":"הפק מפתח"),has?h("button",{type:"button",className:"np-btn",onClick:revoke},"בטל מפתח"):null),
+    has?(()=>{const now=new Date();const last=(sug&&sug.scan&&sug.scan.lastScanAt)||st.lastScanAt;const w=mailScanWhen(nextMailScan(sched,now),now);
+      const nextText=!w?tx('אין סריקות אוטומטיות'):w.day==='today'?tx('היום {t}',{t:w.time}):w.day==='tomorrow'?tx('מחר {t}',{t:w.time}):tx('{d} {t}',{d:w.day,t:w.time});
+      return h("div",{className:"qa-sched"},
+        h("h3",{className:"qa-sub"},"מתי לסרוק",saved?h("span",{className:"qa-saved",role:"status"},"נשמר"):null),
+        h("div",{className:"qa-sched-lbl"},"ימי סריקה"),
+        h("div",{className:"qa-sched-row",role:"group","aria-label":tx('ימי סריקה')},DF_DAYS.map((l,i)=>{const on=sched.days.includes(i);return h("button",{key:i,type:"button",className:'qa-day'+(on?' on':''),"aria-pressed":on,title:tx(DF_DAY_NAMES[i]),onClick:()=>toggleDay(i)},IS_LTR()?tx(DF_DAY_NAMES[i]).slice(0,2):l);})),
+        h("div",{className:"qa-sched-lbl"},"שעות סריקה"),
+        h("div",{className:"qa-sched-row"},
+          sched.times.map(t=>h("span",{key:t,className:"qa-time-chip"},h("span",{dir:"ltr"},t),h("button",{type:"button",className:"qa-time-x",title:tx('הסר'),"aria-label":tx('הסר {t}',{t}),onClick:()=>removeTime(t)},'×'))),
+          h("input",{type:"time",className:"qa-time-in",value:newTime,onChange:e=>setNewTime(e.target.value),onKeyDown:e=>{if(e.key==='Enter')addTime();}}),
+          h("button",{type:"button",className:"np-btn",disabled:!newTime||sched.times.length>=12,onClick:addTime},"הוסף שעה")),
+        h("p",{className:"qa-note"},"השעות לפי השעון של המחשב שסורק. בלי ימים או בלי שעות — סורקים רק ידנית."),
+        schedErr?h("div",{className:"mail-sug-err","data-i18n-skip":""},schedErr):null,
+        h("p",{className:"qa-sched-line"},tx('נסרק לאחרונה: {l} · הסריקה הבאה: {n}',{l:last?fmtMailWhen(last):tx('עדיין לא'),n:nextText})),
+        h("div",{className:"qa-sched-row"},h("button",{type:"button",className:"np-btn",onClick:scanNow},"סרוק עכשיו")),
+        scanNote?h("div",{className:"mail-sug-note",role:"status"},MAIL_SCAN_NOTE):null);})():null,
     h("p",{className:"qa-note"},tx('התקנה (פעם אחת, בלי הרשאות מנהל): בתיקיית Project Hub מריצים {cmd} ומדביקים את המפתח כשהוא מתבקש.',{cmd:'powershell -ExecutionPolicy Bypass -File tools\\mail-scan\\Install-MailScan.ps1'})),
     err?h("div",{className:"mail-sug-err","data-i18n-skip":""},err):null);
 }
