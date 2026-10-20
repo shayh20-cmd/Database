@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Static file server + local JSON persistence API for project_hub.html and planning_dashboard.html",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
     "serve-handler": "^6.1.7"
   }
 }

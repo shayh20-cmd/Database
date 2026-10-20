@@ -125,7 +125,7 @@ function Set-AppSettings([hashtable]$settings) {
 # ---------------------------------------------------------------------------
 if ($Seed -and -not (Test-Path $Seed)) { Fail "Seed file not found: $Seed" }
 
-if (-not (Test-Path (Join-Path $root "tools/local-server/node_modules/serve-handler"))) {
+if (-not (Test-Path (Join-Path $root "tools/local-server/node_modules/serve-handler")) -or -not (Test-Path (Join-Path $root "tools/local-server/node_modules/@anthropic-ai/sdk"))) {
     Fail @"
 The server's dependencies are not installed, so the deployed app would not start.
 
@@ -355,7 +355,7 @@ try {
     Copy-Item (Join-Path $root "tools/quick-access/project-hub-cube-new-task.ico") (Join-Path $stage "qa-new-task.ico")
     # the "hub" Claude skill, offered for download in Settings ← Claude
     Copy-Item (Join-Path $root "tools/claude-skill/hub.zip") (Join-Path $stage "claude-hub-skill.zip")
-    foreach ($f in "server.js", "mcp.js", "history.js", "package.json", "package-lock.json") {
+    foreach ($f in "server.js", "mcp.js", "history.js", "mail.js", "mail-store.js", "mail-ai.js", "mail-tokens.js", "package.json", "package-lock.json") {
         Copy-Item (Join-Path $root "tools/local-server/$f") (Join-Path $stage "tools/local-server")
     }
     Copy-Item (Join-Path $root "tools/local-server/node_modules") (Join-Path $stage "tools/local-server/node_modules") -Recurse
