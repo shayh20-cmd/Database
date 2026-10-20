@@ -2933,7 +2933,8 @@ Object.assign(HE_EN, {
 "השינוי נמחק": "The change was deleted",
 "השורה נמחקה בינתיים": "The row was deleted in the meantime",
 "גמר רצפה לפי חלל": "Floor finish by space",
-"גמרים לפי חומר, עם מקרא": "Finishes by material, with a legend"
+"גמרים לפי חומר, עם מקרא": "Finishes by material, with a legend",
+"פתח את המסלול": "Open the track"
 });
 
 window.I18N_HE_EN = HE_EN;

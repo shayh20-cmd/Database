@@ -391,11 +391,12 @@ module.exports = function createMcp(ctx) {
   }
   const stLabel = (L, it) => ((L.EXEC_TYPES[it.type].statuses.find(s => s.id === it.status) || {}).label || it.status).replace(/⁠/g, '');
   const discLabel = (doc, c, id) => id ? ((projList(doc, 'disciplines', c.reg).find(o => o.id === id) || {}).label || id) : '';
+  const priLabel = (doc, c, id) => id ? ((projList(doc, 'priorities', c.reg).find(o => o.id === id) || {}).label || id) : '';
   function execBrief(doc, c, L, it, today) {
     return {
       id: it.id, number: it.number, type: it.type, title: it.title, status: stLabel(L, it), closed: L.execIsClosed(it),
       ball: it.ball ? L.execPartyLabel(it.ball) : null, waiting_workdays: L.execWaiting(it, today) || 0,
-      due: it.dueDate || null, discipline: discLabel(doc, c, it.discipline) || undefined, spec_section: it.specSection || undefined,
+      due: it.dueDate || null, priority: priLabel(doc, c, it.priority) || undefined, discipline: discLabel(doc, c, it.discipline) || undefined, spec_section: it.specSection || undefined,
       opened_by: L.execPartyLabel(it.openedBy), created: String(it.createdAt || '').slice(0, 10),
       ...(it.type === 'submittal' ? { round: ((it.revisions || []).slice(-1)[0] || {}).label } : {}),
       ...(it.type === 'change' ? { tender_spec: it.tenderSpec, tender_ref: it.tenderRef || undefined, proposed: it.proposed, approved_text: it.approvedText || undefined } : {})
@@ -605,7 +606,7 @@ module.exports = function createMcp(ctx) {
             const lu = latestUpdate(t.events);
             const owner = (lu && lu.assignee) || t.discipline || '';
             if (discId && t.discipline !== discId && owner !== discId) return;
-            if (args.mine && !(t.assigneeIds || []).includes(c.me.id)) return;
+            if (args.mine && !(t.assigneeIds || []).includes(c.me.id) && !(t.subtasks || []).some(x => !x.done && (x.assigneeIds || []).includes(c.me.id))) return;
             if (words.length) {
               const hay = bare([t.title, t.comment, textOf(t.description), ...(t.events || []).map(e => (e.title || '') + ' ' + (e.note || '')), ...(t.subtasks || []).map(x => x.title)].join(' '));
               if (!words.every(w => hay.includes(w))) return;
@@ -956,6 +957,7 @@ module.exports = function createMcp(ctx) {
           ball_to: { ...PARTY_SCHEMA, description: 'Who must act now; default the architect when another party opened it, else the contractor' },
           due_date: { type: 'string', description: 'YYYY-MM-DD; default by type (RFI 7, submittal 10, change 7 working days)' },
           discipline: { type: 'string', description: 'Discipline (תחום) from get_project' },
+          priority: { type: 'string', description: 'Priority (עדיפות) from get_project' },
           spec_section: { type: 'string', description: 'Spec / BOQ section' },
           tender_spec: { type: 'string', description: 'change: what the tender specified' },
           tender_ref: { type: 'string', description: 'change: tender clause' },
@@ -981,6 +983,7 @@ module.exports = function createMcp(ctx) {
               type, title: String(args.title).trim(), description: String(args.description || '').trim(), openedBy, ballTo,
               dueDate: args.due_date || (dd ? L.execAddWorkdays(now.slice(0, 10), dd) : ''),
               discipline: args.discipline ? pickOption(projList(doc, 'disciplines', c.reg), args.discipline, 'discipline') : '',
+              priority: args.priority ? pickOption(projList(doc, 'priorities', c.reg), args.priority, 'priority') : '',
               specSection: args.spec_section || '', source: { kind: 'claude' },
               tenderSpec: args.tender_spec, tenderRef: args.tender_ref, proposed: args.proposed
             }, now, seqMap),
@@ -1014,7 +1017,7 @@ module.exports = function createMcp(ctx) {
           fields: {
             type: 'object',
             properties: {
-              title: { type: 'string' }, description: { type: 'string' }, due_date: { type: 'string' }, discipline: { type: 'string' }, spec_section: { type: 'string' },
+              title: { type: 'string' }, description: { type: 'string' }, due_date: { type: 'string' }, discipline: { type: 'string' }, priority: { type: 'string' }, spec_section: { type: 'string' },
               tender_spec: { type: 'string' }, tender_ref: { type: 'string' }, proposed: { type: 'string' }
             },
             additionalProperties: false
@@ -1042,6 +1045,7 @@ module.exports = function createMcp(ctx) {
           if (f.description != null) set('description', String(f.description), 'תיאור');
           if (f.due_date != null) set('dueDate', f.due_date, 'תאריך יעד');
           if (f.discipline != null) set('discipline', f.discipline ? pickOption(projList(doc, 'disciplines', c.reg), f.discipline, 'discipline') : '', 'תחום');
+          if (f.priority != null) set('priority', f.priority ? pickOption(projList(doc, 'priorities', c.reg), f.priority, 'priority') : '', 'עדיפות');
           if (f.spec_section != null) set('specSection', String(f.spec_section), 'סעיף מפרט');
           if (it.type === 'change') {
             if (f.tender_spec != null) set('tenderSpec', String(f.tender_spec), 'במכרז');
