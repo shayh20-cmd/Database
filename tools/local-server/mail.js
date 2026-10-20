@@ -85,6 +85,18 @@ module.exports = function createMail(ctx) {
       sendJson(res, 200, { ...store.summary(doc, now()), top: store.topNew(doc, 3) });
       return;
     }
+    // the scanner asks when to look, and says when it has looked (also when nothing was new)
+    if (url.pathname === '/api/mail-intake/schedule') {
+      if (req.method !== 'GET') { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+      sendJson(res, 200, { schedule: store.scheduleOf(load(p.email)) });
+      return;
+    }
+    if (url.pathname === '/api/mail-intake/ran') {
+      if (req.method !== 'POST') { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+      saveDoc(p.email, store.markRan(load(p.email), now()));
+      sendJson(res, 200, { ok: true });
+      return;
+    }
     if (req.method !== 'POST') { sendJson(res, 405, { error: 'Method not allowed' }); return; }
     let body;
     try { body = await readJsonBody(req); } catch (e) { sendJson(res, 400, { error: 'Invalid JSON' }); return; }
@@ -95,7 +107,7 @@ module.exports = function createMail(ctx) {
     sendJson(res, 200, { accepted: r.accepted, duplicates: r.duplicates, ai: client ? 'on' : 'off' });
   }
   function handlePublic(req, res, url) {
-    if (url.pathname !== '/api/mail-intake' && url.pathname !== '/api/mail-intake/status') return false;
+    if (!['/api/mail-intake', '/api/mail-intake/status', '/api/mail-intake/schedule', '/api/mail-intake/ran'].includes(url.pathname)) return false;
     intake(req, res, url).catch(e => sendJson(res, 500, { error: e.message }));
     return true;
   }
@@ -127,10 +139,24 @@ module.exports = function createMail(ctx) {
   async function handle(req, res, url, user) {
     const p = personOfUser(user);
     if (url.pathname === '/api/mail-connection') {
-      if (req.method === 'GET') { sendJson(res, 200, { key: tokens.status(p.email), ai: health() }); return; }
+      if (req.method === 'GET') {
+        const doc = load(p.email);
+        sendJson(res, 200, { key: tokens.status(p.email), ai: health(), schedule: store.scheduleOf(doc), lastScanAt: doc.lastScanAt || null });
+        return;
+      }
       if (req.method === 'POST') { sendJson(res, 200, { key: tokens.issue(p.email, now()) }); return; }
       if (req.method === 'DELETE') { tokens.revoke(p.email); sendJson(res, 200, { ok: true }); return; }
       sendJson(res, 405, { error: 'Method not allowed' });
+      return;
+    }
+    if (url.pathname === '/api/mail-connection/schedule') {
+      if (req.method !== 'PUT') { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+      let body;
+      try { body = await readJsonBody(req); } catch (e) { sendJson(res, 400, { error: 'Invalid JSON' }); return; }
+      const r = store.normSchedule(body);
+      if (!r.ok) { sendJson(res, 400, { error: r.error }); return; }
+      saveDoc(p.email, store.setSchedule(load(p.email), r.schedule));
+      sendJson(res, 200, { schedule: r.schedule });
       return;
     }
     const m = url.pathname.match(SUG_ROUTE);

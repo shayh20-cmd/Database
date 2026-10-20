@@ -464,7 +464,7 @@ const server = http.createServer((req, res) => {
   }
   if (url.pathname === '/oauth/authorize') { mcp.handleAuthorize(req, res, url, user); return; }
   if (url.pathname.startsWith('/api/claude-connection')) { mcp.handleConnection(req, res, url, user); return; }
-  if (url.pathname === '/api/mail-connection' || url.pathname.startsWith('/api/mail-suggestions')) {
+  if (url.pathname.startsWith('/api/mail-connection') || url.pathname.startsWith('/api/mail-suggestions')) {
     mail.handle(req, res, url, user).catch(e => sendJson(res, 500, { error: e.message }));
     return;
   }

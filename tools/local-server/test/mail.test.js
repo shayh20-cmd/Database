@@ -283,3 +283,35 @@ test('mail.js: an item retried while a run is going is triaged in that session w
   assert.ok(await until(() => h.items()[0].status === 'new'), 'alpha was triaged again: ' + h.items()[0].status);
   assert.strictEqual(h.items()[1].status, 'new');
 });
+
+test('mail.js: the scan schedule — default, saved by the person, read by the scanner, last scan time', async (t) => {
+  const h = await harness(t, {});
+  const { key } = (await h.call('POST', '/api/mail-connection')).json;
+  const auth = { authorization: 'Bearer ' + key };
+  assert.strictEqual((await h.call('GET', '/api/mail-intake/schedule')).status, 401, 'needs the key');
+  assert.strictEqual((await h.call('POST', '/api/mail-intake/ran', '{}')).status, 401, 'needs the key');
+  const dflt = { days: [0, 1, 2, 3, 4], times: ['08:00', '12:00', '16:00'] };
+  assert.deepStrictEqual((await h.call('GET', '/api/mail-intake/schedule', undefined, auth)).json, { schedule: dflt });
+  const conn = (await h.call('GET', '/api/mail-connection')).json;
+  assert.deepStrictEqual([conn.schedule, conn.lastScanAt], [dflt, null]);
+  assert.ok(conn.key && conn.key.created, 'the key status is still there');
+
+  const put = await h.call('PUT', '/api/mail-connection/schedule', JSON.stringify({ days: [3, 1], times: ['9:30', '07:00'] }));
+  assert.deepStrictEqual([put.status, put.json], [200, { schedule: { days: [1, 3], times: ['07:00', '09:30'] } }]);
+  assert.deepStrictEqual((await h.call('GET', '/api/mail-intake/schedule', undefined, auth)).json.schedule, { days: [1, 3], times: ['07:00', '09:30'] });
+  for (const body of ['{"days":[9],"times":[]}', '{"days":[1],"times":["25:00"]}', '{}', 'null', '[]', '"x"', '{not json']) {
+    const r = await h.call('PUT', '/api/mail-connection/schedule', body);
+    assert.strictEqual(r.status, 400, body);
+    assert.ok(r.json.error, body);
+  }
+  assert.deepStrictEqual((await h.call('GET', '/api/mail-connection')).json.schedule, { days: [1, 3], times: ['07:00', '09:30'] }, 'bad input changed nothing');
+  assert.strictEqual((await h.call('POST', '/api/mail-connection/schedule', '{}')).status, 405);
+
+  const ran = await h.call('POST', '/api/mail-intake/ran', '', auth);
+  assert.deepStrictEqual([ran.status, ran.json], [200, { ok: true }]);
+  const at = (await h.call('GET', '/api/mail-connection')).json.lastScanAt;
+  assert.ok(Math.abs(Date.now() - Date.parse(at)) < 5000);
+  const page = (await h.call('GET', '/api/mail-suggestions')).json;
+  assert.deepStrictEqual(page.scan, { schedule: { days: [1, 3], times: ['07:00', '09:30'] }, lastScanAt: at });
+  assert.strictEqual((await h.call('GET', '/api/mail-intake/ran', undefined, auth)).status, 405);
+});

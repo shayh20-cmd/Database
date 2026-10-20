@@ -157,3 +157,37 @@ test('topNew: the newest open suggestions first, for the notification', () => {
   assert.deepStrictEqual(S.topNew(doc, 1), [{ kind: 'important', title: 'חשוב' }]);
   assert.deepStrictEqual(S.topNew({}, 3), []);
 });
+
+test('schedule: the default, saving, and what is rejected', () => {
+  assert.deepStrictEqual(S.scheduleOf({}), { days: [0, 1, 2, 3, 4], times: ['08:00', '12:00', '16:00'] });
+  const a = S.scheduleOf(null); a.days.push(9);
+  assert.deepStrictEqual(S.scheduleOf({}).days, [0, 1, 2, 3, 4], 'the default is never shared');
+  const ok = S.normSchedule({ days: [3, 1, 3, 0], times: ['9:05', '08:00', '9:05', '23:59', '0:00'] });
+  assert.deepStrictEqual(ok, { ok: true, schedule: { days: [0, 1, 3], times: ['00:00', '08:00', '09:05', '23:59'] } });
+  assert.deepStrictEqual(S.normSchedule({ days: [], times: [] }), { ok: true, schedule: { days: [], times: [] } });
+  assert.strictEqual(S.normSchedule({ days: [0], times: Array.from({ length: 12 }, (_, i) => i + ':00') }).ok, true);
+  for (const bad of [null, 'x', 7, [], {}, { days: [0] }, { times: [] }, { days: 'a', times: [] }, { days: [7], times: [] }, { days: [-1], times: [] },
+    { days: [1.5], times: [] }, { days: ['1'], times: [] }, { days: [0], times: ['24:00'] }, { days: [0], times: ['8:60'] }, { days: [0], times: ['8'] },
+    { days: [0], times: ['08:00:00'] }, { days: [0], times: [800] }, { days: [0], times: 'x' },
+    { days: [0], times: Array.from({ length: 13 }, (_, i) => i + ':00') }]) {
+    const r = S.normSchedule(bad);
+    assert.strictEqual(r.ok, false, JSON.stringify(bad));
+    assert.ok(typeof r.error === 'string' && r.error);
+  }
+  const d = S.setSchedule({ items: [] }, ok.schedule);
+  assert.deepStrictEqual(S.scheduleOf(d), ok.schedule);
+});
+
+test('schedule and lastScanAt: markRan, forPage.scan, and every rebuild of the document keeps them', () => {
+  assert.strictEqual(S.forPage({}, NOW).scan.lastScanAt, null);
+  assert.deepStrictEqual(S.forPage({}, NOW).scan.schedule, S.scheduleOf({}));
+  let doc = S.setSchedule({}, { days: [2], times: ['07:30'] });
+  doc = S.markRan(doc, NOW);
+  assert.deepStrictEqual(S.forPage(doc, NOW).scan, { schedule: { days: [2], times: ['07:30'] }, lastScanAt: NOW });
+  const keeps = d => { assert.deepStrictEqual(d.schedule, { days: [2], times: ['07:30'] }); assert.strictEqual(d.lastScanAt, NOW); };
+  const r = S.ingest(doc, [mail('m1')], NOW); keeps(r.doc);
+  keeps(S.applySuggestion(r.doc, 'm1', TASK, NOW));
+  keeps(S.failAttempt(r.doc, 'm1', 'e'));
+  keeps(S.housekeep(r.doc, Date.parse(NOW)));
+  keeps(S.act(S.applySuggestion(r.doc, 'm1', TASK, NOW), 'm1', 'dismiss', '', NOW).doc);
+});

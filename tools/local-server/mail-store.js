@@ -25,13 +25,46 @@ function mailFileOf(dir, email) {
   return path.join(dir, crypto.createHash('sha256').update(who).digest('hex').slice(0, 32) + '.json');
 }
 
+// schedule / lastScanAt must survive every rebuild of the document (only present once set)
 function norm(doc) {
-  return {
+  const d = {
     seen: Array.isArray(doc && doc.seen) ? doc.seen : [],
     items: Array.isArray(doc && doc.items) ? doc.items : [],
     stats: (doc && doc.stats) || null
   };
+  if (doc && doc.schedule) d.schedule = doc.schedule;
+  if (doc && doc.lastScanAt) d.lastScanAt = doc.lastScanAt;
+  return d;
 }
+
+/* When the scanner looks: days 0 = Sunday … 6, times local to the scanning computer. */
+const DEFAULT_SCHEDULE = { days: [0, 1, 2, 3, 4], times: ['08:00', '12:00', '16:00'] };
+const TIMES_MAX = 12;
+const scheduleOf = doc => {
+  const saved = doc && doc.schedule;
+  const s = saved && Array.isArray(saved.days) && Array.isArray(saved.times) ? saved : DEFAULT_SCHEDULE;
+  return { days: s.days.slice(), times: s.times.slice() };
+};
+
+/* Anything but { days: ints 0–6, times: 'H:MM' | 'HH:MM' (≤ 12) } is refused, never guessed at. */
+function normSchedule(input) {
+  const bad = error => ({ ok: false, error });
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return bad('schedule must be an object { days, times }');
+  if (!Array.isArray(input.days) || !input.days.every(d => Number.isInteger(d) && d >= 0 && d <= 6)) return bad('days must be a list of whole numbers 0–6');
+  if (!Array.isArray(input.times)) return bad('times must be a list of HH:MM');
+  if (input.times.length > TIMES_MAX) return bad('at most ' + TIMES_MAX + ' times');
+  const times = [];
+  for (const t of input.times) {
+    const m = typeof t === 'string' && t.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m || +m[1] > 23 || +m[2] > 59) return bad('bad time: ' + clip(t, 20));
+    times.push(m[1].padStart(2, '0') + ':' + m[2]);
+  }
+  const uniq = a => [...new Set(a)];
+  return { ok: true, schedule: { days: uniq(input.days).sort((a, b) => a - b), times: uniq(times).sort() } };
+}
+
+function setSchedule(doc, schedule) { doc = norm(doc); doc.schedule = schedule; return doc; }
+function markRan(doc, nowIso) { doc = norm(doc); doc.lastScanAt = nowIso; return doc; }
 
 // the office week starts on Sunday
 function weekOf(iso) {
@@ -197,7 +230,7 @@ function forPage(doc, nowIso) {
     const { body, ...mail } = i.mail || {};
     return { ...i, mail, note: noteOf(i) };
   });
-  return { items, summary: summary(doc, nowIso) };
+  return { items, summary: summary(doc, nowIso), scan: { schedule: scheduleOf(doc), lastScanAt: doc.lastScanAt || null } };
 }
 
-module.exports = { mailFileOf, ingest, pendingIds, applySuggestion, failAttempt, canAct, act, housekeep, noteOf, summary, topNew, forPage, weekOf };
+module.exports = { mailFileOf, ingest, pendingIds, applySuggestion, failAttempt, canAct, act, housekeep, noteOf, summary, topNew, forPage, weekOf, DEFAULT_SCHEDULE, scheduleOf, normSchedule, setSchedule, markRan };
