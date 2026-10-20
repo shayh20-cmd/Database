@@ -148,18 +148,29 @@ function extFor(req, url) {
   return FILE_EXT.has(ext) ? ext : null;
 }
 
+/* Stores one uploaded file and returns where it is served. The type comes from the content
+   type (images) or from the file name (pdf, msg, eml); null when it is neither. */
+function saveAttachment(appName, buf, contentType, fileName) {
+  const type = String(contentType || '').split(';')[0].trim();
+  const given = String(fileName || '').toLowerCase();
+  const fromName = given.includes('.') ? given.split('.').pop().replace(/[^a-z0-9]/g, '') : '';
+  const ext = IMAGE_EXT[type] || (FILE_EXT.has(fromName) ? fromName : null);
+  if (!ext) return null;
+  const dir = path.join(ATTACH_DIR, appName);
+  fs.mkdirSync(dir, { recursive: true });
+  const name = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8) + '.' + ext;
+  fs.writeFileSync(path.join(dir, name), buf);
+  return { url: '/data/attachments/' + appName + '/' + name, bytes: buf.length, type: ATTACH_MIME[ext] };
+}
+
 async function handleUpload(req, res, appName, url) {
   if (req.method !== 'POST') { sendJson(res, 405, { error: 'Method not allowed' }); return; }
-  const ext = extFor(req, url);
-  if (!ext) { sendJson(res, 415, { error: 'Unsupported file type' }); return; }
+  if (!extFor(req, url)) { sendJson(res, 415, { error: 'Unsupported file type' }); return; }
   try {
     const buf = await readRequestBuffer(req);
     if (!buf.length) { sendJson(res, 400, { error: 'Empty body' }); return; }
-    const dir = path.join(ATTACH_DIR, appName);
-    fs.mkdirSync(dir, { recursive: true });
-    const name = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8) + '.' + ext;
-    fs.writeFileSync(path.join(dir, name), buf);
-    sendJson(res, 200, { ok: true, url: '/data/attachments/' + appName + '/' + name, bytes: buf.length });
+    const saved = saveAttachment(appName, buf, req.headers['content-type'], url.searchParams.get('name'));
+    sendJson(res, 200, { ok: true, url: saved.url, bytes: saved.bytes });
   } catch (e) {
     sendJson(res, 500, { ok: false, error: e.message });
   }
@@ -399,7 +410,7 @@ function serveGzipped(req, res, pathname) {
 /* Project Hub as a Claude connector (MCP + OAuth); see mcp.js. */
 const mcp = require('./mcp')({
   DATA_DIR, STATIC_ROOT, SITE_MODE, APPS, PROJECTS_DIR, LOCAL_USER_NAME,
-  readJson, writeJsonAtomic, sendJson, readRequestBody,
+  readJson, writeJsonAtomic, sendJson, readRequestBody, readRequestBuffer, saveAttachment,
   beforeProjectWrite: (file, oldDoc, newDoc, who) => history.beforeSave(projectIdOfFile(file), file, oldDoc, newDoc, who)
 });
 

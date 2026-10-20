@@ -18,6 +18,8 @@ const PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05
 const ACCESS_TTL = 12 * 3600 * 1000;
 const REFRESH_TTL = 90 * 24 * 3600 * 1000;
 const CODE_TTL = 5 * 60 * 1000;
+const ATTACH_TTL = 30 * 60 * 1000;
+const ATTACH_MAX_FILES = 20;
 const PH01_ID = 'ph01';
 const ROLE_RANK = { viewer: 0, editor: 1, admin: 2, superadmin: 3 };
 const EV_STATUSES = {
@@ -43,7 +45,7 @@ const bare = s => norm(s).replace(/[וי]/g, '');
 class ToolError extends Error {}
 
 module.exports = function createMcp(ctx) {
-  const { DATA_DIR, STATIC_ROOT, SITE_MODE, APPS, PROJECTS_DIR, readJson, writeJsonAtomic, sendJson, readRequestBody } = ctx;
+  const { DATA_DIR, STATIC_ROOT, SITE_MODE, APPS, PROJECTS_DIR, readJson, writeJsonAtomic, sendJson, readRequestBody, readRequestBuffer, saveAttachment } = ctx;
   const STORE_FILE = path.join(DATA_DIR, 'mcp_oauth.json');
   const REGISTRY = APPS['hub-projects'];
 
@@ -1113,7 +1115,7 @@ module.exports = function createMcp(ctx) {
       name: 'update_finish',
       exec: true,
       title: 'Add or change a finishes row',
-      description: 'Change a row in the finishes schedule (לוח גמרים) — material, finish, colour, supplier, approval date, notes, linked submittal or change — or add a new row (omit row). from_submittal fills a new row from an approved submittal\'s last decided round. Confirm with the user before calling. Images and signed documents are added on the screen.',
+      description: 'Change a row in the finishes schedule (לוח גמרים) — material, finish, colour, supplier, approval date, notes, linked submittal or change — or add a new row (omit row). from_submittal fills a new row from an approved submittal\'s last decided round. Confirm with the user before calling. To add a photo or a signed document, use attach_file.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1176,6 +1178,48 @@ module.exports = function createMcp(ctx) {
         });
         return { project: p.code + ' ' + p.name, ...res };
       }
+    },    {
+      name: 'attach_file',
+      title: 'Attach a photo or file',
+      description: 'A link where the person adds photos or files to one task or one finishes row (לוח גמרים) — from the phone\'s camera or gallery, or from any computer. You cannot pass the file itself: when the person wants a photo or file attached (even one they already sent you in the chat), call this and give them the link; they open it, pick the file, and it is saved straight into Project Hub. On a finishes row the first photo becomes the row\'s image when it has none (replace_image: replace it) and every other file goes to the row\'s documents. Images, PDF, Outlook .msg / .eml. The link is for this one task or row and works for 30 minutes. It changes nothing until a file is uploaded, so no confirmation is needed.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          project: { type: 'string' },
+          task: { type: 'string', description: 'Task id (from search_tasks) or a unique part of its title' },
+          finish_row: { type: 'string', description: 'Finishes row id (from list_finishes) or words that identify one row' },
+          replace_image: { type: 'boolean', description: 'Finishes row: the first photo replaces the row\'s current image' }
+        },
+        required: ['project'], additionalProperties: false
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      run(args, c) {
+        canWrite(c.me);
+        if (!args.task === !args.finish_row) throw new ToolError('Pass either task or finish_row (one of them)');
+        const p = findProject(c.me, c.reg, args.project);
+        const doc = readJson(p.file);
+        let target;
+        if (args.task) {
+          const { t, s, st } = findTask(doc, args.task);
+          target = { kind: 'task', id: t.id, label: t.title, where: pathOf(st, s), link: linkOf(c.base, p.id, s.id, t.id) };
+        } else {
+          execGate(c.me);
+          const r = findFinish(doc, args.finish_row);
+          target = { kind: 'finish', id: r.id, label: [r.category, r.element, r.location].filter(x => String(x || '').trim()).join(' · ') || r.material || r.id, where: 'לוח גמרים', link: `${c.base}/project_hub_01?project=${encodeURIComponent(p.id)}` };
+        }
+        const tok = rand(24);
+        const exp = Date.now() + ATTACH_TTL;
+        const st = loadStore();
+        st.uploads[sha(tok)] = { who: c.who, projectId: p.id, project: p.code + ' ' + p.name, ...target, replaceImage: !!args.replace_image, exp, files: 0 };
+        saveStore();
+        return {
+          project: p.code + ' ' + p.name,
+          attach_to: (target.kind === 'task' ? 'task ' : 'finishes row ') + target.id + ' ' + target.label,
+          upload_link: `${c.base}/attach?t=${tok}`,
+          expires_at: new Date(exp).toISOString(),
+          tell_the_user: 'Give the person this link to open and pick the photo or file; it is saved to the item as soon as it uploads.'
+        };
+      }
     }
   ];
 
@@ -1187,7 +1231,8 @@ module.exports = function createMcp(ctx) {
     'Progress on an existing task is recorded as an update (update_task.add_update), not by editing the title. An update\'s owner is a discipline — who holds the ball after this step.',
     'Delete only when the user asked to delete: name the exact task (title, stage, id), get an explicit yes, then call delete_task with the id. Never delete to "clean up" on your own.',
     'Dates are YYYY-MM-DD. Defaults: start today, due in 14 days. After writing, give the user the task links.',
-    'The execution track (מסלול ביצוע) is not tasks: Issues, RFIs, submittals (הגשות), contractor changes / waivers (ויתורים ושינויים) and the finishes schedule (לוח גמרים, חומרי גמר) have their own tools (list_exec_items, get_exec_item, create_exec_item, update_exec_item, list_finishes, update_finish) when the person has access. Read first, show what you will write, write after a yes.'
+    'The execution track (מסלול ביצוע) is not tasks: Issues, RFIs, submittals (הגשות), contractor changes / waivers (ויתורים ושינויים) and the finishes schedule (לוח גמרים, חומרי גמר) have their own tools (list_exec_items, get_exec_item, create_exec_item, update_exec_item, list_finishes, update_finish) when the person has access. Read first, show what you will write, write after a yes.',
+    'To add a photo or file to a task or a finishes row, call attach_file and give the person the link it returns: they pick the file there (camera, gallery or computer). You cannot send a file through the tools, even one shown to you in the chat.'
   ].join('\n');
 
   /* ── OAuth: storage ── */
@@ -1198,6 +1243,7 @@ module.exports = function createMcp(ctx) {
       store.clients = store.clients || {};
       store.codes = store.codes || {};
       store.tokens = store.tokens || {};
+      store.uploads = store.uploads || {};
       if (!store.secret) { store.secret = rand(32); saveStore(); }
     }
     return store;
@@ -1206,6 +1252,7 @@ module.exports = function createMcp(ctx) {
     const now = Date.now();
     for (const k of Object.keys(store.codes)) if (store.codes[k].exp < now) delete store.codes[k];
     for (const k of Object.keys(store.tokens)) if (store.tokens[k].exp < now) delete store.tokens[k];
+    for (const k of Object.keys(store.uploads)) if (store.uploads[k].exp < now) delete store.uploads[k];
     writeJsonAtomic(STORE_FILE, store);
   }
   const baseOf = req => (SITE_MODE === 'cloud' ? 'https' : (req.headers['x-forwarded-proto'] || 'http')) + '://' + req.headers.host;
@@ -1368,10 +1415,119 @@ button.primary{background:#2563EB;border-color:#2563EB;color:#fff}.fine{font-siz
     }
     if (url.pathname === '/api/claude-connection/revoke' && req.method === 'POST') {
       for (const [k] of mine) delete st.tokens[k];
+      // links for adding files were made through that connection
+      for (const [k, u] of Object.entries(st.uploads)) if (samePerson(u.who, user)) delete st.uploads[k];
       saveStore();
       return sendJson(res, 200, { ok: true, revoked: mine.length });
     }
     return sendJson(res, 405, { error: 'Method not allowed' });
+  }
+
+  /* ── adding a file through a link from attach_file. Claude cannot carry the file, so the
+     person opens the link (on the phone: camera or gallery) and the page posts it here.
+     The link is the credential, like a bearer token: one task or finishes row, 30 minutes,
+     a few files. Each upload acts as the person who asked, with their role at that moment. ── */
+  function uploadOf(url) {
+    const t = url.searchParams.get('t') || '';
+    const u = t && loadStore().uploads[sha(t)];
+    return u && u.exp > Date.now() ? u : null;
+  }
+  function attachInto(u, saved, name) {
+    const reg = readJson(REGISTRY);
+    let me, p;
+    try { me = identify(u.who, reg); canWrite(me); p = findProject(me, reg, u.projectId); }
+    catch (e) { if (e instanceof ToolError) throw new ToolError('אין לך הרשאה להוסיף קבצים לפרויקט הזה'); throw e; }
+    return writeProject(p, me, doc => {
+      if (u.kind === 'task') {
+        let hit = null;
+        eachTask(doc, (t, s) => { if (t.id === u.id) hit = { t, s }; });
+        if (!hit) throw new ToolError('המשימה כבר לא קיימת בפרויקט');
+        const n = { ...hit.t, attachments: [...(hit.t.attachments || []), { id: uid(), name, size: saved.bytes, type: saved.type, url: saved.url }],
+          activityLog: [...(hit.t.activityLog || []), logEntry(me, `צורף קובץ "${name}"`)] };
+        putTask(doc, hit.s.id, n);
+        return 'file';
+      }
+      execGate(me);
+      const row = (doc.finishes || []).find(r => r.id === u.id);
+      if (!row) throw new ToolError('השורה כבר לא קיימת בלוח הגמרים');
+      const n = { ...row };
+      let as = 'file';
+      if (/^image\//.test(saved.type) && (!row.image || (u.replaceImage && !u.replaced))) { n.image = { url: saved.url, name }; as = 'image'; u.replaced = true; }
+      else n.files = [...(row.files || []), { id: uid(), url: saved.url, name }];
+      doc.finishes = doc.finishes.map(r => r.id === n.id ? n : r);
+      return as;
+    });
+  }
+  async function handleAttachApi(req, res, url) {
+    res.setHeader('Cache-Control', 'no-store');
+    const u = uploadOf(url);
+    if (!u) { sendJson(res, 410, { error: 'expired' }); return; }
+    if (req.method === 'GET') { sendJson(res, 200, { project: u.project, kind: u.kind, label: u.label, where: u.where, link: u.link, exp: u.exp, files: u.files, max: ATTACH_MAX_FILES }); return; }
+    if (req.method !== 'POST') { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+    if (u.files >= ATTACH_MAX_FILES) { sendJson(res, 429, { error: 'too_many' }); return; }
+    const name = String(url.searchParams.get('name') || 'file').replace(/[\u0000-\u001f\\/]/g, '').slice(0, 120) || 'file';
+    let buf;
+    try { buf = await readRequestBuffer(req); } catch (e) { sendJson(res, 413, { error: 'too_large' }); return; }
+    if (!buf.length) { sendJson(res, 400, { error: 'empty' }); return; }
+    const saved = saveAttachment('project-hub-01', buf, req.headers['content-type'], name);
+    if (!saved) { sendJson(res, 415, { error: 'type' }); return; }
+    try {
+      const as = attachInto(u, saved, name);
+      u.files++;
+      saveStore();
+      sendJson(res, 200, { ok: true, as, url: saved.url });
+    } catch (e) {
+      if (!(e instanceof ToolError)) console.error('attach', e);
+      sendJson(res, e instanceof ToolError ? 403 : 500, { error: e instanceof ToolError ? e.message : 'server_error' });
+    }
+  }
+  function attachPage(res) {
+    htmlPage(res, 200, 'צירוף קובץ', `
+<p id="what" class="who" data-i18n-skip>…</p>
+<p id="msg"></p>
+<div class="btns" id="pick" hidden>
+  <label class="primary btn"><span data-t="📷 צילום">📷 צילום</span><input type="file" accept="image/*" capture="environment" hidden></label>
+  <label class="btn"><span data-t="🖼 תמונה או קובץ">🖼 תמונה או קובץ</span><input type="file" accept="image/*,application/pdf,.pdf,.msg,.eml" multiple hidden></label>
+</div>
+<ul id="done" data-i18n-skip></ul>
+<p class="fine"><a id="back" hidden data-t="פתח ב-Project Hub">פתח ב-Project Hub</a></p>
+<style>.btn{flex:1;display:block;text-align:center;font-size:14px;font-weight:700;padding:12px 10px;border-radius:10px;border:1px solid #cfd6e3;background:#fff;color:#1e1f21;cursor:pointer}
+.btn.primary{background:#2563EB;border-color:#2563EB;color:#fff}#done{list-style:none;padding:0}#done li{font-size:13.5px;padding:4px 0}#msg.err{color:#b91c1c}
+@media (prefers-color-scheme:dark){.btn{background:#222b38;color:#e6e8eb;border-color:#3a4556}.btn.primary{background:#2563EB;color:#fff}#msg.err{color:#f87171}}</style>
+<script>
+(function(){
+var HE_EN={'צירוף קובץ':'Attach a file','📷 צילום':'📷 Take a photo','🖼 תמונה או קובץ':'🖼 Photo or file','פתח ב-Project Hub':'Open in Project Hub',
+'משימה':'Task','לוח גמרים':'Finishes schedule','בחר תמונה או קובץ. הוא יישמר מיד.':'Pick a photo or file. It is saved straight away.',
+'הקישור פג או כבר לא בתוקף. בקש מ-Claude קישור חדש.':'This link has expired. Ask Claude for a new one.','מעלה…':'Uploading…',
+'נשמר':'Saved','נשמר כתמונת השורה':'Saved as the row’s image','הקובץ לא נשמר':'The file was not saved','סוג הקובץ לא נתמך (תמונה, PDF, msg, eml)':'Unsupported file type (image, PDF, msg, eml)',
+'הקובץ גדול מדי':'The file is too large','אין לך הרשאה להוסיף קבצים לפרויקט הזה':'You may not add files to this project','הגעת למספר הקבצים המרבי לקישור הזה':'This link has reached its file limit','אפשר להוסיף עוד, או לסגור את הדף.':'You can add more, or close this page.'};
+var en=false;try{en=localStorage.getItem('appLang')==='en'}catch(e){}
+var T=function(h){return en&&HE_EN[h]||h};
+if(en){document.documentElement.dir='ltr';document.documentElement.lang='en';document.title=T('צירוף קובץ');document.querySelector('h1').textContent=T('צירוף קובץ');
+document.querySelectorAll('[data-t]').forEach(function(n){n.textContent=T(n.getAttribute('data-t'))});}
+var t=new URLSearchParams(location.search).get('t')||'';var api='/api/attach?t='+encodeURIComponent(t);
+var $=function(id){return document.getElementById(id)};var msg=function(s,err){$('msg').textContent=s;$('msg').className=err?'err':''};
+fetch(api).then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(i){
+  var w=$('what');w.textContent='';[i.project,' · '+(i.kind==='task'?T('משימה'):T('לוח גמרים'))+': ',i.label].forEach(function(x,k){var e=document.createElement(k===1?'span':'bdi');e.textContent=x;w.appendChild(e)});
+  $('back').href=i.link;$('back').hidden=false;$('pick').hidden=false;msg(T('בחר תמונה או קובץ. הוא יישמר מיד.'));
+}).catch(function(){$('what').hidden=true;msg(T('הקישור פג או כבר לא בתוקף. בקש מ-Claude קישור חדש.'),true)});
+/* phone photos: HEIC or very large pictures are redrawn as a JPEG of at most 2560px */
+function shrink(f){return new Promise(function(ok){
+  if(!/^image\\//.test(f.type)||f.type==='image/gif'||f.type==='image/svg+xml'||(f.size<3e6&&/^image\\/(jpeg|png|webp)$/.test(f.type)))return ok(f);
+  var img=new Image(),u=URL.createObjectURL(f);img.onload=function(){var k=Math.min(1,2560/Math.max(img.width,img.height)),c=document.createElement('canvas');
+  c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);c.getContext('2d').drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(u);
+  c.toBlob(function(b){ok(b?new File([b],f.name.replace(/\\.[^.]+$/,'')+'.jpg',{type:'image/jpeg'}):f)},'image/jpeg',.85)};img.onerror=function(){ok(f)};img.src=u;});}
+var ERR={415:'סוג הקובץ לא נתמך (תמונה, PDF, msg, eml)',413:'הקובץ גדול מדי',429:'הגעת למספר הקבצים המרבי לקישור הזה',410:'הקישור פג או כבר לא בתוקף. בקש מ-Claude קישור חדש.'};
+async function send(list){for(var i=0;i<list.length;i++){var f=await shrink(list[i]);msg(T('מעלה…')+' '+f.name);
+  try{var r=await fetch(api+'&name='+encodeURIComponent(f.name),{method:'POST',headers:{'Content-Type':/^image\\//.test(f.type)?f.type:'application/octet-stream'},body:f});
+    var j=await r.json().catch(function(){return{}});
+    if(!r.ok){msg(T('הקובץ לא נשמר')+' — '+(ERR[r.status]?T(ERR[r.status]):(j.error?T(j.error):r.status)),true);return;}
+    var li=document.createElement('li');li.textContent='✓ '+f.name+' — '+T(j.as==='image'?'נשמר כתמונת השורה':'נשמר');$('done').appendChild(li);
+  }catch(e){msg(T('הקובץ לא נשמר'),true);return;}}
+  msg(T('אפשר להוסיף עוד, או לסגור את הדף.'));}
+document.querySelectorAll('input[type=file]').forEach(function(inp){inp.onchange=function(){var l=[].slice.call(inp.files||[]);inp.value='';if(l.length)send(l)}});
+})();
+</script>`);
   }
 
   /* ── /mcp ── */
@@ -1397,7 +1553,7 @@ button.primary{background:#2563EB;border-color:#2563EB;color:#fff}.fine{font-siz
         return reply({
           protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: 'project-hub', title: 'Project Hub', version: '1.2.0' },
+          serverInfo: { name: 'project-hub', title: 'Project Hub', version: '1.3.0' },
           instructions: INSTRUCTIONS
         });
       }
@@ -1434,7 +1590,7 @@ button.primary{background:#2563EB;border-color:#2563EB;color:#fff}.fine{font-siz
     try { body = JSON.parse(await readRequestBody(req)); } catch (e) { sendJson(res, 400, { jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } }); return; }
     const reg = readJson(REGISTRY);
     let c;
-    try { c = { me: identify(who, reg), reg, base }; } catch (e) { sendJson(res, 500, { jsonrpc: '2.0', id: null, error: { code: -32603, message: e.message } }); return; }
+    try { c = { me: identify(who, reg), who, reg, base }; } catch (e) { sendJson(res, 500, { jsonrpc: '2.0', id: null, error: { code: -32603, message: e.message } }); return; }
     const batch = Array.isArray(body);
     const answers = [];
     for (const m of batch ? body : [body]) { const a = await handleRpc(m, c); if (a) answers.push(a); }
@@ -1445,7 +1601,7 @@ button.primary{background:#2563EB;border-color:#2563EB;color:#fff}.fine{font-siz
   /* Routes that run before the Microsoft-session gate: discovery, registration, token, /mcp. */
   function handlePublic(req, res, url) {
     const p = url.pathname;
-    const isOurs = p === '/mcp' || p.startsWith('/.well-known/oauth-') || p === '/oauth/register' || p === '/oauth/token';
+    const isOurs = p === '/mcp' || p.startsWith('/.well-known/oauth-') || p === '/oauth/register' || p === '/oauth/token' || p === '/attach' || p === '/api/attach';
     if (!isOurs) return false;
     cors(res);
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return true; }
@@ -1456,6 +1612,8 @@ button.primary{background:#2563EB;border-color:#2563EB;color:#fff}.fine{font-siz
     if (p === '/oauth/register') { if (req.method !== 'POST') { sendJson(res, 405, { error: 'Method not allowed' }); return true; } register(req, res).catch(done); return true; }
     if (p === '/oauth/token') { if (req.method !== 'POST') { sendJson(res, 405, { error: 'Method not allowed' }); return true; } token(req, res).catch(done); return true; }
     if (p === '/mcp') { mcp(req, res).catch(done); return true; }
+    if (p === '/attach') { attachPage(res); return true; }
+    if (p === '/api/attach') { handleAttachApi(req, res, url).catch(done); return true; }
     sendJson(res, 404, { error: 'Not found' });
     return true;
   }
