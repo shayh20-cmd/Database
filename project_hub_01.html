@@ -13458,6 +13458,27 @@ function MailSuggestionsPanel({data,save}){
         h("span",null,tx('השבוע: {s} מיילים נסרקו · {g} הצעות · {a} אושרו',{s:wk.scanned,g:wk.suggested,a:wk.accepted})))),
     editing&&h(NewTaskModal,{data,save,onClose:()=>setEditing(null),initialTitle:ed.title||(editing.mail||{}).subject||'',initialNote:editing.note||'',initialProjectId:ed.projectId||null,initialDue:ed.due||null,onSaved:()=>{const id=editing.id;setEditing(null);run(id,{action:'accept',created:true});}}));
 }
+/* Settings ← גישה מהירה ← סריקת מייל: the scanner's personal key (shown once), and whether Claude is set up on the server. */
+function MailScanSettings(){
+  const h=React.createElement;
+  const[st,setSt]=useState(null);
+  const[key,setKey]=useState('');
+  const[err,setErr]=useState('');
+  const load=()=>fetch('/api/mail-connection',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(setSt).catch(()=>setSt(null));
+  useEffect(()=>{load();},[]);
+  const issue=()=>{if(st&&st.key&&!confirm(tx('להפיק מפתח חדש? הקודם יפסיק לעבוד.')))return;setErr('');fetch('/api/mail-connection',{method:'POST'}).then(r=>r.json()).then(j=>{setKey(j.key||'');load();}).catch(e=>setErr(e.message));};
+  const revoke=()=>{if(!confirm(tx('לבטל את המפתח? הסריקה תיפסק עד שיופק מפתח חדש.')))return;fetch('/api/mail-connection',{method:'DELETE'}).then(()=>{setKey('');load();});};
+  const has=!!(st&&st.key);
+  return h("div",{className:"qa-mail"},
+    h("h2",{className:"qa-h"},"סריקת מייל"),
+    h("p",{className:"qa-lead"},"Project Hub סורק את תיבת הדואר שלך דרך Outlook שבמחשב, ו-Claude מציע משימות. ההצעות מופיעות בראש 'המשימות שלי'."),
+    st&&st.ai==='no-key'?h("p",{className:"qa-note"},"Claude עדיין לא הוגדר בשרת. המיילים יישמרו ויעובדו כשיוגדר."):null,
+    key?h("div",{className:"qa-mail-key"},h("p",null,"המפתח שלך (מוצג פעם אחת בלבד):"),h("code",{"data-i18n-skip":"",style:{userSelect:'all',wordBreak:'break-all'}},key),' ',h("button",{type:"button",className:"np-btn",onClick:()=>navigator.clipboard&&navigator.clipboard.writeText(key)},"העתק")):null,
+    h("p",null,has?tx('מפתח פעיל מ-{d}. שימוש אחרון: {u}',{d:fmtMailWhen(st.key.created),u:st.key.lastUsed?fmtMailWhen(st.key.lastUsed):tx('עדיין לא')}):"אין מפתח פעיל."),
+    h("div",{style:{display:'flex',gap:8,flexWrap:'wrap'}},h("button",{type:"button",className:"np-btn primary",onClick:issue},has?"הפק מפתח חדש":"הפק מפתח"),has?h("button",{type:"button",className:"np-btn",onClick:revoke},"בטל מפתח"):null),
+    h("p",{className:"qa-note"},tx('התקנה (פעם אחת, בלי הרשאות מנהל): בתיקיית Project Hub מריצים {cmd} ומדביקים את המפתח כשהוא מתבקש.',{cmd:'powershell -ExecutionPolicy Bypass -File tools\\mail-scan\\Install-MailScan.ps1'})),
+    err?h("div",{className:"mail-sug-err","data-i18n-skip":""},err):null);
+}
 /* ── Quick access (2026-10-04): ?quick=new | update opens a compact window for adding a task or an
    update without the whole app — from the Windows shortcut (Ctrl+Alt+N), the taskbar jump list, the
    desktop/folder right-click menu and the Chrome extension. ?title=, ?link= and ?folder= prefill it. ── */
@@ -19695,7 +19716,7 @@ function QuickAccessSettings() {
     className: "qa-steps"
   }, step(1, "לחצו פעמיים על הקובץ שירד (ProjectHub-Setup.cmd)", "אם Chrome שואל אם לשמור — 'שמור'."), step(2, "אם מופיע 'Windows protected your PC'", "לחצו 'More info' ואז 'Run anyway'. הקובץ לא דורש הרשאות מנהל ומשנה רק את המשתמש שלכם."), step(3, "בסיום נפתחת תיקייה עם שלושה קיצורים", "לחצן ימני על 'Project Hub - משימה חדשה' ← 'הצמד לשורת המשימות' (ב-Windows 11 תחת 'הצג אפשרויות נוספות')."), step(4, "בפעם הראשונה", "החלון יבקש להיכנס עם חשבון kkarc.com.")), h("p", {
     className: "qa-note"
-  }, "עדכונים בחלון עצמו מגיעים לבד. אם משתנים הקיצורים עצמם (המקש, האייקון) — מורידים ומריצים שוב, וזה מחליף את הקודם. להסרה: ", h("code", null, "%LOCALAPPDATA%\\Programs\\ProjectHub\\Uninstall-ProjectHub.cmd")));
+  }, "עדכונים בחלון עצמו מגיעים לבד. אם משתנים הקיצורים עצמם (המקש, האייקון) — מורידים ומריצים שוב, וזה מחליף את הקודם. להסרה: ", h("code", null, "%LOCALAPPDATA%\\Programs\\ProjectHub\\Uninstall-ProjectHub.cmd")), h(MailScanSettings, null));
 }
 /* Settings ← Claude: connect one's own Claude to Project Hub (the connector at /mcp), see
    whether it is connected and when it was last used, and cut it off from here. The adding
