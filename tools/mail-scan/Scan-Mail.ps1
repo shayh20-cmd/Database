@@ -44,7 +44,69 @@ function Show-Toast([string]$head, [string[]]$lines, [string]$url, [switch]$butt
     $xml.LoadXml('<toast' + $launch + '><visual><binding template="ToastGeneric">' + $texts + '</binding></visual>' + $actions + '</toast>')
     $appId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
     [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId).Show([Windows.UI.Notifications.ToastNotification]::new($xml))
-  } catch { Write-Log "toast failed: $($_.Exception.Message)" }
+  } catch {
+    Write-Log "toast failed: $($_.Exception.Message)"
+    Show-Popup $head $lines $url -buttons:$buttons
+  }
+}
+
+# Windows notifications can be unavailable ("The notification platform is unavailable" on the pilot PC). Then
+# the scanner shows its own small window in the corner: the same title, lines and buttons, always on top. It closes
+# itself after 10 minutes, so the next scheduled run (which waits for this one) is not held up for long.
+function Show-Popup([string]$head, [string[]]$lines, [string]$url, [switch]$buttons) {
+  try {
+    Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+    [System.Windows.Forms.Application]::EnableVisualStyles()
+    $font = New-Object System.Drawing.Font('Segoe UI', 10)
+    $f = New-Object System.Windows.Forms.Form
+    $f.Text = 'Project Hub'
+    $f.FormBorderStyle = 'None'; $f.TopMost = $true; $f.ShowInTaskbar = $false; $f.StartPosition = 'Manual'
+    $f.RightToLeft = 'Yes'; $f.RightToLeftLayout = $true
+    $f.AutoSize = $true; $f.AutoSizeMode = 'GrowAndShrink'; $f.Font = $font
+    $f.BackColor = [System.Drawing.Color]::White
+    $f.Add_Paint({ param($s, $e) $e.Graphics.DrawRectangle([System.Drawing.Pens]::Silver, 0, 0, $s.Width - 1, $s.Height - 1) })
+    $flow = New-Object System.Windows.Forms.FlowLayoutPanel
+    $flow.FlowDirection = 'TopDown'; $flow.WrapContents = $false; $flow.AutoSize = $true
+    $flow.Padding = New-Object System.Windows.Forms.Padding(16, 12, 16, 12)
+    $title = New-Object System.Windows.Forms.Label
+    $title.Text = $head; $title.AutoSize = $true; $title.MaximumSize = New-Object System.Drawing.Size(340, 0)
+    $title.Font = New-Object System.Drawing.Font('Segoe UI', 10.5, [System.Drawing.FontStyle]::Bold)
+    $title.ForeColor = [System.Drawing.Color]::FromArgb(17, 24, 39)
+    $flow.Controls.Add($title)
+    foreach ($l in @($lines | Select-Object -First 3)) {
+      $x = New-Object System.Windows.Forms.Label
+      $x.Text = [string]$l; $x.AutoSize = $true; $x.MaximumSize = New-Object System.Drawing.Size(340, 0)
+      $x.ForeColor = [System.Drawing.Color]::FromArgb(75, 85, 99); $x.Margin = New-Object System.Windows.Forms.Padding(0, 4, 0, 0)
+      $flow.Controls.Add($x)
+    }
+    $row = New-Object System.Windows.Forms.FlowLayoutPanel
+    $row.AutoSize = $true; $row.WrapContents = $false; $row.Margin = New-Object System.Windows.Forms.Padding(0, 12, 0, 0)
+    if ($url) {
+      $open = New-Object System.Windows.Forms.Button
+      $open.Text = 'פתח'; $open.AutoSize = $true; $open.FlatStyle = 'Flat'; $open.FlatAppearance.BorderSize = 0
+      $open.BackColor = [System.Drawing.Color]::FromArgb(37, 99, 235); $open.ForeColor = [System.Drawing.Color]::White
+      $open.Padding = New-Object System.Windows.Forms.Padding(10, 2, 10, 2)
+      $open.Add_Click({ Start-Process $url; $f.Close() })
+      $row.Controls.Add($open)
+    }
+    $later = New-Object System.Windows.Forms.Button
+    $later.Text = $(if ($buttons) { 'אחר כך' } else { 'סגור' }); $later.AutoSize = $true; $later.FlatStyle = 'Flat'
+    $later.FlatAppearance.BorderColor = [System.Drawing.Color]::Silver; $later.Padding = New-Object System.Windows.Forms.Padding(10, 2, 10, 2)
+    $later.Add_Click({ $f.Close() })
+    $row.Controls.Add($later)
+    $flow.Controls.Add($row)
+    $f.Controls.Add($flow)
+    $f.Add_Load({
+      $wa = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+      $f.Location = New-Object System.Drawing.Point(($wa.Right - $f.Width - 16), ($wa.Bottom - $f.Height - 16))
+    })
+    $timer = New-Object System.Windows.Forms.Timer
+    $timer.Interval = 10 * 60 * 1000
+    $timer.Add_Tick({ $timer.Stop(); $f.Close() })
+    $timer.Start()
+    [void]$f.ShowDialog()
+    $timer.Dispose(); $f.Dispose()
+  } catch { Write-Log "popup failed: $($_.Exception.Message)" }
 }
 
 function Read-State {
