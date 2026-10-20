@@ -994,6 +994,15 @@ html[data-appearance="dark"] .rv-verify{background:rgba(245,158,11,.18);color:#F
 .ex-table tbody tr:hover{background:var(--row-hover);}
 .ex-table tbody tr.on{background:var(--selected-bg);}
 .ex-table tbody tr:last-child td{border-bottom:none;}
+.ex-qe{position:relative;cursor:pointer;}
+.ex-table tbody td.ex-qe:hover,.ex-table tbody td.ex-qe-date:hover{background:var(--surface-2);}
+.ex-qe-sel{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;font:inherit;}
+.ex-qe-date{cursor:default;}
+.ex-qe-in{padding:4px 7px;font-size:12.5px;min-height:0;}
+.ex-qe-pen{border:none;background:none;cursor:pointer;color:var(--text-3);opacity:0;margin-inline-start:6px;padding:0 3px;font-size:12px;font-family:inherit;}
+.ex-table tbody tr:hover .ex-qe-pen,.ex-qe-pen:focus-visible{opacity:1;}
+.ex-qe-pen:hover{color:var(--blue);}
+@media print{.ex-qe-pen,.ex-qe-sel{display:none;}}
 .ex-row-closed td{color:var(--text-3);}
 .ex-num{font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:nowrap;}
 .ex-pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600;margin-inline-end:6px;font-family:inherit;}
@@ -4275,6 +4284,12 @@ const{c,split,openCount}=stats;const splitTotal=Object.values(split).reduce((a,b
 const cnt=t=>stats.n[t]||0;
 const[sorts,setSorts]=useExSort('log');
 const priorities=visOpts(projList(data,'priorities'));const priOf=id=>id?priorities.find(p=>p.id===id):null;
+/* quick edit in the log: title, priority, discipline and due date change in place, without opening the panel */
+const qe=!viewer;const[editTitleId,setEditTitleId]=useState(null);const stopRow=e=>e.stopPropagation();
+const qeDiscs=visOpts(projList(data,'disciplines')).map(d=>({id:d.id,label:DISCIPLINE_FULL_NAMES[d.id]||d.label||d.id}));
+const patchItem=(id,p)=>save({...data,execItems:items.map(x=>x.id===id?{...x,...p}:x)});
+const commitTitle=(it,v)=>{const t=String(v||'').trim();setEditTitleId(null);if(t&&t!==it.title)patchItem(it.id,{title:t});};
+const qeSel=(value,opts,onPick,shown)=>React.createElement("td",{className:"ex-qe",onClick:stopRow},shown,React.createElement("select",{className:"ex-qe-sel",value:value||'',title:tx('עריכה מהירה'),onChange:e=>onPick(e.target.value)},React.createElement("option",{value:''},'—'),opts.map(o=>React.createElement("option",{key:o.id,value:o.id},o.label))));
 const logVal=(i,k)=>{const closed=execIsClosed(i);switch(k){case 'num':return EX_TYPE_ORDER.indexOf(i.type)*100000+(i.seq||0);case 'title':return i.title;case 'pri':{const n=i.priority?priorities.findIndex(p=>p.id===i.priority):-1;return n<0?null:n;}case 'disc':return [exDiscName(data,i.discipline),i.type==='submittal'?i.specSection:i.type==='change'?i.tenderRef:''].filter(Boolean).join(' · ');case 'ball':return closed||!i.ball?'':execPartyLabel(i.ball);case 'wait':return closed||!i.ball?null:execWaiting(i,today);case 'status':return exStLabel(i);case 'due':return i.dueDate;}};
 const rows=execSortRows((filter==='mine'?execLogRows(items,'all',today).filter(isMine):execLogRows(items,filter,today)).filter(i=>showClosed||!execIsClosed(i)),sorts,logVal);
 const pickFilter=f=>setFilter(cur=>cur===f&&f!=='all'?'all':f);
@@ -4313,12 +4328,14 @@ exSortHead(EX_LOG_COLS,sorts,setSorts),
 React.createElement("tbody",null,rows.map(i=>{const closed=execIsClosed(i);const w=execWaiting(i,today);const disc=exDiscName(data,i.discipline);const spec=i.type==='submittal'&&i.specSection?i.specSection:i.type==='change'&&i.tenderRef?i.tenderRef:'';
 return React.createElement("tr",{key:i.id,className:(closed?"ex-row-closed":"")+(openId===i.id?" on":""),onClick:()=>setOpenId(i.id)},
 React.createElement("td",{className:"ex-num"},React.createElement(ExTypePill,{type:i.type}),React.createElement("span",{"data-i18n-skip":""},i.number)),
-React.createElement("td",{"data-i18n-skip":""},i.title||'—'),
-React.createElement("td",null,(pr=>pr?React.createElement("span",{className:"pill",style:{color:'#fff',background:pr.color,minWidth:53,justifyContent:'center'}},pr.label):React.createElement("span",{className:"ex-muted"},'—'))(priOf(i.priority))),
-React.createElement("td",null,disc||spec?[disc,spec].filter(Boolean).join(' · '):React.createElement("span",{className:"ex-muted"},'—')),
+editTitleId===i.id?React.createElement("td",{onClick:stopRow},React.createElement("input",{className:"ex-in ex-qe-in",autoFocus:true,defaultValue:i.title||'',"aria-label":tx('כותרת'),onBlur:e=>commitTitle(i,e.target.value),onKeyDown:e=>{if(e.key==='Enter'){e.preventDefault();e.target.blur();}else if(e.key==='Escape'){e.preventDefault();e.stopPropagation();setEditTitleId(null);}}})):
+React.createElement("td",{"data-i18n-skip":""},i.title||'—',qe&&React.createElement("button",{type:"button",className:"ex-qe-pen",title:tx('ערוך כותרת'),"aria-label":tx('ערוך כותרת'),onClick:e=>{e.stopPropagation();setEditTitleId(i.id);}},'✎')),
+(pri=>{const shown=pri?React.createElement("span",{className:"pill",style:{color:'#fff',background:pri.color,minWidth:53,justifyContent:'center'}},pri.label):React.createElement("span",{className:"ex-muted"},'—');return qe?qeSel(i.priority,priorities,v=>patchItem(i.id,{priority:v}),shown):React.createElement("td",null,shown);})(priOf(i.priority)),
+(shown=>qe?qeSel(i.discipline,qeDiscs,v=>patchItem(i.id,{discipline:v}),shown):React.createElement("td",null,shown))(disc||spec?[disc,spec].filter(Boolean).join(' · '):React.createElement("span",{className:"ex-muted"},'—')),
 React.createElement("td",null,React.createElement(ExPartyChip,{ball:i.ball})),
 React.createElement("td",{className:"ex-nw "+waitCls(i,w)},closed||!i.ball?'—':w+' ימים'),
 React.createElement("td",null,React.createElement("span",{className:"ex-st"+(i.status==='rejected'?" ex-st-rejected":closed?" ex-st-closed":"")},statusOf(i))),
+qe?React.createElement("td",{className:"ex-qe-date"+(!closed&&i.dueDate&&i.dueDate<today?" ex-wait-bad":""),onClick:stopRow},React.createElement(DateField,{variant:'link',value:i.dueDate||'',onChange:v=>patchItem(i.id,{dueDate:v||''}),clearable:true,title:tx('עריכה מהירה')})):
 React.createElement("td",{className:!closed&&i.dueDate&&i.dueDate<today?"ex-wait-bad":""},exDdMm(i.dueDate)));}))):
 React.createElement("div",{className:"ex-empty"},items.length?'אין פריטים להצגה בסינון הזה.':'אין עדיין פריטי ביצוע. פתח Issue, RFI או הגשה.')),
 onOpenTasks&&React.createElement("div",{className:"ex-foot"},React.createElement("button",{type:"button",className:"ex-link",onClick:onOpenTasks},tx('משימות תכנון שוטפות ({n} פתוחות) ←',{n:tasksOpen}))),

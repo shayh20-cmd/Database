@@ -2934,7 +2934,9 @@ Object.assign(HE_EN, {
 "השורה נמחקה בינתיים": "The row was deleted in the meantime",
 "גמר רצפה לפי חלל": "Floor finish by space",
 "גמרים לפי חומר, עם מקרא": "Finishes by material, with a legend",
-"פתח את המסלול": "Open the track"
+"פתח את המסלול": "Open the track",
+"ערוך כותרת": "Edit title",
+"עריכה מהירה": "Quick edit"
 });
 
 window.I18N_HE_EN = HE_EN;
