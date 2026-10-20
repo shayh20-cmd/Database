@@ -28,6 +28,25 @@ function Write-Log([string]$msg) {
   Set-Content -Path $logFile -Value ($old + $line) -Encoding UTF8
 }
 
+# every exit goes through here, so the run-once lock below is always released
+$mutex = $null
+function Stop-Scan([int]$code) {
+  if ($script:mutex) { try { $script:mutex.ReleaseMutex() } catch { }; $script:mutex.Dispose(); $script:mutex = $null }
+  exit $code
+}
+# anything not caught below is logged instead of the hidden run dying silently
+trap { Write-Log "fatal: $_"; Stop-Scan 1 }
+
+# one scan at a time (the scheduled task, the Start menu shortcut and sign-in can overlap)
+$mutex = New-Object System.Threading.Mutex($false, 'Local\ProjectHubMailScan')
+$owned = $false
+try { $owned = $mutex.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $owned = $true }   # previous run was killed: the lock is ours now
+if (-not $owned) {
+  $mutex.Dispose(); $mutex = $null
+  if (-not $DryRun) { Write-Log 'another scan is running' }
+  exit 0
+}
+
 # $lines: up to three body lines. $buttons adds "פתח" (opens $url) and "אחר כך".
 function Show-Toast([string]$head, [string[]]$lines, [string]$url, [switch]$buttons) {
   if ($DryRun) { Write-Host "[toast] $head : $($lines -join ' | ')"; return }
@@ -52,7 +71,8 @@ function Show-Toast([string]$head, [string[]]$lines, [string]$url, [switch]$butt
 
 # Windows notifications can be unavailable ("The notification platform is unavailable" on the pilot PC). Then
 # the scanner shows its own small window in the corner: the same title, lines and buttons, always on top. It closes
-# itself after 10 minutes, so the next scheduled run (which waits for this one) is not held up for long.
+# itself after 10 minutes, so the run ends within the scheduled task's 15-minute limit (run-hidden.vbs waits for
+# the scan, so the task counts as running until then and skips any trigger that fires meanwhile).
 function Show-Popup([string]$head, [string[]]$lines, [string]$url, [switch]$buttons) {
   try {
     Add-Type -AssemblyName System.Windows.Forms, System.Drawing
@@ -110,12 +130,15 @@ function Show-Popup([string]$head, [string[]]$lines, [string]$url, [switch]$butt
 }
 
 function Read-State {
-  $s = @{ since = (Get-Date).AddDays(-2).ToString('o'); failures = 0 }
+  # keyAlerted / noKeyAlerted: the key alerts were already shown, so they are not repeated every run
+  $s = @{ since = (Get-Date).AddDays(-2).ToString('o'); failures = 0; keyAlerted = $false; noKeyAlerted = $false }
   if (Test-Path $stateFile) {
     try {
       $j = Get-Content $stateFile -Raw -Encoding UTF8 | ConvertFrom-Json
       if ($j.since) { $s.since = [string]$j.since }
       $s.failures = [int]$j.failures
+      $s.keyAlerted = [bool]$j.keyAlerted
+      $s.noKeyAlerted = [bool]$j.noKeyAlerted
     } catch { }
   }
   return $s
@@ -147,9 +170,13 @@ $state = Read-State
 $key = Get-Key
 if (-not $key -and -not $DryRun) {
   Write-Log 'no key'
-  Show-Toast $Title 'אין מפתח. הפק מפתח בהגדרות ← גישה מהירה ← סריקת מייל, והרץ שוב את ההתקנה.' "$Hub/project_hub_01"
-  exit 1
+  if (-not $state.noKeyAlerted) {
+    Show-Toast $Title 'אין מפתח. הפק מפתח בהגדרות ← גישה מהירה ← סריקת מייל, והרץ שוב את ההתקנה.' "$Hub/project_hub_01"
+    $state.noKeyAlerted = $true; Save-State $state
+  }
+  Stop-Scan 1
 }
+if ($key) { $state.noKeyAlerted = $false }
 
 try {
   $ol = New-Object -ComObject Outlook.Application
@@ -158,7 +185,7 @@ try {
 } catch {
   Write-Log "outlook: $($_.Exception.Message)"
   Show-Toast $Title 'Outlook במחשב לא מוגדר או לא זמין. פתח את Outlook והתחבר עם חשבון המשרד.' ''
-  exit 1
+  Stop-Scan 1
 }
 $me = ''
 try { $me = [string]$ns.CurrentUser.AddressEntry.GetExchangeUser().PrimarySmtpAddress } catch { }
@@ -170,36 +197,47 @@ $found.Sort('[ReceivedTime]')
 $mails = New-Object System.Collections.ArrayList
 $last = $since
 foreach ($m in $found) {
-  if ($mails.Count -ge $MaxMails) { break }
-  if ($m.Class -ne 43) { continue }   # olMail only
-  $received = [datetime]$m.ReceivedTime
+  if ($mails.Count -ge $MaxMails) {
+    # stopped at the cap: step back a second so a message received in the same second as the last one sent
+    # is picked up next run (the server ignores the ones it already has)
+    $back = $last.AddSeconds(-1)
+    if ($back -gt $since) { $last = $back }
+    break
+  }
+  # a broken or unreadable item is logged and passed over; it must not stop the scan
+  try {
+    if ($m.Class -ne 43) { continue }   # olMail only
+    $received = [datetime]$m.ReceivedTime
+  } catch { Write-Log "skip item: $($_.Exception.Message)"; continue }
   if ($received -le $since) { continue }
   $last = $received
-  $headers = Get-Prop $m $PR_HEADERS
-  $from = Get-SenderSmtp $m
-  $skip = ($m.MessageClass -like 'IPM.Note.Rules.OofTemplate*') -or ($headers -match '(?im)^Auto-Submitted:\s*auto-') -or ($headers -match '(?im)^List-Unsubscribe:') -or ($me -and $from -and ($from -ieq $me))
-  if ($skip) { continue }
-  $id = Get-Prop $m $PR_MSGID
-  if (-not $id) { $id = [string]$m.EntryID }
-  $body = [string]$m.Body
-  if ($body.Length -gt $BodyChars) { $body = $body.Substring(0, $BodyChars) }
-  $att = @()
-  foreach ($a in $m.Attachments) { $att += [string]$a.FileName }
-  [void]$mails.Add([ordered]@{
-    id = $id; from = $from; fromName = [string]$m.SenderName; to = [string]$m.To; cc = [string]$m.CC
-    subject = [string]$m.Subject; received = $received.ToString('yyyy-MM-ddTHH:mm:sszzz'); body = $body; attachments = $att
-  })
+  try {
+    $headers = Get-Prop $m $PR_HEADERS
+    $from = Get-SenderSmtp $m
+    $skip = ($m.MessageClass -like 'IPM.Note.Rules.OofTemplate*') -or ($headers -match '(?im)^Auto-Submitted:\s*auto-') -or ($headers -match '(?im)^List-Unsubscribe:') -or ($me -and $from -and ($from -ieq $me))
+    if ($skip) { continue }
+    $id = Get-Prop $m $PR_MSGID
+    if (-not $id) { $id = [string]$m.EntryID }
+    $body = [string]$m.Body
+    if ($body.Length -gt $BodyChars) { $body = $body.Substring(0, $BodyChars) }
+    $att = @()
+    foreach ($a in $m.Attachments) { $att += [string]$a.FileName }
+    [void]$mails.Add([ordered]@{
+      id = $id; from = $from; fromName = [string]$m.SenderName; to = [string]$m.To; cc = [string]$m.CC
+      subject = [string]$m.Subject; received = $received.ToString('yyyy-MM-ddTHH:mm:sszzz'); body = $body; attachments = $att
+    })
+  } catch { Write-Log "skip item: $($_.Exception.Message)"; continue }
 }
 
 if ($DryRun) {
   Write-Host ("{0} messages to send since {1}" -f $mails.Count, $since)
   foreach ($x in $mails) { Write-Host (" - {0} | {1} | {2}" -f $x.received, $x.from, $x.subject) }
-  exit 0
+  Stop-Scan 0
 }
 if ($mails.Count -eq 0) {
   $state.since = $last.ToString('o'); $state.failures = 0; Save-State $state
   Write-Log 'nothing new'
-  exit 0
+  Stop-Scan 0
 }
 
 $auth = @{ Authorization = "Bearer $key" }
@@ -216,17 +254,22 @@ try {
   try { $code = [int]$_.Exception.Response.StatusCode } catch { }
   if ($code -eq 401) {
     Write-Log 'key refused (401)'
-    Show-Toast $Title 'המפתח בוטל או שגוי. הפק מפתח חדש בהגדרות ← גישה מהירה ← סריקת מייל, והרץ שוב את ההתקנה.' "$Hub/project_hub_01"
-    exit 1
+    # once per key: cleared after the next successful send
+    if (-not $state.keyAlerted) {
+      Show-Toast $Title 'המפתח בוטל או שגוי. הפק מפתח חדש בהגדרות ← גישה מהירה ← סריקת מייל, והרץ שוב את ההתקנה.' "$Hub/project_hub_01"
+      $state.keyAlerted = $true; Save-State $state
+    }
+    Stop-Scan 1
   }
   $state.failures = [int]$state.failures + 1
   Save-State $state
   Write-Log "send failed ($code): $($_.Exception.Message)"
-  if ($state.failures -ge 3) { Show-Toast $Title 'השרת לא זמין כבר שלוש ריצות. המיילים יישלחו בריצה הבאה.' '' }
-  exit 1
+  # only on the third failure in a row, not on every run after it
+  if ($state.failures -eq 3) { Show-Toast $Title 'השרת לא זמין כבר שלוש ריצות. המיילים יישלחו בריצה הבאה.' '' }
+  Stop-Scan 1
 }
 
-$state.since = $last.ToString('o'); $state.failures = 0
+$state.since = $last.ToString('o'); $state.failures = 0; $state.keyAlerted = $false
 Save-State $state
 Write-Log "sent $($mails.Count), new $accepted"
 if ($accepted -gt 0) {
@@ -240,3 +283,4 @@ if ($accepted -gt 0) {
     }
   } catch { Write-Log "status: $($_.Exception.Message)" }
 }
+Stop-Scan 0

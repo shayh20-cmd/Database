@@ -12,6 +12,11 @@ New-Item -ItemType Directory -Force -Path $dir | Out-Null
 
 Write-Host 'הדבק את המפתח מ-Project Hub (הגדרות ← גישה מהירה ← סריקת מייל) ולחץ Enter:'
 $sec = Read-Host -AsSecureString
+# an empty Enter would store an empty key and every scan would fail; the length is checked without showing the key
+while ($sec.Length -eq 0) {
+  Write-Host 'לא הודבק מפתח. נסה שוב:'
+  $sec = Read-Host -AsSecureString
+}
 $sec | ConvertFrom-SecureString | Set-Content -Path (Join-Path $dir 'mail-scan.key')
 
 $vbs = Join-Path $here 'run-hidden.vbs'
