@@ -2,10 +2,10 @@
 // MIRROR of the pure quick-update helpers in project_hub_01.html — keep in sync.
 
 // ---- mirrored logic (copy of the HTML block) ----
-const EV_PERIOD = new Set(['progress', 'response', 'update']);
+const EV_PERIOD = new Set(['progress', 'update']);
 function getNextSuggestedStatus(lastStatus){
   if(!lastStatus) return 'progress';
-  const map = {missing:'progress',progress:'sent',sent:'response',response:'sent',comments:'progress',approved:'progress'};
+  const map = {missing:'progress',progress:'sent',sent:'progress',comments:'progress',approved:'progress'};
   return map[lastStatus] || 'progress';
 }
 function latestUpdateOf(events){
@@ -48,7 +48,7 @@ eq(latestUpdateOf([
 // same date + same class → the later-appended one wins (append is now the universal insertion order)
 eq(latestUpdateOf([
   {id:'a',status:'progress',date:'2026-03-01'},
-  {id:'b',status:'response',date:'2026-03-01'},
+  {id:'b',status:'update',date:'2026-03-01'},
 ]).id, 'b', 'latest: same date, both period → later-appended wins');
 eq(latestUpdateOf([
   {id:'a',status:'sent',date:'2026-03-01'},
@@ -63,15 +63,14 @@ eq(latestUpdateOf([
 // suggestedStatusFor — the NEXT step, never a repeat of the current one
 eq(suggestedStatusFor([]), 'progress', 'suggest: no events → progress');
 eq(suggestedStatusFor([{id:'a',status:'progress',date:'2026-01-01'}]), 'sent', 'suggest: progress → sent');
-eq(suggestedStatusFor([{id:'a',status:'sent',date:'2026-01-01'}]), 'response', 'suggest: sent → response');
-eq(suggestedStatusFor([{id:'a',status:'response',date:'2026-01-01'}]), 'sent', 'suggest: response → sent');
+eq(suggestedStatusFor([{id:'a',status:'sent',date:'2026-01-01'}]), 'progress', 'suggest: sent → progress (the other side works on it)');
 eq(suggestedStatusFor([{id:'a',status:'comments',date:'2026-01-01'}]), 'progress', 'suggest: comments → progress');
 eq(suggestedStatusFor([{id:'a',status:'approved',date:'2026-01-01'}]), 'progress', 'suggest: approved → progress');
 eq(suggestedStatusFor([{id:'a',status:'missing',date:'2026-01-01'}]), 'progress', 'suggest: missing → progress');
 eq(suggestedStatusFor([
   {id:'a',status:'progress',date:'2026-01-01'},
   {id:'b',status:'sent',date:'2026-02-01'},
-]), 'response', 'suggest: reads the latest event, not the first');
+]), 'progress', 'suggest: reads the latest event, not the first');
 
 // appendUpdate — always appends, never prepends, never mutates
 const base = [{id:'a',status:'sent',date:'2026-01-01'}];

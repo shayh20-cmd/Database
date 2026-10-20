@@ -2,7 +2,7 @@
 // MIRROR of the pure tender functions in project_hub_01.html — keep in sync.
 
 // ---- mirrored logic (copy of the HTML block) ----
-const EV_PERIOD = new Set(['progress', 'response', 'update']);
+const EV_PERIOD = new Set(['progress', 'update']);
 function latestEvent(cell) {
   const evs = (cell && cell.events) || [];
   if (!evs.length) return null;

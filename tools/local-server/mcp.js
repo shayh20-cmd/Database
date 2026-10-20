@@ -24,8 +24,10 @@ const PH01_ID = 'ph01';
 const ROLE_RANK = { viewer: 0, editor: 1, admin: 2, superadmin: 3 };
 const EV_STATUSES = {
   missing: 'חסר', progress: 'בעבודה', sent: 'נשלח', comments: 'יש הערות',
-  response: 'בהתייחסות', update: 'עדכון', approved: 'מאושר'
+  update: 'עדכון', approved: 'מאושר'
 };
+// בהתייחסות was retired (the page turns stored ones into בעבודה); a document not yet re-saved may still hold it
+const evLabel = k => EV_STATUSES[k === 'response' ? 'progress' : k] || k || '';
 // the task status an update implies (the page's getMostRecentEventStatus)
 const EV_TO_STATUS = { progress: 'I', sent: 'I', response: 'I', comments: 'R', approved: 'C', missing: 'N' };
 
@@ -526,7 +528,7 @@ module.exports = function createMcp(ctx) {
       action: { type: 'string', enum: Object.keys(ITEM_ACTIONS), description: 'What the item becomes: none (minutes only), task (new task), update (update on an existing task), subtask (subtask of an existing task), principle (planning principle), milestone' },
       title: { type: 'string', description: 'Task / subtask / milestone title when it should differ from the topic' },
       task: { type: 'string', description: 'For update / subtask: the existing task (id or unique part of its title)' },
-      update_status: { type: 'string', description: 'For update: missing | progress | sent | comments | response | update | approved' },
+      update_status: { type: 'string', description: 'For update: missing | progress | sent | comments | update | approved' },
       stage: { type: 'string', description: 'For task: "track › stage"; omit for the default stage' },
       priority: { type: 'string', description: 'For task' },
       assignees: { type: 'array', items: { type: 'string' }, description: 'For task: team member names' },
@@ -616,7 +618,7 @@ module.exports = function createMcp(ctx) {
               status: (sts.find(x => x.id === status) || {}).label || status,
               discipline: (discs.find(x => x.id === t.discipline) || {}).label || t.discipline || undefined,
               due: t.dueDate || undefined,
-              latest_update: lu ? `${lu.date || ''} ${EV_STATUSES[lu.status] || lu.status || ''}${lu.title ? ' — ' + lu.title : ''}`.trim() : undefined,
+              latest_update: lu ? `${lu.date || ''} ${evLabel(lu.status)}${lu.title ? ' — ' + lu.title : ''}`.trim() : undefined,
               open_subtasks: (t.subtasks || []).filter(x => !x.done).length || undefined
             });
           });
@@ -645,7 +647,7 @@ module.exports = function createMcp(ctx) {
           assignees: (t.assigneeIds || []).map(id => (team.find(m => m.id === id) || {}).name || id),
           comment: t.comment || undefined, description: textOf(t.description) || undefined,
           mails: (t.mails || (t.mail ? [t.mail] : [])).map(m => m.url || m) || undefined,
-          updates: evChrono(t.events).slice(-15).map(e => ({ date: e.date, status: EV_STATUSES[e.status] || e.status, owner: lbl(discs, e.assignee), title: e.title || undefined, note: e.note || undefined })),
+          updates: evChrono(t.events).slice(-15).map(e => ({ date: e.date, status: evLabel(e.status), owner: lbl(discs, e.assignee), title: e.title || undefined, note: e.note || undefined })),
           subtasks: (t.subtasks || []).map(x => ({ id: x.id, title: x.title, done: !!x.done, discipline: lbl(discs, x.discipline) })),
           from_meeting: t.sourceMeetingId ? (m => m ? `${m.date || ''} ${m.title || ''}`.trim() : undefined)((doc.meetings || []).find(m => m.id === t.sourceMeetingId)) : undefined,
           link: linkOf(c.base, p.id, s.id, t.id)
@@ -711,7 +713,7 @@ module.exports = function createMcp(ctx) {
             type: 'object',
             properties: {
               text: { type: 'string', description: 'What happened' },
-              update_status: { type: 'string', description: 'missing | progress | sent | comments | response | update | approved (or the Hebrew label)' },
+              update_status: { type: 'string', description: 'missing | progress | sent | comments | update | approved (or the Hebrew label)' },
               owner: { type: 'string', description: 'Discipline that now holds the ball; omit to keep the current one' },
               date: { type: 'string', description: 'YYYY-MM-DD, default today' },
               mail_url: { type: 'string' }
