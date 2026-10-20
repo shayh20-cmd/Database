@@ -12,6 +12,7 @@ const SEEN_MAX = 2000;
 const BODY_CHARS = 6000;
 const EXCERPT_CHARS = 1500;
 const MAX_ATTEMPTS = 3;
+const PENDING_MAX = 200;
 const STALE_DAYS = 14;
 const PURGE_DAYS = 30;
 const DAY = 24 * 3600 * 1000;
@@ -55,10 +56,19 @@ function cleanMail(m) {
   };
 }
 
-/* New messages wait as pending; a message already seen is counted as a duplicate and dropped. */
+// a failed item will not be sent to Claude again unless retried: keep only the start, like a triaged one
+function fail(it, error) {
+  it.status = 'failed';
+  it.lastError = clip(error, 300);
+  if (it.mail && it.mail.body !== undefined) { it.mail.excerpt = clip(it.mail.body, EXCERPT_CHARS); delete it.mail.body; }
+}
+
+/* New messages wait as pending; a message already seen (or still held as an item) is counted as
+   a duplicate and dropped. */
 function ingest(doc, mails, nowIso) {
   doc = norm(doc);
   const seen = new Set(doc.seen);
+  for (const it of doc.items) seen.add(it.id);
   let accepted = 0, duplicates = 0;
   for (const m of mails || []) {
     const id = clip(m && m.id, 300);
@@ -69,7 +79,17 @@ function ingest(doc, mails, nowIso) {
     doc.items.push({ id, mail: cleanMail(m), status: 'pending', attempts: 0, createdAt: nowIso });
     accepted++;
   }
-  if (doc.seen.length > SEEN_MAX) doc.seen = doc.seen.slice(-SEEN_MAX);
+  // a bounded queue: past 200 waiting, the oldest give up (the person can still retry them)
+  const pending = doc.items.filter(i => i.status === 'pending');
+  for (const it of pending.slice(0, Math.max(0, pending.length - PENDING_MAX))) fail(it, 'queue full');
+  if (doc.seen.length > SEEN_MAX) {
+    // keep every id that still has an item, then the newest of the rest
+    const live = new Set(doc.items.map(i => i.id));
+    let room = SEEN_MAX - doc.seen.filter(x => live.has(x)).length;
+    const keep = [];
+    for (let i = doc.seen.length - 1; i >= 0; i--) if (live.has(doc.seen[i]) || room-- > 0) keep.push(doc.seen[i]);
+    doc.seen = keep.reverse();
+  }
   if (accepted) bump(doc, 'scanned', accepted, nowIso);
   return { doc, accepted, duplicates };
 }
@@ -96,7 +116,7 @@ function failAttempt(doc, id, error) {
   if (!it || it.status !== 'pending') return doc;
   it.attempts = (it.attempts || 0) + 1;
   it.lastError = clip(error, 300);
-  if (it.attempts >= MAX_ATTEMPTS) it.status = 'failed';
+  if (it.attempts >= MAX_ATTEMPTS) fail(it, error);
   return doc;
 }
 
@@ -128,14 +148,21 @@ function act(doc, id, action, reason, nowIso) {
 }
 
 /* Upkeep on every read: an unhandled suggestion goes stale after 14 days; one that was handled,
-   ignored or went stale is removed 30 days later. Its id stays in `seen`, so it never returns. */
+   ignored or went stale is removed 30 days later, and so is one that never got an answer
+   (pending / failed) 30 days after it arrived. Its id stays in `seen`, so it never returns. */
 function housekeep(doc, nowMs) {
   doc = norm(doc);
   const staleBefore = nowMs - STALE_DAYS * DAY;
   const purgeBefore = nowMs - PURGE_DAYS * DAY;
   doc.items = doc.items.filter(it => {
-    if (it.status === 'new' && Date.parse(it.triagedAt || it.createdAt) < staleBefore) it.status = 'stale';
-    const doneAt = it.handledAt || (it.status === 'ignored' || it.status === 'stale' ? it.triagedAt : null);
+    if (it.status === 'new' && Date.parse(it.triagedAt || it.createdAt) < staleBefore) {
+      it.status = 'stale';
+      it.staleAt = new Date(nowMs).toISOString();
+    }
+    const doneAt = it.handledAt
+      || (it.status === 'stale' ? it.staleAt || it.triagedAt : null) // older data has no staleAt
+      || (it.status === 'ignored' ? it.triagedAt : null)
+      || (it.status === 'pending' || it.status === 'failed' ? it.createdAt : null);
     return !(doneAt && Date.parse(doneAt) < purgeBefore);
   });
   return doc;

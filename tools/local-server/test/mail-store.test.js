@@ -103,3 +103,47 @@ test('mailFileOf: one file per person, whatever the case of the address', () => 
   assert.match(path.basename(a), /^[0-9a-f]{32}\.json$/);
   assert.notStrictEqual(S.mailFileOf('/d', null), a);
 });
+
+test('failAttempt: a failed item keeps only a 1,500-character excerpt', () => {
+  let doc = S.ingest({}, [mail('m1')], NOW).doc;
+  for (let i = 0; i < 3; i++) doc = S.failAttempt(doc, 'm1', 'boom');
+  assert.strictEqual(doc.items[0].mail.body, undefined);
+  assert.strictEqual(doc.items[0].mail.excerpt.length, 1500);
+});
+
+test('ingest: at most 200 pending per person; the oldest become failed with "queue full"', () => {
+  const many = n => Array.from({ length: n }, (_, i) => mail('q' + i));
+  const r = S.ingest({}, many(205), NOW);
+  assert.strictEqual(S.pendingIds(r.doc).length, 200);
+  const failed = r.doc.items.filter(i => i.status === 'failed');
+  assert.deepStrictEqual(failed.map(i => i.id), ['q0', 'q1', 'q2', 'q3', 'q4']);
+  assert.ok(failed.every(i => i.lastError === 'queue full' && i.mail.body === undefined && i.mail.excerpt.length === 1500));
+});
+
+test('ingest: an id that still has an item is a duplicate even after it left `seen`; trimming keeps such ids', () => {
+  const doc = { seen: Array.from({ length: 2000 }, (_, i) => 's' + i), items: [{ id: 'old', status: 'new', createdAt: NOW, mail: {} }, { id: 's0', status: 'new', createdAt: NOW, mail: {} }] };
+  const r = S.ingest(doc, [mail('old'), mail('fresh')], NOW);
+  assert.deepStrictEqual([r.accepted, r.duplicates], [1, 1]);
+  assert.strictEqual(r.doc.seen.length, 2000);
+  assert.ok(r.doc.seen.includes('s0'), 's0 still has an item');
+  assert.ok(r.doc.seen.includes('fresh'));
+  assert.ok(!r.doc.seen.includes('s1'));
+});
+
+test('housekeep: failed and pending items are removed 30 days after they arrived', () => {
+  const doc = { seen: [], items: [
+    { id: 'f', status: 'failed', createdAt: ago(31), mail: {} },
+    { id: 'p', status: 'pending', createdAt: ago(31), mail: {} },
+    { id: 'p2', status: 'pending', createdAt: ago(5), mail: {} }
+  ] };
+  assert.deepStrictEqual(S.housekeep(doc, Date.parse(NOW)).items.map(i => i.id), ['p2']);
+});
+
+test('housekeep: a stale item is removed 30 days after it went stale', () => {
+  let doc = { seen: [], items: [{ id: 'a', status: 'new', createdAt: ago(40), triagedAt: ago(40), mail: {} }] };
+  doc = S.housekeep(doc, Date.parse(NOW));
+  assert.strictEqual(doc.items[0].status, 'stale');
+  assert.strictEqual(doc.items[0].staleAt, NOW);
+  assert.strictEqual(S.housekeep(doc, Date.parse(NOW) + 29 * DAY).items.length, 1, 'only 29 days stale');
+  assert.strictEqual(S.housekeep(doc, Date.parse(NOW) + 31 * DAY).items.length, 0);
+});

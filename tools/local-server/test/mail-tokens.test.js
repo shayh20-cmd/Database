@@ -45,3 +45,16 @@ test('locally there is no address: the key belongs to "local"', () => {
   const k = tokens.issue(null, 't1');
   assert.strictEqual(tokens.check(k, 't2'), 'local');
 });
+
+test('lastUsed is written at most every 10 minutes; the key still works every time', () => {
+  const { tokens, file } = make();
+  const key = tokens.issue('dana@kkarc.com', '2026-10-20T08:00:00.000Z');
+  const mtime = () => fs.readFileSync(file, 'utf8');
+  assert.strictEqual(tokens.check(key, '2026-10-20T09:00:00.000Z'), 'dana@kkarc.com');
+  const first = mtime();
+  assert.strictEqual(tokens.check(key, '2026-10-20T09:05:00.000Z'), 'dana@kkarc.com');
+  assert.strictEqual(mtime(), first, 'no write 5 minutes later');
+  assert.strictEqual(tokens.status('dana@kkarc.com').lastUsed, '2026-10-20T09:00:00.000Z');
+  assert.strictEqual(tokens.check(key, '2026-10-20T09:11:00.000Z'), 'dana@kkarc.com');
+  assert.strictEqual(tokens.status('dana@kkarc.com').lastUsed, '2026-10-20T09:11:00.000Z');
+});

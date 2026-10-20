@@ -50,15 +50,17 @@ function userContent(mail, projects, today) {
     for (const t of p.tasks || []) lines.push(`    - ${t.id} | ${t.title}`);
   }
   if (!projects.length) lines.push('(none)');
-  const body = String(mail.body || mail.excerpt || '').replace(/<\/?email>/gi, '');
+  // every field inside the block is the sender's text: none may open or close it
+  const t = v => String(v == null ? '' : v).replace(/<\/?email>/gi, '');
+  const from = t(mail.from), fromName = t(mail.fromName);
   lines.push('', '<email>',
-    'From: ' + [mail.fromName, mail.from ? '<' + mail.from + '>' : ''].filter(Boolean).join(' '),
-    'To: ' + (mail.to || ''),
-    'Cc: ' + (mail.cc || ''),
-    'Date: ' + (mail.received || ''),
-    'Subject: ' + (mail.subject || ''),
-    'Attachments: ' + ((mail.attachments || []).join(', ') || '(none)'),
-    '', body, '</email>');
+    'From: ' + [fromName, from ? '<' + from + '>' : ''].filter(Boolean).join(' '),
+    'To: ' + t(mail.to),
+    'Cc: ' + t(mail.cc),
+    'Date: ' + t(mail.received),
+    'Subject: ' + t(mail.subject),
+    'Attachments: ' + ((mail.attachments || []).map(t).join(', ') || '(none)'),
+    '', t(mail.body || mail.excerpt), '</email>');
   return lines.join('\n');
 }
 

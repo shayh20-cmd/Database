@@ -30,35 +30,46 @@ module.exports = function createMail(ctx) {
 
   /* One queue per person, one message at a time. Every step re-reads the document, so an intake
      or a button press while Claude is thinking is never lost. Each pending message is tried once
-     per run; a failure is retried on the next intake or the next time the page opens. */
-  const running = new Map();
+     per pass; a failure is retried on the next intake or the next time the page opens. A trigger
+     that arrives while the run is going (an intake, a retry) earns one more pass when it ends. */
+  const running = new Map(); // person → { again } while their run is going
   function triageSoon(p) {
     const k = keyOf(p.email);
-    if (!client || running.has(k)) return;
-    const job = (async () => {
-      const tried = new Set();
-      for (;;) {
-        const id = store.pendingIds(load(p.email)).find(x => !tried.has(x));
-        if (!id) break;
-        tried.add(id);
-        const it = load(p.email).items.find(i => i.id === id);
-        try {
-          const s = await ai.triage(client, MODEL, it.mail, mcp.mailContext(p.email, p.name), now().slice(0, 10));
-          lastAi = 'ok';
-          saveDoc(p.email, store.applySuggestion(load(p.email), id, s, now()));
-        } catch (e) {
-          lastAi = 'failing';
-          console.error('mail triage failed:', e.message);
-          saveDoc(p.email, store.failAttempt(load(p.email), id, e.message));
+    if (!client) return;
+    if (running.has(k)) { running.get(k).again = true; return; }
+    const run = { again: false };
+    running.set(k, run);
+    (async () => {
+      do {
+        run.again = false;
+        // the person's projects, once per pass; if the hub cannot read them that is not Claude's failure
+        let projects;
+        try { projects = mcp.mailContext(p.email, p.name); } catch (e) { console.error('mail: cannot read the projects:', e.message); return; }
+        const tried = new Set();
+        for (;;) {
+          const id = store.pendingIds(load(p.email)).find(x => !tried.has(x));
+          if (!id) break;
+          tried.add(id);
+          const it = load(p.email).items.find(i => i.id === id);
+          try {
+            const s = await ai.triage(client, MODEL, it.mail, projects, now().slice(0, 10));
+            lastAi = 'ok';
+            saveDoc(p.email, store.applySuggestion(load(p.email), id, s, now()));
+          } catch (e) {
+            lastAi = 'failing';
+            console.error('mail triage failed:', e.message);
+            saveDoc(p.email, store.failAttempt(load(p.email), id, e.message));
+          }
         }
-      }
+      } while (run.again);
     })().catch(e => console.error('mail queue:', e)).finally(() => running.delete(k));
-    running.set(k, job);
   }
 
+  // a body that is not a JSON object (null, a string, a list) is treated as empty: a 400 / 409, not a crash
   async function readJsonBody(req) {
     const raw = await readRequestBody(req);
-    return raw ? JSON.parse(raw) : {};
+    const v = raw ? JSON.parse(raw) : {};
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
   }
 
   /* ── the scanner: a bearer key, before the sign-in gate ── */
@@ -100,10 +111,12 @@ module.exports = function createMail(ctx) {
     if (!projectId) throw new mcp.ToolError('Choose a project for this task (Edit)');
     const title = String(edit.title || s.title || (it.mail && it.mail.subject) || '').trim();
     const due = edit.due !== undefined ? edit.due : s.due;
+    // only an exact id from the person's list: create_tasks would also match a name or code loosely
     const proj = mcp.mailContext(p.email, p.name).find(x => x.id === projectId);
+    if (!proj) throw new mcp.ToolError('That project is no longer in your list — choose another in Edit');
     const me = mcp.whoAmI(p.email, p.name);
     return mcp.runToolAs(p.email, p.name, '', 'create_tasks', {
-      project: projectId,
+      project: proj.id,
       tasks: [{ title, note, ...(due ? { due_date: due } : {}), ...(proj && proj.mine ? { assignees: [me.id] } : {}) }]
     });
   }
@@ -129,7 +142,8 @@ module.exports = function createMail(ctx) {
       return;
     }
     if (req.method !== 'POST') { sendJson(res, 405, { error: 'Method not allowed' }); return; }
-    const id = decodeURIComponent(m[1]);
+    let id;
+    try { id = decodeURIComponent(m[1]); } catch (e) { sendJson(res, 400, { error: 'Bad suggestion id' }); return; }
     let body;
     try { body = await readJsonBody(req); } catch (e) { sendJson(res, 400, { error: 'Invalid JSON' }); return; }
     const it = load(p.email).items.find(i => i.id === id);

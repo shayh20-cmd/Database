@@ -38,8 +38,11 @@ module.exports = function createTokens(file, { readJson, writeJsonAtomic }) {
       const st = load();
       const v = st.keys[sha(key)];
       if (!v) return null;
-      v.lastUsed = nowIso;
-      writeJsonAtomic(file, st);
+      // the scanner calls every few minutes: refresh "last used" at most every 10 minutes, not on each call
+      if (!v.lastUsed || !(Date.parse(nowIso) - Date.parse(v.lastUsed) < 10 * 60 * 1000)) {
+        v.lastUsed = nowIso;
+        writeJsonAtomic(file, st);
+      }
       return v.who;
     }
   };
