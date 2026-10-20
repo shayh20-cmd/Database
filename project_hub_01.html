@@ -14024,11 +14024,13 @@ function NewTaskModal({
   initialNote = '',
   onSaved = null,
   extras = false,
-  initialMail = null
+  initialMail = null,
+  initialProjectId = null,
+  initialDue = null
 }) {
   // a Viewer can't write to projects, so only the personal list is offered
   const projects = myOfficeRole() === 'viewer' ? [] : MY_PROJECTS.filter(p => p.real && isMyProject(p));
-  const [projectId, setProjectId] = useState(() => (projects.find(p => p.id === ACTIVE_PROJECT_ID) || projects[0] || {}).id || PERSONAL_PICK);
+  const [projectId, setProjectId] = useState(() => (initialProjectId && projects.find(p => p.id === initialProjectId) || projects.find(p => p.id === ACTIVE_PROJECT_ID) || projects[0] || {}).id || PERSONAL_PICK);
   const personalPick = projectId === PERSONAL_PICK;
   const [title, setTitle] = useState(initialTitle);
   const [note, setNote] = useState(initialNote); /* the quick window keeps the note under אפשרויות נוספות, unless it arrives filled (a link or a folder) */ const [noteInMore] = useState(() => !!extras && !initialNote);
@@ -14063,7 +14065,7 @@ function NewTaskModal({
   const [discipline, setDiscipline] = useState('');
   const [priority, setPriority] = useState('medium');
   const [startDate, setStartDate] = useState(() => todayISO());
-  const [dueDate, setDueDate] = useState(() => isoPlusDays(todayISO(), 14));
+  const [dueDate, setDueDate] = useState(() => initialDue && initialDue >= todayISO() ? initialDue : isoPlusDays(todayISO(), 14));
   const [assigneeIds, setAssigneeIds] = useState([]);
   const [stageId, setStageId] = useState(''); // '' = the default, first stage of מסלול תכנון
   const [otherDoc, setOtherDoc] = useState(null);
