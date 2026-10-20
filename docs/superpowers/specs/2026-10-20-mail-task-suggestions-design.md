@@ -197,3 +197,7 @@ Outlook הקלאסי ──COM──▶ סורק (PowerShell, משימה מתו�
 > Microsoft Graph, Delegated — `Mail.Read` ו-`offline_access`. היא חלה רק על משתמשים שיתחברו
 > בעצמם מתוך ה-Hub. האישור: Entra admin center ← Enterprise applications ← kkarc-hub ←
 > Permissions ← Grant admin consent.
+
+## הרחבה: שעות סריקה וסריקה ידנית (2026-10-21)
+
+כל אדם קובע ימים ושעות לסריקה בהגדרות, ויכול לסרוק מיד מה-Hub, מתפריט התחל או מההגדרות. הפרטים: `2026-10-21-mail-scan-schedule-contract.md`.
