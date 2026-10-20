@@ -28,8 +28,9 @@ function Write-Log([string]$msg) {
   Set-Content -Path $logFile -Value ($old + $line) -Encoding UTF8
 }
 
-function Show-Toast([string]$head, [string]$text, [string]$url) {
-  if ($DryRun) { Write-Host "[toast] $head : $text"; return }
+# $lines: up to three body lines. $buttons adds "פתח" (opens $url) and "אחר כך".
+function Show-Toast([string]$head, [string[]]$lines, [string]$url, [switch]$buttons) {
+  if ($DryRun) { Write-Host "[toast] $head : $($lines -join ' | ')"; return }
   try {
     $null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
     $null = [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime]
@@ -37,7 +38,10 @@ function Show-Toast([string]$head, [string]$text, [string]$url) {
     $launch = ''
     if ($url) { $launch = ' activationType="protocol" launch="' + $e::Escape($url) + '"' }
     $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
-    $xml.LoadXml('<toast' + $launch + '><visual><binding template="ToastGeneric"><text>' + $e::Escape($head) + '</text><text>' + $e::Escape($text) + '</text></binding></visual></toast>')
+    $texts = (@($head) + @($lines | Select-Object -First 3) | ForEach-Object { '<text>' + $e::Escape([string]$_) + '</text>' }) -join ''
+    $actions = ''
+    if ($buttons -and $url) { $actions = '<actions><action content="פתח" activationType="protocol" arguments="' + $e::Escape($url) + '"/><action content="אחר כך" activationType="system" arguments="dismiss"/></actions>' }
+    $xml.LoadXml('<toast' + $launch + '><visual><binding template="ToastGeneric">' + $texts + '</binding></visual>' + $actions + '</toast>')
     $appId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
     [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId).Show([Windows.UI.Notifications.ToastNotification]::new($xml))
   } catch { Write-Log "toast failed: $($_.Exception.Message)" }
@@ -166,6 +170,11 @@ Write-Log "sent $($mails.Count), new $accepted"
 if ($accepted -gt 0) {
   try {
     $s = Invoke-RestMethod -Uri "$Hub/api/mail-intake/status?wait=60" -Headers $auth -TimeoutSec 90
-    if ([int]$s.new -gt 0) { Show-Toast 'Project Hub' ('{0} הצעות מהמייל מחכות לך' -f $s.new) "$Hub/project_hub_01?view=mail" }
+    if ([int]$s.new -gt 0) {
+      $lines = @($s.top | ForEach-Object { if ($_.kind -eq 'important') { 'כדאי לשים לב: ' + $_.title } else { '• ' + $_.title } })
+      # the small suggestions window, through the link Install-MailScan.ps1 registers; else the whole app
+      $open = if (Test-Path 'HKCU:\Software\Classes\projecthub-mail') { 'projecthub-mail:open' } else { "$Hub/project_hub_01?view=mail" }
+      Show-Toast ('Project Hub · {0} הצעות מהמייל' -f $s.new) $lines $open -buttons
+    }
   } catch { Write-Log "status: $($_.Exception.Message)" }
 }

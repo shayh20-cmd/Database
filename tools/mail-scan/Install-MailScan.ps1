@@ -43,5 +43,24 @@ $ico = Join-Path $here '..\quick-access\project-hub-cube.ico'
 if (Test-Path $ico) { $lnk.IconLocation = (Resolve-Path $ico).Path }
 $lnk.Save()
 
+# projecthub-mail: — the notification's "פתח" opens the suggestions as a small window, like the quick-access
+# shortcuts (Chrome first, else Edge). Per user, no admin rights.
+$browser = @(
+  "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+  "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+  "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe",
+  "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
+  "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe"
+) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+if ($browser) {
+  $proto = 'HKCU:\Software\Classes\projecthub-mail'
+  New-Item -Path "$proto\shell\open\command" -Force | Out-Null
+  Set-ItemProperty -Path $proto -Name '(default)' -Value 'URL:Project Hub mail suggestions'
+  Set-ItemProperty -Path $proto -Name 'URL Protocol' -Value ''
+  Set-ItemProperty -Path "$proto\shell\open\command" -Name '(default)' -Value "`"$browser`" --app=`"$Hub/project_hub_01?quick=mail`" --window-size=470,640"
+} else {
+  Write-Host 'הערה: לא נמצא Chrome או Edge. "פתח" בהתראה יפתח את Project Hub בדפדפן הרגיל.'
+}
+
 Write-Host 'הותקן. בדיקה (בלי לשלוח כלום):'
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $here 'Scan-Mail.ps1') -DryRun -Hub $Hub

@@ -3,4 +3,5 @@
 Unregister-ScheduledTask -TaskName 'Project Hub mail scan' -Confirm:$false -ErrorAction SilentlyContinue
 Remove-Item (Join-Path ([Environment]::GetFolderPath('Programs')) 'Project Hub\סרוק מייל עכשיו.lnk') -ErrorAction SilentlyContinue
 Remove-Item (Join-Path $env:LOCALAPPDATA 'ProjectHub\mail-scan.*') -ErrorAction SilentlyContinue
+Remove-Item 'HKCU:\Software\Classes\projecthub-mail' -Recurse -ErrorAction SilentlyContinue
 Write-Host 'הוסר. כדי לבטל גם את המפתח בשרת: הגדרות ← גישה מהירה ← סריקת מייל ← בטל מפתח.'

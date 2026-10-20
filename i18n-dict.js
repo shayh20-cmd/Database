@@ -2968,7 +2968,11 @@ Object.assign(HE_EN, {
 "בטל מפתח": "Revoke key",
 "להפיק מפתח חדש? הקודם יפסיק לעבוד.": "Issue a new key? The current one will stop working.",
 "לבטל את המפתח? הסריקה תיפסק עד שיופק מפתח חדש.": "Revoke the key? Scanning stops until a new key is issued.",
-"התקנה (פעם אחת, בלי הרשאות מנהל): בתיקיית Project Hub מריצים {cmd} ומדביקים את המפתח כשהוא מתבקש.": "Install (once, no admin rights): in the Project Hub folder run {cmd} and paste the key when asked."
+"התקנה (פעם אחת, בלי הרשאות מנהל): בתיקיית Project Hub מריצים {cmd} ומדביקים את המפתח כשהוא מתבקש.": "Install (once, no admin rights): in the Project Hub folder run {cmd} and paste the key when asked.",
+"אחר כך": "Later",
+"{n} הצעות חדשות מהמייל": "{n} new suggestions from mail",
+"אין הצעות חדשות מהמייל.": "No new suggestions from mail.",
+"PROJECT HUB · הצעות מהמייל": "PROJECT HUB · Suggestions from mail"
 });
 
 window.I18N_HE_EN = HE_EN;
