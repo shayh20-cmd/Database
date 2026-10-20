@@ -13373,6 +13373,16 @@ function stagesByTrack(doc) {
     };
   }).filter(x => x.stages.length)];
 }
+/* ── Mail suggestions (2026-10-20): what Claude suggested from the person's inbox, at the top of המשימות
+   שלי with a count in the sidebar. The scanner (tools/mail-scan) sends new mail to the server, which keeps
+   one document per person (/api/mail-suggestions). Nothing reaches a project until a button is pressed
+   here. Spec: docs/superpowers/specs/2026-10-20-mail-task-suggestions-design.md ── */
+/* MIRROR: tests/mail-suggestions.test.js — keep in sync */
+function mailSugGroups(items){const list=items||[];const by=s=>list.filter(i=>i.status===s);const kindOf=i=>(i.suggestion||{}).kind;const fresh=by('new');return{tasks:fresh.filter(i=>kindOf(i)==='task'||kindOf(i)==='update'),important:fresh.filter(i=>kindOf(i)==='important'),stale:by('stale'),failed:by('failed'),pending:by('pending')};}
+function mailSugCount(d){return d&&d.summary?d.summary.new||0:0;}
+function fmtMailWhen(iso){if(!iso)return'';const d=new Date(iso);if(isNaN(d))return'';const p=n=>String(n).padStart(2,'0');return p(d.getDate())+'.'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes());}
+function fmtMailDay(iso){return/^\d{4}-\d{2}-\d{2}$/.test(iso||'')?iso.slice(8,10)+'.'+iso.slice(5,7):'';}
+/* MIRROR end */
 /* ── Quick access (2026-10-04): ?quick=new | update opens a compact window for adding a task or an
    update without the whole app — from the Windows shortcut (Ctrl+Alt+N), the taskbar jump list, the
    desktop/folder right-click menu and the Chrome extension. ?title=, ?link= and ?folder= prefill it. ── */
