@@ -68,7 +68,7 @@ Outlook הקלאסי ──COM──▶ סורק (PowerShell, משימה מתו�
 
 **מודול חדש** `tools/local-server/mail.js`, שמחובר ל-`server.js` כמו `mcp.js`:
 
-- **מפתחות אישיים.** `data/mail-tokens.json` שומר רק `sha256` של כל מפתח, עם
+- **מפתחות אישיים.** `data/mail_tokens.json` שומר רק `sha256` של כל מפתח, עם
   `{ who: email, created, lastUsed }`. מפתח נוצר ומבוטל ב-`/api/mail-connection`
   (מאחורי Easy Auth, לפי המשתמש המחובר); מוצג פעם אחת בלבד. מפתח אחד פעיל לאדם —
   הפקת חדש מבטלת את הקודם.
@@ -83,7 +83,7 @@ Outlook הקלאסי ──COM──▶ סורק (PowerShell, משימה מתו�
     שליפה שהקונקטור (`mcp.js`, `projectsFor`) כבר עושה,
   - התאריך של היום.
   פלט מובנה (`output_config.format`, JSON Schema):
-  `{ kind: 'task'|'update'|'important'|'ignore', title, projectId, taskId, due, reason, lang }`.
+  `{ kind: 'task'|'update'|'important'|'ignore', title, projectId, taskId, due, reason }` (שפת ההצעה נקבעת בהנחיה: שפת המייל).
   `projectId`/`taskId` שלא קיימים ברשימה שנשלחה נמחקים לפני שמירה.
 - **מודל.** הגדרת אפליקציה `MAIL_AI_MODEL`, ברירת מחדל `claude-opus-5-5`
   (אפשר `claude-sonnet-5-5` בלי שינוי קוד). מפתח: `ANTHROPIC_API_KEY`. ספריה:
