@@ -125,6 +125,20 @@ and 2, and run the server on port 3000.
 A person must be enrolled in the register to read it; anyone else sees "not registered" and
 the id to give an administrator.
 
+## Mail suggestions
+
+The server asks Claude for task suggestions from the mail that `tools/mail-scan` sends
+(spec: `docs/superpowers/specs/2026-10-20-mail-task-suggestions-design.md`). Two app settings:
+
+| Setting | Value |
+|---|---|
+| `ANTHROPIC_API_KEY` | the Anthropic API key (secret) |
+| `MAIL_AI_MODEL` | optional; default `claude-opus-5-5`, `claude-sonnet-5-5` costs about half |
+
+Set both in one command (one restart). Without the key, mail is kept as pending and `/health`
+shows `mailAi: "no-key"`. Each person's suggestions are in `/home/data/mail/<hash>.json`, the scanner
+keys (hashes only) in `/home/data/mail_tokens.json`.
+
 ## Not in this deployment
 
 The capture window, the planning dashboard, the spec creator and the home view's
