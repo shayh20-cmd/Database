@@ -1548,6 +1548,28 @@ document.querySelectorAll('input[type=file]').forEach(function(inp){inp.onchange
     if (!lastUseSave || t.used - lastUseSave > 10 * 60 * 1000) { lastUseSave = t.used; saveStore(); }
     return t.who;
   }
+  /* ── for the mail suggestions (mail.js): the same person, projects and tools as a Claude
+     session, without OAuth — mail.js has already decided who is asking ── */
+  function whoAmI(email, name) { return identify({ email, name }, readJson(REGISTRY)); }
+  function mailContext(email, name) {
+    const reg = readJson(REGISTRY);
+    const me = identify({ email, name }, reg);
+    return projectsFor(me, reg).map(p => {
+      const doc = readJson(p.file);
+      const tasks = [];
+      for (const s of doc.sheets || []) {
+        if (s.type !== 'list') continue;
+        for (const t of s.tasks || []) if (statusOf(t) !== 'C') tasks.push({ id: t.id, title: String(t.title || '') });
+      }
+      return { id: p.id, code: p.code || '', name: p.name || '', mine: (doc.team || []).some(m => m.staffId === me.id), tasks: tasks.slice(-150) };
+    });
+  }
+  function runToolAs(email, name, base, toolName, args) {
+    const reg = readJson(REGISTRY);
+    const tool = TOOLS.find(t => t.name === toolName);
+    return tool.run(args, { me: identify({ email, name }, reg), who: { email, name }, reg, base });
+  }
+
   async function handleRpc(msg, c) {
     const reply = result => ({ jsonrpc: '2.0', id: msg.id, result });
     const fail = (code, message) => ({ jsonrpc: '2.0', id: msg.id, error: { code, message } });
@@ -1633,5 +1655,5 @@ document.querySelectorAll('input[type=file]').forEach(function(inp){inp.onchange
     try { authorize(req, res, url, user); } catch (e) { console.error('authorize', e); if (!res.headersSent) sendJson(res, 500, { error: 'server_error' }); }
   }
 
-  return { handlePublic, handleAuthorize, handleConnection, _test: { identify, projectsFor, projList, stagesOf, findStage, officeData, handleRpc } };
+  return { handlePublic, handleAuthorize, handleConnection, whoAmI, mailContext, runToolAs, ToolError, _test: { identify, projectsFor, projList, stagesOf, findStage, officeData, handleRpc } };
 };
