@@ -414,13 +414,16 @@ const mcp = require('./mcp')({
   beforeProjectWrite: (file, oldDoc, newDoc, who) => history.beforeSave(projectIdOfFile(file), file, oldDoc, newDoc, who)
 });
 
+/* Mail suggestions (the scanner's intake and the tray in המשימות שלי); see mail.js. */
+const mail = require('./mail')({ DATA_DIR, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, mcp });
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const healthy = AUTH_CONFIRMED && !bootError;
   if (url.pathname === '/health') {
     const body = {
       ok: healthy, mode: SITE_MODE, node: process.version,
-      authEnabled: AUTH_ENABLED,
+      authEnabled: AUTH_ENABLED, mailAi: mail.health(),
       error: bootError ? bootError.message : (AUTH_CONFIRMED ? null : 'authentication not confirmed')
     };
     // While unhealthy, show what the platform actually injected, so a misread flag is
@@ -436,6 +439,8 @@ const server = http.createServer((req, res) => {
 
   // The connector's discovery, registration, token and /mcp routes carry their own credentials.
   if (mcp.handlePublic(req, res, url)) return;
+  // the mail scanner carries its own key too
+  if (mail.handlePublic(req, res, url)) return;
 
   /* Easy Auth lets anonymous requests through (AllowAnonymous), so this is the gate. A visitor
      who is not signed in gets only the sign-in page, whose button starts Microsoft sign-in. */
@@ -459,6 +464,10 @@ const server = http.createServer((req, res) => {
   }
   if (url.pathname === '/oauth/authorize') { mcp.handleAuthorize(req, res, url, user); return; }
   if (url.pathname.startsWith('/api/claude-connection')) { mcp.handleConnection(req, res, url, user); return; }
+  if (url.pathname === '/api/mail-connection' || url.pathname.startsWith('/api/mail-suggestions')) {
+    mail.handle(req, res, url, user).catch(e => sendJson(res, 500, { error: e.message }));
+    return;
+  }
   if (url.pathname === '/api/me') { sendJson(res, 200, { name: user.name, email: user.email, mode: SITE_MODE }); return; }
   if (url.pathname === '/api/register-config') { sendJson(res, 200, registerConfig()); return; }
   if (url.pathname === '/api/snip' && SITE_MODE === 'local') { handleSnip(req, res); return; }
