@@ -85,6 +85,7 @@ test('mail: a key, an intake, suggestions for that person only, and accepting wr
   assert.deepStrictEqual([r1.accepted, r1.duplicates], [3, 0]);
   const st = await json(await fetch(base + '/api/mail-intake/status?wait=30', { headers: auth }));
   assert.deepStrictEqual([st.new, st.pending, st.failed], [2, 0, 0]);
+  assert.deepStrictEqual(st.top.map(x => x.title).sort(), ['החשמלאי אישר', 'לעדכן חזית'], 'the notification gets the titles');
   const r2 = await json(await fetch(base + '/api/mail-intake', { method: 'POST', headers: auth, body: JSON.stringify({ mails: [mails[0]] }) }));
   assert.deepStrictEqual([r2.accepted, r2.duplicates], [0, 1]);
 

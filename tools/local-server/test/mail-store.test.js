@@ -147,3 +147,13 @@ test('housekeep: a stale item is removed 30 days after it went stale', () => {
   assert.strictEqual(S.housekeep(doc, Date.parse(NOW) + 29 * DAY).items.length, 1, 'only 29 days stale');
   assert.strictEqual(S.housekeep(doc, Date.parse(NOW) + 31 * DAY).items.length, 0);
 });
+
+test('topNew: the newest open suggestions first, for the notification', () => {
+  let doc = S.ingest({}, [mail('m1'), mail('m2'), mail('m3'), mail('m4')], NOW).doc;
+  doc = S.applySuggestion(doc, 'm1', { ...TASK, title: 'ראשונה' }, '2026-10-20T08:00:00.000Z');
+  doc = S.applySuggestion(doc, 'm2', { ...TASK, kind: 'important', title: 'חשוב' }, '2026-10-20T09:00:00.000Z');
+  doc = S.applySuggestion(doc, 'm3', { ...TASK, kind: 'ignore' }, '2026-10-20T10:00:00.000Z');
+  assert.deepStrictEqual(S.topNew(doc, 3), [{ kind: 'important', title: 'חשוב' }, { kind: 'task', title: 'ראשונה' }]);
+  assert.deepStrictEqual(S.topNew(doc, 1), [{ kind: 'important', title: 'חשוב' }]);
+  assert.deepStrictEqual(S.topNew({}, 3), []);
+});

@@ -183,6 +183,13 @@ function summary(doc, nowIso) {
   return { new: count('new'), pending: count('pending'), failed: count('failed'), week: doc.stats && doc.stats.weekOf === w ? doc.stats : emptyWeek(w) };
 }
 
+/* The newest open suggestions, for the Windows notification the scanner shows. */
+function topNew(doc, n) {
+  return norm(doc).items.filter(i => i.status === 'new' && i.suggestion)
+    .sort((a, b) => String(b.triagedAt || '').localeCompare(String(a.triagedAt || '')))
+    .slice(0, n).map(i => ({ kind: i.suggestion.kind, title: i.suggestion.title || (i.mail && i.mail.subject) || '' }));
+}
+
 /* The page's view: no ignored items, no raw bodies; each item carries its task note. */
 function forPage(doc, nowIso) {
   doc = norm(doc);
@@ -193,4 +200,4 @@ function forPage(doc, nowIso) {
   return { items, summary: summary(doc, nowIso) };
 }
 
-module.exports = { mailFileOf, ingest, pendingIds, applySuggestion, failAttempt, canAct, act, housekeep, noteOf, summary, forPage, weekOf };
+module.exports = { mailFileOf, ingest, pendingIds, applySuggestion, failAttempt, canAct, act, housekeep, noteOf, summary, topNew, forPage, weekOf };

@@ -81,7 +81,8 @@ module.exports = function createMail(ctx) {
     if (url.pathname === '/api/mail-intake/status') {
       const until = Date.now() + Math.min(60, Math.max(0, Number(url.searchParams.get('wait')) || 0)) * 1000;
       while (running.has(keyOf(p.email)) && Date.now() < until) await new Promise(r => setTimeout(r, 500));
-      sendJson(res, 200, store.summary(load(p.email), now()));
+      const doc = load(p.email);
+      sendJson(res, 200, { ...store.summary(doc, now()), top: store.topNew(doc, 3) });
       return;
     }
     if (req.method !== 'POST') { sendJson(res, 405, { error: 'Method not allowed' }); return; }
