@@ -1564,6 +1564,53 @@ document.querySelectorAll('input[type=file]').forEach(function(inp){inp.onchange
       return { id: p.id, code: p.code || '', name: p.name || '', mine: (doc.team || []).some(m => m.staffId === me.id), tasks: tasks.slice(-150) };
     });
   }
+  /* The Outlook add-in's mail log: an email in a linked thread becomes an update on its task. It
+     carries forward the status and owner of the update before it, so neither the task's derived
+     status nor the ball moves (a bare "update" would send the page back to the raw statusId);
+     `auto` marks it until the person makes it a real update or removes it. */
+  function mailLog(email, name, projectId, taskId, entry) {
+    const reg = readJson(REGISTRY);
+    const me = identify({ email, name }, reg);
+    canWrite(me);
+    const p = findProject(me, reg, projectId);
+    checkDates(entry.date);
+    return writeProject(p, me, doc => {
+      const { t, s } = findTask(doc, taskId);
+      const date = entry.date || todayISO();
+      const before = evChrono(t.events).filter(e => (e.date || '') <= date).pop();
+      const ev = {
+        id: uid(), status: (before && before.status) || 'update', assignee: (before && before.assignee) || t.discipline || '',
+        date, title: String(entry.text || '').trim(), note: '', ...(entry.mail ? { mail: entry.mail } : {}), auto: true
+      };
+      putTask(doc, s.id, { ...t, events: [...(t.events || []), ev], activityLog: [...(t.activityLog || []), logEntry(me, 'נרשם אוטומטית מהמייל')] });
+      return { eventId: ev.id };
+    });
+  }
+  /* Remove an automatic mail entry (change null), or make it a real update: text, update status, owner. */
+  function mailLogEdit(email, name, projectId, taskId, eventId, change) {
+    const reg = readJson(REGISTRY);
+    const me = identify({ email, name }, reg);
+    canWrite(me);
+    const p = findProject(me, reg, projectId);
+    return writeProject(p, me, doc => {
+      const { t, s } = findTask(doc, taskId);
+      const ev = (t.events || []).find(e => e.id === eventId);
+      if (!ev) throw new ToolError('That update is no longer on the task');
+      if (!change) {
+        if (!ev.auto) throw new ToolError('Only an automatic mail entry can be removed here');
+        putTask(doc, s.id, { ...t, events: t.events.filter(e => e.id !== eventId), activityLog: [...(t.activityLog || []), logEntry(me, 'רישום אוטומטי מהמייל הוסר')] });
+        return { removed: true };
+      }
+      const evs = Object.keys(EV_STATUSES);
+      const ust = change.update_status ? (evs.find(k => k === change.update_status) || evs.find(k => norm(EV_STATUSES[k]) === norm(change.update_status))) : ev.status;
+      if (!ust) throw new ToolError(`Unknown update status "${change.update_status}"`);
+      const owner = change.owner != null ? pickOption(projList(doc, 'disciplines', reg), change.owner, 'discipline') : ev.assignee;
+      const next = { ...ev, status: ust, assignee: owner || '', title: change.text != null ? String(change.text).trim() : ev.title };
+      delete next.auto;
+      putTask(doc, s.id, { ...t, events: t.events.map(e => e.id === eventId ? next : e), activityLog: [...(t.activityLog || []), logEntry(me, 'עדכון מהמייל אושר')] });
+      return { eventId, status: ust };
+    });
+  }
   function runToolAs(email, name, base, toolName, args) {
     const reg = readJson(REGISTRY);
     const tool = TOOLS.find(t => t.name === toolName);
@@ -1655,5 +1702,5 @@ document.querySelectorAll('input[type=file]').forEach(function(inp){inp.onchange
     try { authorize(req, res, url, user); } catch (e) { console.error('authorize', e); if (!res.headersSent) sendJson(res, 500, { error: 'server_error' }); }
   }
 
-  return { handlePublic, handleAuthorize, handleConnection, whoAmI, mailContext, runToolAs, ToolError, _test: { identify, projectsFor, projList, stagesOf, findStage, officeData, handleRpc } };
+  return { handlePublic, handleAuthorize, handleConnection, whoAmI, mailContext, runToolAs, mailLog, mailLogEdit, ToolError, _test: { identify, projectsFor, projList, stagesOf, findStage, officeData, handleRpc } };
 };

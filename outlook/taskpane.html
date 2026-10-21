@@ -7,9 +7,9 @@
 <!-- Office.js must come from Microsoft's CDN (it cannot be self-hosted) -->
 <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
 <style>
-  :root { --bg: #fff; --fg: #1f2937; --muted: #6b7280; --line: #e5e7eb; --card: #f9fafb; --accent: #2563eb; --accent-fg: #fff; --err: #b91c1c; }
+  :root { --bg: #fff; --fg: #1f2937; --muted: #6b7280; --line: #e5e7eb; --card: #f9fafb; --accent: #2563eb; --accent-fg: #fff; --err: #b91c1c; --ok-bg: #ecfdf5; --ok-line: #a7f3d0; }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #1f1f1f; --fg: #e5e7eb; --muted: #9ca3af; --line: #374151; --card: #262626; --accent: #60a5fa; --accent-fg: #0b1220; --err: #f87171; }
+    :root { --bg: #1f1f1f; --fg: #e5e7eb; --muted: #9ca3af; --line: #374151; --card: #262626; --accent: #60a5fa; --accent-fg: #0b1220; --err: #f87171; --ok-bg: #0f2a22; --ok-line: #14532d; }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 "Segoe UI", Arial, sans-serif; }
@@ -18,20 +18,32 @@
   header .who { color: var(--muted); font-size: 12px; }
   main { padding: 12px; display: flex; flex-direction: column; gap: 12px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
-  .card h2 { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0 0 6px; text-transform: none; }
+  .card h2 { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0 0 6px; }
   .subject { font-weight: 600; word-break: break-word; }
   .meta { color: var(--muted); font-size: 12px; }
   label { display: block; font-size: 12px; color: var(--muted); margin-block-end: 4px; }
   select, input, textarea { width: 100%; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
   textarea { resize: vertical; min-height: 64px; }
   button { font: inherit; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
   button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
   button.link { border: 0; background: none; color: var(--accent); padding: 0; }
+  a { color: var(--accent); }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .err { color: var(--err); font-size: 13px; }
   .hint { color: var(--muted); font-size: 12px; }
+  .linked { border-color: var(--ok-line); background: var(--ok-bg); }
+  .task-title { font-weight: 600; word-break: break-word; }
+  .updates { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .updates li { font-size: 12px; border-inline-start: 2px solid var(--line); padding-inline-start: 6px; }
+  .entry { margin-block-start: 8px; padding-block-start: 8px; border-top: 1px solid var(--ok-line); display: flex; flex-direction: column; gap: 6px; }
+  .picker { display: flex; flex-direction: column; gap: 6px; }
+  .results { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
+  .results li { padding: 6px 8px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .results li:last-child { border-bottom: 0; }
+  .results li:hover, .results li:focus { background: var(--card); outline: none; }
   details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
-  .tech { font: 11px/1.4 Consolas, monospace; word-break: break-all; color: var(--muted); margin: 6px 0 0; }
+  .tech { font: 11px/1.4 Consolas, monospace; word-break: break-all; color: var(--muted); margin: 6px 0 0; white-space: pre-wrap; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -65,10 +77,61 @@
     <div class="meta" id="attachments"></div>
   </div>
 
+  <!-- the task this thread is linked to -->
+  <div class="card linked" id="linkedCard" hidden>
+    <h2 data-t="השרשור קשור למשימה">השרשור קשור למשימה</h2>
+    <a class="task-title" id="taskTitle" target="_blank" rel="noopener" data-i18n-skip></a>
+    <div class="meta" id="taskMeta" data-i18n-skip></div>
+    <ul class="updates" id="taskUpdates" data-i18n-skip></ul>
+    <div class="entry" id="entry" hidden>
+      <div class="hint" id="entryState"></div>
+      <div class="row" id="entryActions">
+        <button type="button" id="promoteBtn" data-t="הפוך לעדכון מלא">הפוך לעדכון מלא</button>
+        <button type="button" class="link" id="removeBtn" data-t="הסר">הסר</button>
+      </div>
+      <div id="promoteForm" hidden>
+        <label for="pText" data-t="מה קרה">מה קרה</label>
+        <textarea id="pText" data-i18n-skip></textarea>
+        <div class="row">
+          <div style="flex:1;min-width:120px">
+            <label for="pStatus" data-t="סטטוס העדכון">סטטוס העדכון</label>
+            <select id="pStatus" data-i18n-skip></select>
+          </div>
+          <div style="flex:1;min-width:120px">
+            <label for="pOwner" data-t="הכדור אצל">הכדור אצל</label>
+            <select id="pOwner" data-i18n-skip></select>
+          </div>
+        </div>
+        <div class="row" style="margin-block-start:6px">
+          <button class="primary" type="button" id="promoteOk" data-t="אשר">אשר</button>
+          <button type="button" id="promoteCancel" data-t="ביטול">ביטול</button>
+        </div>
+      </div>
+    </div>
+    <div class="row" style="margin-block-start:8px">
+      <button type="button" class="link" id="unlinkBtn" data-t="נתק את השרשור מהמשימה">נתק את השרשור מהמשימה</button>
+    </div>
+  </div>
+  <div class="card" id="hiddenCard" hidden>
+    <p data-t="השרשור קשור למשימה בפרויקט שאין לך גישה אליו.">השרשור קשור למשימה בפרויקט שאין לך גישה אליו.</p>
+  </div>
+
   <div>
     <label for="project" data-t="פרויקט">פרויקט</label>
     <select id="project" data-i18n-skip></select>
     <div class="hint" id="projectWhy"></div>
+  </div>
+
+  <!-- link the thread to an existing task -->
+  <div id="linkArea" hidden>
+    <button type="button" id="linkOpen" data-t="קשר את השרשור למשימה">קשר את השרשור למשימה</button>
+    <div class="picker" id="picker" hidden>
+      <input id="taskQuery" type="search" data-i18n-skip>
+      <ul class="results" id="taskResults" data-i18n-skip></ul>
+      <div class="row">
+        <button type="button" class="link" id="linkCancel" data-t="ביטול">ביטול</button>
+      </div>
+    </div>
   </div>
 
   <div>
@@ -112,12 +175,38 @@ var HE_EN = {
   'פתח את החלונית מתוך מייל ב-Outlook.': 'Open this pane from an email in Outlook.',
   'בחר פרויקט': 'Choose a project',
   'לפי הנושא': 'From the subject',
+  'לפי השולח': 'From the sender',
+  'הפרויקט של המשימה הקשורה': 'The linked task\'s project',
   'המפתח לא תקין או בוטל. הפק מפתח חדש.': 'The key is not valid or was revoked. Create a new one.',
   'השרת לא זמין. נסה שוב בעוד רגע.': 'The server is not reachable. Try again in a moment.',
   'אין קבצים מצורפים': 'No attachments',
   '{n} קבצים מצורפים': '{n} attachments',
   'קובץ מצורף אחד': 'One attachment',
   'מאת': 'From',
+  'השרשור קשור למשימה': 'This thread is linked to a task',
+  'השרשור קשור למשימה בפרויקט שאין לך גישה אליו.': 'This thread is linked to a task in a project you cannot open.',
+  'הפוך לעדכון מלא': 'Make it a full update',
+  'הסר': 'Remove',
+  'מה קרה': 'What happened',
+  'סטטוס העדכון': 'Update status',
+  'הכדור אצל': 'Ball is with',
+  'אשר': 'Confirm',
+  'ביטול': 'Cancel',
+  'נתק את השרשור מהמשימה': 'Unlink the thread from the task',
+  'קשר את השרשור למשימה': 'Link this thread to a task',
+  'חפש משימה בפרויקט': 'Search for a task in the project',
+  'אין משימות פתוחות שמתאימות': 'No open tasks match',
+  'בחר קודם פרויקט': 'Choose a project first',
+  'המייל הזה נרשם אוטומטית כעדכון במשימה.': 'This email was logged on the task automatically.',
+  'המייל הזה רשום כעדכון במשימה.': 'This email is recorded as an update on the task.',
+  'הרישום של המייל הזה הוסר מהמשימה.': 'This email\'s entry was removed from the task.',
+  'יעד {d}': 'Due {d}',
+  'לנתק את השרשור מהמשימה? העדכונים שכבר נרשמו נשארים.': 'Unlink the thread from the task? Updates already logged stay.',
+  'הפעולה לא הצליחה: {e}': 'That did not work: {e}',
+  'ללא שינוי': 'No change',
+  // status names that ship with the hub (as in i18n-dict.js)
+  'חסר': 'Missing', 'בעבודה': 'In work', 'נשלח': 'Sent', 'יש הערות': 'Has comments', 'עדכון': 'Update', 'מאושר': 'Approved',
+  'תקוע': 'Stuck', 'בוצע': 'Done', 'לא התחיל': 'Not started', 'התייחסות': 'Response', 'עבודה': 'Work',
   'English': 'English',
   'עברית': 'עברית'
 };
@@ -132,10 +221,12 @@ function applyLang() {
   document.documentElement.dir = lang === 'en' ? 'ltr' : 'rtl';
   document.querySelectorAll('[data-t]').forEach(function (el) { el.textContent = tx(el.getAttribute('data-t')); });
   $('lang').textContent = lang === 'en' ? 'עברית' : 'English';
+  $('taskQuery').placeholder = tx('חפש משימה בפרויקט');
 }
 function $(id) { return document.getElementById(id); }
 function show(id) { ['signin', 'app', 'noMail'].forEach(function (x) { $(x).hidden = x !== id; }); }
 function showErr(id, msg) { $(id).textContent = msg || ''; $(id).hidden = !msg; }
+function el(tag, text) { var e = document.createElement(tag); if (text != null) e.textContent = text; return e; }
 
 /* ── settings: Office roaming settings (follow the account), else this browser ── */
 var demo = /[?&]demo\b/.test(location.search);
@@ -152,8 +243,10 @@ function setSetting(k, v) {
 }
 
 /* ── the hub ── */
-function api(path) {
-  return fetch(path, { headers: { Authorization: 'Bearer ' + getSetting('key') }, cache: 'no-store' }).then(function (r) {
+function api(path, body) {
+  var opts = { headers: { Authorization: 'Bearer ' + getSetting('key') }, cache: 'no-store' };
+  if (body) { opts.method = 'POST'; opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  return fetch(path, opts).then(function (r) {
     if (r.status === 401) { var e = new Error('invalid_key'); e.code = 401; throw e; }
     return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; });
   });
@@ -163,7 +256,8 @@ function api(path) {
 function mailbox() { try { return Office.context.mailbox || null; } catch (e) { return null; } }
 var DEMO_MAIL = {
   subject: 'LDPB — תוכנית קונסטרוקציה מעודכנת', from: { displayName: 'דני כהן', emailAddress: 'dani@example.com' },
-  dateTimeCreated: new Date(), conversationId: 'demo-conversation', internetMessageId: '<demo@example.com>', itemId: 'demo-item',
+  dateTimeCreated: new Date(), conversationId: 'DE000000000000000000000000000001',
+  internetMessageId: '<demo-' + new Date().toISOString().slice(0, 10) + '@example.com>', itemId: 'demo-item',
   attachments: [{ name: 'K-101.pdf', size: 120000, isInline: false }], body: 'שלום, מצורפת תוכנית מעודכנת.'
 };
 function readMail() {
@@ -182,19 +276,18 @@ function readMail() {
     });
   });
 }
-
-/* the hub's own fuzzy match, simplified: a project whose code or name appears in the subject */
-function normHe(s) { return String(s || '').normalize('NFKC').replace(/[֑-ׇ]/g, '').replace(/["'״׳`]/g, '').replace(/\s+/g, ' ').trim().toLowerCase(); }
-function guessProject(projects, subject) {
-  var s = normHe(subject);
-  if (!s) return null;
-  var byCode = projects.filter(function (p) { return p.code && s.indexOf(normHe(p.code)) >= 0; });
-  if (byCode.length === 1) return byCode[0];
-  var byName = projects.filter(function (p) { return p.name && s.indexOf(normHe(p.name)) >= 0; });
-  return byName.length === 1 ? byName[0] : null;
+function localDate(d) { var p = function (n) { return String(n).padStart(2, '0'); }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
+// what the hub hears about the email (never the body here)
+function mailRef(m) {
+  var d = m.dateTimeCreated ? new Date(m.dateTimeCreated) : null;
+  return {
+    conversationId: m.conversationId, internetMessageId: m.internetMessageId, subject: m.subject,
+    from: { name: (m.from || {}).displayName || '', email: (m.from || {}).emailAddress || '' },
+    received: d ? d.toISOString() : '', receivedDate: d ? localDate(d) : ''
+  };
 }
 
-var projects = [];
+var projects = [], currentMail = null, ctx = null;
 function renderMail(m) {
   $('subject').textContent = m.subject || '—';
   var f = m.from || {};
@@ -207,34 +300,98 @@ function renderMail(m) {
   $('tech').textContent = [
     'host: ' + (mb && mb.diagnostics ? mb.diagnostics.hostName + ' ' + mb.diagnostics.hostVersion : demo ? 'demo' : '?'),
     'conversationId: ' + m.conversationId,
+    'threadKey: ' + (ctx ? ctx.threadKey : ''),
     'internetMessageId: ' + m.internetMessageId,
     'itemId: ' + m.itemId,
     'body: ' + (m.body || '').length + ' chars'
   ].join('\n');
-  renderProjects(m);
 }
-function renderProjects(m) {
-  var sel = $('project');
+function renderProjects(selected) {
+  var sel = $('project'), keep = selected != null ? selected : sel.value;
   sel.innerHTML = '';
-  var none = document.createElement('option');
-  none.value = ''; none.textContent = tx('בחר פרויקט');
+  var none = el('option', tx('בחר פרויקט')); none.value = '';
   sel.appendChild(none);
   projects.forEach(function (p) {
-    var o = document.createElement('option');
-    o.value = p.id; o.textContent = (p.code ? p.code + ' · ' : '') + p.name;
+    var o = el('option', (p.code ? p.code + ' · ' : '') + p.name); o.value = p.id;
     sel.appendChild(o);
   });
-  var g = guessProject(projects, m && m.subject);
-  sel.value = g ? g.id : '';
-  $('projectWhy').textContent = g ? tx('לפי הנושא') : '';
+  sel.value = keep || '';
+}
+var WHY = { linked: 'הפרויקט של המשימה הקשורה', sender: 'לפי השולח', subject: 'לפי הנושא' };
+
+function renderContext() {
+  var c = ctx || {};
+  $('projectWhy').textContent = c.why ? tx(WHY[c.why]) : '';
+  var L = c.linked;
+  $('hiddenCard').hidden = !(L && L.hidden);
+  $('linkedCard').hidden = !(L && L.task);
+  $('linkArea').hidden = !!L || !c.canWrite;
+  closePicker();
+  $('promoteForm').hidden = true;
+  if (!(L && L.task)) return;
+  var t = L.task;
+  $('taskTitle').textContent = t.title;
+  $('taskTitle').href = t.link;
+  $('taskMeta').textContent = [t.stage, t.status && tx(t.status), t.due ? tx('יעד {d}', { d: t.due }) : '', (t.assignees || []).join(', ')].filter(Boolean).join(' · ');
+  var ul = $('taskUpdates'); ul.innerHTML = '';
+  (t.updates || []).slice().reverse().forEach(function (u) {
+    ul.appendChild(el('li', [u.date, u.status && tx(u.status), u.owner].filter(Boolean).join(' · ') + (u.title ? ' — ' + u.title : '')));
+  });
+  var msg = L.message;
+  $('entry').hidden = !msg;
+  $('unlinkBtn').hidden = !c.canWrite;
+  if (msg) {
+    $('entryState').textContent = tx(msg.removed ? 'הרישום של המייל הזה הוסר מהמשימה.' : msg.auto ? 'המייל הזה נרשם אוטומטית כעדכון במשימה.' : 'המייל הזה רשום כעדכון במשימה.');
+    $('entryActions').hidden = !(msg.auto && c.canWrite);
+  }
+}
+function fail(e) {
+  if (e && e.code === 401) { show('signin'); showErr('signinErr', tx('המפתח לא תקין או בוטל. הפק מפתח חדש.')); return; }
+  showErr('appErr', e && e.message === 'Failed to fetch' ? tx('השרת לא זמין. נסה שוב בעוד רגע.') : tx('הפעולה לא הצליחה: {e}', { e: e && e.message }));
+}
+function post(path, extra) {
+  showErr('appErr', '');
+  var body = { mail: mailRef(currentMail) };
+  Object.keys(extra || {}).forEach(function (k) { body[k] = extra[k]; });
+  return api(path, body).then(function (c) {
+    ctx = c;
+    renderProjects(c.projectId || null);
+    renderContext();
+  }).catch(fail);
 }
 
-var currentMail = null;
+/* ── linking the thread to a task ── */
+var searchTimer = null;
+function closePicker() { $('picker').hidden = true; $('linkOpen').hidden = false; }
+function searchTasks() {
+  var pid = $('project').value, ul = $('taskResults');
+  ul.innerHTML = '';
+  if (!pid) { ul.appendChild(el('li', tx('בחר קודם פרויקט'))); return; }
+  api('/api/outlook/tasks?project=' + encodeURIComponent(pid) + '&q=' + encodeURIComponent($('taskQuery').value.trim())).then(function (r) {
+    ul.innerHTML = '';
+    if (!r.tasks.length) { ul.appendChild(el('li', tx('אין משימות פתוחות שמתאימות'))); return; }
+    r.tasks.forEach(function (t) {
+      var li = el('li');
+      li.tabIndex = 0;
+      li.appendChild(el('div', t.title)).style.fontWeight = '600';
+      li.appendChild(el('div', [t.stage, t.status && tx(t.status), t.due].filter(Boolean).join(' · '))).className = 'meta';
+      var pick = function () { post('/api/outlook/link', { projectId: pid, taskId: t.id }); };
+      li.onclick = pick;
+      li.onkeydown = function (e) { if (e.key === 'Enter') pick(); };
+      ul.appendChild(li);
+    });
+  }).catch(fail);
+}
+
 function refreshMail() {
   return readMail().then(function (m) {
     currentMail = m;
+    ctx = null;
     if (!m) { show('noMail'); return; }
     renderMail(m);
+    renderProjects('');
+    renderContext();
+    return post('/api/outlook/context').then(function () { renderMail(m); });
   });
 }
 function start() {
@@ -246,7 +403,7 @@ function start() {
     show('app');
     return refreshMail();
   }).catch(function (e) {
-    if (e.code === 401) { show('signin'); showErr('signinErr', tx('המפתח לא תקין או בוטל. הפק מפתח חדש.')); return; }
+    if (e.code === 401) { fail(e); return; }
     show('app');
     showErr('appErr', tx('השרת לא זמין. נסה שוב בעוד רגע.'));
   });
@@ -261,6 +418,8 @@ function init() {
     setSetting('lang', lang);
     applyLang();
     if (currentMail) renderMail(currentMail);
+    renderProjects(null);
+    renderContext();
   };
   $('saveKey').onclick = function () {
     var k = $('key').value.trim();
@@ -271,6 +430,42 @@ function init() {
     start();
   };
   $('signout').onclick = function () { setSetting('key', null); $('who').textContent = ''; show('signin'); };
+  $('linkOpen').onclick = function () { $('linkOpen').hidden = true; $('picker').hidden = false; $('taskQuery').value = ''; $('taskQuery').focus(); searchTasks(); };
+  $('linkCancel').onclick = closePicker;
+  $('taskQuery').oninput = function () { clearTimeout(searchTimer); searchTimer = setTimeout(searchTasks, 250); };
+  $('project').onchange = function () { if (!$('picker').hidden) searchTasks(); };
+  $('unlinkBtn').onclick = function () {
+    // window.confirm is not available in every Outlook, so the question is asked in the button itself
+    var b = $('unlinkBtn');
+    if (b.getAttribute('data-armed') !== '1') { b.setAttribute('data-armed', '1'); b.textContent = tx('לנתק את השרשור מהמשימה? העדכונים שכבר נרשמו נשארים.'); return; }
+    b.removeAttribute('data-armed'); b.textContent = tx('נתק את השרשור מהמשימה');
+    post('/api/outlook/unlink');
+  };
+  $('removeBtn').onclick = function () { post('/api/outlook/entry', { action: 'remove' }); };
+  $('promoteBtn').onclick = function () {
+    var o = (ctx && ctx.linked && ctx.linked.options) || {};
+    var fill = function (sel, list, value) {
+      sel.innerHTML = '';
+      (list || []).forEach(function (x) { var op = el('option', tx(x.label)); op.value = x.id; sel.appendChild(op); });
+      if (value) sel.value = value;
+    };
+    // "no change" keeps what the entry carries (the status and owner of the update before it)
+    var same = [{ id: '', label: tx('ללא שינוי') }];
+    fill($('pStatus'), same.concat(o.update_statuses || []), '');
+    fill($('pOwner'), same.concat(o.disciplines || []), '');
+    $('pText').value = '';
+    $('promoteForm').hidden = false;
+    $('entryActions').hidden = true;
+    $('pText').focus();
+  };
+  $('promoteCancel').onclick = function () { $('promoteForm').hidden = true; $('entryActions').hidden = false; };
+  $('promoteOk').onclick = function () {
+    var extra = { action: 'promote' };
+    if ($('pStatus').value) extra.update_status = $('pStatus').value;
+    if ($('pText').value.trim()) extra.text = $('pText').value.trim();
+    if ($('pOwner').value) extra.owner = $('pOwner').value;
+    post('/api/outlook/entry', extra);
+  };
   // a pinned pane stays open while the person moves between emails
   var mb = mailbox();
   if (mb && mb.addHandlerAsync) mb.addHandlerAsync(Office.EventType.ItemChanged, function () { refreshMail(); });

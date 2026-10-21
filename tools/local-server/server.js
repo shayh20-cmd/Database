@@ -425,7 +425,7 @@ const mcp = require('./mcp')({
 const mail = require('./mail')({ DATA_DIR, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, mcp });
 
 /* The Outlook add-in's task pane and its key; see outlook.js. */
-const outlook = require('./outlook')({ DATA_DIR, STATIC_ROOT, SITE_MODE, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, mcp });
+const outlook = require('./outlook')({ DATA_DIR, STATIC_ROOT, SITE_MODE, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, mcp });
 
 function handleRequest(req, res) {
   const url = new URL(req.url, 'http://localhost');

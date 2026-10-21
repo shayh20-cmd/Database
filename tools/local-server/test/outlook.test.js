@@ -16,9 +16,10 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 const PAGE = `<!doctype html><script>
 const STATUSES=[{id:'I',label:'עבודה'},{id:'N',label:'לא התחיל'},{id:'C',label:'בוצע'}];const PRIORITIES=[{id:'high',label:'גבוהה'}];
 const DISCIPLINES=[{id:'ARCH',label:'ARCH'}];
-const OFFICE_STAFF=[{id:'st01',name:'דנה',email:'dana@kkarc.com'},{id:'st02',name:'יואב',email:'yoav@kkarc.com'}];
+const OFFICE_STAFF=[{id:'st01',name:'דנה',email:'dana@kkarc.com'},{id:'st02',name:'יואב',email:'yoav@kkarc.com'},{id:'st03',name:'רון',email:'ron@kkarc.com'}];
 const DEFAULT_OFFICE_ROLES = {
-  st01: 'superadmin'
+  st01: 'superadmin',
+  st03: 'viewer'
 };
 </script>`;
 
@@ -36,9 +37,16 @@ function makeSite() {
     { id: 'pdef456', name: 'סודי', code: 'SEC', visibility: 'private', ownerId: 'st01' }
   ] }));
   fs.writeFileSync(path.join(data, 'project_hub_01.json'), JSON.stringify({ projectName: 'PH01', sheets: [], tracks: [], team: [] }));
-  for (const id of ['pabc123', 'pdef456']) {
-    fs.writeFileSync(path.join(data, 'projects', id + '.json'), JSON.stringify({ projectName: id, team: [{ staffId: 'st01' }], tracks: [], sheets: [] }));
-  }
+  fs.writeFileSync(path.join(data, 'projects', 'pdef456.json'), JSON.stringify({ projectName: 'pdef456', team: [{ staffId: 'st01' }], tracks: [], sheets: [] }));
+  fs.writeFileSync(path.join(data, 'projects', 'pabc123.json'), JSON.stringify({
+    projectName: 'מגרש 4021',
+    team: [{ staffId: 'st01' }, { staffId: 'st03' }],
+    tracks: [{ id: 'ongoing', label: 'מסלול תכנון', stageOrder: ['home'] }],
+    sheets: [{ id: 'home', name: 'משימות שוטפות', type: 'list', track: null, groups: [{ id: 'g1', name: 'כללי' }], tasks: [
+      { id: 't1', title: 'תיאום קונסטרוקציה', statusId: 'N', discipline: 'ARCH', events: [{ id: 'e0', status: 'sent', assignee: 'ARCH', date: '2026-10-01', title: 'נשלח לקונסטרוקטור' }], subtasks: [] },
+      { id: 't2', title: 'חזית מערבית', statusId: 'N', events: [], subtasks: [] }
+    ] }]
+  }));
   return { root, data };
 }
 const principal = email => Buffer.from(JSON.stringify({ claims: [{ typ: 'preferred_username', val: email }, { typ: 'name', val: email }] })).toString('base64');
@@ -101,4 +109,93 @@ test('outlook: public pane and manifest, a key per person, and the pane\'s route
   assert.strictEqual((await fetch(base + '/api/outlook/me', { headers: { Authorization: 'Bearer ' + k2 } })).status, 200);
   await fetch(base + '/api/outlook-connection', { method: 'DELETE', headers: dana });
   assert.strictEqual((await fetch(base + '/api/outlook/me', { headers: { Authorization: 'Bearer ' + k2 } })).status, 401);
+});
+
+test('outlook: the thread key is the conversation id that classic Outlook uses too', () => {
+  const { threadKeyOf } = require('../outlook');
+  // a real Office.js conversationId and the classic Outlook (COM) ConversationID of the same thread
+  assert.strictEqual(threadKeyOf('AAQkAGI0MzJiZWNkLTVhNzItNDYxOS05NTkzLTdjM2JiMGU3ODIyMQAQAMYLmGG5QqtKg5LHYES/Fmc='), 'C60B9861B942AB4A8392C76044BF1667');
+  assert.strictEqual(threadKeyOf('c60b9861b942ab4a8392c76044bf1667'), 'C60B9861B942AB4A8392C76044BF1667');
+  // url-safe base64, as REST ids are written
+  assert.strictEqual(threadKeyOf('AAQkAGI0MzJiZWNkLTVhNzItNDYxOS05NTkzLTdjM2JiMGU3ODIyMQAQAMYLmGG5QqtKg5LHYES_Fmc='), 'C60B9861B942AB4A8392C76044BF1667');
+  assert.strictEqual(threadKeyOf('something-else'), 'something-else');
+  assert.strictEqual(threadKeyOf(''), '');
+});
+
+test('outlook: a thread linked to a task logs its emails once, and an entry can become an update or go', async (t) => {
+  const port = 3980, base = 'http://127.0.0.1:' + port;
+  const { root, data } = makeSite();
+  const proc = spawn('node', [SERVER, root, '--port', String(port)], { stdio: 'ignore', env: { ...process.env, SITE_MODE: 'cloud', WEBSITE_AUTH_ENABLED: 'true', DATA_DIR: data } });
+  t.after(() => proc.kill());
+  for (let i = 0; i < 50; i++) { try { await fetch(base + '/health'); break; } catch (e) { await wait(100); } }
+  const keyOf = async email => (await (await fetch(base + '/api/outlook-connection', { method: 'POST', headers: { 'x-ms-client-principal': principal(email) } })).json()).key;
+  const dana = await keyOf('dana@kkarc.com'), ron = await keyOf('ron@kkarc.com');
+  const call = async (key, route, body) => {
+    const r = await fetch(base + route, { method: body ? 'POST' : 'GET', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, body: await r.json() };
+  };
+  const project = () => JSON.parse(fs.readFileSync(path.join(data, 'projects', 'pabc123.json'), 'utf8'));
+  const task = id => project().sheets[0].tasks.find(x => x.id === id);
+  const mail = (id, extra) => ({ conversationId: 'AAQkAGI0MzJiZWNkLTVhNzItNDYxOS05NTkzLTdjM2JiMGU3ODIyMQAQAMYLmGG5QqtKg5LHYES/Fmc=', internetMessageId: id, subject: 'Re: קונסטרוקציה LDPB', from: { name: 'דני', email: 'Dani@Eng.co.il' }, received: '2026-10-20T08:00:00Z', receivedDate: '2026-10-20', ...extra });
+
+  // not linked: the project comes from the subject
+  let r = await call(dana, '/api/outlook/context', { mail: mail('<m1@x>') });
+  assert.strictEqual(r.status, 200);
+  assert.deepStrictEqual([r.body.threadKey, r.body.projectId, r.body.why, r.body.linked, r.body.canWrite], ['C60B9861B942AB4A8392C76044BF1667', 'pabc123', 'subject', null, true]);
+
+  // the picker lists the project's open tasks
+  r = await call(dana, '/api/outlook/tasks?project=pabc123&q=' + encodeURIComponent('קונסטרוקציה'));
+  assert.deepStrictEqual(r.body.tasks.map(x => x.id), ['t1']);
+
+  // linking logs the open email on the task, carrying the status and owner forward
+  r = await call(dana, '/api/outlook/link', { mail: mail('<m1@x>'), projectId: 'pabc123', taskId: 't1' });
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(r.body.why, 'linked');
+  assert.strictEqual(r.body.linked.task.title, 'תיאום קונסטרוקציה');
+  assert.strictEqual(r.body.linked.message.auto, true);
+  assert.ok(r.body.linked.options.update_statuses.length && r.body.linked.options.disciplines.length);
+  let evs = task('t1').events;
+  assert.strictEqual(evs.length, 2);
+  assert.deepStrictEqual([evs[1].status, evs[1].assignee, evs[1].date, evs[1].auto, evs[1].title], ['sent', 'ARCH', '2026-10-20', true, 'מייל מ-דני: Re: קונסטרוקציה LDPB']);
+  assert.strictEqual(evs[1].mail.threadKey, 'C60B9861B942AB4A8392C76044BF1667');
+
+  // opening the same email again logs nothing new; another email of the thread is logged once
+  await call(dana, '/api/outlook/context', { mail: mail('<m1@x>') });
+  await call(dana, '/api/outlook/context', { mail: mail('<m2@x>', { receivedDate: '2026-10-21' }) });
+  await call(dana, '/api/outlook/context', { mail: mail('<m2@x>', { receivedDate: '2026-10-21' }) });
+  assert.strictEqual(task('t1').events.length, 3);
+
+  // a viewer sees the linked task but logs nothing
+  r = await call(ron, '/api/outlook/context', { mail: mail('<m3@x>') });
+  assert.deepStrictEqual([r.body.canWrite, !!r.body.linked.task, r.body.linked.message], [false, true, null]);
+  assert.strictEqual(task('t1').events.length, 3);
+
+  // m1's entry becomes a real update; m2's is removed and does not come back
+  r = await call(dana, '/api/outlook/entry', { mail: mail('<m1@x>'), action: 'promote', text: 'הקונסטרוקטור אישר', update_status: 'approved', owner: 'ARCH' });
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(r.body.linked.message.auto, false);
+  const m1 = task('t1').events[1];
+  assert.deepStrictEqual([m1.status, m1.title, m1.auto], ['approved', 'הקונסטרוקטור אישר', undefined]);
+  r = await call(dana, '/api/outlook/entry', { mail: mail('<m2@x>'), action: 'remove' });
+  assert.strictEqual(r.body.linked.message.removed, true);
+  assert.strictEqual(task('t1').events.length, 2);
+  await call(dana, '/api/outlook/context', { mail: mail('<m2@x>') });
+  assert.strictEqual(task('t1').events.length, 2, 'a removed entry does not come back');
+  assert.strictEqual((await call(dana, '/api/outlook/entry', { mail: mail('<m1@x>'), action: 'remove' })).status, 400, 'only an automatic entry can be removed');
+
+  // relinking to the same task keeps its log
+  await call(dana, '/api/outlook/link', { mail: mail('<m1@x>'), projectId: 'pabc123', taskId: 't1' });
+  assert.strictEqual(task('t1').events.length, 2);
+
+  // another thread from the same sender starts in the same project
+  r = await call(dana, '/api/outlook/context', { mail: mail('<n1@x>', { conversationId: 'AB000000000000000000000000000001', subject: 'שאלה' }) });
+  assert.deepStrictEqual([r.body.projectId, r.body.why], ['pabc123', 'sender']);
+
+  // a deleted task drops the link
+  const doc = project();
+  doc.sheets[0].tasks = doc.sheets[0].tasks.filter(x => x.id !== 't1');
+  fs.writeFileSync(path.join(data, 'projects', 'pabc123.json'), JSON.stringify(doc));
+  r = await call(dana, '/api/outlook/context', { mail: mail('<m4@x>') });
+  assert.strictEqual(r.body.linked, null);
+  assert.deepStrictEqual(Object.keys(JSON.parse(fs.readFileSync(path.join(data, 'outlook_links.json'), 'utf8')).threads), []);
 });
