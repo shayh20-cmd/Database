@@ -95,6 +95,8 @@ the outside changes it depends on are in `docs/azure.md`.
 
 **Other parts of the repo:**
 
+- `outlook/` — the Outlook add-in (manifest + task pane, `outlook/README.md`); its server side is
+  `tools/local-server/outlook.js` and its key page `outlook_connect.html` (carries its own `HE_EN`).
 - `funday/` — separate Firebase app (ES modules, own `package.json` and tests).
 - `tools/spec-creator/lib/` — pure logic for `spec_creator.html`; `tools/spec-seed/` — Python
   parser that seeds `data/spec_library.json` from a .docx.

@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project Hub</title>
+<!-- Office.js must come from Microsoft's CDN (it cannot be self-hosted) -->
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<style>
+  :root { --bg: #fff; --fg: #1f2937; --muted: #6b7280; --line: #e5e7eb; --card: #f9fafb; --accent: #2563eb; --accent-fg: #fff; --err: #b91c1c; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1f1f1f; --fg: #e5e7eb; --muted: #9ca3af; --line: #374151; --card: #262626; --accent: #60a5fa; --accent-fg: #0b1220; --err: #f87171; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 "Segoe UI", Arial, sans-serif; }
+  header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 15px; margin: 0; flex: 1; }
+  header .who { color: var(--muted); font-size: 12px; }
+  main { padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .card h2 { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0 0 6px; text-transform: none; }
+  .subject { font-weight: 600; word-break: break-word; }
+  .meta { color: var(--muted); font-size: 12px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-block-end: 4px; }
+  select, input, textarea { width: 100%; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+  textarea { resize: vertical; min-height: 64px; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  button.link { border: 0; background: none; color: var(--accent); padding: 0; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .err { color: var(--err); font-size: 13px; }
+  .hint { color: var(--muted); font-size: 12px; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+  .tech { font: 11px/1.4 Consolas, monospace; word-break: break-all; color: var(--muted); margin: 6px 0 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Project Hub</h1>
+  <span class="who" id="who" data-i18n-skip></span>
+  <button class="link" id="lang" type="button"></button>
+</header>
+
+<main id="signin" hidden>
+  <div class="card">
+    <h2 data-t="התחברות">התחברות</h2>
+    <p data-t="כדי שהתוסף יעבוד בשמך, הדבק את המפתח האישי שלך לתוסף Outlook.">כדי שהתוסף יעבוד בשמך, הדבק את המפתח האישי שלך לתוסף Outlook.</p>
+    <label for="key" data-t="מפתח אישי">מפתח אישי</label>
+    <input id="key" type="password" autocomplete="off" dir="ltr" placeholder="pho_…">
+    <div class="row" style="margin-block-start:8px">
+      <button class="primary" id="saveKey" type="button" data-t="התחבר">התחבר</button>
+      <a id="getKey" target="_blank" rel="noopener" data-t="איפה מקבלים מפתח?">איפה מקבלים מפתח?</a>
+    </div>
+    <p class="err" id="signinErr" hidden></p>
+  </div>
+</main>
+
+<main id="app" hidden>
+  <div class="card">
+    <h2 data-t="המייל הפתוח">המייל הפתוח</h2>
+    <div class="subject" id="subject" data-i18n-skip></div>
+    <div class="meta" id="from" data-i18n-skip></div>
+    <div class="meta" id="received" data-i18n-skip></div>
+    <div class="meta" id="attachments"></div>
+  </div>
+
+  <div>
+    <label for="project" data-t="פרויקט">פרויקט</label>
+    <select id="project" data-i18n-skip></select>
+    <div class="hint" id="projectWhy"></div>
+  </div>
+
+  <div>
+    <label for="ask" data-t="מה לעשות עם המייל הזה?">מה לעשות עם המייל הזה?</label>
+    <textarea id="ask" disabled></textarea>
+    <div class="hint" data-t="בשלב הבא: כותבים בחופשיות, ו-Project Hub מציע משימה חדשה, עדכון או צירוף.">בשלב הבא: כותבים בחופשיות, ו-Project Hub מציע משימה חדשה, עדכון או צירוף.</div>
+  </div>
+
+  <p class="err" id="appErr" hidden></p>
+
+  <details>
+    <summary data-t="פרטים טכניים">פרטים טכניים</summary>
+    <pre class="tech" id="tech" data-i18n-skip></pre>
+    <div class="row">
+      <button class="link" id="signout" type="button" data-t="התנתק מהתוסף">התנתק מהתוסף</button>
+    </div>
+  </details>
+</main>
+
+<main id="noMail" hidden>
+  <div class="card"><p data-t="פתח את החלונית מתוך מייל ב-Outlook.">פתח את החלונית מתוך מייל ב-Outlook.</p></div>
+</main>
+
+<script>
+'use strict';
+/* Project Hub's Outlook task pane. Reads the open email through Office.js and talks to the hub
+   with a personal key (/api/outlook/*). Hebrew is the source language; the English is below.
+   Spec: docs/superpowers/specs/2026-10-21-outlook-addin-design.md */
+var HE_EN = {
+  'התחברות': 'Sign in',
+  'כדי שהתוסף יעבוד בשמך, הדבק את המפתח האישי שלך לתוסף Outlook.': 'So the add-in can work as you, paste your personal Outlook add-in key.',
+  'מפתח אישי': 'Personal key',
+  'התחבר': 'Sign in',
+  'איפה מקבלים מפתח?': 'Where do I get a key?',
+  'המייל הפתוח': 'This email',
+  'פרויקט': 'Project',
+  'מה לעשות עם המייל הזה?': 'What should happen with this email?',
+  'בשלב הבא: כותבים בחופשיות, ו-Project Hub מציע משימה חדשה, עדכון או צירוף.': 'Coming next: write freely, and Project Hub proposes a new task, an update or an attachment.',
+  'פרטים טכניים': 'Technical details',
+  'התנתק מהתוסף': 'Sign the add-in out',
+  'פתח את החלונית מתוך מייל ב-Outlook.': 'Open this pane from an email in Outlook.',
+  'בחר פרויקט': 'Choose a project',
+  'לפי הנושא': 'From the subject',
+  'המפתח לא תקין או בוטל. הפק מפתח חדש.': 'The key is not valid or was revoked. Create a new one.',
+  'השרת לא זמין. נסה שוב בעוד רגע.': 'The server is not reachable. Try again in a moment.',
+  'אין קבצים מצורפים': 'No attachments',
+  '{n} קבצים מצורפים': '{n} attachments',
+  'קובץ מצורף אחד': 'One attachment',
+  'מאת': 'From',
+  'English': 'English',
+  'עברית': 'עברית'
+};
+var lang = 'he';
+function tx(he, slots) {
+  var s = lang === 'en' && HE_EN[he] ? HE_EN[he] : he;
+  if (slots) Object.keys(slots).forEach(function (k) { s = s.split('{' + k + '}').join(slots[k]); });
+  return s;
+}
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === 'en' ? 'ltr' : 'rtl';
+  document.querySelectorAll('[data-t]').forEach(function (el) { el.textContent = tx(el.getAttribute('data-t')); });
+  $('lang').textContent = lang === 'en' ? 'עברית' : 'English';
+}
+function $(id) { return document.getElementById(id); }
+function show(id) { ['signin', 'app', 'noMail'].forEach(function (x) { $(x).hidden = x !== id; }); }
+function showErr(id, msg) { $(id).textContent = msg || ''; $(id).hidden = !msg; }
+
+/* ── settings: Office roaming settings (follow the account), else this browser ── */
+var demo = /[?&]demo\b/.test(location.search);
+function roaming() { try { return Office.context.roamingSettings || null; } catch (e) { return null; } }
+function getSetting(k) {
+  var r = roaming();
+  if (r) return r.get(k) || null;
+  try { return localStorage.getItem('outlook.' + k); } catch (e) { return null; }
+}
+function setSetting(k, v) {
+  var r = roaming();
+  if (r) { if (v == null) r.remove(k); else r.set(k, v); r.saveAsync(function () {}); return; }
+  try { if (v == null) localStorage.removeItem('outlook.' + k); else localStorage.setItem('outlook.' + k, v); } catch (e) {}
+}
+
+/* ── the hub ── */
+function api(path) {
+  return fetch(path, { headers: { Authorization: 'Bearer ' + getSetting('key') }, cache: 'no-store' }).then(function (r) {
+    if (r.status === 401) { var e = new Error('invalid_key'); e.code = 401; throw e; }
+    return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; });
+  });
+}
+
+/* ── the open email ── */
+function mailbox() { try { return Office.context.mailbox || null; } catch (e) { return null; } }
+var DEMO_MAIL = {
+  subject: 'LDPB — תוכנית קונסטרוקציה מעודכנת', from: { displayName: 'דני כהן', emailAddress: 'dani@example.com' },
+  dateTimeCreated: new Date(), conversationId: 'demo-conversation', internetMessageId: '<demo@example.com>', itemId: 'demo-item',
+  attachments: [{ name: 'K-101.pdf', size: 120000, isInline: false }], body: 'שלום, מצורפת תוכנית מעודכנת.'
+};
+function readMail() {
+  var mb = mailbox();
+  if (!mb || !mb.item) return Promise.resolve(demo ? DEMO_MAIL : null);
+  var it = mb.item;
+  return new Promise(function (ok) {
+    it.body.getAsync(Office.CoercionType.Text, function (r) {
+      ok({
+        subject: it.subject || '', from: it.from || {}, to: it.to || [], cc: it.cc || [],
+        dateTimeCreated: it.dateTimeCreated, conversationId: it.conversationId || '',
+        internetMessageId: it.internetMessageId || '', itemId: it.itemId || '',
+        attachments: (it.attachments || []).map(function (a) { return { name: a.name, size: a.size, isInline: a.isInline, type: a.attachmentType }; }),
+        body: r.status === Office.AsyncResultStatus.Succeeded ? String(r.value || '').slice(0, 6000) : ''
+      });
+    });
+  });
+}
+
+/* the hub's own fuzzy match, simplified: a project whose code or name appears in the subject */
+function normHe(s) { return String(s || '').normalize('NFKC').replace(/[֑-ׇ]/g, '').replace(/["'״׳`]/g, '').replace(/\s+/g, ' ').trim().toLowerCase(); }
+function guessProject(projects, subject) {
+  var s = normHe(subject);
+  if (!s) return null;
+  var byCode = projects.filter(function (p) { return p.code && s.indexOf(normHe(p.code)) >= 0; });
+  if (byCode.length === 1) return byCode[0];
+  var byName = projects.filter(function (p) { return p.name && s.indexOf(normHe(p.name)) >= 0; });
+  return byName.length === 1 ? byName[0] : null;
+}
+
+var projects = [];
+function renderMail(m) {
+  $('subject').textContent = m.subject || '—';
+  var f = m.from || {};
+  $('from').textContent = tx('מאת') + ': ' + [f.displayName, f.emailAddress ? '<' + f.emailAddress + '>' : ''].filter(Boolean).join(' ');
+  var d = m.dateTimeCreated ? new Date(m.dateTimeCreated) : null;
+  $('received').textContent = d ? d.toLocaleString(lang === 'en' ? 'en-GB' : 'he-IL', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+  var files = (m.attachments || []).filter(function (a) { return !a.isInline; });
+  $('attachments').textContent = !files.length ? tx('אין קבצים מצורפים') : files.length === 1 ? tx('קובץ מצורף אחד') : tx('{n} קבצים מצורפים', { n: files.length });
+  var mb = mailbox();
+  $('tech').textContent = [
+    'host: ' + (mb && mb.diagnostics ? mb.diagnostics.hostName + ' ' + mb.diagnostics.hostVersion : demo ? 'demo' : '?'),
+    'conversationId: ' + m.conversationId,
+    'internetMessageId: ' + m.internetMessageId,
+    'itemId: ' + m.itemId,
+    'body: ' + (m.body || '').length + ' chars'
+  ].join('\n');
+  renderProjects(m);
+}
+function renderProjects(m) {
+  var sel = $('project');
+  sel.innerHTML = '';
+  var none = document.createElement('option');
+  none.value = ''; none.textContent = tx('בחר פרויקט');
+  sel.appendChild(none);
+  projects.forEach(function (p) {
+    var o = document.createElement('option');
+    o.value = p.id; o.textContent = (p.code ? p.code + ' · ' : '') + p.name;
+    sel.appendChild(o);
+  });
+  var g = guessProject(projects, m && m.subject);
+  sel.value = g ? g.id : '';
+  $('projectWhy').textContent = g ? tx('לפי הנושא') : '';
+}
+
+var currentMail = null;
+function refreshMail() {
+  return readMail().then(function (m) {
+    currentMail = m;
+    if (!m) { show('noMail'); return; }
+    renderMail(m);
+  });
+}
+function start() {
+  showErr('appErr', '');
+  if (!getSetting('key')) { show('signin'); return; }
+  Promise.all([api('/api/outlook/me'), api('/api/outlook/projects')]).then(function (r) {
+    $('who').textContent = r[0].name || '';
+    projects = r[1].projects || [];
+    show('app');
+    return refreshMail();
+  }).catch(function (e) {
+    if (e.code === 401) { show('signin'); showErr('signinErr', tx('המפתח לא תקין או בוטל. הפק מפתח חדש.')); return; }
+    show('app');
+    showErr('appErr', tx('השרת לא זמין. נסה שוב בעוד רגע.'));
+  });
+}
+
+function init() {
+  lang = getSetting('lang') === 'en' ? 'en' : 'he';
+  applyLang();
+  $('getKey').href = location.origin + '/outlook_connect';
+  $('lang').onclick = function () {
+    lang = lang === 'en' ? 'he' : 'en';
+    setSetting('lang', lang);
+    applyLang();
+    if (currentMail) renderMail(currentMail);
+  };
+  $('saveKey').onclick = function () {
+    var k = $('key').value.trim();
+    if (!k) return;
+    setSetting('key', k);
+    $('key').value = '';
+    showErr('signinErr', '');
+    start();
+  };
+  $('signout').onclick = function () { setSetting('key', null); $('who').textContent = ''; show('signin'); };
+  // a pinned pane stays open while the person moves between emails
+  var mb = mailbox();
+  if (mb && mb.addHandlerAsync) mb.addHandlerAsync(Office.EventType.ItemChanged, function () { refreshMail(); });
+  start();
+}
+
+if (window.Office && Office.onReady) Office.onReady(init);
+else document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>תוסף Outlook — Project Hub</title>
+<script>
+/* Before first paint: the language the hub saved (localStorage appLang, the key i18n.js uses) */
+try{if(localStorage.getItem('appLang')==='en'){document.documentElement.dir='ltr';document.documentElement.lang='en';}}catch(e){}
+</script>
+<style>
+  :root { --bg: #f5f6f8; --fg: #1f2937; --muted: #6b7280; --line: #e5e7eb; --card: #fff; --accent: #2563eb; --accent-fg: #fff; --err: #b91c1c; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111827; --fg: #e5e7eb; --muted: #9ca3af; --line: #374151; --card: #1f2937; --accent: #60a5fa; --accent-fg: #0b1220; --err: #f87171; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 "Segoe UI", Arial, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 24px 16px; display: flex; flex-direction: column; gap: 16px; }
+  h1 { font-size: 20px; margin: 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .card h2 { font-size: 15px; margin: 0 0 8px; }
+  button, .btn { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--fg); border-radius: 6px; padding: 6px 14px; cursor: pointer; text-decoration: none; display: inline-block; }
+  .primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .err { color: var(--err); }
+  code.key { display: block; padding: 8px; border: 1px dashed var(--line); border-radius: 6px; word-break: break-all; direction: ltr; text-align: start; margin: 8px 0; }
+  ol { margin: 0; padding-inline-start: 20px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>תוסף Outlook ל-Project Hub</h1>
+
+  <div class="card">
+    <h2>המפתח האישי שלך</h2>
+    <p class="muted" id="status"></p>
+    <div id="newKey" hidden>
+      <p>זה המפתח. הוא מוצג פעם אחת בלבד: העתק אותו והדבק בחלונית התוסף ב-Outlook.</p>
+      <code class="key" id="keyText"></code>
+      <button id="copy" type="button">העתק</button>
+    </div>
+    <div class="row" style="margin-block-start:8px">
+      <button class="primary" id="issue" type="button">צור מפתח</button>
+      <button id="revoke" type="button" hidden>בטל מפתח</button>
+    </div>
+    <p class="err" id="err" hidden></p>
+  </div>
+
+  <div class="card">
+    <h2>התקנה ב-Outlook בדפדפן</h2>
+    <ol>
+      <li><a class="btn" id="manifest" href="/outlook/manifest.xml" download>הורד את קובץ התוסף</a></li>
+      <li>ב-Outlook בדפדפן: פתח מייל ← ‏Apps (אפליקציות) ← ‏Add apps ← ‏My add-ins ← ‏Add a custom add-in ← ‏Add from File, ובחר את הקובץ.</li>
+      <li>פתח מייל ולחץ על Project Hub בסרגל של המייל. הדבק את המפתח.</li>
+    </ol>
+    <p class="muted">אותו תוסף מופיע גם ב-Outlook החדש וב-Outlook הקלאסי באותו חשבון.</p>
+  </div>
+</main>
+<script>
+'use strict';
+/* login.html's way: this page is outside i18n.js, so it carries its own few strings and follows appLang */
+const HE_EN = {
+  'תוסף Outlook — Project Hub': 'Outlook add-in — Project Hub',
+  'תוסף Outlook ל-Project Hub': 'Project Hub for Outlook',
+  'המפתח האישי שלך': 'Your personal key',
+  'זה המפתח. הוא מוצג פעם אחת בלבד: העתק אותו והדבק בחלונית התוסף ב-Outlook.': 'This is the key. It is shown only once: copy it and paste it into the add-in pane in Outlook.',
+  'העתק': 'Copy',
+  'הועתק': 'Copied',
+  'צור מפתח': 'Create a key',
+  'צור מפתח חדש': 'Create a new key',
+  'בטל מפתח': 'Revoke the key',
+  'התקנה ב-Outlook בדפדפן': 'Installing in Outlook on the web',
+  'הורד את קובץ התוסף': 'Download the add-in file',
+  'ב-Outlook בדפדפן: פתח מייל ← ‏Apps (אפליקציות) ← ‏Add apps ← ‏My add-ins ← ‏Add a custom add-in ← ‏Add from File, ובחר את הקובץ.': 'In Outlook on the web: open an email → Apps → Add apps → My add-ins → Add a custom add-in → Add from File, and pick the file.',
+  'פתח מייל ולחץ על Project Hub בסרגל של המייל. הדבק את המפתח.': 'Open an email and click Project Hub on the email\'s toolbar. Paste the key.',
+  'אותו תוסף מופיע גם ב-Outlook החדש וב-Outlook הקלאסי באותו חשבון.': 'The same add-in also appears in the new Outlook and in classic Outlook on the same account.',
+  'אין לך מפתח עדיין.': 'You have no key yet.',
+  'יש לך מפתח פעיל מ-{c}. שימוש אחרון: {u}.': 'You have an active key from {c}. Last used: {u}.',
+  'עוד לא': 'not yet',
+  'יצירת מפתח חדש מבטלת את הקודם. להמשיך?': 'A new key ends the old one. Continue?',
+  'לבטל את המפתח? התוסף יפסיק לעבוד עד שתדביק מפתח חדש.': 'Revoke the key? The add-in stops working until you paste a new one.',
+  'משהו השתבש: {e}': 'Something went wrong: {e}'
+};
+const isEn = () => { try { return localStorage.getItem('appLang') === 'en'; } catch { return false; } };
+const tx = (he, slots) => {
+  let s = isEn() && HE_EN[he] ? HE_EN[he] : he;
+  for (const k of Object.keys(slots || {})) s = s.split('{' + k + '}').join(slots[k]);
+  return s;
+};
+function translatePage() {
+  document.title = tx(document.title);
+  const walk = document.createTreeWalker(document.querySelector('main'), NodeFilter.SHOW_TEXT);
+  for (let n; (n = walk.nextNode());) {
+    const he = n.nodeValue.trim();
+    if (he && HE_EN[he] && isEn()) n.nodeValue = n.nodeValue.replace(he, HE_EN[he]);
+  }
+}
+const $ = id => document.getElementById(id);
+const when = iso => iso ? new Date(iso).toLocaleString(isEn() ? 'en-GB' : 'he-IL', { dateStyle: 'medium', timeStyle: 'short' }) : tx('עוד לא');
+function fail(e) { $('err').textContent = tx('משהו השתבש: {e}', { e: e.message || e }); $('err').hidden = false; }
+
+async function load() {
+  const r = await fetch('/api/outlook-connection', { cache: 'no-store' });
+  if (!r.ok) throw new Error(r.status);
+  const { key } = await r.json();
+  $('status').textContent = key ? tx('יש לך מפתח פעיל מ-{c}. שימוש אחרון: {u}.', { c: when(key.created), u: when(key.lastUsed) }) : tx('אין לך מפתח עדיין.');
+  $('issue').textContent = tx(key ? 'צור מפתח חדש' : 'צור מפתח');
+  $('revoke').hidden = !key;
+  return key;
+}
+$('issue').onclick = async () => {
+  try {
+    if (!$('revoke').hidden && !confirm(tx('יצירת מפתח חדש מבטלת את הקודם. להמשיך?'))) return;
+    const r = await fetch('/api/outlook-connection', { method: 'POST' });
+    if (!r.ok) throw new Error(r.status);
+    const { key } = await r.json();
+    $('keyText').textContent = key;
+    $('newKey').hidden = false;
+    await load();
+  } catch (e) { fail(e); }
+};
+$('copy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('keyText').textContent); $('copy').textContent = tx('הועתק'); } catch (e) { fail(e); }
+};
+$('revoke').onclick = async () => {
+  try {
+    if (!confirm(tx('לבטל את המפתח? התוסף יפסיק לעבוד עד שתדביק מפתח חדש.'))) return;
+    const r = await fetch('/api/outlook-connection', { method: 'DELETE' });
+    if (!r.ok) throw new Error(r.status);
+    $('newKey').hidden = true;
+    await load();
+  } catch (e) { fail(e); }
+};
+translatePage();
+load().catch(fail);
+</script>
+</body>
+</html>
