@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Project Hub for Outlook. The server fills in {{BASE}} with its own address when it serves
+<!-- Project Hub for Outlook. The server fills in the BASE placeholders with its own address when it serves
      this file (/outlook/manifest.xml), so the copy downloaded from a server points back at it. -->
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
