@@ -1611,6 +1611,18 @@ document.querySelectorAll('input[type=file]').forEach(function(inp){inp.onchange
       return { eventId, status: ust };
     });
   }
+  /* A line in a task's activity log, written from outside the page (the Outlook add-in's filing). */
+  function taskLog(email, name, projectId, taskId, text) {
+    const reg = readJson(REGISTRY);
+    const me = identify({ email, name }, reg);
+    canWrite(me);
+    const p = findProject(me, reg, projectId);
+    return writeProject(p, me, doc => {
+      const { t, s } = findTask(doc, taskId);
+      putTask(doc, s.id, { ...t, activityLog: [...(t.activityLog || []), logEntry(me, String(text).slice(0, 2000))] });
+      return true;
+    });
+  }
   /* A file saved by the server (saveAttachment) added to one task, as the person — the add-in's way
      of attaching an email or its files. */
   function attachToTask(email, name, projectId, taskId, saved, fileName) {
@@ -1739,5 +1751,5 @@ document.querySelectorAll('input[type=file]').forEach(function(inp){inp.onchange
     try { authorize(req, res, url, user); } catch (e) { console.error('authorize', e); if (!res.headersSent) sendJson(res, 500, { error: 'server_error' }); }
   }
 
-  return { handlePublic, handleAuthorize, handleConnection, whoAmI, mailContext, runToolAs, mailLog, mailLogEdit, attachToTask, execInfo, attachToExec, ToolError, _test: { identify, projectsFor, projList, stagesOf, findStage, officeData, handleRpc } };
+  return { handlePublic, handleAuthorize, handleConnection, whoAmI, mailContext, runToolAs, mailLog, mailLogEdit, taskLog, attachToTask, execInfo, attachToExec, ToolError, _test: { identify, projectsFor, projList, stagesOf, findStage, officeData, handleRpc } };
 };
