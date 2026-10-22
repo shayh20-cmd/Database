@@ -48,3 +48,5 @@ module.exports = function createTokens(file, { readJson, writeJsonAtomic }, pref
     }
   };
 };
+// the owner a key names: the address in lower case, 'local' on the local server (no address)
+module.exports.personOf = personOf;

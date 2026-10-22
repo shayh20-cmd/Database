@@ -570,3 +570,212 @@ test('filing: the files come from classic Outlook on the PC; the server is the f
   assert.deepStrictEqual(end.budget, { day: today, bytes: 10 });
   assert.deepStrictEqual(Object.keys(end.projects), ['pabc123'], 'the projects are kept');
 });
+
+/* ── the project's folder map: mapped with Claude in Project Hub, saved per project, used in filing ── */
+
+const MAP_TREE = ['PUBLISH', 'CONS', 'CONS/LDPB-structural', 'RECEIVE', 'GARM', 'GARM/LDPB-garm-iriya', 'DESIGN', 'DOCS'];
+
+test('filing-ai: a map proposal keeps the seven areas, only folders of the tree, and a few questions', async () => {
+  let sent = null;
+  const raw = {
+    message: '  I mapped what I could.  ',
+    questions: ['Where do exports go?', '', 'q3', 'q4', 'q5', 'q6'],
+    areas: {
+      publish: { paths: ['publish', 'PUBLISH', '../out', ''], note: 'one folder per date ' + 'x'.repeat(400) },
+      consultants: { paths: ['CONS\\LDPB-structural', 'CONS/nope'], note: 'a folder per consultant' },
+      permit: { paths: ['GARM'], note: '' },
+      bogus: { paths: ['DOCS'], note: 'dropped' }
+    }
+  };
+  const client = { messages: { create: async params => { sent = params; return { content: [{ type: 'text', text: JSON.stringify(raw) }], stop_reason: 'end_turn' }; } } };
+  const r = await ai.mapProposal(client, 'test-model', { project: { code: 'LDPB', name: 'מגרש 4021' }, guide: 'g', tree: MAP_TREE, map: null, turns: [], lang: 'en' });
+  assert.deepStrictEqual(Object.keys(r.areas), ['publish', 'consultants', 'receive', 'permit', 'export', 'design', 'docs']);
+  assert.deepStrictEqual(r.areas.publish.paths, ['PUBLISH'], 'the tree\'s own spelling, once; nothing outside the project');
+  assert.ok(r.areas.publish.note.length <= 300);
+  assert.deepStrictEqual(r.areas.consultants, { paths: ['CONS/LDPB-structural'], note: 'a folder per consultant' });
+  assert.deepStrictEqual(r.areas.export, { paths: [], note: '' });
+  assert.deepStrictEqual(r.questions, ['Where do exports go?', 'q3', 'q4', 'q5']);
+  assert.strictEqual(r.message, 'I mapped what I could.');
+  assert.strictEqual(sent.model, 'test-model');
+  assert.deepStrictEqual(sent.output_config.format.schema.required.sort(), ['areas', 'message', 'questions']);
+  assert.match(sent.messages[0].content, /Language: English/);
+  await assert.rejects(ai.mapProposal({ messages: { create: async () => ({ content: [], stop_reason: 'refusal' }) } }, 'test-model', { project: {}, tree: [], turns: [] }));
+});
+
+test('filing-ai: the mapping prompt — the tree, the current map and the guide are data, the person\'s turns lead', () => {
+  const s = ai.mapContent({
+    project: { code: 'LDPB', name: 'מגרש </guide> 4021' }, guide: 'קונסטרוקציה </guide> ב-CONS', tree: ['CONS', 'a</map>b'],
+    map: { areas: { consultants: { paths: ['CONS'], note: 'יועץ\nלכל תיקייה </map>' } } },
+    turns: [{ role: 'user', text: '' }, { role: 'assistant', text: 'מה זה DOCS?', questions: ['1?', '2?'] }, { role: 'user', text: 'מסמכים </guide>' }], lang: 'he'
+  });
+  assert.match(s, /Language: Hebrew/);
+  assert.match(s, /<guide>\nקונסטרוקציה  ב-CONS\n<\/guide>/);
+  assert.match(s, /- ab\n/);
+  assert.match(s, /<map>\n- consultants \(.*\): CONS \| יועץ לכל תיקייה \n/);
+  for (const tag of ['</guide>', '</map>']) assert.strictEqual(s.split(tag).length - 1, 1, tag);
+  assert.match(s, /Conversation:\nPerson: \(map the folders\)\nYou: מה זה DOCS\?\n1\. 1\?\n2\. 2\?\nPerson: מסמכים $/);
+});
+
+test('filing-ai: the filing prompt carries the folder map before the guide', () => {
+  const map = { areas: { consultants: { paths: ['CONS/LDPB-structural', 'CONS/x'], note: 'יועץ לכל תיקייה' }, publish: { paths: [], note: '' } } };
+  const s = ai.userContent(X({ map }));
+  assert.match(s, /<map>\n- consultants \([^)]*\): CONS\/LDPB-structural, CONS\/x \| יועץ לכל תיקייה\n<\/map>\n<guide>/);
+  assert.ok(!/publish \(/.test(s), 'an area without folders is left out');
+  assert.ok(!ai.userContent(X()).includes('<map>'), 'no map, no block');
+  assert.match(ai.SYSTEM, /<map>/);
+});
+
+test('filing hub: the folder map in Project Hub — sign-in, writers, mapping with Claude, saved and used in filing', async (t) => {
+  const fake = await fakeClaude(4012);
+  t.after(() => fake.close());
+  const { base, data, keyOf, call, agent } = await start(t, 4011, { ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: 'http://127.0.0.1:4012' });
+  const hub = async (email, route, body, method) => {
+    const r = await fetch(base + '/api/filing-hub/' + route, { method: method || (body ? 'POST' : 'GET'), headers: { ...(email ? { 'x-ms-client-principal': principal(email) } : {}), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  // the person's agent runs with the key issued to the same person
+  const dana = await keyOf('dana@kkarc.com'), yoav = await keyOf('yoav@kkarc.com');
+
+  // signed in only
+  assert.strictEqual((await hub(null, 'project?project=pabc123')).status, 401);
+  assert.strictEqual((await hub(null, 'pick', { projectId: 'pabc123' })).status, 401);
+  assert.strictEqual((await hub('dana@kkarc.com', 'project?project=pabc123', { x: 1 })).status, 405);
+  assert.strictEqual((await hub('dana@kkarc.com', 'nope')).status, 404);
+
+  const info = await hub('Dana@KKarc.com', 'project?project=pabc123');
+  assert.strictEqual(info.status, 200);
+  assert.deepStrictEqual([info.body.folder, info.body.root, info.body.map, info.body.guide, info.body.canWrite], ['', '', null, '', true]);
+  assert.match(info.body.defaultGuide, /CONSULTANTS/);
+  assert.strictEqual((await hub('ron@kkarc.com', 'project?project=pabc123')).body.canWrite, false);
+  assert.strictEqual((await hub('yoav@kkarc.com', 'project?project=pabc123')).status, 400, 'a project this person cannot open');
+
+  // a viewer may not pick, map or change the guide
+  assert.deepStrictEqual(await hub('ron@kkarc.com', 'pick', { projectId: 'pabc123' }), { status: 403, body: { error: 'viewer' } });
+  assert.strictEqual((await hub('ron@kkarc.com', 'map-session', { projectId: 'pabc123' })).status, 403);
+  assert.strictEqual((await hub('ron@kkarc.com', 'map', { projectId: 'pabc123', areas: {} }, 'PUT')).status, 403);
+  assert.strictEqual((await hub('ron@kkarc.com', 'guide', { projectId: 'pabc123', guide: 'x' }, 'PUT')).status, 403);
+
+  // mapping before there is a folder
+  const s0 = await hub('dana@kkarc.com', 'map-session', { projectId: 'pabc123', lang: 'en' });
+  assert.deepStrictEqual(Object.keys(s0.body), ['id']);
+  assert.deepStrictEqual((await hub('dana@kkarc.com', 'map-propose?id=' + s0.body.id, {})).body, { needsFolder: true });
+  assert.strictEqual((await hub('dana@kkarc.com', 'open', { projectId: 'pabc123' })).status, 409, 'nothing to open yet');
+
+  // pick: the task reaches the agent of the signed-in person (whatever the case of the address), and only that agent
+  const pick = await hub('DANA@kkarc.com', 'pick', { projectId: 'pabc123', lang: 'en' });
+  assert.deepStrictEqual(Object.keys(pick.body), ['taskId']);
+  assert.deepStrictEqual((await hub('dana@kkarc.com', 'task?id=' + pick.body.taskId)).body, { kind: 'pick', handed: null, opened: false, result: null, expired: false, cancelled: false });
+  assert.strictEqual((await hub('ron@kkarc.com', 'task?id=' + pick.body.taskId)).status, 404);
+  assert.strictEqual(await agent(yoav), null);
+  const a1 = await agent(dana);
+  assert.deepStrictEqual([a1.id, a1.got.kind, a1.got.lang, a1.got.by], [pick.body.taskId, 'pick', 'en', 'דנה']);
+  assert.strictEqual((await a1.result({ picked: FOLDER, root: ROOT })).status, 200);
+  const st1 = (await hub('dana@kkarc.com', 'task?id=' + a1.id)).body;
+  assert.deepStrictEqual([st1.handed.pc, st1.opened, st1.result], ['PC1', true, { picked: FOLDER, root: ROOT }]);
+  assert.deepStrictEqual([(await hub('dana@kkarc.com', 'project?project=pabc123')).body.folder, (await call(dana, '/api/outlook/filing-project?project=pabc123')).body.root], [FOLDER, ROOT]);
+
+  // open, in Explorer on the PC; a viewer may open
+  assert.strictEqual((await hub('ron@kkarc.com', 'open', { projectId: 'pabc123', rel: '../x' })).status, 400);
+  const open = await hub('dana@kkarc.com', 'open', { projectId: 'pabc123', rel: 'CONS\\LDPB-structural' });
+  const a2 = await agent(dana);
+  assert.deepStrictEqual([a2.id, a2.got.kind, a2.got.folder, a2.got.rel], [open.body.taskId, 'open', FOLDER, 'CONS/LDPB-structural']);
+
+  // mapping with Claude: the agent sends the tree, Claude fills the areas and asks
+  const s1 = (await hub('dana@kkarc.com', 'map-session', { projectId: 'pabc123', lang: 'en' })).body.id;
+  assert.strictEqual((await hub('ron@kkarc.com', 'map-propose?id=' + s1, {})).status, 404, 'only the person who opened it');
+  fake.answer = {
+    message: 'Mapped. Two questions.', questions: ['Is DESIGN yours?', 'Where are the Revit exports?'],
+    areas: { publish: { paths: ['PUBLISH'], note: 'a folder per date' }, consultants: { paths: ['CONS', '../evil'], note: 'a folder per consultant' }, nope: { paths: ['DOCS'], note: '' } }
+  };
+  const proposing = hub('dana@kkarc.com', 'map-propose?id=' + s1, {});
+  const a3 = await agent(dana);
+  assert.deepStrictEqual([a3.got.kind, a3.got.folder, a3.got.root, a3.got.lang], ['tree', FOLDER, ROOT, 'en']);
+  assert.strictEqual((await a3.result({ tree: [...MAP_TREE, '../evil'] })).status, 200);
+  const p1 = await proposing;
+  assert.strictEqual(p1.status, 200);
+  assert.deepStrictEqual(p1.body.questions, ['Is DESIGN yours?', 'Where are the Revit exports?']);
+  assert.strictEqual(p1.body.message, 'Mapped. Two questions.');
+  assert.deepStrictEqual(p1.body.tree, MAP_TREE, 'the tree read, for choosing a folder by hand (without what is outside)');
+  assert.deepStrictEqual(Object.keys(p1.body.areas), ['publish', 'consultants', 'receive', 'permit', 'export', 'design', 'docs']);
+  assert.deepStrictEqual(p1.body.areas.consultants, { paths: ['CONS'], note: 'a folder per consultant' });
+  assert.match(fake.last, /Language: English/);
+  assert.match(fake.last, /- GARM\/LDPB-garm-iriya\n/);
+  assert.ok(!fake.last.includes('../evil'));
+  assert.match(fake.last, /Person: \(map the folders\)$/);
+
+  // an answer: the tree is kept, Claude gets the conversation and its own last map
+  fake.answer = { message: 'Updated.', questions: [], areas: { ...fake.answer.areas, design: { paths: ['DESIGN'], note: 'ours' } } };
+  const p2 = await hub('dana@kkarc.com', 'map-propose?id=' + s1, { text: 'כן, DESIGN שלנו; אין ייצוא' });
+  assert.deepStrictEqual([p2.body.areas.design.paths, p2.body.questions], [['DESIGN'], []]);
+  assert.ok(fake.last.endsWith('Conversation:\nPerson: (map the folders)\nYou: Mapped. Two questions.\n1. Is DESIGN yours?\n2. Where are the Revit exports?\nPerson: כן, DESIGN שלנו; אין ייצוא'), fake.last.slice(-300));
+  assert.match(fake.last, /<map>\n- publish \([^)]*\): PUBLISH \| a folder per date\n- consultants \([^)]*\): CONS \| a folder per consultant\n<\/map>/);
+
+  // the table as the person has it (a path removed by hand, unsaved) is the map Claude continues from: the removed
+  // path stays removed, and paths outside the tree or the project do not reach Claude
+  const handMap = { ...p2.body.areas, publish: { paths: [], note: '' }, docs: { paths: ['DOCS', 'NOT-THERE', '../x'], note: 'by hand' } };
+  const p3 = await hub('dana@kkarc.com', 'map-propose?id=' + s1, { text: 'אין PUBLISH', areas: handMap });
+  assert.strictEqual(p3.status, 200);
+  const sent3 = fake.last.slice(fake.last.indexOf('<map>'), fake.last.indexOf('</map>'));
+  assert.ok(!/- publish /.test(sent3), sent3);
+  assert.match(sent3, /- docs \([^)]*\): DOCS \| by hand$/m);
+  assert.match(sent3, /- design \([^)]*\): DESIGN \| ours/);
+  assert.ok(!sent3.includes('NOT-THERE') && !sent3.includes('../x'), sent3);
+
+  // saving the map: paths inside the project only; read back by the Hub page and by the pane
+  assert.deepStrictEqual(await hub('dana@kkarc.com', 'map', { projectId: 'pabc123', areas: { publish: { paths: ['../x'], note: '' } } }, 'PUT'), { status: 400, body: { error: 'path' } });
+  assert.strictEqual((await hub('dana@kkarc.com', 'map', { projectId: 'pabc123', areas: 'x' }, 'PUT')).status, 400);
+  const saved = await hub('dana@kkarc.com', 'map', { projectId: 'pabc123', areas: { ...p2.body.areas, consultants: { paths: ['CONS\\LDPB-structural', 'CONS\\LDPB-structural'], note: 'יועץ לכל תיקייה' + 'x'.repeat(400) }, nope: { paths: ['x'], note: '' } } }, 'PUT');
+  assert.strictEqual(saved.status, 200);
+  const map = saved.body.map;
+  assert.deepStrictEqual(Object.keys(map.areas), ['publish', 'consultants', 'receive', 'permit', 'export', 'design', 'docs']);
+  assert.deepStrictEqual(map.areas.consultants.paths, ['CONS/LDPB-structural']);
+  assert.strictEqual(map.areas.consultants.note.length, 300);
+  assert.deepStrictEqual([map.updatedBy, typeof map.updatedAt], ['דנה', 'string']);
+  assert.deepStrictEqual((await hub('ron@kkarc.com', 'project?project=pabc123')).body.map, map);
+  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-project?project=pabc123')).body.map, map);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(data, 'filing.json'), 'utf8')).projects.pabc123.map, map);
+
+  // the guide
+  assert.deepStrictEqual((await hub('dana@kkarc.com', 'guide', { projectId: 'pabc123', guide: 'תכניות מיועץ → CONS' }, 'PUT')).body, { guide: 'תכניות מיועץ → CONS' });
+  assert.strictEqual((await hub('ron@kkarc.com', 'project?project=pabc123')).body.guide, 'תכניות מיועץ → CONS');
+
+  // filing goes by the map: it is in the prompt, before the guide
+  const job = (await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail: MAIL, lang: 'en' })).body;
+  fake.answer = FIRST;
+  const filing = call(dana, '/api/outlook/filing-propose?id=' + job.id, {});
+  await (await agent(dana)).result({ tree: TREE });
+  assert.strictEqual((await filing).status, 200);
+  assert.match(fake.last, /<map>\n- publish \([^)]*\): PUBLISH \| a folder per date\n- consultants \([^)]*\): CONS\/LDPB-structural \| יועץ לכל תיקייה/);
+  assert.match(fake.last, /<\/map>\n<guide>\nתכניות מיועץ → CONS\n<\/guide>/);
+});
+
+test('filing hub: mapping without an agent, or without Claude', async (t) => {
+  const { base, data, keyOf, agent } = await start(t, 4013, { FILING_AGENT_WAIT_MS: '300', FILING_TREE_WAIT_MS: '700' });
+  const hub = async (route, body) => {
+    const r = await fetch(base + '/api/filing-hub/' + route, { method: 'POST', headers: { 'x-ms-client-principal': principal('dana@kkarc.com'), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, guide: '', log: [] } } }));
+  const dana = await keyOf('dana@kkarc.com');
+  const id = (await hub('map-session', { projectId: 'pabc123' })).body.id;
+  assert.deepStrictEqual((await hub('map-propose?id=' + id, {})).body, { agent: 'none' });
+  assert.deepStrictEqual((await hub('map-propose?id=nope', {})).status, 404);
+  // the agent takes the open tree task and answers that the folder is not on this PC
+  const missing = hub('map-propose?id=' + id, {});
+  await (await agent(dana)).result({ missing: true });
+  assert.deepStrictEqual((await missing).body, { missing: true });
+  // the tree comes, there is no Claude
+  const third = hub('map-propose?id=' + id, {});
+  await (await agent(dana)).result({ tree: ['CONS'] });
+  assert.deepStrictEqual((await third).body, { ai: 'unavailable' });
+});
+
+test('filing hub: on the local server the tasks go to the agent holding the local key', async (t) => {
+  const { base, agent } = await start(t, 4014, { SITE_MODE: 'local', LOCAL_USER_NAME: 'דנה' });
+  const key = (await (await fetch(base + '/api/outlook-connection', { method: 'POST' })).json()).key;
+  const info = await (await fetch(base + '/api/filing-hub/project?project=pabc123')).json();
+  assert.strictEqual(info.canWrite, true);
+  const pick = await (await fetch(base + '/api/filing-hub/pick', { method: 'POST', body: JSON.stringify({ projectId: 'pabc123' }) })).json();
+  const a = await agent(key);
+  assert.deepStrictEqual([a.id, a.kind], [pick.taskId, 'pick']);
+});

@@ -17,12 +17,16 @@
    projects on many computers, each sharing a drive topped by an "@<Name> Projects" folder; drive letters differ between
    PCs, so the PC finds the root by its name; a folder stored before roots has none, and the PC looks in its legacy
    root), its filing guide, the filings so far — and the register contacts the Hub page last sent are kept in
-   filing.json. Tasks and filings live in memory: a restart only loses work nobody finished.
+   filing.json, and so is its folder map (map: the seven areas of filing-ai.js, each with its folders and a note),
+   mapped with Claude on the project's settings page in Project Hub (handleHub, signed in: the tasks go to the agent
+   holding the key of the same person) and given to Claude with every filing.
+   Tasks, filings and mapping sessions live in memory: a restart only loses work nobody finished.
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md */
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const ai = require('./filing-ai');
+const { personOf } = require('./mail-tokens');
 
 const TTL = Number(process.env.FILING_TTL_MS) || 15 * 60 * 1000;            // a filing's (and its file task's) life
 const QUICK = Number(process.env.FILING_QUICK_TTL_MS) || 2 * 60 * 1000;     // a pick, tree or open task's life
@@ -63,6 +67,7 @@ module.exports = function createFiling(ctx) {
   try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (e) { console.error('filing: clearing', TMP, e.message); } // left by a restart: nobody can reach those filings any more; the server never fails to start
   const tasks = new Map();   // id → task
   const filings = new Map(); // id → filing
+  const maps = new Map();    // id → a mapping session of the Hub page
   const byToken = new Map(); // sha(token) → task id
   const waiting = new Map(); // who → Set of wake-ups of agents waiting for a task
 
@@ -117,6 +122,7 @@ module.exports = function createFiling(ctx) {
       if (!f.closed && f.exp < now) endFiling(f);
       if (f.exp + KEEP < now) filings.delete(id);
     }
+    for (const [id, m] of maps) if (m.exp < now) maps.delete(id);
   }
   function makeTask(kind, x) {
     const token = crypto.randomBytes(32).toString('base64url');
@@ -149,6 +155,32 @@ module.exports = function createFiling(ctx) {
       timers.push(setTimeout(() => { if (!t.handed) done('none'); }, AGENT_WAIT));
       timers.push(setTimeout(() => done(t.handed ? 'slow' : 'none'), TREE_WAIT));
     });
+  }
+  /* The project's tree for a filing or a mapping session (h), asked of the agent once: the task already open for
+     it, or a new one. null once h.tree is there; otherwise the page's answer ({ agent: 'none'|'slow'|'failed' } or
+     { missing }), or 'gone' when the page gave up on the request (release frees h for its next one). */
+  async function treeOf(h, pr, res, release, extra) {
+    if (h.tree) return null;
+    let t = h.treeTask && tasks.get(h.treeTask);
+    if (!t || t.closed) {
+      t = makeTask('tree', { who: h.who, person: h.person, base: h.base, project: h.project, folder: pr.folder, root: pr.root || '', lang: h.lang, extra });
+      h.treeTask = t.id;
+    }
+    // the page may give up while the tree is awaited (closed, reloaded): its next request is not "busy"
+    res.on('close', release);
+    const how = await awaitTask(t);
+    res.off('close', release);
+    if (res.destroyed) return 'gone';
+    if (how === 'none' || how === 'slow') return { agent: how };
+    if (t.result && t.result.missing) return { missing: true };
+    if (!h.tree) return { agent: 'failed' }; // cancelled or expired on the PC
+    return null;
+  }
+  const taskState = t => ({ kind: t.kind, handed: t.handed, opened: t.opened, result: t.result, expired: !t.result && !t.cancelled && t.exp < Date.now(), cancelled: t.cancelled });
+  function saveGuide(projectId, guide, p) {
+    const d = load();
+    Object.assign(projectOf(d, projectId), { guide, updatedBy: mcp.whoAmI(p.email, p.name).name, updatedAt: new Date().toISOString() });
+    writeJsonAtomic(STORE, d);
   }
   const json = async req => { const raw = await readRequestBody(req); const v = raw ? JSON.parse(raw) : {}; return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; };
   const projectRef = g => ({ id: g.project.id, code: g.project.code || '', name: g.project.name });
@@ -192,13 +224,13 @@ module.exports = function createFiling(ctx) {
     if (route === 'filing-task') {
       const t = tasks.get(url.searchParams.get('id') || '');
       if (!t || t.who !== who) { sendJson(res, 404, { error: 'no_task' }); return; }
-      sendJson(res, 200, { kind: t.kind, handed: t.handed, opened: t.opened, result: t.result, expired: !t.result && !t.cancelled && t.exp < Date.now(), cancelled: t.cancelled });
+      sendJson(res, 200, taskState(t));
       return;
     }
     if (route === 'filing-project') {
       const g = getProject(url.searchParams.get('project'));
       const pr = known(g.project.id);
-      sendJson(res, 200, { folder: pr.folder || '', root: pr.root || '', guide: pr.guide || '', defaultGuide: DEFAULT_GUIDE, contacts: contactsOf(p, g.project.id).length, canWrite: writer(p) });
+      sendJson(res, 200, { folder: pr.folder || '', root: pr.root || '', guide: pr.guide || '', defaultGuide: DEFAULT_GUIDE, contacts: contactsOf(p, g.project.id).length, map: pr.map || null, canWrite: writer(p) });
       return;
     }
     if (route === 'filing-pick' || route === 'filing-open' || route === 'filing-guide' || route === 'filing-guide-add' || route === 'filing') {
@@ -226,9 +258,7 @@ module.exports = function createFiling(ctx) {
           guide = [String(pr.guide || '').trim() || DEFAULT_GUIDE, line].join('\n');
           if (guide.length > GUIDE_MAX) { sendJson(res, 413, { error: 'too_long' }); return; }
         }
-        const d = load();
-        Object.assign(projectOf(d, project.id), { guide, updatedBy: mcp.whoAmI(p.email, p.name).name, updatedAt: new Date().toISOString() });
-        writeJsonAtomic(STORE, d);
+        saveGuide(project.id, guide, p);
         sendJson(res, 200, { guide });
         return;
       }
@@ -325,28 +355,15 @@ module.exports = function createFiling(ctx) {
       try {
         const pr = known(f.projectId);
         if (!pr.folder) { sendJson(res, 200, { needsFolder: true }); return; }
-        if (!f.tree) {
-          // ask the agent for the tree: the task already open for this filing, or a new one
-          let t = f.treeTask && tasks.get(f.treeTask);
-          if (!t || t.closed) {
-            t = makeTask('tree', { who, person: f.person, base: f.base, project: f.project, folder: pr.folder, root: pr.root || '', lang: f.lang, extra: { filingId: f.id } });
-            f.treeTask = t.id;
-          }
-          // the pane may give up while the tree is awaited (closed, reloaded): its next request is not "busy"
-          res.on('close', release);
-          const how = await awaitTask(t);
-          res.off('close', release);
-          if (res.destroyed) return;
-          if (how === 'none' || how === 'slow') { sendJson(res, 200, { agent: how }); return; }
-          if (t.result && t.result.missing) { sendJson(res, 200, { missing: true }); return; }
-          if (!f.tree) { sendJson(res, 200, { agent: 'failed' }); return; } // cancelled or expired on the PC
-        }
+        const no = await treeOf(f, pr, res, release, { filingId: f.id });
+        if (no === 'gone') return;
+        if (no) { sendJson(res, 200, no); return; }
         if (!client) { sendJson(res, 200, { ai: 'unavailable' }); return; }
         const turn = { role: 'user', text };
         let out;
         try {
           out = await ai.propose(client, model, {
-            project: f.project, guide: String(pr.guide || '').trim() || DEFAULT_GUIDE, tree: f.tree, log: (pr.log || []).slice(-30).reverse(),
+            project: f.project, map: pr.map || null, guide: String(pr.guide || '').trim() || DEFAULT_GUIDE, tree: f.tree, log: (pr.log || []).slice(-30).reverse(),
             contacts: contactsOf(f.person, f.projectId), mail: f.mail, files: f.files, turns: [...f.turns, turn], lang: f.lang
           });
         } catch (e) {
@@ -463,6 +480,8 @@ module.exports = function createFiling(ctx) {
       if (!Array.isArray(body.tree)) { sendJson(res, 400, { error: 'tree' }); return; }
       const tree = body.tree.slice(0, 3000).map(ai.relPath).filter(Boolean);
       if (f && !f.closed) f.tree = tree;
+      const m = t.mapId ? maps.get(t.mapId) : null;
+      if (m) m.tree = tree;
       t.result = { folders: tree.length };
     } else if (t.kind === 'open') {
       t.result = { opened: true };
@@ -514,6 +533,115 @@ module.exports = function createFiling(ctx) {
     sendJson(res, 200, { ok: true, n: list.length });
   }
 
-  return { handlePane, handleToken, handleContacts, DEFAULT_GUIDE };
+  /* ── the Hub page (signed in): the project's folder, its map and its guide, on the project's settings page ──
+     The person is the signed-in user; the tasks go to the agent running with the same person's key (who, as the
+     key names its owner: the address in lower case, 'local' on the local server). base: the site, for the tools. */
+  const HUB_METHOD = { project: 'GET', task: 'GET', pick: 'POST', open: 'POST', 'map-session': 'POST', 'map-propose': 'POST', map: 'PUT', guide: 'PUT' };
+  async function handleHub(req, res, url, user, base) {
+    sweep();
+    const route = url.pathname.slice('/api/filing-hub/'.length);
+    if (!HUB_METHOD[route]) { sendJson(res, 404, { error: 'Not found' }); return; }
+    if (req.method !== HUB_METHOD[route]) { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+    const p = { email: user.email || null, name: user.name };
+    const who = personOf(user.email);
+    const getProject = ref => mcp.runToolAs(p.email, p.name, base, 'get_project', { project: String(ref || '') }); // ToolError when not visible
+
+    if (route === 'project') {
+      const g = getProject(url.searchParams.get('project'));
+      const pr = known(g.project.id);
+      sendJson(res, 200, { folder: pr.folder || '', root: pr.root || '', map: pr.map || null, guide: pr.guide || '', defaultGuide: DEFAULT_GUIDE, canWrite: writer(p) });
+      return;
+    }
+    if (route === 'task') {
+      const t = tasks.get(url.searchParams.get('id') || '');
+      if (!t || t.who !== who) { sendJson(res, 404, { error: 'no_task' }); return; }
+      sendJson(res, 200, taskState(t));
+      return;
+    }
+    const body = await json(req);
+
+    if (route === 'map-propose') {
+      const m = maps.get(url.searchParams.get('id') || '');
+      if (!m || m.who !== who) { sendJson(res, 404, { error: 'no_session' }); return; }
+      if (m.busy) { sendJson(res, 409, { error: 'busy' }); return; }
+      const text = clip(body.text, 1000).trim();
+      const mine = {};
+      m.busy = mine;
+      const release = () => { if (m.busy === mine) m.busy = false; };
+      m.exp = Date.now() + TTL; // the session lives while the person talks
+      try {
+        const pr = known(m.projectId);
+        if (!pr.folder) { sendJson(res, 200, { needsFolder: true }); return; }
+        const no = await treeOf(m, pr, res, release, { mapId: m.id });
+        if (no === 'gone') return;
+        if (no) { sendJson(res, 200, no); return; }
+        // the table as the person has it now (corrected by hand, unsaved) is the map so far: only folders of the tree
+        if (body.areas && typeof body.areas === 'object' && !Array.isArray(body.areas)) {
+          const known = new Map(m.tree.map(t => [t.toLowerCase(), t]));
+          m.areas = ai.cleanAreas(body.areas, q => (q && known.get(q.toLowerCase())) || null);
+        }
+        if (!client) { sendJson(res, 200, { ai: 'unavailable' }); return; }
+        const turn = { role: 'user', text };
+        let out;
+        try {
+          out = await ai.mapProposal(client, model, {
+            project: m.project, guide: String(pr.guide || '').trim() || DEFAULT_GUIDE, tree: m.tree,
+            map: m.areas ? { areas: m.areas } : pr.map || null, turns: [...m.turns, turn], lang: m.lang
+          });
+        } catch (e) {
+          console.error('filing map failed:', e.message);
+          sendJson(res, 200, { ai: 'failed' });
+          return;
+        }
+        m.turns.push(turn, { role: 'assistant', text: out.message, questions: out.questions });
+        m.areas = out.areas;
+        // the tree too: the page offers it for correcting an area by hand
+        sendJson(res, 200, { ...out, tree: m.tree });
+      } finally {
+        release();
+      }
+      return;
+    }
+
+    if (route !== 'open' && !writer(p)) { sendJson(res, 403, { error: 'viewer' }); return; }
+    const g = getProject(body.projectId);
+    const project = projectRef(g);
+    const pr = known(project.id);
+    const x = { who, person: p, base, project, folder: pr.folder || '', root: pr.root || '', lang: body.lang };
+    if (route === 'pick') { sendJson(res, 200, { taskId: makeTask('pick', x).id }); return; }
+    if (route === 'open') {
+      const rel = ai.relPath(body.rel);
+      if (rel == null) { sendJson(res, 400, { error: 'rel' }); return; }
+      if (!pr.folder) { sendJson(res, 409, { error: 'no_folder' }); return; }
+      sendJson(res, 200, { taskId: makeTask('open', { ...x, extra: { rel } }).id });
+      return;
+    }
+    if (route === 'guide') {
+      const guide = clip(body.guide, GUIDE_MAX);
+      saveGuide(project.id, guide, p);
+      sendJson(res, 200, { guide });
+      return;
+    }
+    if (route === 'map-session') {
+      const m = {
+        id: newId(), who, person: p, base, projectId: project.id, project, lang: body.lang === 'en' ? 'en' : 'he',
+        tree: null, treeTask: null, turns: [], areas: null, busy: false, exp: Date.now() + TTL
+      };
+      maps.set(m.id, m);
+      sendJson(res, 200, { id: m.id });
+      return;
+    }
+    // map: the person's own (from Claude's proposal, corrected by hand): paths inside the project, no tree check
+    if (!body.areas || typeof body.areas !== 'object' || Array.isArray(body.areas)) { sendJson(res, 400, { error: 'areas' }); return; }
+    const areas = ai.cleanAreas(body.areas, rel => rel || false);
+    if (!areas) { sendJson(res, 400, { error: 'path' }); return; }
+    const map = { areas, updatedBy: mcp.whoAmI(p.email, p.name).name, updatedAt: new Date().toISOString() };
+    const d = load();
+    projectOf(d, project.id).map = map;
+    writeJsonAtomic(STORE, d);
+    sendJson(res, 200, { map });
+  }
+
+  return { handlePane, handleToken, handleContacts, handleHub, DEFAULT_GUIDE };
 };
 module.exports.folderName = folderName;

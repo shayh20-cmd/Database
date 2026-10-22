@@ -1706,6 +1706,42 @@ html[data-appearance="dark"] .plan-rolled{background:rgba(245,158,11,.18);color:
 .sp-nav-icon{width:22px;height:22px;border:1px solid var(--border-strong);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;background:var(--surface);}
 .sp-nav-badge{margin-inline-start:auto;font-size:10px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:1px 7px;font-weight:600;}
 .sp-content{flex:1;overflow-y:auto;padding-bottom:12px;}
+/* the project's folders (SettingsFoldersView): a wider panel, each area a row of name | folders + note */
+.sp-panel.sp-panel-wide{width:min(480px,100vw);}
+.fm-folder{display:flex;align-items:center;gap:6px;padding:4px 16px;}
+.fm-path{flex:1;min-width:0;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start;}
+.fm-ico{background:none;border:none;cursor:pointer;font-size:12px;padding:1px 3px;border-radius:4px;line-height:1;color:var(--text-3);flex-shrink:0;}
+.fm-ico:disabled{opacity:.4;cursor:default;}
+.fm-ico:hover{background:var(--bg);color:var(--text);}
+.fm-msg{padding:2px 16px 4px;font-size:11px;color:var(--text-3);white-space:pre-wrap;}
+.fm-head{display:flex;align-items:baseline;gap:8px;margin-top:6px;}
+.fm-head>span:first-child{flex:1;}
+.fm-dirty{color:#B45309;text-transform:none;letter-spacing:0;font-weight:600;}
+.fm-when{text-transform:none;letter-spacing:0;font-weight:400;}
+.fm-area{display:grid;grid-template-columns:92px minmax(0,1fr);gap:2px 8px;padding:6px 16px;border-bottom:1px solid var(--border);}
+.fm-name{font-size:12px;font-weight:600;color:var(--text);padding-top:2px;}
+.fm-body{display:flex;flex-direction:column;gap:3px;min-width:0;}
+.fm-prow{display:flex;align-items:center;gap:2px;min-width:0;}
+.fm-prow .fm-path,.fm-folder .fm-path{flex:0 1 auto;}
+.fm-folder .sp-btn-sm{margin-inline-start:auto;}
+.fm-none{font-size:12px;color:var(--text-3);}
+.fm-x{font-size:10px;}
+.fm-pick,.fm-note{font:inherit;font-size:11px;color:var(--text-2);background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:2px 6px;min-width:0;width:100%;box-sizing:border-box;}
+.fm-pick{width:auto;max-width:100%;align-self:flex-start;color:var(--text-3);}
+.fm-note-ro{font-size:11px;color:var(--text-2);white-space:pre-wrap;}
+.fm-actions{display:flex;align-items:center;gap:6px;padding:8px 16px 4px;flex-wrap:wrap;}
+.fm-primary{border-color:var(--accent);color:var(--accent);font-weight:600;}
+.fm .sp-btn-sm:disabled{opacity:.45;cursor:default;}
+.fm-conv{display:flex;flex-direction:column;gap:6px;padding:4px 16px 6px;}
+.fm-ai,.fm-me{font-size:12px;line-height:1.45;border-radius:7px;padding:6px 9px;white-space:pre-wrap;text-align:start;}
+.fm-ai{background:var(--bg);color:var(--text);}
+.fm-ai ol{margin:4px 0 0;padding-inline-start:18px;}
+.fm-me{background:rgba(37,99,235,.07);color:var(--text);align-self:flex-end;max-width:90%;}
+.fm-answer{display:flex;gap:6px;align-items:flex-end;}
+.fm-answer textarea,.fm-guide textarea{flex:1;font:inherit;font-size:12px;border:1px solid var(--border);border-radius:6px;padding:5px 7px;resize:vertical;background:var(--surface);color:var(--text);min-width:0;box-sizing:border-box;}
+.fm-toggle{display:block;width:100%;background:none;border:none;cursor:pointer;text-align:start;font-family:inherit;margin-top:8px;}
+.fm-guide{display:flex;flex-direction:column;gap:6px;padding:0 16px 8px;}
+.fm-guide textarea{width:100%;}
 .sp-back{display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;font-size:12px;color:var(--text-3);font-family:inherit;padding:0;}
 .sp-back:hover{color:var(--text);}
 .sp-field-row{display:flex;align-items:center;gap:8px;padding:6px 16px;}
@@ -3100,9 +3136,9 @@ if(field.id==='__priority')return _EL.priorities.map(p=>({id:p.id,label:p.label,
    Edit List Modal  (Priority / Discipline)
 ══════════════════════════════════════ */function EditListModal({title,items,onSave,onClose,previewType='pill'}){const[list,setList]=useState(items.map(i=>({...i})));const[colorOpen,setColorOpen]=useState(null);const[pickerPos,setPickerPos]=useState(null);useEffect(()=>{if(colorOpen===null)return;const h=e=>{if(!e.target.closest('.color-picker-pop')&&!e.target.closest('.elm-color-btn')){setColorOpen(null);setPickerPos(null);}};document.addEventListener('mousedown',h);return()=>document.removeEventListener('mousedown',h);},[colorOpen]);const openColor=(i,e)=>{if(colorOpen===i){setColorOpen(null);setPickerPos(null);return;}const r=e.currentTarget.getBoundingClientRect();setPickerPos({top:r.bottom+6,left:r.left});setColorOpen(i);};const[dragIdx,setDragIdx]=useState(null);const[dragOver,setDragOver]=useState(null);const upd=(i,patch)=>setList(list.map((x,k)=>k===i?{...x,...patch}:x));const setColor=(i,color)=>{upd(i,{color,bg:hexBg(color)});setColorOpen(null);setPickerPos(null);};const del=i=>setList(list.filter((_,k)=>k!==i));const add=()=>{const c=OPTION_COLORS[list.length%OPTION_COLORS.length];setList([...list,{id:uid(),label:'',color:c,bg:hexBg(c)}]);};return/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{className:"af-overlay",onClick:onClose},/*#__PURE__*/React.createElement("div",{className:"ef-box",style:{width:460},onClick:e=>e.stopPropagation()},/*#__PURE__*/React.createElement("div",{className:"ef-hdr"},/*#__PURE__*/React.createElement("span",{className:"ef-title"},title),/*#__PURE__*/React.createElement("button",{className:"af-close",onClick:onClose},"✕")),/*#__PURE__*/React.createElement("div",{className:"ef-body",style:{gap:4}},/*#__PURE__*/React.createElement("p",{style:{fontSize:11,color:'var(--text-3)',marginBottom:6,lineHeight:1.5}},"ניתן לשנות צבע, שם וסדר הערכים.",/*#__PURE__*/React.createElement("br",null),"מזהה (ID) אינו ניתן לשינוי — הוא מקשר לנתוני המשימות."),list.map((item,i)=>/*#__PURE__*/React.createElement("div",{key:item.id||i,className:`opt-row${dragOver===i?' opt-row-drop':''}`,draggable:true,onDragStart:e=>{e.dataTransfer.effectAllowed='move';setDragIdx(i);},onDragOver:e=>{e.preventDefault();if(dragIdx!==null&&dragIdx!==i)setDragOver(i);},onDragLeave:()=>setDragOver(null),onDrop:e=>{e.preventDefault();if(dragIdx===null||dragIdx===i){setDragIdx(null);setDragOver(null);return;}const a=[...list];const[moved]=a.splice(dragIdx,1);a.splice(i,0,moved);setList(a);setDragIdx(null);setDragOver(null);},onDragEnd:()=>{setDragIdx(null);setDragOver(null);},style:{alignItems:'center',gap:8,padding:'6px 8px',opacity:dragIdx===i?.5:1}},/*#__PURE__*/React.createElement("span",{className:"opt-drag-handle",title:"גרור לשינוי סדר"},"⠿"),/*#__PURE__*/React.createElement("div",{style:{flexShrink:0}},/*#__PURE__*/React.createElement("button",{className:"elm-color-btn",style:{width:24,height:24,borderRadius:6,border:'2px solid rgba(0,0,0,.1)',background:item.color,cursor:'pointer',display:'block',padding:0},onClick:e=>openColor(i,e)})),/*#__PURE__*/React.createElement("input",{className:"opt-input",value:item.label,style:{flex:1,fontSize:13},onChange:e=>upd(i,{label:e.target.value}),placeholder:"שם הערך..."}),previewType==='status'?/*#__PURE__*/React.createElement("div",{style:{width:22,height:22,borderRadius:'50%',background:item.color,flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:800,color:'#fff',fontFamily:'Heebo,system-ui,sans-serif'}},tx(item.label||'?')[0]):/*#__PURE__*/React.createElement("span",{className:"pill",style:{color:'#fff',background:item.color,fontSize:11,flexShrink:0}},item.label||'?'),/*#__PURE__*/React.createElement("span",{style:{fontSize:9,color:'var(--text-3)',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:4,padding:'1px 5px',whiteSpace:'nowrap',fontFamily:'monospace',flexShrink:0}},item.id),/*#__PURE__*/React.createElement("button",{className:"opt-del",style:{opacity:.6},onClick:()=>del(i)},"✕"))),/*#__PURE__*/React.createElement("button",{className:"opt-add-btn",onClick:add},"＋ הוסף ערך")),/*#__PURE__*/React.createElement("div",{className:"ef-footer"},/*#__PURE__*/React.createElement("button",{className:"af-save",onClick:()=>onSave(list)},"שמור שינויים"),/*#__PURE__*/React.createElement("button",{className:"af-cancel",onClick:onClose},"ביטול")))),colorOpen!==null&&pickerPos&&ReactDOM.createPortal(/*#__PURE__*/React.createElement("div",{className:"color-picker-pop",style:{position:'fixed',top:pickerPos.top,left:pickerPos.left,right:'auto',zIndex:9999}},OPTION_COLORS.map(c=>{const tc=scaleColorSaturation(c,currentThemeSatFactor());return/*#__PURE__*/React.createElement("button",{key:c,className:`color-swatch${c===list[colorOpen]?.color?' selected':''}`,style:{background:tc},onClick:()=>setColor(colorOpen,tc)});})),document.body));}/* ══════════════════════════════════════
    Settings Panel
-══════════════════════════════════════ */function SettingsPanel({data,save,onClose,projectFields=[],automations=null}){const[view,setView]=useState('menu');// 'menu' | 'fields' | 'rules'
+══════════════════════════════════════ */function SettingsPanel({data,save,onClose,projectFields=[],automations=null}){const[view,setView]=useState('menu');// 'menu' | 'fields' | 'rules' | 'folders'
 const[editField,setEditField]=useState(null);// {field, isBuiltin} — builtin only now; custom-field create/edit/delete live in the Template "שדות" tab
-const fields=projectFields;const hiddenCols=data.hiddenCols||{};const toggleCol=id=>save({...data,hiddenCols:{...hiddenCols,[id]:!hiddenCols[id]}});const BUILTIN_TYPE_LABEL={status:'סטטוס',priority:'עדיפות',tag:'תגית',timeline:'טיימליין',text:'טקסט',days:'ימים',gantt:'גנט'};return/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{style:{position:'fixed',inset:0,zIndex:899},onClick:onClose,onContextMenu:passContextMenu(onClose)}),/*#__PURE__*/React.createElement("div",{className:"sp-panel"},/*#__PURE__*/React.createElement("div",{className:"sp-hdr"},view!=='menu'&&/*#__PURE__*/React.createElement("button",{className:"sp-hdr-btn",onClick:()=>setView('menu'),title:"חזרה"},"←"),/*#__PURE__*/React.createElement("span",{className:"sp-hdr-title"},view==='fields'?'שדות':view==='rules'?'אוטומציות':'התאמה אישית'),/*#__PURE__*/React.createElement("button",{className:"sp-hdr-btn",onClick:onClose,title:"סגור"},"→|")),view==='rules'&&automations&&/*#__PURE__*/React.createElement(SettingsRulesView,{automations:automations}),view==='menu'&&/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{className:"sp-proj"},/*#__PURE__*/React.createElement("div",{className:"sp-proj-row"},/*#__PURE__*/React.createElement("span",{className:"sp-proj-name"},"הפרויקט"),/*#__PURE__*/React.createElement("button",{className:"sp-btn-sm"},"+ הוסף ▾")),/*#__PURE__*/React.createElement("div",{className:"sp-proj-sub"},"צפה וערוך תכונות של הפרויקט")),/*#__PURE__*/React.createElement("div",{className:"sp-sec-lbl"},"תכונות תהליך עבודה"),/*#__PURE__*/React.createElement("div",{className:"sp-nav"},/*#__PURE__*/React.createElement("button",{className:"sp-nav-item",onClick:()=>setView('fields')},/*#__PURE__*/React.createElement("div",{className:"sp-nav-icon"},"⊙"),"שדות",/*#__PURE__*/React.createElement("span",{className:"sp-nav-badge"},BUILTIN_FIELDS.length+fields.length),/*#__PURE__*/React.createElement("span",{style:{marginInlineStart:'auto',color:'var(--text-3)',fontSize:11}},"›")),/*#__PURE__*/React.createElement("button",{className:"sp-nav-item",style:{opacity:.45,cursor:'default'},disabled:true},/*#__PURE__*/React.createElement("div",{className:"sp-nav-icon"},"⊡"),"טפסים",/*#__PURE__*/React.createElement("span",{style:{marginInlineStart:'auto',color:'var(--text-3)',fontSize:11}},"›")),/*#__PURE__*/React.createElement("button",{className:"sp-nav-item",style:automations?undefined:{opacity:.45,cursor:'default'},disabled:!automations,onClick:()=>setView('rules')},/*#__PURE__*/React.createElement("div",{className:"sp-nav-icon"},"⚡"),"אוטומציות",automations&&/*#__PURE__*/React.createElement("span",{className:"sp-nav-badge"},automations.rules.length),/*#__PURE__*/React.createElement("span",{style:{marginInlineStart:'auto',color:'var(--text-3)',fontSize:11}},"›")))),view==='fields'&&/*#__PURE__*/React.createElement("div",{className:"sp-content"},/*#__PURE__*/React.createElement("div",{className:"sp-sec-lbl"},"שדות מובנים"),BUILTIN_FIELDS.map(f=>/*#__PURE__*/React.createElement("div",{key:f.id,className:"sp-field-row",style:{cursor:'pointer'},onClick:()=>{const k=BUILTIN_LIST_OF[f.id];if(k&&PROJECT_OPS.data&&!PROJECT_OPS.data[k]){openProjectList(k);return;}setEditField({field:{...f,...(data.builtinConfig?.[f.id]||{})},isBuiltin:true});}},/*#__PURE__*/React.createElement("div",{className:"sp-ficon"},f.icon),/*#__PURE__*/React.createElement("span",{className:"sp-fname"},f.label),/*#__PURE__*/React.createElement("span",{className:"sp-ftype"},BUILTIN_TYPE_LABEL[f.type]||f.type),/*#__PURE__*/React.createElement("div",{className:"sp-faction",onClick:e=>e.stopPropagation()},!f.locked&&/*#__PURE__*/React.createElement("button",{className:`sp-toggle${!hiddenCols[f.id]?' on':''}`,title:hiddenCols[f.id]?'הצג':'הסתר',onClick:()=>toggleCol(f.id)}),f.locked&&/*#__PURE__*/React.createElement("div",{style:{width:28}})))),fields.length>0&&/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{className:"sp-sep"}),/*#__PURE__*/React.createElement("div",{className:"sp-sec-lbl"},"שדות מותאמים אישית"),fields.map(f=>/*#__PURE__*/React.createElement("div",{key:f.id,className:"sp-field-row"},/*#__PURE__*/React.createElement("div",{className:"sp-ficon"},FIELD_TYPES.find(t=>t.id===f.type)?.icon||'○'),/*#__PURE__*/React.createElement("span",{className:"sp-fname"},f.title),/*#__PURE__*/React.createElement("span",{className:"sp-ftype"},FIELD_TYPE_LABEL[f.type]||f.type),/*#__PURE__*/React.createElement("div",{className:"sp-faction"},/*#__PURE__*/React.createElement("button",{className:`sp-toggle${!hiddenCols[f.id]?' on':''}`,title:hiddenCols[f.id]?'הצג':'הסתר',onClick:()=>toggleCol(f.id)}))))),/*#__PURE__*/React.createElement("div",{style:{padding:'8px 16px',fontSize:11,color:'var(--text-3)'}},"ליצירה ועריכה של שדות — לשונית \"שדות\" בתבנית"))),editField&&/*#__PURE__*/React.createElement(EditFieldModal,{effLists:{priorities:projList(data, 'priorities'),disciplines:projList(data, 'disciplines'),statuses:projList(data, 'statuses')},field:editField.field,isBuiltin:editField.isBuiltin,onSave:updated=>{save(saveBuiltinField(data,updated));setEditField(null);},onDelete:null,onClose:()=>setEditField(null)}));}/* ══════════════════════════════════════
+const fields=projectFields;const hiddenCols=data.hiddenCols||{};const toggleCol=id=>save({...data,hiddenCols:{...hiddenCols,[id]:!hiddenCols[id]}});const BUILTIN_TYPE_LABEL={status:'סטטוס',priority:'עדיפות',tag:'תגית',timeline:'טיימליין',text:'טקסט',days:'ימים',gantt:'גנט'};return/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{style:{position:'fixed',inset:0,zIndex:899},onClick:onClose,onContextMenu:passContextMenu(onClose)}),/*#__PURE__*/React.createElement("div",{className:view==='folders'?"sp-panel sp-panel-wide":"sp-panel"},/*#__PURE__*/React.createElement("div",{className:"sp-hdr"},view!=='menu'&&/*#__PURE__*/React.createElement("button",{className:"sp-hdr-btn",onClick:()=>setView('menu'),title:"חזרה"},"←"),/*#__PURE__*/React.createElement("span",{className:"sp-hdr-title"},view==='fields'?'שדות':view==='rules'?'אוטומציות':view==='folders'?'תיקיות הפרויקט':'התאמה אישית'),/*#__PURE__*/React.createElement("button",{className:"sp-hdr-btn",onClick:onClose,title:"סגור"},"→|")),view==='rules'&&automations&&/*#__PURE__*/React.createElement(SettingsRulesView,{automations:automations}),view==='folders'&&/*#__PURE__*/React.createElement(SettingsFoldersView,{projectId:ACTIVE_PROJECT_ID}),view==='menu'&&/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{className:"sp-proj"},/*#__PURE__*/React.createElement("div",{className:"sp-proj-row"},/*#__PURE__*/React.createElement("span",{className:"sp-proj-name"},"הפרויקט"),/*#__PURE__*/React.createElement("button",{className:"sp-btn-sm"},"+ הוסף ▾")),/*#__PURE__*/React.createElement("div",{className:"sp-proj-sub"},"צפה וערוך תכונות של הפרויקט")),/*#__PURE__*/React.createElement("div",{className:"sp-sec-lbl"},"תכונות תהליך עבודה"),/*#__PURE__*/React.createElement("div",{className:"sp-nav"},/*#__PURE__*/React.createElement("button",{className:"sp-nav-item",onClick:()=>setView('fields')},/*#__PURE__*/React.createElement("div",{className:"sp-nav-icon"},"⊙"),"שדות",/*#__PURE__*/React.createElement("span",{className:"sp-nav-badge"},BUILTIN_FIELDS.length+fields.length),/*#__PURE__*/React.createElement("span",{style:{marginInlineStart:'auto',color:'var(--text-3)',fontSize:11}},"›")),/*#__PURE__*/React.createElement("button",{className:"sp-nav-item",style:{opacity:.45,cursor:'default'},disabled:true},/*#__PURE__*/React.createElement("div",{className:"sp-nav-icon"},"⊡"),"טפסים",/*#__PURE__*/React.createElement("span",{style:{marginInlineStart:'auto',color:'var(--text-3)',fontSize:11}},"›")),/*#__PURE__*/React.createElement("button",{className:"sp-nav-item",style:automations?undefined:{opacity:.45,cursor:'default'},disabled:!automations,onClick:()=>setView('rules')},/*#__PURE__*/React.createElement("div",{className:"sp-nav-icon"},"⚡"),"אוטומציות",automations&&/*#__PURE__*/React.createElement("span",{className:"sp-nav-badge"},automations.rules.length),/*#__PURE__*/React.createElement("span",{style:{marginInlineStart:'auto',color:'var(--text-3)',fontSize:11}},"›")),/*#__PURE__*/React.createElement("button",{className:"sp-nav-item",onClick:()=>setView('folders')},/*#__PURE__*/React.createElement("div",{className:"sp-nav-icon"},"📁"),"תיקיות הפרויקט",/*#__PURE__*/React.createElement("span",{style:{marginInlineStart:'auto',color:'var(--text-3)',fontSize:11}},"›")))),view==='fields'&&/*#__PURE__*/React.createElement("div",{className:"sp-content"},/*#__PURE__*/React.createElement("div",{className:"sp-sec-lbl"},"שדות מובנים"),BUILTIN_FIELDS.map(f=>/*#__PURE__*/React.createElement("div",{key:f.id,className:"sp-field-row",style:{cursor:'pointer'},onClick:()=>{const k=BUILTIN_LIST_OF[f.id];if(k&&PROJECT_OPS.data&&!PROJECT_OPS.data[k]){openProjectList(k);return;}setEditField({field:{...f,...(data.builtinConfig?.[f.id]||{})},isBuiltin:true});}},/*#__PURE__*/React.createElement("div",{className:"sp-ficon"},f.icon),/*#__PURE__*/React.createElement("span",{className:"sp-fname"},f.label),/*#__PURE__*/React.createElement("span",{className:"sp-ftype"},BUILTIN_TYPE_LABEL[f.type]||f.type),/*#__PURE__*/React.createElement("div",{className:"sp-faction",onClick:e=>e.stopPropagation()},!f.locked&&/*#__PURE__*/React.createElement("button",{className:`sp-toggle${!hiddenCols[f.id]?' on':''}`,title:hiddenCols[f.id]?'הצג':'הסתר',onClick:()=>toggleCol(f.id)}),f.locked&&/*#__PURE__*/React.createElement("div",{style:{width:28}})))),fields.length>0&&/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{className:"sp-sep"}),/*#__PURE__*/React.createElement("div",{className:"sp-sec-lbl"},"שדות מותאמים אישית"),fields.map(f=>/*#__PURE__*/React.createElement("div",{key:f.id,className:"sp-field-row"},/*#__PURE__*/React.createElement("div",{className:"sp-ficon"},FIELD_TYPES.find(t=>t.id===f.type)?.icon||'○'),/*#__PURE__*/React.createElement("span",{className:"sp-fname"},f.title),/*#__PURE__*/React.createElement("span",{className:"sp-ftype"},FIELD_TYPE_LABEL[f.type]||f.type),/*#__PURE__*/React.createElement("div",{className:"sp-faction"},/*#__PURE__*/React.createElement("button",{className:`sp-toggle${!hiddenCols[f.id]?' on':''}`,title:hiddenCols[f.id]?'הצג':'הסתר',onClick:()=>toggleCol(f.id)}))))),/*#__PURE__*/React.createElement("div",{style:{padding:'8px 16px',fontSize:11,color:'var(--text-3)'}},"ליצירה ועריכה של שדות — לשונית \"שדות\" בתבנית"))),editField&&/*#__PURE__*/React.createElement(EditFieldModal,{effLists:{priorities:projList(data, 'priorities'),disciplines:projList(data, 'disciplines'),statuses:projList(data, 'statuses')},field:editField.field,isBuiltin:editField.isBuiltin,onSave:updated=>{save(saveBuiltinField(data,updated));setEditField(null);},onDelete:null,onClose:()=>setEditField(null)}));}/* ══════════════════════════════════════
    Toolbar with Filter / Sort
 ══════════════════════════════════════ */
 /* ═══ Automations — catalogs & engine (see docs/superpowers/specs/2026-07-14-automations-design.md) ═══ */
@@ -15689,6 +15725,551 @@ function SettingsRulesView({
     className: "sp-btn-sm",
     onClick: () => attach(r, true)
   }, "+ \u05E9\u05D9\u05D9\u05DA")))));
+}
+/* "📁 תיקיות הפרויקט" in the project settings: the project's folder on the office network (root \ folder), its map
+   — seven areas, each with folder(s) inside the project and a short note on how it is built — and the guide for
+   filing. Claude maps the folders from the real tree (the filing helper on the person's PC reads it) and asks only
+   what is unclear; the person answers in free text, corrects by hand and saves. The server is
+   tools/local-server/filing.js (handleHub, /api/filing-hub/*); the Outlook pane's filing card works the same way.
+   Folder names, notes, Claude's words and the person's answers are data (data-i18n-skip). */
+const FOLDER_AREAS = [{
+  key: 'publish',
+  name: 'PUBLISH'
+}, {
+  key: 'consultants',
+  name: 'תיקיות יועצים'
+}, {
+  key: 'receive',
+  name: 'מסמכים נכנסים'
+}, {
+  key: 'permit',
+  name: 'הגשות לרשויות'
+}, {
+  key: 'export',
+  name: 'קבצי ייצוא'
+}, {
+  key: 'design',
+  name: 'תיקיות תכנון'
+}, {
+  key: 'docs',
+  name: 'מסמכי פרויקט'
+}];
+const FM_HELPER_OFF = 'עוזר התיוק לא פועל במחשב הזה. התקנה: tools\\file-helper\\Install-FileHelper.ps1';
+const FM_NOT_HERE = 'לא מוצאת את תיקיית הפרויקט במחשב הזה';
+const fmSlash = p => String(p || '').replace(/\//g, '\\');
+const fmIso = s => '⁨' + s + '⁩';
+const fmLang = () => window.I18N && window.I18N.get && window.I18N.get() === 'en' ? 'en' : 'he';
+const fmEmpty = () => Object.fromEntries(FOLDER_AREAS.map(a => [a.key, {
+  paths: [],
+  note: ''
+}]));
+const fmAreasOf = map => {
+  const out = fmEmpty();
+  const src = map && map.areas || {};
+  FOLDER_AREAS.forEach(a => {
+    const x = src[a.key];
+    if (x) out[a.key] = {
+      paths: Array.isArray(x.paths) ? x.paths.slice() : [],
+      note: String(x.note || '')
+    };
+  });
+  return out;
+};
+async function fmCall(route, body, method) {
+  const r = await fetch('/api/filing-hub/' + route, {
+    method: method || (body ? 'POST' : 'GET'),
+    headers: body ? {
+      'Content-Type': 'application/json'
+    } : undefined,
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const e = new Error(j && j.error || String(r.status));
+    e.code = r.status;
+    throw e;
+  }
+  return j;
+}
+function SettingsFoldersView({
+  projectId
+}) {
+  const [info, setInfo] = useState(null); // { folder, root, map, guide, defaultGuide, canWrite } | { error }
+  const [areas, setAreas] = useState(fmEmpty);
+  const [dirty, setDirty] = useState(false);
+  const [tree, setTree] = useState(null);
+  const [conv, setConv] = useState([]); // [{ me } | { ai, questions }]
+  const [answer, setAnswer] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [hint, setHint] = useState(null); // the folder row: { s, v }
+  const [mapMsg, setMapMsg] = useState(null); // the mapping: { s, v }
+  const [saving, setSaving] = useState(false);
+  const [guide, setGuide] = useState('');
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [guideMsg, setGuideMsg] = useState(null);
+  const [, setLangTick] = useState(0);
+  const live = useRef(true);
+  const timers = useRef([]);
+  const session = useRef(null);
+  useEffect(() => {
+    live.current = true;
+    const onLang = () => setLangTick(t => t + 1);
+    window.addEventListener('i18n:change', onLang);
+    fmCall('project?project=' + encodeURIComponent(projectId)).then(p => {
+      if (!live.current) return;
+      setInfo(p);
+      setAreas(fmAreasOf(p.map));
+      setGuide(p.guide || '');
+    }).catch(e => {
+      if (live.current) setInfo({
+        error: e.code || e.message
+      });
+    });
+    return () => {
+      live.current = false;
+      timers.current.forEach(clearInterval);
+      timers.current = [];
+      window.removeEventListener('i18n:change', onLang);
+    };
+  }, [projectId]);
+  const say = (s, v) => s ? {
+    s,
+    v
+  } : null;
+  const failMsg = e => say('משהו השתבש ({code}). נסה שוב.', {
+    code: e.code || e.message
+  });
+  const w = !!(info && info.canWrite);
+  const has = !!(info && info.folder);
+
+  /* a task for the helper on the PC, polled every 1.5 s until it has a result (as the pane's watchTask): no helper
+     took it within 15 s → the install hint, while it keeps waiting in case the helper is just starting */
+  const watch = (taskId, o) => {
+    const started = Date.now();
+    let inFlight = false;
+    const timer = setInterval(() => {
+      if (!live.current) {
+        clearInterval(timer);
+        return;
+      }
+      if (inFlight) return;
+      const over = r => {
+        clearInterval(timer);
+        o.done(r);
+      };
+      if (Date.now() - started > o.limit) {
+        setHint(say('הבקשה פגה. אפשר לנסות שוב.'));
+        over(null);
+        return;
+      }
+      inFlight = true;
+      fmCall('task?id=' + encodeURIComponent(taskId)).then(s => {
+        inFlight = false;
+        if (!live.current) return;
+        if (s.result || s.cancelled) {
+          over(s.result || {
+            cancelled: true
+          });
+          return;
+        }
+        if (s.expired) {
+          setHint(say('הבקשה פגה. אפשר לנסות שוב.'));
+          over(null);
+          return;
+        }
+        if (s.handed) {
+          if (o.handed) o.handed(s.handed.pc || '?');
+        } else if (Date.now() - started > 15000) setHint(say(FM_HELPER_OFF));
+      }, e => {
+        inFlight = false;
+        if (e.code === 401 || e.code === 404) {
+          if (!live.current) return clearInterval(timer);
+          over(null);
+          setHint(failMsg(e));
+        }
+      });
+    }, 1500);
+    timers.current.push(timer);
+  };
+  const [picking, setPicking] = useState(false);
+  const [opening, setOpening] = useState(false); // one open task at a time
+  const pick = () => {
+    if (!w || picking) return;
+    setPicking(true);
+    setHint(say('בורר התיקיות ייפתח במחשב שלך בעוד רגע…'));
+    fmCall('pick', {
+      projectId,
+      lang: fmLang()
+    }).then(j => watch(j.taskId, {
+      // the server gives the person 10 minutes from when the picker opens on the PC (up to 2 minutes after the request)
+      limit: 12 * 60 * 1000,
+      handed: pc => setHint(say('בורר התיקיות נפתח ב-{pc}…', {
+        pc
+      })),
+      done: r => {
+        setPicking(false);
+        if (r && r.picked) {
+          setInfo(p => ({
+            ...p,
+            folder: r.picked,
+            root: r.root || ''
+          }));
+          setHint(null);
+        } else if (r && r.missing) setHint(say(FM_NOT_HERE));else if (r) setHint(null);
+      }
+    })).catch(e => {
+      setPicking(false);
+      setHint(failMsg(e));
+    });
+  };
+  const open = rel => {
+    if (opening) return;
+    setOpening(true);
+    setHint(say('פותח את התיקייה במחשב…'));
+    fmCall('open', {
+      projectId,
+      rel: rel || '',
+      lang: fmLang()
+    }).then(j => watch(j.taskId, {
+      limit: 120000,
+      done: r => {
+        setOpening(false);
+        if (r && r.missing) setHint(say(FM_NOT_HERE));else if (r) setHint(null);
+      }
+    })).catch(e => {
+      setOpening(false);
+      setHint(e.message === 'no_folder' ? say('בחר קודם את תיקיית הפרויקט.') : failMsg(e));
+    });
+  };
+
+  /* mapping with Claude: a session (the tree is read once, on the first proposal), then a proposal per answer */
+  const propose = async (text, sent, again) => {
+    if (!session.current) session.current = (await fmCall('map-session', {
+      projectId,
+      lang: fmLang()
+    })).id;
+    try {
+      // the table as it is now (Claude's last proposal, corrected by hand) is the map Claude goes on from
+      return await fmCall('map-propose?id=' + encodeURIComponent(session.current), {
+        text,
+        areas: sent
+      });
+    } catch (e) {
+      // the session ended (the server restarted, or it was left too long): a new one, once
+      if (e.message === 'no_session' && !again) {
+        session.current = null;
+        return propose(text, sent, true);
+      }
+      throw e;
+    }
+  };
+  const mapIt = text => {
+    if (!w || busy) return;
+    setBusy(true);
+    setMapMsg(say(tree ? 'Claude חושב…' : 'קורא את התיקיות במחשב וממפה עם Claude — זה יכול לקחת עד דקה…'));
+    propose(text || '', areas).then(r => {
+      if (!live.current) return;
+      setBusy(false);
+      setMapMsg(null);
+      if (r.needsFolder) {
+        setMapMsg(say('בחר קודם את תיקיית הפרויקט.'));
+        return;
+      }
+      if (r.agent === 'none') {
+        setMapMsg(say(FM_HELPER_OFF));
+        return;
+      }
+      if (r.agent === 'slow') {
+        setMapMsg(say('עוזר התיוק לא הספיק לקרוא את התיקיות. נסה שוב.'));
+        return;
+      }
+      if (r.agent === 'failed') {
+        setMapMsg(say('קריאת התיקיות במחשב לא הצליחה. נסה שוב.'));
+        return;
+      }
+      if (r.missing) {
+        setMapMsg(say(FM_NOT_HERE));
+        return;
+      }
+      if (r.ai) {
+        setMapMsg(say(r.ai === 'unavailable' ? 'Claude לא זמין כרגע. אפשר למלא את הטבלה ידנית.' : 'Claude לא הצליח למפות. נסה שוב.'));
+        return;
+      }
+      if (Array.isArray(r.tree)) setTree(r.tree);
+      setAreas(fmAreasOf({
+        areas: r.areas
+      }));
+      setDirty(true);
+      setConv(c => [...c, ...(text ? [{
+        me: text
+      }] : []), {
+        ai: r.message || '',
+        questions: r.questions || []
+      }]);
+      setAnswer('');
+    }).catch(e => {
+      if (!live.current) return;
+      setBusy(false);
+      setMapMsg(e.message === 'busy' ? say('בקשה קודמת עדיין בטיפול. רגע…') : failMsg(e));
+    });
+  };
+
+  /* corrections by hand: unsaved until "שמור מפה" */
+  const edit = (key, fn) => {
+    setAreas(a => ({
+      ...a,
+      [key]: fn(a[key])
+    }));
+    setDirty(true);
+  };
+  const saveMap = () => {
+    if (!w || saving) return;
+    setSaving(true);
+    setMapMsg(null);
+    fmCall('map', {
+      projectId,
+      areas
+    }, 'PUT').then(r => {
+      if (!live.current) return;
+      setSaving(false);
+      setInfo(p => ({
+        ...p,
+        map: r.map
+      }));
+      setAreas(fmAreasOf(r.map));
+      setDirty(false);
+      setMapMsg(say('המפה נשמרה'));
+    }).catch(e => {
+      if (!live.current) return;
+      setSaving(false);
+      setMapMsg(e.message === 'path' ? say('אחת התיקיות אינה בתוך תיקיית הפרויקט.') : failMsg(e));
+    });
+  };
+  const discard = () => {
+    setAreas(fmAreasOf(info && info.map));
+    setDirty(false);
+    setMapMsg(null);
+  };
+  const saveGuide = () => {
+    if (!w) return;
+    setGuideMsg(null);
+    fmCall('guide', {
+      projectId,
+      guide
+    }, 'PUT').then(r => {
+      if (!live.current) return;
+      setGuide(r.guide);
+      setInfo(p => ({
+        ...p,
+        guide: r.guide
+      }));
+      setGuideMsg(say('נשמר'));
+    }).catch(e => live.current && setGuideMsg(failMsg(e)));
+  };
+  const line = m => m && /*#__PURE__*/React.createElement("div", {
+    className: "fm-msg",
+    "data-i18n-skip": ""
+  }, tx(m.s, m.v));
+  if (!info) return /*#__PURE__*/React.createElement("div", {
+    className: "sp-content"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "fm-msg",
+    style: {
+      padding: '12px 16px'
+    }
+  }, "טוען…"));
+  if (info.error) return /*#__PURE__*/React.createElement("div", {
+    className: "sp-content"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "fm-msg",
+    style: {
+      padding: '12px 16px'
+    },
+    "data-i18n-skip": ""
+  }, info.error === 401 ? tx('צריך להתחבר מחדש כדי לראות את תיקיות הפרויקט.') : tx('תיקיות הפרויקט אינן זמינות כאן ({code}).', {
+    code: info.error
+  })));
+  const saved = info.map && info.map.updatedAt;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "sp-content fm"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sp-sec-lbl"
+  }, "תיקיית הפרויקט"), /*#__PURE__*/React.createElement("div", {
+    className: "fm-folder"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "fm-path",
+    dir: "auto",
+    "data-i18n-skip": "",
+    title: has ? fmSlash((info.root ? info.root + '\\' : '') + info.folder) : undefined
+  }, has ? info.root ? fmIso(fmIso(info.root) + ' \\ ' + fmIso(info.folder)) : info.folder : tx('לא הוגדרה עדיין')), has && /*#__PURE__*/React.createElement("button", {
+    className: "fm-ico",
+    title: "פתח בסייר הקבצים",
+    disabled: opening,
+    onClick: () => open('')
+  }, "📂"), w && /*#__PURE__*/React.createElement("button", {
+    className: "sp-btn-sm",
+    disabled: picking,
+    onClick: pick
+  }, has ? 'שנה תיקייה' : 'בחר תיקייה')), line(hint), !w && /*#__PURE__*/React.createElement("div", {
+    className: "fm-msg"
+  }, "אין לך הרשאת כתיבה בפרויקט הזה."), /*#__PURE__*/React.createElement("div", {
+    className: "sp-sec-lbl fm-head"
+  }, /*#__PURE__*/React.createElement("span", null, "מפת התיקיות"), dirty ? /*#__PURE__*/React.createElement("span", {
+    className: "fm-dirty"
+  }, "יש שינויים שלא נשמרו") : saved ? /*#__PURE__*/React.createElement("span", {
+    className: "fm-when",
+    "data-i18n-skip": ""
+  }, tx('עודכנה על ידי {who}, {date}', {
+    who: asTyped(nameForLang(info.map.updatedBy || '')),
+    date: new Date(info.map.updatedAt).toLocaleDateString(fmLang() === 'en' ? 'en-GB' : 'he-IL')
+  })) : null), FOLDER_AREAS.map(a => {
+    const x = areas[a.key] || {
+      paths: [],
+      note: ''
+    };
+    const free = tree ? tree.filter(t => !x.paths.includes(t)) : [];
+    return /*#__PURE__*/React.createElement("div", {
+      key: a.key,
+      className: "fm-area"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "fm-name"
+    }, a.name), /*#__PURE__*/React.createElement("div", {
+      className: "fm-body"
+    }, x.paths.length ? x.paths.map(p => /*#__PURE__*/React.createElement("div", {
+      key: p,
+      className: "fm-prow"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "fm-path",
+      dir: "auto",
+      "data-i18n-skip": "",
+      title: fmSlash(p)
+    }, fmSlash(p)), has && /*#__PURE__*/React.createElement("button", {
+      className: "fm-ico",
+      title: "פתח בסייר הקבצים",
+      disabled: opening,
+      onClick: () => open(p)
+    }, "📂"), w && /*#__PURE__*/React.createElement("button", {
+      className: "fm-ico fm-x",
+      title: "הסר",
+      onClick: () => edit(a.key, v => ({
+        ...v,
+        paths: v.paths.filter(q => q !== p)
+      }))
+    }, "✕"))) : /*#__PURE__*/React.createElement("div", {
+      className: "fm-none"
+    }, "—"), w && tree && free.length > 0 && x.paths.length < 10 && /*#__PURE__*/React.createElement("select", {
+      className: "fm-pick",
+      value: "",
+      onChange: e => {
+        const v = e.target.value;
+        if (v) edit(a.key, o => ({
+          ...o,
+          paths: [...o.paths, v]
+        }));
+      }
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "+ בחר מהעץ"), free.map(t => /*#__PURE__*/React.createElement("option", {
+      key: t,
+      value: t,
+      "data-i18n-skip": ""
+    }, fmSlash(t)))), w ? /*#__PURE__*/React.createElement("input", {
+      className: "fm-note",
+      dir: "auto",
+      value: x.note,
+      maxLength: 300,
+      placeholder: "איך בנויה",
+      onChange: e => {
+        const v = e.target.value;
+        edit(a.key, o => ({
+          ...o,
+          note: v
+        }));
+      }
+    }) : x.note ? /*#__PURE__*/React.createElement("div", {
+      className: "fm-note-ro",
+      "data-i18n-skip": ""
+    }, x.note) : null));
+  }), w && /*#__PURE__*/React.createElement("div", {
+    className: "fm-actions"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "sp-btn-sm",
+    disabled: busy || !has,
+    title: has ? undefined : 'בחר קודם את תיקיית הפרויקט.',
+    onClick: () => mapIt('')
+  }, conv.length ? 'מפה מחדש עם Claude' : 'מפה את התיקיות עם Claude'), /*#__PURE__*/React.createElement("span", {
+    style: {
+      flex: 1
+    }
+  }), dirty && /*#__PURE__*/React.createElement("button", {
+    className: "sp-btn-sm",
+    onClick: discard,
+    disabled: saving
+  }, "בטל שינויים"), /*#__PURE__*/React.createElement("button", {
+    className: "sp-btn-sm fm-primary",
+    disabled: !dirty || saving,
+    onClick: saveMap
+  }, "שמור מפה")), line(mapMsg), conv.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "fm-conv"
+  }, conv.map((t, i) => t.me != null ? /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "fm-me",
+    dir: "auto",
+    "data-i18n-skip": ""
+  }, t.me) : /*#__PURE__*/React.createElement("div", {
+    key: i,
+    className: "fm-ai",
+    dir: "auto",
+    "data-i18n-skip": ""
+  }, t.ai && /*#__PURE__*/React.createElement("div", null, t.ai), t.questions.length > 0 && /*#__PURE__*/React.createElement("ol", null, t.questions.map((q, j) => /*#__PURE__*/React.createElement("li", {
+    key: j
+  }, q))))), w && /*#__PURE__*/React.createElement("div", {
+    className: "fm-answer"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    value: answer,
+    dir: "auto",
+    rows: 2,
+    placeholder: "תשובה או תיקון, במילים שלך",
+    disabled: busy,
+    onChange: e => setAnswer(e.target.value),
+    onKeyDown: e => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && answer.trim()) mapIt(answer.trim());
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "sp-btn-sm",
+    disabled: busy || !answer.trim(),
+    onClick: () => mapIt(answer.trim())
+  }, "שלח"))), /*#__PURE__*/React.createElement("button", {
+    className: "sp-sec-lbl fm-toggle",
+    onClick: () => setGuideOpen(o => !o),
+    "aria-expanded": guideOpen
+  }, guideOpen ? '▾ ' : '▸ ', "ההנחיה לתיוק"), guideOpen && /*#__PURE__*/React.createElement("div", {
+    className: "fm-guide"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    value: guide,
+    rows: 6,
+    readOnly: !w,
+    placeholder: info.defaultGuide || '',
+    "data-i18n-skip": "",
+    dir: "auto",
+    onChange: e => {
+      setGuide(e.target.value);
+      setGuideMsg(null);
+    }
+  }), w && /*#__PURE__*/React.createElement("div", {
+    className: "fm-actions",
+    style: {
+      padding: 0
+    }
+  }, line(guideMsg), /*#__PURE__*/React.createElement("span", {
+    style: {
+      flex: 1
+    }
+  }), /*#__PURE__*/React.createElement("button", {
+    className: "sp-btn-sm",
+    disabled: guide === (info.guide || ''),
+    onClick: saveGuide
+  }, "שמור"))));
 }
 /* "+ אוטומציה חדשה" in the panel — pick one from the office or personal library, or build a new one */
 function AutomationPicker({
