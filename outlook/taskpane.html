@@ -210,6 +210,11 @@
       <button type="button" class="sm" id="fPick"></button>
     </div>
     <div class="hint" id="fFolderHint"></div>
+    <!-- no folder map for the project yet: it is mapped on the project's settings page in Project Hub -->
+    <div class="hint" id="fMapNone" hidden>
+      <span data-t="אין עדיין מפת תיקיות לפרויקט — מפה אותה ב-Project Hub: הגדרות הפרויקט ← תיקיות הפרויקט">אין עדיין מפת תיקיות לפרויקט — מפה אותה ב-Project Hub: הגדרות הפרויקט ← תיקיות הפרויקט</span>
+      <a id="fMapLink" target="_blank" rel="noopener" data-t="פתח ב-Project Hub">פתח ב-Project Hub</a>
+    </div>
     <div id="fileList" style="display:flex;flex-direction:column;gap:4px;margin-block-start:8px"></div>
     <div class="row" style="margin-block-start:6px;flex-wrap:nowrap">
       <input id="fText" class="grow" data-i18n-skip>
@@ -492,6 +497,7 @@ var HE_EN = {
   'כתוב הוראה או סמן קובץ': 'Write an instruction or pick a file',
   'אין לך הרשאת כתיבה בפרויקט הזה.': 'You cannot make changes in this project.',
   'בקשה קודמת עדיין בטיפול. רגע…': 'The previous request is still being handled. One moment…',
+  'אין עדיין מפת תיקיות לפרויקט — מפה אותה ב-Project Hub: הגדרות הפרויקט ← תיקיות הפרויקט': "The project has no folder map yet — map it in Project Hub: project settings → Project folders",
   'English': 'English',
   'עברית': 'עברית'
 };
@@ -922,6 +928,7 @@ function openFiling() {
   fProj = null; fJob = null; fTurns = []; fPlan = null; fGuideAdd = '';
   $('fText').value = ''; $('fFix').value = ''; $('fGuide').value = ''; $('fGuide').placeholder = '';
   $('fDone').innerHTML = ''; $('fGuideState').textContent = '';
+  $('fMapNone').hidden = true;
   $('fFolderRow').classList.remove('need');
   fState(''); fHint('');
   fileChoices($('fileList'), { mail: false, attachments: (currentMail.attachments || []).map(function (a) { return a.name; }) }, true, fileWhy);
@@ -933,6 +940,11 @@ function openFiling() {
     $('fGuide').value = p.guide || '';
     $('fGuide').placeholder = p.defaultGuide || '';
     if (!p.canWrite) fState(tx('אין לך הרשאת כתיבה בפרויקט הזה.'));
+    // no map yet (or nothing in it): point to where it is made, the project's settings in Project Hub
+    var areas = p.map && p.map.areas || {};
+    var mapped = Object.keys(areas).some(function (k) { return areas[k] && areas[k].paths && areas[k].paths.length; });
+    $('fMapLink').href = location.origin + '/project_hub_01?project=' + encodeURIComponent(pid);
+    $('fMapNone').hidden = mapped;
     renderFolder();
   }).catch(fail);
 }
