@@ -446,7 +446,7 @@ module.exports = function createMcp(ctx) {
   const PARTY_SCHEMA = { type: 'object', properties: { party: { type: 'string', description: 'architect | contractor | supervisor | consultant (or אדריכל / קבלן / מפקח / יועץ)' }, name: { type: 'string', description: 'Person or company, e.g. the consultant\'s field' } }, required: ['party'], additionalProperties: false };
 
   /* ── meetings, as the page's ישיבות screen keeps them ── */
-  const ITEM_ACTIONS = { none: null, task: 'משימה', update: 'עדכון', subtask: 'תת-משימה', principle: 'עקרון תכנון', milestone: 'אבן דרך' };
+  const ITEM_ACTIONS = { none: null, task: 'משימה', update: 'עדכון', subtask: 'תת-משימה', link: 'קישור למשימה', principle: 'עקרון תכנון', milestone: 'אבן דרך' };
   function findMeeting(doc, ref) {
     const ms = doc.meetings || [];
     const hit = ms.find(m => m.id === ref) || ms.filter(m => m.date === ref).length === 1 && ms.find(m => m.date === ref);
@@ -500,7 +500,13 @@ module.exports = function createMcp(ctx) {
           ? changeTask(doc, t, { add_update: { text: topic, update_status: x.update_status, owner: disc || undefined, date: meetDay } }, c, { eventExtra: links, why })
           : changeTask(doc, t, { add_subtasks: [{ title: x.title || topic, discipline: disc || undefined }] }, c, { why });
         putTask(doc, s.id, n);
-        Object.assign(item, { itemType: action, createdTaskTrackId: s.id, linkedTaskId: t.id });
+        Object.assign(item, { itemType: action, createdTaskTrackId: s.id, linkedTaskId: t.id, linkedTaskSheetId: s.id });
+        Object.assign(res, { task: t.title, stage: pathOf(st, s), link: linkOf(base, proj.id, s.id, t.id) });
+      } else if (action === 'link') {
+        // the row points at an existing task; the task itself is not changed
+        if (!x.task) throw new ToolError(`Item "${topic}": a link needs the existing task (id or title)`);
+        const { t, s, st } = findTask(doc, x.task);
+        Object.assign(item, { linkedTaskId: t.id, linkedTaskSheetId: s.id });
         Object.assign(res, { task: t.title, stage: pathOf(st, s), link: linkOf(base, proj.id, s.id, t.id) });
       } else if (action === 'principle') {
         const rec = { id: uid(), description: topic, discipline: disc || '', createdAt: meeting.date || todayISO(), ...links };
@@ -525,9 +531,9 @@ module.exports = function createMcp(ctx) {
       for: { type: 'string', description: 'Discipline that handles it, or "לידיעה" (for information)' },
       start_date: { type: 'string', description: 'YYYY-MM-DD' },
       due_date: { type: 'string', description: 'YYYY-MM-DD' },
-      action: { type: 'string', enum: Object.keys(ITEM_ACTIONS), description: 'What the item becomes: none (minutes only), task (new task), update (update on an existing task), subtask (subtask of an existing task), principle (planning principle), milestone' },
+      action: { type: 'string', enum: Object.keys(ITEM_ACTIONS), description: 'What the item becomes: none (minutes only), task (new task), update (update on an existing task), subtask (subtask of an existing task), link (point the item at an existing task without changing it), principle (planning principle), milestone' },
       title: { type: 'string', description: 'Task / subtask / milestone title when it should differ from the topic' },
-      task: { type: 'string', description: 'For update / subtask: the existing task (id or unique part of its title)' },
+      task: { type: 'string', description: 'For update / subtask / link: the existing task (id or unique part of its title)' },
       update_status: { type: 'string', description: 'For update: missing | progress | sent | comments | update | approved' },
       stage: { type: 'string', description: 'For task: "track › stage"; omit for the default stage' },
       priority: { type: 'string', description: 'For task' },
