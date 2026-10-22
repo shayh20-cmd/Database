@@ -1,7 +1,7 @@
 ﻿<# Project Hub — filing helper: install for the current Windows user (no admin rights).
    Asks for the person's Outlook add-in key (the one pasted in the add-in's pane), checks it with the hub and keeps
-   it with DPAPI; copies the helper to %LOCALAPPDATA%\ProjectHub\file-helper; notes where "@Omicron Projects" is on
-   this PC (from Folder Manager's list, when there is one); adds a Startup shortcut that runs the background agent
+   it with DPAPI; copies the helper to %LOCALAPPDATA%\ProjectHub\file-helper; lists the project roots this PC
+   reaches (the "@<Name> Projects" folders at the top of its drives); adds a Startup shortcut that runs the background agent
    at every Windows sign-in, and starts it now. Run it again after an update or to replace the key.
    Saved as UTF-8 with BOM. #>
 param([string]$Hub = 'https://kkarc-hub.azurewebsites.net')
@@ -21,7 +21,7 @@ Remove-Item -LiteralPath (Join-Path $dir 'File-Helper.ps1') -Force -ErrorAction 
 
 $cfg = Get-HelperConfig
 $cfg.hub = $Hub.TrimEnd('/')
-if (-not $cfg.projectsRoot) { $found = Find-ProjectsRoot; if ($found) { $cfg.projectsRoot = $found } }
+# the roots are found on the drives at every task; a projectsRoot of an earlier version is kept as is
 Save-HelperConfig $cfg
 
 # the key: checked with the hub before it is kept
@@ -54,5 +54,10 @@ $lnk.Save()
 Start-Process wscript.exe -ArgumentList '//B', '//Nologo', "`"$dir\run-file-helper-agent.vbs`""
 
 Say 'הותקן. עוזר התיוק פועל ברקע, ויופעל מחדש בכל כניסה ל-Windows.' 'Installed. The filing helper runs in the background and starts again at every Windows sign-in.'
-if ($cfg.projectsRoot) { Say "תיקיית הפרויקטים במחשב הזה: $($cfg.projectsRoot)" "The projects folder on this computer: $($cfg.projectsRoot)" }
-else { Say 'תיקיית הפרויקטים לא זוהתה. היא תיקבע בפעם הראשונה שתבחר תיקיית פרויקט מהחלונית של Outlook.' 'The projects folder was not found. It is set the first time you choose a project folder from the Outlook pane.' }
+$roots = Get-ProjectRoots $cfg
+if ($roots.Count) {
+  Say 'תיקיות הפרויקטים שהמחשב הזה מגיע אליהן:' 'The project folders this computer reaches:'
+  foreach ($k in $roots.Keys) { Write-Host "  $k  ($($roots[$k]))" }
+} else {
+  Say 'לא נמצאו תיקיות פרויקטים (@... Projects) בכוננים של המחשב הזה. תיקייה שתבחר מהחלונית של Outlook תישמר עם תיקיית האב שלה.' 'No project folders (@... Projects) were found on this computer''s drives. A folder you choose from the Outlook pane is kept with its parent folder.'
+}

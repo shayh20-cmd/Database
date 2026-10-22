@@ -20,9 +20,9 @@
 
 | kind | made by | the agent does | result posted |
 |---|---|---|---|
-| `pick` | pane "בחר תיקייה"/"שנה" | Windows folder picker (TopMost), starting at `projectsRoot`, preselecting the best guess (`Find-ProjectFolder`) | `{ picked: "<folder name>" }` or `{ cancelled: true }`; the agent updates its own `projectsRoot` when the pick is not directly in it |
-| `tree` | server, inside "propose" | `Get-FolderTree` of `projectsRoot\folder` | `{ tree: [...] }` or `{ missing: true }` |
-| `open` | pane 📂 | `explorer.exe` on `projectsRoot\folder[\rel]` | `{ opened: true }` or `{ missing: true }` |
+| `pick` | pane "בחר תיקייה"/"שנה" | Windows folder picker (TopMost), starting at the project's root (else the legacy `projectsRoot`, else the first root found), preselecting the best guess (`Find-ProjectFolder`) | `{ picked: "<folder name>", root: "<root folder name>" }` or `{ cancelled: true }`; a pick outside every root saves its parent in the PC's `roots` (Task 8) |
+| `tree` | server, inside "propose" | `Get-FolderTree` of `Resolve-ProjectDir(root, folder)` | `{ tree: [...] }` or `{ missing: true }` |
+| `open` | pane 📂 | `explorer.exe` on `Resolve-ProjectDir(root, folder)[\rel]` | `{ opened: true }` or `{ missing: true }` |
 | `file` | pane "אשר ותייק" | download files, `Invoke-FilingPlan` with the stored plan | `{ files: [{name,dest,savedAs}], error }` or `{ missing: true }` |
 
 `pick`/`tree`/`open` live 2 minutes (`FILING_QUICK_TTL_MS`, default 120000); a filing (its upload, proposals and `file` task) 15 minutes (`FILING_TTL_MS`).
@@ -132,3 +132,13 @@ Why: Azure Free allows 165 MB/day out; every agent download counts. Spec: "מס�
 - [x] `FileHelper.Core.ps1`: `Get-NeededFiles`, `Get-AttachmentMatch` (name without case; duplicates by closest size, then order; each attachment once), `Get-MessageIdFilter` (DASL `0x1035001F`), `Get-ReceivedFilter`, `ConvertTo-LocalTime`, `Test-MailMatch` (subject + ±2 min + sender) — with tests.
 - [x] `Run-Task.ps1` (thin COM): `New-Object -ComObject Outlook.Application` as `Scan-Mail.ps1` (attaches, or starts Outlook in the background); Inbox, Sent Items, then the mailbox's other mail folders (≤400) by message id, else by subject/time/sender; `SaveAsFile` as `<n>`; anything missing → `needUpload`. Read-only probe against the real Outlook: found by id and by the fallback, item stayed unread.
 - [x] Pane: names the `file` attachments, uploads only the .eml and item attachments; "שומר מ-Outlook במחשב…" while the agent works; on `needUpload` uploads those files ("לא נמצא ב-Outlook במחשב — מעלה דרך השרת {i} מתוך {n}…") and confirms again; `daily_budget` → "גדול מדי למעבר דרך השרת היום — פתח את Outlook הקלאסי במחשב ונסה שוב". All in `HE_EN`.
+
+### Task 8: many project roots
+
+Why: the office keeps projects on many computers, each sharing a drive topped by `@<Name> Projects` (case varies); drive letters differ between PCs, so the root folder's NAME is the identity. One `projectsRoot` per PC, moved by every pick outside it, broke the other projects. Spec: "שורשים רבים" section.
+
+- [x] `filing.js`: each Hub project stores `root` next to `folder` (both `folderName`). Pick result `{ picked, root }` (`root` 400 when not a folder name; missing from a first-version agent → `''`). Task payloads carry `root`; `filing-project` returns it.
+- [x] `FileHelper.Core.ps1`: `Get-ProjectRoots($cfg, -Drives, -Want, -TimeoutMs 4000)` — `@* projects` at the top of every FileSystem drive, read in parallel runspaces (an unreachable drive fails after ~2.7 s; whatever has not answered by the timeout is left out; `-Want` returns as soon as that root is found), plus config `roots` (name → path) and the legacy `projectsRoot`, when reachable; cached per process for the live drives. `Resolve-ProjectDir($cfg, $root, $folder)`: by root name (no case) → that root; no root → legacy root, else the one root holding that folder (0 or 2+ → `$null`). `Find-RootOf` (no drive read): a saved/legacy root by path, or an `@* projects` folder at a drive/share top. `Invoke-PickTask` returns `{ picked, root }`; a root itself → cancelled; outside every root → parent saved in `roots` by its name, nothing else changes. `Find-ProjectsRoot`/`Resolve-ProjectsRoot` removed. `Get-TreeResult`/`Get-OpenTarget`/`Invoke-FileTask` take the resolved folder.
+- [x] `Run-Task.ps1` resolves with `Resolve-ProjectDir`; `Install-FileHelper.ps1` keeps a legacy `projectsRoot` and prints the roots found.
+- [x] Pane: the folder row shows `<root> \ <folder>` (isolated, untranslated).
+- [x] Tests: Core with temp folders as drives (`-Drives`): discovery, saved and legacy roots, resolution by name without case, legacy fallback, single match, ambiguous → missing; pick under root K while legacy is O, under a saved root, outside all, a root itself. Server: `root` in pick result, store, task payloads, `filing-project`, and a first-version agent's pick.
