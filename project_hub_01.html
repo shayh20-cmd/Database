@@ -1711,6 +1711,7 @@ html[data-appearance="dark"] .plan-rolled{background:rgba(245,158,11,.18);color:
 .fm-folder{display:flex;align-items:center;gap:6px;padding:4px 16px;}
 .fm-path{flex:1;min-width:0;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:start;}
 .fm-ico{background:none;border:none;cursor:pointer;font-size:12px;padding:1px 3px;border-radius:4px;line-height:1;color:var(--text-3);flex-shrink:0;}
+.fm-ico:disabled{opacity:.4;cursor:default;}
 .fm-ico:hover{background:var(--bg);color:var(--text);}
 .fm-msg{padding:2px 16px 4px;font-size:11px;color:var(--text-3);white-space:pre-wrap;}
 .fm-head{display:flex;align-items:baseline;gap:8px;margin-top:6px;}
@@ -15736,19 +15737,19 @@ const FOLDER_AREAS = [{
   name: 'PUBLISH'
 }, {
   key: 'consultants',
-  name: 'יועצים'
+  name: 'תיקיות יועצים'
 }, {
   key: 'receive',
-  name: 'נכנסים'
+  name: 'מסמכים נכנסים'
 }, {
   key: 'permit',
-  name: 'רשויות'
+  name: 'הגשות לרשויות'
 }, {
   key: 'export',
-  name: 'ייצוא'
+  name: 'קבצי ייצוא'
 }, {
   key: 'design',
-  name: 'תכנון'
+  name: 'תיקיות תכנון'
 }, {
   key: 'docs',
   name: 'מסמכי פרויקט'
@@ -15882,14 +15883,16 @@ function SettingsFoldersView({
       }, e => {
         inFlight = false;
         if (e.code === 401 || e.code === 404) {
-          clearInterval(timer);
-          if (live.current) setHint(failMsg(e));
+          if (!live.current) return clearInterval(timer);
+          over(null);
+          setHint(failMsg(e));
         }
       });
     }, 1500);
     timers.current.push(timer);
   };
   const [picking, setPicking] = useState(false);
+  const [opening, setOpening] = useState(false); // one open task at a time
   const pick = () => {
     if (!w || picking) return;
     setPicking(true);
@@ -15920,6 +15923,8 @@ function SettingsFoldersView({
     });
   };
   const open = rel => {
+    if (opening) return;
+    setOpening(true);
     setHint(say('פותח את התיקייה במחשב…'));
     fmCall('open', {
       projectId,
@@ -15928,26 +15933,32 @@ function SettingsFoldersView({
     }).then(j => watch(j.taskId, {
       limit: 120000,
       done: r => {
+        setOpening(false);
         if (r && r.missing) setHint(say(FM_NOT_HERE));else if (r) setHint(null);
       }
-    })).catch(e => setHint(e.message === 'no_folder' ? say('בחר קודם את תיקיית הפרויקט.') : failMsg(e)));
+    })).catch(e => {
+      setOpening(false);
+      setHint(e.message === 'no_folder' ? say('בחר קודם את תיקיית הפרויקט.') : failMsg(e));
+    });
   };
 
   /* mapping with Claude: a session (the tree is read once, on the first proposal), then a proposal per answer */
-  const propose = async (text, again) => {
+  const propose = async (text, sent, again) => {
     if (!session.current) session.current = (await fmCall('map-session', {
       projectId,
       lang: fmLang()
     })).id;
     try {
+      // the table as it is now (Claude's last proposal, corrected by hand) is the map Claude goes on from
       return await fmCall('map-propose?id=' + encodeURIComponent(session.current), {
-        text
+        text,
+        areas: sent
       });
     } catch (e) {
       // the session ended (the server restarted, or it was left too long): a new one, once
       if (e.message === 'no_session' && !again) {
         session.current = null;
-        return propose(text, true);
+        return propose(text, sent, true);
       }
       throw e;
     }
@@ -15956,7 +15967,7 @@ function SettingsFoldersView({
     if (!w || busy) return;
     setBusy(true);
     setMapMsg(say(tree ? 'Claude חושב…' : 'קורא את התיקיות במחשב וממפה עם Claude — זה יכול לקחת עד דקה…'));
-    propose(text || '').then(r => {
+    propose(text || '', areas).then(r => {
       if (!live.current) return;
       setBusy(false);
       setMapMsg(null);
@@ -16093,6 +16104,7 @@ function SettingsFoldersView({
   }, has ? info.root ? fmIso(fmIso(info.root) + ' \\ ' + fmIso(info.folder)) : info.folder : tx('לא הוגדרה עדיין')), has && /*#__PURE__*/React.createElement("button", {
     className: "fm-ico",
     title: "פתח בסייר הקבצים",
+    disabled: opening,
     onClick: () => open('')
   }, "📂"), w && /*#__PURE__*/React.createElement("button", {
     className: "sp-btn-sm",
@@ -16104,7 +16116,7 @@ function SettingsFoldersView({
     className: "sp-sec-lbl fm-head"
   }, /*#__PURE__*/React.createElement("span", null, "מפת התיקיות"), dirty ? /*#__PURE__*/React.createElement("span", {
     className: "fm-dirty"
-  }, "לא נשמר") : saved ? /*#__PURE__*/React.createElement("span", {
+  }, "יש שינויים שלא נשמרו") : saved ? /*#__PURE__*/React.createElement("span", {
     className: "fm-when",
     "data-i18n-skip": ""
   }, tx('עודכנה על ידי {who}, {date}', {
@@ -16134,6 +16146,7 @@ function SettingsFoldersView({
     }, fmSlash(p)), has && /*#__PURE__*/React.createElement("button", {
       className: "fm-ico",
       title: "פתח בסייר הקבצים",
+      disabled: opening,
       onClick: () => open(p)
     }, "📂"), w && /*#__PURE__*/React.createElement("button", {
       className: "fm-ico fm-x",
@@ -16144,7 +16157,7 @@ function SettingsFoldersView({
       }))
     }, "✕"))) : /*#__PURE__*/React.createElement("div", {
       className: "fm-none"
-    }, "—"), w && tree && free.length > 0 && /*#__PURE__*/React.createElement("select", {
+    }, "—"), w && tree && free.length > 0 && x.paths.length < 10 && /*#__PURE__*/React.createElement("select", {
       className: "fm-pick",
       value: "",
       onChange: e => {

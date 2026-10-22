@@ -943,7 +943,8 @@ function openFiling() {
     // no map yet (or nothing in it): point to where it is made, the project's settings in Project Hub
     var areas = p.map && p.map.areas || {};
     var mapped = Object.keys(areas).some(function (k) { return areas[k] && areas[k].paths && areas[k].paths.length; });
-    $('fMapLink').href = location.origin + '/project_hub_01?project=' + encodeURIComponent(pid);
+    // the hub opens on the project last open there (?project= alone does not switch it), hence the path in the text
+    $('fMapLink').href = location.origin + '/project_hub_01';
     $('fMapNone').hidden = mapped;
     renderFolder();
   }).catch(fail);

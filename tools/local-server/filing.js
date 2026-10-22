@@ -575,6 +575,11 @@ module.exports = function createFiling(ctx) {
         const no = await treeOf(m, pr, res, release, { mapId: m.id });
         if (no === 'gone') return;
         if (no) { sendJson(res, 200, no); return; }
+        // the table as the person has it now (corrected by hand, unsaved) is the map so far: only folders of the tree
+        if (body.areas && typeof body.areas === 'object' && !Array.isArray(body.areas)) {
+          const known = new Map(m.tree.map(t => [t.toLowerCase(), t]));
+          m.areas = ai.cleanAreas(body.areas, q => (q && known.get(q.toLowerCase())) || null);
+        }
         if (!client) { sendJson(res, 200, { ai: 'unavailable' }); return; }
         const turn = { role: 'user', text };
         let out;

@@ -710,6 +710,17 @@ test('filing hub: the folder map in Project Hub — sign-in, writers, mapping wi
   assert.ok(fake.last.endsWith('Conversation:\nPerson: (map the folders)\nYou: Mapped. Two questions.\n1. Is DESIGN yours?\n2. Where are the Revit exports?\nPerson: כן, DESIGN שלנו; אין ייצוא'), fake.last.slice(-300));
   assert.match(fake.last, /<map>\n- publish \([^)]*\): PUBLISH \| a folder per date\n- consultants \([^)]*\): CONS \| a folder per consultant\n<\/map>/);
 
+  // the table as the person has it (a path removed by hand, unsaved) is the map Claude continues from: the removed
+  // path stays removed, and paths outside the tree or the project do not reach Claude
+  const handMap = { ...p2.body.areas, publish: { paths: [], note: '' }, docs: { paths: ['DOCS', 'NOT-THERE', '../x'], note: 'by hand' } };
+  const p3 = await hub('dana@kkarc.com', 'map-propose?id=' + s1, { text: 'אין PUBLISH', areas: handMap });
+  assert.strictEqual(p3.status, 200);
+  const sent3 = fake.last.slice(fake.last.indexOf('<map>'), fake.last.indexOf('</map>'));
+  assert.ok(!/- publish /.test(sent3), sent3);
+  assert.match(sent3, /- docs \([^)]*\): DOCS \| by hand$/m);
+  assert.match(sent3, /- design \([^)]*\): DESIGN \| ours/);
+  assert.ok(!sent3.includes('NOT-THERE') && !sent3.includes('../x'), sent3);
+
   // saving the map: paths inside the project only; read back by the Hub page and by the pane
   assert.deepStrictEqual(await hub('dana@kkarc.com', 'map', { projectId: 'pabc123', areas: { publish: { paths: ['../x'], note: '' } } }, 'PUT'), { status: 400, body: { error: 'path' } });
   assert.strictEqual((await hub('dana@kkarc.com', 'map', { projectId: 'pabc123', areas: 'x' }, 'PUT')).status, 400);
