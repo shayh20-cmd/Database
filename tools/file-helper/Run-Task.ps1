@@ -48,6 +48,56 @@ function Show-FolderPicker([string]$Start, [string]$Suggested, [string]$Descript
   } finally { $owner.Close(); $owner.Dispose() }
 }
 
+# Same foreground lock for the "open" task: Explorer started from this hidden process opens behind Outlook. Find the
+# Explorer window showing the folder (one that was already open is reused) and bring it forward: restore if minimised,
+# a lone ALT press releases the lock, then SetForegroundWindow. Best effort: never throws.
+function Find-ExplorerWindow([string]$Path) {
+  $want = $Path.TrimEnd('\')
+  try {
+    $shell = New-Object -ComObject Shell.Application
+    foreach ($w in @($shell.Windows())) {
+      try {
+        if ($w.FullName -notlike '*\explorer.exe') { continue }
+        $p = [string]$w.Document.Folder.Self.Path
+        if ($p -and $p.TrimEnd('\') -ieq $want) { return $w }
+      } catch { }
+    }
+  } catch { }
+  return $null
+}
+function Show-FolderInFront([string]$Path) {
+  try {
+    if (-not ('PhFront' -as [type])) {
+      Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public class PhFront {
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+}
+'@
+    }
+    $win = Find-ExplorerWindow $Path
+    if (-not $win) {
+      if (Test-Path -LiteralPath $Path -PathType Leaf) { Start-Process explorer.exe -ArgumentList ('"' + $Path + '"'); return }
+      Start-Process explorer.exe -ArgumentList ('"' + $Path + '"')
+      $deadline = (Get-Date).AddSeconds(5)
+      while (-not $win -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 150; $win = Find-ExplorerWindow $Path }
+    }
+    if (-not $win) { return }
+    $h = [IntPtr][int]$win.HWND
+    if ([PhFront]::IsIconic($h)) { [void][PhFront]::ShowWindow($h, 9) }
+    [PhFront]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero)
+    [PhFront]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)
+    [void][PhFront]::BringWindowToTop($h)
+    [void][PhFront]::SetForegroundWindow($h)
+  } catch { try { Write-HelperLog ('open: could not bring the folder forward: ' + $_.Exception.Message) } catch { } }
+}
+
 $tmp = $null
 $kind = '?'
 try {
@@ -64,7 +114,7 @@ try {
     'tree' { $res = Get-TreeResult (Resolve-ProjectsRoot $cfg) $task.folder }
     'open' {
       $target = Get-OpenTarget (Resolve-ProjectsRoot $cfg) $task.folder ([string]$task.rel)
-      if ($target) { Start-Process explorer.exe -ArgumentList ('"' + $target + '"'); $res = @{ opened = $true } }
+      if ($target) { Show-FolderInFront $target; $res = @{ opened = $true } }
       else { $res = @{ missing = $true } }
     }
     'file' {
