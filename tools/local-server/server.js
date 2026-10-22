@@ -430,11 +430,12 @@ const mcp = require('./mcp')({
   beforeProjectWrite: (file, oldDoc, newDoc, who) => history.beforeSave(projectIdOfFile(file), file, oldDoc, newDoc, who)
 });
 
-/* Mail suggestions (the scanner's intake and the tray in המשימות שלי); see mail.js. */
-const mail = require('./mail')({ DATA_DIR, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, mcp });
-
 /* The Outlook add-in's task pane and its key; see outlook.js. */
 const outlook = require('./outlook')({ DATA_DIR, STATIC_ROOT, SITE_MODE, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, readRequestBuffer, saveAttachment, mcp });
+
+/* Mail suggestions (the scanner's intake and the tray in המשימות שלי); see mail.js. Mail of a thread linked
+   to a task is logged there through the add-in's links. */
+const mail = require('./mail')({ DATA_DIR, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, mcp, outlook });
 
 function handleRequest(req, res) {
   const url = new URL(req.url, 'http://localhost');

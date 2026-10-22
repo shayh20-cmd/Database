@@ -358,3 +358,55 @@ test('outlook: the email and its files are attached to a task; drawings and offi
   assert.deepStrictEqual([c.linked.taskId, c.linked.message.auto], ['t2', false]);
   assert.strictEqual((task('t2').events || []).length, 0);
 });
+
+test('outlook + mail scanner: mail of a linked thread is logged on its task; the rest waits only if suggestions are on', async (t) => {
+  const port = 3976, base = 'http://127.0.0.1:' + port;
+  const { root, data } = makeSite();
+  const proc = spawn('node', [SERVER, root, '--port', String(port)], { stdio: 'ignore', env: { ...process.env, SITE_MODE: 'cloud', WEBSITE_AUTH_ENABLED: 'true', DATA_DIR: data } });
+  t.after(() => proc.kill());
+  for (let i = 0; i < 50; i++) { try { await fetch(base + '/health'); break; } catch (e) { await wait(100); } }
+  const dana = { 'x-ms-client-principal': principal('dana@kkarc.com') };
+  const json = r => r.json();
+  const pane = (await json(await fetch(base + '/api/outlook-connection', { method: 'POST', headers: dana }))).key;
+  const scan = (await json(await fetch(base + '/api/mail-connection', { method: 'POST', headers: dana }))).key;
+  const intake = mails => fetch(base + '/api/mail-intake', { method: 'POST', headers: { Authorization: 'Bearer ' + scan, 'Content-Type': 'application/json' }, body: JSON.stringify({ mails }) }).then(json);
+  const task = id => JSON.parse(fs.readFileSync(path.join(data, 'projects', 'pabc123.json'), 'utf8')).sheets[0].tasks.find(x => x.id === id);
+  const sug = () => fetch(base + '/api/mail-suggestions', { headers: dana }).then(json);
+
+  // off by default: a new message is seen, not queued for Claude
+  assert.strictEqual((await json(await fetch(base + '/api/mail-connection', { headers: dana }))).suggest, false);
+  let r = await intake([{ id: '<s0@x>', from: 'a@x.com', subject: 'ניוזלטר', received: '2026-10-22T09:00:00+03:00', body: 'x' }]);
+  assert.deepStrictEqual([r.accepted, r.logged], [1, 0]);
+  let s = await sug();
+  assert.deepStrictEqual([s.suggest, s.items.length], [false, 0]);
+  assert.strictEqual((await intake([{ id: '<s0@x>', from: 'a@x.com', subject: 'ניוזלטר' }])).duplicates, 1, 'and it is not taken again');
+
+  // the add-in links a thread (Office.js id); the scanner sends the same thread (classic Outlook id)
+  const mail = { conversationId: 'AAQkAGI0MzJiZWNkLTVhNzItNDYxOS05NTkzLTdjM2JiMGU3ODIyMQAQAMYLmGG5QqtKg5LHYES/Fmc=', internetMessageId: '<s1@x>', subject: 'קונסטרוקציה', from: { name: 'דני', email: 'dani@eng.co.il' }, receivedDate: '2026-10-21' };
+  await fetch(base + '/api/outlook/link', { method: 'POST', headers: { Authorization: 'Bearer ' + pane, 'Content-Type': 'application/json' }, body: JSON.stringify({ mail, projectId: 'pabc123', taskId: 't1' }) });
+  assert.strictEqual(task('t1').events.length, 2);
+  r = await intake([
+    { id: '<s1@x>', conversationId: 'C60B9861B942AB4A8392C76044BF1667', from: 'dani@eng.co.il', fromName: 'דני', subject: 'קונסטרוקציה', received: '2026-10-21T10:00:00+03:00' },
+    { id: '<s2@x>', conversationId: 'C60B9861B942AB4A8392C76044BF1667', from: 'dani@eng.co.il', fromName: 'דני', subject: 'Re: קונסטרוקציה', received: '2026-10-22T11:00:00+03:00' },
+    // a reply whose conversation id differs (another client), found by In-Reply-To
+    { id: '<s3@x>', conversationId: 'FFFF0000000000000000000000000000', inReplyTo: '<s2@x>', from: 'eng@other.co.il', fromName: 'מהנדס', subject: 'Re: Re: קונסטרוקציה', received: '2026-10-22T12:00:00+03:00' }
+  ]);
+  assert.deepStrictEqual([r.accepted, r.logged], [3, 2], 's1 was already on the thread (the add-in logged it)');
+  const evs = task('t1').events;
+  assert.strictEqual(evs.length, 4);
+  assert.deepStrictEqual([evs[2].auto, evs[2].date, evs[2].title], [true, '2026-10-22', 'מייל מ-דני: Re: קונסטרוקציה']);
+  assert.strictEqual(evs[3].title, 'מייל מ-מהנדס: Re: Re: קונסטרוקציה');
+  const th = JSON.parse(fs.readFileSync(path.join(data, 'outlook_links.json'), 'utf8')).threads.C60B9861B942AB4A8392C76044BF1667;
+  assert.deepStrictEqual(th.messages.map(m => [m.internetMessageId, m.via]), [['<s1@x>', 'pane'], ['<s2@x>', 'scanner'], ['<s3@x>', 'scanner']]);
+  // opening s2 in the pane afterwards shows the scanner's entry, and logs nothing more
+  const c = await fetch(base + '/api/outlook/context', { method: 'POST', headers: { Authorization: 'Bearer ' + pane, 'Content-Type': 'application/json' }, body: JSON.stringify({ mail: { ...mail, internetMessageId: '<s2@x>' } }) }).then(json);
+  assert.strictEqual(c.linked.message.auto, true);
+  assert.strictEqual(task('t1').events.length, 4);
+
+  // turned on, an unlinked message waits for Claude (no key here, so it stays pending)
+  assert.strictEqual((await fetch(base + '/api/mail-connection/suggest', { method: 'PUT', headers: { ...dana, 'Content-Type': 'application/json' }, body: '{"suggest":"yes"}' })).status, 400);
+  await fetch(base + '/api/mail-connection/suggest', { method: 'PUT', headers: { ...dana, 'Content-Type': 'application/json' }, body: '{"suggest":true}' });
+  r = await intake([{ id: '<s4@x>', from: 'b@x.com', subject: 'שאלה', received: '2026-10-22T13:00:00+03:00', body: 'x' }]);
+  s = await sug();
+  assert.deepStrictEqual([s.suggest, s.items.map(i => [i.id, i.status])], [true, [['<s4@x>', 'pending']]]);
+});

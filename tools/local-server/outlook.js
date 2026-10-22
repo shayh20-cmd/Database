@@ -187,6 +187,51 @@ module.exports = function createOutlook(ctx) {
     }
   }
 
+  /* An email of a linked thread, logged on its task as an automatic update, and remembered on the thread
+     so that neither the pane nor the scanner logs it again. */
+  function logOnThread(p, key, th, mail, via) {
+    const who = mail.from.name || mail.from.email;
+    const r = mcp.mailLog(p.email, p.name, th.projectId, th.taskId, {
+      text: 'מייל מ' + (who ? '-' + who : '') + ': ' + (mail.subject || ''),
+      date: mail.receivedDate || undefined,
+      mail: { threadKey: key, internetMessageId: mail.internetMessageId, subject: mail.subject, from: mail.from.email }
+    });
+    const msg = { internetMessageId: mail.internetMessageId, received: mail.received, from: mail.from.email, subject: mail.subject, eventId: r.eventId, auto: true, via };
+    const fresh = loadLinks();
+    const t = fresh.threads[key];
+    if (t) { t.messages = [...(t.messages || []), msg].slice(-200); saveLinks(fresh); }
+    return msg;
+  }
+
+  /* The mail scanner's message (mail.js intake): when its thread is linked to a task — by the conversation id,
+     or by a reply to a message already on the thread — it is logged there. 'logged', 'known' (already on the
+     thread), or null when the thread is not linked or the person cannot write to that task. */
+  function logScanned(p, m) {
+    const mail = {
+      conversationId: clip(m.conversationId, 400), internetMessageId: clip(m.id, 400), subject: clip(m.subject, 300),
+      from: { name: clip(m.fromName, 120), email: clip(m.from, 200).toLowerCase() }, received: clip(m.received, 40),
+      receivedDate: /^\d{4}-\d{2}-\d{2}/.test(m.received || '') ? String(m.received).slice(0, 10) : ''
+    };
+    if (!mail.internetMessageId) return null;
+    const links = loadLinks();
+    let key = threadKeyOf(mail.conversationId);
+    let th = key ? links.threads[key] : null;
+    if (!th) {
+      const refs = new Set([m.inReplyTo, ...(Array.isArray(m.references) ? m.references : [])].filter(Boolean).map(x => String(x).trim()));
+      if (refs.size) {
+        const hit = Object.entries(links.threads).find(([, t]) => (t.messages || []).some(x => refs.has(x.internetMessageId)));
+        if (hit) { key = hit[0]; th = hit[1]; }
+      }
+    }
+    if (!th) return null;
+    if ((th.messages || []).some(x => x.internetMessageId === mail.internetMessageId)) return 'known';
+    try { logOnThread(p, key, th, mail, 'scanner'); } catch (e) {
+      if (e instanceof mcp.ToolError) return null;
+      throw e;
+    }
+    return 'logged';
+  }
+
   /* What the pane needs for the open email: the project to start from, and the linked task with
      this email logged on it (logging it now when it is new). */
   function context(p, base, mail) {
@@ -203,15 +248,7 @@ module.exports = function createOutlook(ctx) {
       else {
         let msg = mail.internetMessageId ? (th.messages || []).find(m => m.internetMessageId === mail.internetMessageId) : null;
         if (!msg && mail.internetMessageId && canWrite) {
-          const who = mail.from.name || mail.from.email;
-          const r = mcp.mailLog(p.email, p.name, th.projectId, th.taskId, {
-            text: 'מייל מ' + (who ? '-' + who : '') + ': ' + (mail.subject || ''),
-            date: mail.receivedDate || undefined,
-            mail: { threadKey: key, internetMessageId: mail.internetMessageId, subject: mail.subject, from: mail.from.email }
-          });
-          msg = { internetMessageId: mail.internetMessageId, received: mail.received, from: mail.from.email, subject: mail.subject, eventId: r.eventId, auto: true };
-          const fresh = loadLinks();
-          if (fresh.threads[key]) { fresh.threads[key].messages = [...(fresh.threads[key].messages || []), msg].slice(-200); saveLinks(fresh); }
+          msg = logOnThread(p, key, th, mail, 'pane');
           Object.assign(lt, linkedTask(p, base, th, projects)); // the card now shows the new entry
         }
         let options;
@@ -438,7 +475,7 @@ module.exports = function createOutlook(ctx) {
     sendJson(res, 405, { error: 'Method not allowed' });
   }
 
-  return { handlePublic, handleConnection, health };
+  return { handlePublic, handleConnection, health, logScanned };
 };
 module.exports.threadKeyOf = threadKeyOf;
 module.exports.guessProject = guessProject;

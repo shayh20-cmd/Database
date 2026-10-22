@@ -34,7 +34,36 @@ function norm(doc) {
   };
   if (doc && doc.schedule) d.schedule = doc.schedule;
   if (doc && doc.lastScanAt) d.lastScanAt = doc.lastScanAt;
+  if (doc && typeof doc.suggest === 'boolean') d.suggest = doc.suggest;
   return d;
+}
+
+/* Whether Claude suggests tasks from new mail. Off unless the person turned it on (2026-10-21: the Outlook
+   add-in replaced proactive suggestions; the scanner keeps logging mail in threads linked to a task). */
+const suggestOf = doc => !!(doc && doc.suggest === true);
+function setSuggest(doc, on) { doc = norm(doc); doc.suggest = !!on; return doc; }
+/* ids the server is done with without Claude (logged on a linked task, or suggestions are off): seen, no item */
+function markSeen(doc, ids) {
+  doc = norm(doc);
+  const seen = new Set(doc.seen);
+  for (const id of ids || []) { const x = clip(id, 300); if (x && !seen.has(x)) { seen.add(x); doc.seen.push(x); } }
+  if (doc.seen.length > SEEN_MAX) {
+    const live = new Set(doc.items.map(i => i.id));
+    let room = SEEN_MAX - doc.seen.filter(x => live.has(x)).length;
+    const keep = [];
+    for (let i = doc.seen.length - 1; i >= 0; i--) if (live.has(doc.seen[i]) || room-- > 0) keep.push(doc.seen[i]);
+    doc.seen = keep.reverse();
+  }
+  return doc;
+}
+/* the ids in this batch that the document has not met yet */
+function unseen(doc, mails) {
+  doc = norm(doc);
+  const seen = new Set(doc.seen);
+  for (const it of doc.items) seen.add(it.id);
+  const out = [];
+  for (const m of mails || []) { const id = clip(m && m.id, 300); if (id && !seen.has(id)) { seen.add(id); out.push(m); } }
+  return out;
 }
 
 /* When the scanner looks: days 0 = Sunday … 6, times local to the scanning computer. */
@@ -230,7 +259,7 @@ function forPage(doc, nowIso) {
     const { body, ...mail } = i.mail || {};
     return { ...i, mail, note: noteOf(i) };
   });
-  return { items, summary: summary(doc, nowIso), scan: { schedule: scheduleOf(doc), lastScanAt: doc.lastScanAt || null } };
+  return { items, summary: summary(doc, nowIso), scan: { schedule: scheduleOf(doc), lastScanAt: doc.lastScanAt || null }, suggest: suggestOf(doc) };
 }
 
-module.exports = { mailFileOf, ingest, pendingIds, applySuggestion, failAttempt, canAct, act, housekeep, noteOf, summary, topNew, forPage, weekOf, DEFAULT_SCHEDULE, scheduleOf, normSchedule, setSchedule, markRan };
+module.exports = { mailFileOf, ingest, suggestOf, setSuggest, markSeen, unseen, pendingIds, applySuggestion, failAttempt, canAct, act, housekeep, noteOf, summary, topNew, forPage, weekOf, DEFAULT_SCHEDULE, scheduleOf, normSchedule, setSchedule, markRan };

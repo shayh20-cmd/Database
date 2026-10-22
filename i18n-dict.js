@@ -2957,7 +2957,7 @@ Object.assign(HE_EN, {
 "{n} מיילים ממתינים לעיבוד": "{n} emails waiting to be processed",
 "השבוע: {s} מיילים נסרקו · {g} הצעות · {a} אושרו": "This week: {s} emails scanned · {g} suggestions · {a} accepted",
 "סריקת מייל": "Mail scan",
-"Project Hub סורק את תיבת הדואר שלך דרך Outlook שבמחשב, ו-Claude מציע משימות. ההצעות מופיעות בראש 'המשימות שלי'.": "Project Hub scans your mailbox through Outlook on your computer, and Claude suggests tasks. The suggestions appear at the top of 'My tasks'.",
+"Project Hub סורק את תיבת הדואר שלך דרך Outlook שבמחשב: מייל חדש בשרשור שקשור למשימה נרשם בה, ואם תבחר — Claude גם מציע משימות, בראש 'המשימות שלי'.": "Project Hub scans your mailbox through Outlook on your computer: new mail in a thread linked to a task is logged on it, and if you choose, Claude also suggests tasks at the top of 'My tasks'.",
 "Claude עדיין לא הוגדר בשרת. המיילים יישמרו ויעובדו כשיוגדר.": "Claude is not set up on the server yet. Emails are kept and will be processed once it is.",
 "המפתח שלך (מוצג פעם אחת בלבד):": "Your key (shown only once):",
 "מפתח פעיל מ-{d}. שימוש אחרון: {u}": "Key active since {d}. Last used: {u}",
@@ -2985,7 +2985,16 @@ Object.assign(HE_EN, {
 "נסרק לאחרונה: {l} · הסריקה הבאה: {n}": "Last scanned: {l} · Next scan: {n}",
 "אין סריקות אוטומטיות": "no automatic scans",
 "היום {t}": "today at {t}",
-"מחר {t}": "tomorrow at {t}"
+"מחר {t}": "tomorrow at {t}",
+"הצע משימות ממיילים חדשים": "Suggest tasks from new mail",
+"דלוק: Claude מציע משימות מכל מייל חדש, ומיילים בשרשורים שקשורים למשימה נרשמים בה.": "On: Claude suggests tasks from every new email, and mail in threads linked to a task is logged on it.",
+"כבוי: הסורק רק רושם מיילים חדשים בשרשורים שקשורים למשימה (דרך תוסף Outlook), בלי הצעות.": "Off: the scanner only logs new mail in threads linked to a task (through the Outlook add-in), with no suggestions.",
+"לבטל את המפתח? התוסף יפסיק לעבוד עד שיודבק מפתח חדש.": "Revoke the key? The add-in stops working until a new key is pasted.",
+"תוסף Outlook": "Outlook add-in",
+"חלונית Project Hub בתוך Outlook: יוצרים משימה, מעדכנים או מצרפים קבצים ישר מהמייל, ומיילים בשרשור שקשור למשימה נרשמים בה לבד.": "A Project Hub pane inside Outlook: create a task, add an update or attach files straight from the email, and mail in a thread linked to a task is logged on it by itself.",
+"⬇ הורדת קובץ התוסף": "⬇ Download the add-in file",
+"נרשם מהמייל: {s}": "Logged from the email: {s}",
+"התקנה (פעם אחת): ב-Outlook בדפדפן פותחים את aka.ms/olksideload ← התוספים שלי ← הוסף תוסף מותאם אישית ← מקובץ, ובוחרים את הקובץ. אחר כך, במייל: אפליקציות ← Project Hub, ומדביקים את המפתח. התוסף מופיע גם ב-Outlook החדש וב-Outlook הקלאסי באותו חשבון.": "Installing (once): in Outlook on the web open aka.ms/olksideload → My add-ins → Add a custom add-in → From file, and pick the file. Then, in an email: Apps → Project Hub, and paste the key. The add-in also appears in the new Outlook and in classic Outlook on the same account."
 });
 
 window.I18N_HE_EN = HE_EN;
