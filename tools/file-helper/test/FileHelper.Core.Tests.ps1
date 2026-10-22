@@ -14,6 +14,7 @@ Check 'rel: empty is the project folder' ((ConvertTo-RelPath '') -eq '')
 foreach ($bad in '../x', 'a/../b', '/abs', 'C:/x', 'a//b', 'a/b?', 'a/b.') { Check "rel: $bad" ($null -eq (ConvertTo-RelPath $bad)) }
 
 $root = New-TempDir
+$script:LogPath = Join-Path $root 'file-helper.log'   # never the real log
 try {
   # the project's folders
   foreach ($d in 'CONS\S\plans\S-plans-v01', 'CONS\S\plans\S-plans-v02', 'CONS\S\plans\S-plans-@ver', 'CONS\S\plans\S-updated-PDF', 'CONS\S\docs', 'יועצים') { New-Item -ItemType Directory -Force -Path (Join-Path $root $d) | Out-Null }
@@ -180,6 +181,56 @@ try {
   # a drive's root (or a folder right on it) is no project folder
   Check 'pick: a drive root throws' (Throws { Invoke-PickTask $ecfg $task { param($Start, $Suggested) return 'C:\' } $noFm $tcfgPath $drives })
   Check 'pick: a folder on a drive root throws' (Throws { Invoke-PickTask $ecfg $task { param($Start, $Suggested) return 'C:\Windows' } $noFm $tcfgPath $drives })
+
+  # a root found by its name but not among the roots read so far (a share without a drive letter; here: made after the
+  # drive was read): saved, so the next task finds it
+  $late = Join-Path $drvA '@Late projects'
+  New-Item -ItemType Directory -Force -Path (Join-Path $late 'L-1 - Late One') | Out-Null
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return (Join-Path $late 'L-1 - Late One\docs') } $noFm $tcfgPath $drives
+  Check 'pick: a root not read before' ($res.picked -eq 'L-1 - Late One' -and $res.root -eq '@Late projects')
+  Check 'pick: ...is saved' ((Get-HelperConfig $tcfgPath).roots['@Late projects'] -eq $late)
+  Check 'pick: ...and resolves' ((Resolve-ProjectDir $tcfg '@Late projects' 'L-1 - Late One' $drives) -eq (Join-Path $late 'L-1 - Late One'))
+  # a name that already stands for another folder on this PC: refused, nothing saved, a line in the log
+  $before = (Get-Content -Raw -LiteralPath $tcfgPath)
+  $copy = Join-Path $root 'Backup\@Kappa projects'
+  New-Item -ItemType Directory -Force -Path (Join-Path $copy 'K-100 - Kappa One') | Out-Null
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return (Join-Path $copy 'K-100 - Kappa One') } $noFm $tcfgPath $drives
+  Check 'pick: the name of a found root, elsewhere: refused' ($res.cancelled -eq $true -and -not $res.picked)
+  $copy2 = Join-Path $root 'Other\Nu Archive'
+  New-Item -ItemType Directory -Force -Path (Join-Path $copy2 'N-1 - Nu One') | Out-Null
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return (Join-Path $copy2 'N-1 - Nu One') } $noFm $tcfgPath $drives
+  Check 'pick: the name of a saved root, elsewhere: refused' ($res.cancelled -eq $true -and -not $res.picked)
+  Check 'pick: ...nothing saved, nothing overwritten' ((Get-Content -Raw -LiteralPath $tcfgPath) -eq $before -and $tcfg.roots['Nu Archive'] -eq $nu)
+  Check 'pick: ...and said in the log' ((Get-Content -Raw -LiteralPath $script:LogPath) -match 'pick refused')
+  Check 'pick: ...the project still resolves to its own folder' ((Resolve-ProjectDir $tcfg '@Kappa projects' 'K-100 - Kappa One' $drives) -eq (Join-Path $kappa 'K-100 - Kappa One'))
+  # a legacy projectsRoot that an old pick set to a project's own folder inside a root: the root wins
+  $pcfg = [pscustomobject]@{ hub = 'https://x'; projectsRoot = (Join-Path $kappa 'K-100 - Kappa One'); roots = @{} }
+  New-Item -ItemType Directory -Force -Path (Join-Path $kappa 'K-100 - Kappa One\sub') | Out-Null
+  $res = Invoke-PickTask $pcfg $task { param($Start, $Suggested) return (Join-Path $kappa 'K-100 - Kappa One\sub') } $noFm $tcfgPath $drives
+  Check 'pick: a legacy root inside a root is no root' ($res.picked -eq 'K-100 - Kappa One' -and $res.root -eq '@Kappa projects')
+  # a config as a hashtable
+  Check 'config: roots of a hashtable' ((Get-ConfigRoots @{ roots = @{ 'A Projects' = 'X:\A Projects' } })['a projects'] -eq 'X:\A Projects')
+
+  # a drive that does not answer: left out after the timeout, never waited for again in this process, and the no-root
+  # search does not guess while it is missing
+  $keep = $script:ReadRoot
+  $script:ReadRoot = [scriptblock]::Create('param([string]$Path, [string]$Name) if ($Path -like ''*slow*'') { Start-Sleep -Seconds 5 }; ' + $keep.ToString())
+  Reset-ProjectRoots
+  $slowDrives = @($drvA, (Join-Path $root 'slow-drive'))
+  $ocfg = [pscustomobject]@{ hub = 'https://x'; projectsRoot = ''; roots = @{} }
+  $sw = [Diagnostics.Stopwatch]::StartNew()
+  $roots = Get-ProjectRoots $ocfg -Drives $slowDrives -TimeoutMs 400
+  $first = $sw.ElapsedMilliseconds
+  Check 'timeout: the drives that answered' ($roots.Contains('@Kappa projects') -and $script:RootsIncomplete -and $first -ge 350 -and $first -lt 3000)
+  $sw.Restart()
+  [void](Get-ProjectRoots $ocfg -Drives $slowDrives -TimeoutMs 400)
+  [void](Get-ProjectRoots $ocfg -Drives $slowDrives -Want '@Nothing projects' -TimeoutMs 400)
+  Check 'timeout: never waited for again' ($sw.ElapsedMilliseconds -lt 300)
+  Check 'timeout: no root, a single match is not trusted' ($null -eq (Resolve-ProjectDir $ocfg '' 'A-1 - Alpha One' $slowDrives))
+  Check 'timeout: by root name still works' ((Resolve-ProjectDir $ocfg '@Alpha Projects' 'A-1 - Alpha One' $slowDrives) -eq (Join-Path $alpha 'A-1 - Alpha One'))
+  Check 'no timeout: no root, the single match' ((Resolve-ProjectDir $ocfg '' 'A-1 - Alpha One' @($drvA)) -eq (Join-Path $alpha 'A-1 - Alpha One'))
+  $script:ReadRoot = $keep
+  Reset-ProjectRoots
 
   # tree (the folder resolved by Resolve-ProjectDir; $null when it is not on this PC)
   $sdir = Join-Path $omicron $school
