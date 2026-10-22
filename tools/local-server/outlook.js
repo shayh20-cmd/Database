@@ -92,6 +92,12 @@ module.exports = function createOutlook(ctx) {
   let lastAi = null; // 'ok' | 'failing', after the latest call
   const health = () => !client ? 'no-key' : lastAi === 'failing' ? 'failing' : 'ok';
 
+  /* Filing the email's files into the project's folder on the office network; see filing.js. */
+  const filing = require('./filing')({
+    DATA_DIR, readJson, writeJsonAtomic, sendJson, readRequestBody, readRequestBuffer, mcp, client, model: MODEL,
+    linkedTaskOf: conv => { const k = threadKeyOf(conv); const th = k ? loadLinks().threads[k] : null; return th ? { projectId: th.projectId, taskId: th.taskId } : null; }
+  });
+
   /* Remember that this email is already recorded on the thread's task (as a new task, an update…),
      so opening it again does not log it a second time. Links the thread first when it is not linked. */
   function recordMessage(p, key, mail, projectId, taskId, how) {
@@ -272,8 +278,8 @@ module.exports = function createOutlook(ctx) {
     return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
   }
 
-  const GET_ROUTES = ['/api/outlook/me', '/api/outlook/projects', '/api/outlook/tasks', '/api/outlook/project'];
-  const POST_ROUTES = ['/api/outlook/context', '/api/outlook/link', '/api/outlook/unlink', '/api/outlook/entry', '/api/outlook/parse', '/api/outlook/create', '/api/outlook/apply', '/api/outlook/undo', '/api/outlook/upload', '/api/outlook/attached', '/api/outlook/exec'];
+  const GET_ROUTES = ['/api/outlook/me', '/api/outlook/projects', '/api/outlook/tasks', '/api/outlook/project', '/api/outlook/filing-status', '/api/outlook/filing-next'];
+  const POST_ROUTES = ['/api/outlook/context', '/api/outlook/link', '/api/outlook/unlink', '/api/outlook/entry', '/api/outlook/parse', '/api/outlook/create', '/api/outlook/apply', '/api/outlook/undo', '/api/outlook/upload', '/api/outlook/attached', '/api/outlook/exec', '/api/outlook/filing', '/api/outlook/filing-file', '/api/outlook/filing-ready'];
 
   async function run(req, res, url) {
     const m = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
@@ -283,6 +289,7 @@ module.exports = function createOutlook(ctx) {
     const base = baseOf(req);
     const isGet = GET_ROUTES.includes(url.pathname);
     if (req.method !== (isGet ? 'GET' : 'POST')) { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+    if (url.pathname.startsWith('/api/outlook/filing')) { await filing.handlePane(req, res, url, p, who, base); return; }
 
     if (url.pathname === '/api/outlook/me') {
       const me = mcp.whoAmI(p.email, p.name);
@@ -482,6 +489,7 @@ module.exports = function createOutlook(ctx) {
   }
 
   function handlePublic(req, res, url) {
+    if (filing.handleToken(req, res, url)) return true;
     if (url.pathname === '/outlook/manifest.xml' || url.pathname === '/outlook/manifest') { manifest(req, res); return true; }
     if (!GET_ROUTES.includes(url.pathname) && !POST_ROUTES.includes(url.pathname)) return false;
     run(req, res, url).catch(e => {
