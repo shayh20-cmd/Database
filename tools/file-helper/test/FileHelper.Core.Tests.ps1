@@ -171,6 +171,51 @@ try {
   Check 'file: ...and nothing was done' (-not (Test-Path (Join-Path $projects "$school\CONS\made")) -and -not (Test-Path (Join-Path $projects "$school\CONS\new")))
   Remove-Item -LiteralPath $src -Recurse -Force
 
+  # the files of a file task: from Outlook on this PC, or from the server
+  $ntask = [pscustomobject]@{
+    files = @([pscustomobject]@{ n = 0; name = 'K.pdf'; size = 1200; source = 'outlook' }, [pscustomobject]@{ n = 1; name = 'mail.eml'; size = 10; source = 'upload' },
+              [pscustomobject]@{ n = 2; name = 'skip.pdf'; size = 5; source = 'outlook' }, [pscustomobject]@{ n = 3; name = 'old.pdf'; size = 7 })
+    plan = [pscustomobject]@{ files = @([pscustomobject]@{ n = 1; name = 'mail.eml'; dest = '' }, [pscustomobject]@{ n = 0; name = 'K.pdf'; dest = 'CONS' },
+                                        [pscustomobject]@{ n = 2; name = 'skip.pdf'; dest = $null }, [pscustomobject]@{ n = 3; name = 'old.pdf'; dest = 'CONS' }, [pscustomobject]@{ n = 9; name = 'ghost'; dest = 'CONS' }) }
+  }
+  $need = Get-NeededFiles $ntask
+  Check 'needed: only what the plan files, in order' ((($need | ForEach-Object { $_.n }) -join ',') -eq '0,1,3')
+  Check 'needed: where each comes from' ((($need | ForEach-Object { $_.source }) -join ',') -eq 'outlook,upload,upload')
+  Check 'needed: name and size' ($need[0].name -eq 'K.pdf' -and $need[0].size -eq 1200)
+  Check 'needed: one file' (@(Get-NeededFiles ([pscustomobject]@{ files = @([pscustomobject]@{ n = 0; name = 'a'; size = 1; source = 'outlook' }); plan = [pscustomobject]@{ files = @([pscustomobject]@{ n = 0; dest = 'X' }) } })).Count -eq 1)
+
+  # matching the wanted files to the email's attachments in Outlook
+  $avail = @([pscustomobject]@{ Index = 1; FileName = 'image001.png'; Size = 3000 }, [pscustomobject]@{ Index = 2; FileName = 'K-101.PDF'; Size = 120400 },
+             [pscustomobject]@{ Index = 3; FileName = 'scan.pdf'; Size = 5000 }, [pscustomobject]@{ Index = 4; FileName = 'scan.pdf'; Size = 9100 },
+             [pscustomobject]@{ Index = 5; FileName = 'same.pdf'; Size = 100 }, [pscustomobject]@{ Index = 6; FileName = 'same.pdf'; Size = 100 })
+  $m = Get-AttachmentMatch $avail @([pscustomobject]@{ n = 0; name = 'k-101.pdf'; size = 120000 })
+  Check 'match: by name, without case' ($m.Count -eq 1 -and $m[0] -eq 2)
+  $m = Get-AttachmentMatch $avail @([pscustomobject]@{ n = 4; name = 'scan.pdf'; size = 9000 }, [pscustomobject]@{ n = 5; name = 'scan.pdf'; size = 5050 })
+  Check 'match: the same name, by the closest size' ($m[4] -eq 4 -and $m[5] -eq 3)
+  $m = Get-AttachmentMatch $avail @([pscustomobject]@{ n = 0; name = 'same.pdf'; size = 100 }, [pscustomobject]@{ n = 1; name = 'same.pdf'; size = 100 }, [pscustomobject]@{ n = 2; name = 'same.pdf'; size = 100 })
+  Check 'match: the same name and size, in order, each once' ($m[0] -eq 5 -and $m[1] -eq 6 -and -not $m.ContainsKey(2))
+  $m = Get-AttachmentMatch $avail @([pscustomobject]@{ n = 3; name = 'none.pdf'; size = 1 })
+  Check 'match: missing' ($m.Count -eq 0)
+  Check 'match: nothing in Outlook' ((Get-AttachmentMatch @() @([pscustomobject]@{ n = 0; name = 'a'; size = 1 })).Count -eq 0)
+
+  # finding the email in Outlook
+  Check 'filter: message id' ((Get-MessageIdFilter "<a'b@x>") -eq '@SQL="http://schemas.microsoft.com/mapi/proptag/0x1035001F" = ''<a''''b@x>''')
+  $at = Get-Date -Year 2026 -Month 10 -Day 22 -Hour 10 -Minute 15 -Second 30
+  $rf = Get-ReceivedFilter $at
+  Check 'filter: received window' ($rf -eq ("[ReceivedTime] >= '" + $at.AddMinutes(-3).ToString('g') + "' AND [ReceivedTime] <= '" + $at.AddMinutes(3).ToString('g') + "'"))
+  $utc = $at.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+  Check 'time: ISO to local' ((ConvertTo-LocalTime $utc) -eq $at.AddTicks(-($at.Ticks % 10000)))
+  Check 'time: none' ($null -eq (ConvertTo-LocalTime ''))
+  $mail = [pscustomobject]@{ subject = 'תכנית קונסטרוקציה'; received = $utc; from = 'dani@eng.co.il' }
+  Check 'mail: same' (Test-MailMatch ([pscustomobject]@{ Subject = 'תכנית קונסטרוקציה '; Received = $at.AddSeconds(90); From = 'Dani@Eng.co.il' }) $mail)
+  Check 'mail: too far' (-not (Test-MailMatch ([pscustomobject]@{ Subject = 'תכנית קונסטרוקציה'; Received = $at.AddMinutes(3); From = 'dani@eng.co.il' }) $mail))
+  Check 'mail: other subject' (-not (Test-MailMatch ([pscustomobject]@{ Subject = 'RE: תכנית קונסטרוקציה'; Received = $at; From = 'dani@eng.co.il' }) $mail))
+  Check 'mail: other sender' (-not (Test-MailMatch ([pscustomobject]@{ Subject = 'תכנית קונסטרוקציה'; Received = $at; From = 'x@y' }) $mail))
+  $mail.from = ''
+  Check 'mail: sender unknown' (Test-MailMatch ([pscustomobject]@{ Subject = 'תכנית קונסטרוקציה'; Received = $at; From = 'x@y' }) $mail)
+  $mail.received = ''
+  Check 'mail: no time, no match' (-not (Test-MailMatch ([pscustomobject]@{ Subject = 'תכנית קונסטרוקציה'; Received = $at; From = 'x@y' }) $mail))
+
   # texts
   $script:Lang = 'en'
   Check 'text: English' ((T 'בחר את התיקייה הראשית של הפרויקט {p}' @{ p = 'TASC' }) -eq 'Choose the main folder of project TASC')

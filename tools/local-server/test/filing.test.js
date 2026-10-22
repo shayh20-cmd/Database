@@ -340,7 +340,7 @@ test('filing: the folder is picked on the PC, Claude proposes from the real tree
   assert.strictEqual((await call(dana, '/api/outlook/link', { mail: MAIL, projectId: 'pabc123', taskId: 't2' })).status, 200);
   const a4 = await agent(dana);
   assert.strictEqual(a4.id, conf.body.taskId);
-  assert.deepStrictEqual([a4.got.kind, a4.got.folder, a4.got.files, a4.got.plan], ['file', FOLDER, [{ n: 0, name: 'K-101.pdf', size: 13 }], { files: [{ n: 0, name: 'K-101.pdf', dest: 'CONS/LDPB-structural/docs' }], steps: [], mode: 'existing' }]);
+  assert.deepStrictEqual([a4.got.kind, a4.got.folder, a4.got.files, a4.got.plan], ['file', FOLDER, [{ n: 0, name: 'K-101.pdf', size: 13, source: 'upload' }], { files: [{ n: 0, name: 'K-101.pdf', dest: 'CONS/LDPB-structural/docs' }], steps: [], mode: 'existing' }]);
   const f = await fetch(base + '/api/filing/' + a4.token + '/file/0');
   assert.deepStrictEqual([f.status, await f.text()], [200, '%PDF-1.4 k101']);
   assert.strictEqual((await fetch(base + '/api/filing/' + a4.token + '/file/5')).status, 404);
@@ -492,4 +492,75 @@ test('filing: when Claude fails the pane is told, and the turn is not kept', asy
   await (await agent(dana)).result({ tree: ['CONS'] });
   assert.deepStrictEqual((await proposing).body, { ai: 'failed' });
   assert.strictEqual((await call(dana, '/api/outlook/filing-confirm?id=' + id, {})).status, 409);
+});
+
+test('filing: the files come from classic Outlook on the PC; the server is the fallback, within a daily budget', async (t) => {
+  const fake = await fakeClaude(3972);
+  t.after(() => fake.close());
+  const { data, keyOf, call, up, agent, base } = await start(t, 3971, { ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: 'http://127.0.0.1:3972', FILING_DAILY_BYTES: '40' });
+  const dana = await keyOf('dana@kkarc.com');
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, guide: '', log: [] } } }));
+  const mail = { ...MAIL, received: '2026-10-22T07:15:00.000Z' };
+  const upN = (id, n, bytes) => fetch(base + '/api/outlook/filing-file?' + new URLSearchParams({ id, n: String(n), name: 'ignored.pdf' }), { method: 'POST', headers: { Authorization: 'Bearer ' + dana, 'Content-Type': 'application/octet-stream' }, body: bytes });
+
+  // the attachments are named, not uploaded; programs are refused, and so are too many
+  const files = [{ name: 'K-101.pdf', size: 1200, outlookId: 'AAMk-1' }, { name: 'K-102.pdf', size: 25, outlookId: 'AAMk-2' }];
+  assert.strictEqual((await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail, files: [{ name: 'run.exe', size: 2 }] })).status, 415);
+  assert.strictEqual((await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail, files: Array(21).fill(files[0]) })).status, 413);
+  assert.strictEqual((await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail, files: [{ name: '', size: 2 }] })).status, 400);
+  const id = (await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail, files, lang: 'en' })).body.id;
+  // the email itself (.eml) still goes up: 10 of the day's 40 bytes
+  const eml = await up(dana, id, 'mail.eml', '0123456789');
+  assert.deepStrictEqual([eml.status, (await eml.json()).n], [200, 2]);
+  fake.answer = { message: 'All three to docs.', guide_add: '', files: [{ name: 'K-101.pdf', dest: 'CONS/LDPB-structural/docs' }, { name: 'K-102.pdf', dest: 'CONS/LDPB-structural/docs' }, { name: 'mail.eml', dest: 'CONS/LDPB-structural/docs' }], steps: [], mode: 'existing' };
+  const proposing = call(dana, '/api/outlook/filing-propose?id=' + id, {});
+  await (await agent(dana)).result({ tree: TREE });
+  assert.strictEqual((await proposing).status, 200);
+  assert.match(fake.last, /\nFiles: K-101\.pdf, K-102\.pdf, mail\.eml\n/, 'Claude gets the names, as before');
+  assert.strictEqual((await upN(id, 0, 'x')).status, 409, 'no upload of a named file unless the PC asked for it');
+
+  // the agent is told the email and where each file comes from; a named file is not on the server
+  const conf = await call(dana, '/api/outlook/filing-confirm?id=' + id, {});
+  const a1 = await agent(dana);
+  assert.strictEqual(a1.id, conf.body.taskId);
+  assert.deepStrictEqual(a1.got.files, [{ n: 0, name: 'K-101.pdf', size: 1200, source: 'outlook' }, { n: 1, name: 'K-102.pdf', size: 25, source: 'outlook' }, { n: 2, name: 'mail.eml', size: 10, source: 'upload' }]);
+  assert.deepStrictEqual(a1.got.mail, { internetMessageId: '<k1@x>', conversationId: MAIL.conversationId, subject: MAIL.subject, received: '2026-10-22T07:15:00.000Z', from: 'dani@eng.co.il' });
+  assert.strictEqual((await fetch(base + '/api/filing/' + a1.token + '/file/0')).status, 404);
+  assert.strictEqual((await fetch(base + '/api/filing/' + a1.token + '/file/2')).status, 200);
+  // Outlook on the PC had K-101.pdf but not K-102.pdf: the server is asked for that one
+  assert.strictEqual((await a1.result({ needUpload: [7] })).status, 400);
+  assert.strictEqual((await a1.result({ needUpload: [2] })).status, 400, 'only a file that is not on the server');
+  assert.strictEqual((await a1.result({ needUpload: [1] })).status, 200);
+  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-task?id=' + a1.id)).body.result, { needUpload: [1] });
+  assert.strictEqual((await upN(id, 0, 'x')).status, 409, 'only what the PC asked for');
+  // the pane uploads it (25 bytes: 35 of 40) and confirms again; the agent downloads it from the server
+  const u = await upN(id, 1, 'K-102 bytes from the pane');
+  assert.deepStrictEqual([u.status, (await u.json()).n], [200, 1]);
+  assert.strictEqual((await upN(id, 1, 'again')).status, 409, 'once');
+  const conf2 = await call(dana, '/api/outlook/filing-confirm?id=' + id, {});
+  assert.strictEqual(conf2.status, 200);
+  const a2 = await agent(dana);
+  assert.deepStrictEqual(a2.got.files.map(f => [f.name, f.size, f.source]), [['K-101.pdf', 1200, 'outlook'], ['K-102.pdf', 25, 'upload'], ['mail.eml', 10, 'upload']]);
+  const f1 = await fetch(base + '/api/filing/' + a2.token + '/file/1');
+  assert.deepStrictEqual([f1.status, await f1.text()], [200, 'K-102 bytes from the pane']);
+  assert.strictEqual((await a2.result({ files: [{ name: 'K-101.pdf', dest: 'CONS/LDPB-structural/docs', savedAs: 'K-101.pdf' }, { name: 'K-102.pdf', dest: 'CONS/LDPB-structural/docs', savedAs: 'K-102.pdf' }] })).status, 200);
+  assert.strictEqual((await call(dana, '/api/outlook/filing-task?id=' + a2.id)).body.result.files.length, 2);
+  const today = new Date().toISOString().slice(0, 10);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(data, 'filing.json'), 'utf8')).budget, { day: today, bytes: 35 });
+
+  // the day's budget: an upload that would take it over 40 bytes is refused before it is kept
+  const id2 = (await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail })).body.id;
+  const over = await up(dana, id2, 'big.pdf', '0123456789');
+  assert.deepStrictEqual([over.status, (await over.json()).error], [429, 'daily_budget']);
+  assert.ok(!fs.existsSync(path.join(data, 'filing-tmp', id2, '0')));
+  assert.strictEqual((await up(dana, id2, 'small.pdf', '01234')).status, 200, 'what still fits goes');
+  // a new (UTC) day starts from zero
+  const d = JSON.parse(fs.readFileSync(path.join(data, 'filing.json'), 'utf8'));
+  assert.strictEqual(d.budget.bytes, 40);
+  d.budget.day = '2000-01-01';
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify(d));
+  assert.strictEqual((await up(dana, id2, 'big.pdf', '0123456789')).status, 200);
+  const end = JSON.parse(fs.readFileSync(path.join(data, 'filing.json'), 'utf8'));
+  assert.deepStrictEqual(end.budget, { day: today, bytes: 10 });
+  assert.deepStrictEqual(Object.keys(end.projects), ['pabc123'], 'the projects are kept');
 });

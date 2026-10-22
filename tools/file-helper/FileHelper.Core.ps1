@@ -2,6 +2,8 @@
    the tests. The pane asks, the server makes a task (pick / tree / open / file), the agent runs it here.
    Paths inside the project are relative, with "/" between folder names, as the server keeps them; every one is
    checked to stay inside the project folder before anything is done. Nothing here deletes or overwrites.
+   A "file" task's attachments are saved from classic Outlook on this PC when it has the email (Get-NeededFiles,
+   Get-AttachmentMatch, the filters); the server's copy is the fallback.
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md
    Saved as UTF-8 with BOM (Windows PowerShell 5.1 reads Hebrew right only then). #>
 
@@ -249,6 +251,65 @@ function Get-OpenTarget([string]$ProjectsRoot, [string]$Folder, [string]$Rel) {
   if (Test-Path -LiteralPath $full -PathType Container) { return $full }
   return $null
 }
+# ── the files of a "file" task: saved from classic Outlook on this PC (source 'outlook'), else downloaded from the
+#    server ('upload'). Run-Task.ps1 does the COM and the network; the choices are made here. ──
+function Get-NeededFiles($Task) {
+  # the files the plan files (a dest, even ''), each once, with where its bytes come from
+  $byN = @{}
+  foreach ($x in @($Task.files)) { if ($null -ne $x) { $byN[[int]$x.n] = $x } }
+  $out = New-Object System.Collections.Generic.List[object]
+  foreach ($n in @(@($Task.plan.files) | Where-Object { $null -ne $_ -and $null -ne $_.dest } | ForEach-Object { [int]$_.n } | Sort-Object -Unique)) {
+    $x = $byN[$n]
+    if (-not $x) { continue }
+    $src = if ($x.source -eq 'outlook') { 'outlook' } else { 'upload' }
+    $out.Add([pscustomobject]@{ n = $n; name = [string]$x.name; size = [long]$x.size; source = $src })
+  }
+  return ,$out.ToArray()
+}
+function Get-AttachmentMatch($Available, $Wanted) {
+  # $Available: the email's attachments in Outlook [{Index, FileName, Size}]; $Wanted: [{n, name, size}].
+  # Returns n → Index for each wanted file found. Names match without case; among several with the same name the
+  # closest size wins (Outlook's size and the pane's differ by a little), then the first; each attachment is used once.
+  $map = @{}
+  $used = @{}
+  foreach ($w in @($Wanted)) {
+    if ($null -eq $w) { continue }
+    $best = $null; $bestGap = [double]::MaxValue
+    foreach ($a in @($Available)) {
+      if ($null -eq $a -or $used.ContainsKey([int]$a.Index)) { continue }
+      if (-not [string]::Equals([string]$a.FileName, [string]$w.name, [StringComparison]::OrdinalIgnoreCase)) { continue }
+      $gap = [math]::Abs([double]$a.Size - [double]$w.size)
+      if ($gap -lt $bestGap -or ($gap -eq $bestGap -and [int]$a.Index -lt [int]$best.Index)) { $best = $a; $bestGap = $gap }
+    }
+    if ($best) { $map[[int]$w.n] = [int]$best.Index; $used[[int]$best.Index] = $true }
+  }
+  return $map
+}
+function Get-MessageIdFilter([string]$Id) {
+  # Items.Find / Restrict by the email's Internet message id (PR_INTERNET_MESSAGE_ID), as a DASL query
+  return '@SQL="http://schemas.microsoft.com/mapi/proptag/0x1035001F" = ''' + $Id.Replace("'", "''") + ''''
+}
+function Get-ReceivedFilter([datetime]$At, [int]$Minutes = 2) {
+  # Restrict compares to the minute, in this PC's date format (as the mail scanner does); Test-MailMatch cuts exactly
+  $from = $At.AddMinutes(-$Minutes - 1); $to = $At.AddMinutes($Minutes + 1)
+  return "[ReceivedTime] >= '" + $from.ToString('g') + "' AND [ReceivedTime] <= '" + $to.ToString('g') + "'"
+}
+function ConvertTo-LocalTime([string]$Iso) {
+  # the pane's time (ISO, UTC) as this PC's local time, as Outlook gives ReceivedTime; $null when there is none
+  if (-not $Iso) { return $null }
+  try { return [DateTimeOffset]::Parse($Iso, [Globalization.CultureInfo]::InvariantCulture).LocalDateTime } catch { return $null }
+}
+function Test-MailMatch($Item, $Mail, [int]$Minutes = 2) {
+  # the fallback when the message id finds nothing: same subject, received within ±2 minutes, same sender (when known)
+  # $Item: { Subject, Received (local), From (SMTP or Outlook's address) }; $Mail: the task's mail
+  $at = ConvertTo-LocalTime ([string]$Mail.received)
+  if ($null -eq $at -or $null -eq $Item.Received) { return $false }
+  if ([math]::Abs(([datetime]$Item.Received - $at).TotalMinutes) -gt $Minutes) { return $false }
+  if (([string]$Item.Subject).Trim() -ne ([string]$Mail.subject).Trim()) { return $false }
+  if ($Mail.from -and -not [string]::Equals(([string]$Item.From).Trim(), ([string]$Mail.from).Trim(), [StringComparison]::OrdinalIgnoreCase)) { return $false }
+  return $true
+}
+
 function Invoke-FileTask([string]$ProjectsRoot, $Task, [string]$SourceDir) {
   # the confirmed plan, carried out; the files are in $SourceDir as "<n>". A bad path stops it before anything is done.
   $dir = Get-ProjectDir $ProjectsRoot $Task.folder

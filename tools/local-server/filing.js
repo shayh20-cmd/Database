@@ -8,6 +8,11 @@
    A filing is the pane's conversation about one email: its uploaded files (DATA_DIR/filing-tmp/<filing>), the
    project's tree (asked of the agent once), the turns with Claude, and the last plan Claude proposed — which
    is the only plan "confirm" ever sends to the PC.
+   The local path: the pane names the email's attachments (name, size) instead of uploading them, and the agent saves
+   them from classic Outlook on the PC (files[n].source 'outlook'); only what Outlook there cannot give is asked back
+   (result { needUpload: [n…] }), uploaded by the pane (filing-file?n=) and downloaded by the agent ('upload'). What
+   goes up is what the server will send the agent, and Azure's free plan allows 165 MB a day out: uploads stop for
+   the (UTC) day at FILING_DAILY_BYTES (filing.json budget), 429 daily_budget.
    What each Hub project knows — its folder's name under "@Omicron Projects", its filing guide, the filings
    so far — and the register contacts the Hub page last sent are kept in filing.json. Tasks and filings live in
    memory: a restart only loses work nobody finished.
@@ -23,7 +28,8 @@ const PICK = Number(process.env.FILING_PICK_TTL_MS) || 10 * 60 * 1000;      // �
 const POLL = Number(process.env.FILING_POLL_MS) || 25 * 1000;               // how long the agent's request waits for a task
 const TREE_WAIT = Number(process.env.FILING_TREE_WAIT_MS) || 20 * 1000;     // how long a proposal waits for the tree
 const AGENT_WAIT = Number(process.env.FILING_AGENT_WAIT_MS) || 15 * 1000;   // … and for an agent to take the tree task
-const KEEP = 60 * 60 * 1000;   // a task or filing stays this long after it ends, for the pane's status
+const DAILY = Number(process.env.FILING_DAILY_BYTES) || 50 * 1024 * 1024; // bytes a day the agents may download from the server
+const KEEP = 60 * 60 * 1000;  // a task or filing stays this long after it ends, for the pane's status
 const MAX_FILES = 20;
 const LOG_MAX = 200;
 const GUIDE_MAX = 4000;
@@ -58,7 +64,21 @@ module.exports = function createFiling(ctx) {
   const byToken = new Map(); // sha(token) → task id
   const waiting = new Map(); // who → Set of wake-ups of agents waiting for a task
 
-  const load = () => { const d = readJson(STORE); return d && typeof d === 'object' ? { projects: d.projects || {}, contacts: d.contacts || {} } : { projects: {}, contacts: {} }; };
+  const load = () => {
+    const d = readJson(STORE);
+    const o = d && typeof d === 'object' ? { projects: d.projects || {}, contacts: d.contacts || {} } : { projects: {}, contacts: {} };
+    if (d && d.budget && typeof d.budget === 'object') o.budget = d.budget;
+    return o;
+  };
+  /* The day's planned sends to the agents: the bytes uploaded for filing today (UTC), each sent once to the agent. */
+  const today = () => new Date().toISOString().slice(0, 10);
+  const usedToday = d => (d.budget && d.budget.day === today() ? Number(d.budget.bytes) || 0 : 0);
+  const fits = n => usedToday(load()) + n <= DAILY;
+  function spend(n) {
+    const d = load();
+    d.budget = { day: today(), bytes: usedToday(d) + n };
+    writeJsonAtomic(STORE, d);
+  }
   const known = id => load().projects[id] || { folder: '', guide: '', log: [] };
   const projectOf = (d, id) => d.projects[id] || (d.projects[id] = { folder: '', guide: '', log: [] });
   const writer = person => WRITERS.includes(mcp.whoAmI(person.email, person.name).role);
@@ -213,12 +233,27 @@ module.exports = function createFiling(ctx) {
       // a new filing
       const m = body.mail && typeof body.mail === 'object' ? body.mail : {};
       const from = m.from && typeof m.from === 'object' ? m.from : {};
+      // the attachments the PC saves from classic Outlook: named here, their bytes never reach the server
+      const named = Array.isArray(body.files) ? body.files : [];
+      if (named.length > MAX_FILES) { sendJson(res, 413, { error: 'too_many' }); return; }
+      const files = [];
+      for (const x of named) {
+        const name = safeName(x && x.name);
+        if (!name) { sendJson(res, 400, { error: 'name' }); return; }
+        if (BLOCKED.test(name)) { sendJson(res, 415, { error: 'type' }); return; }
+        const size = Math.max(0, Math.floor(Number(x.size) || 0));
+        files.push({ name, size, source: 'outlook' });
+      }
+      const received = Date.parse(m.received);
       const f = {
-        id: newId(), who, person: p, base, projectId: project.id, project, files: [],
+        id: newId(), who, person: p, base, projectId: project.id, project, files, needUpload: [],
         mail: {
           subject: oneLine(m.subject, 300),
           from: oneLine([from.name, from.email ? '<' + from.email + '>' : ''].filter(Boolean).join(' '), 300),
+          fromEmail: oneLine(from.email, 200),
           conversationId: clip(m.conversationId, 400),
+          internetMessageId: oneLine(m.internetMessageId, 400),
+          received: Number.isFinite(received) ? iso(received) : '',
           body: clip(m.body, 1500)
         },
         lang: body.lang === 'en' ? 'en' : 'he', tree: null, treeTask: null, turns: [], plan: null, taskId: null,
@@ -234,25 +269,42 @@ module.exports = function createFiling(ctx) {
     if (!f || f.who !== who) { sendJson(res, 404, { error: 'no_filing' }); return; }
     const over = () => f.closed || f.exp < Date.now();
 
-    // filing-file: one file, raw bytes, before the conversation starts
+    // filing-file: one file, raw bytes: a new one before the conversation starts, or (?n=) a named one the PC could
+    // not save from Outlook, between its answer and the next confirm
     if (route === 'filing-file') {
-      if (over()) { sendJson(res, 410, { error: 'expired' }); return; }
-      if (f.turns.length || f.taskId || f.busy) { sendJson(res, 409, { error: 'started' }); return; }
-      const name = safeName(url.searchParams.get('name'));
+      const nq = url.searchParams.get('n');
+      const slot = nq != null && /^\d{1,2}$/.test(nq) ? Number(nq) : null;
+      if (nq != null && slot == null) { sendJson(res, 400, { error: 'n' }); return; }
+      // the state that lets this upload in: checked before the bytes come and again after
+      const refused = () => {
+        if (over()) return [410, 'expired'];
+        if (slot != null) return f.taskId || f.busy || !f.needUpload.includes(slot) || f.files[slot].source !== 'outlook' ? [409, 'not_asked'] : null;
+        if (f.turns.length || f.taskId || f.busy) return [409, 'started'];
+        if (f.files.length >= MAX_FILES) return [413, 'too_many'];
+        return null;
+      };
+      let no = refused();
+      if (no) { sendJson(res, no[0], { error: no[1] }); return; }
+      const name = slot != null ? f.files[slot].name : safeName(url.searchParams.get('name'));
       if (!name || BLOCKED.test(name)) { sendJson(res, 415, { error: 'type' }); return; }
-      if (f.files.length >= MAX_FILES) { sendJson(res, 413, { error: 'too_many' }); return; }
+      // the day's budget, before the bytes come when their length is known
+      const said = Number(req.headers['content-length']);
+      if (Number.isFinite(said) && said > 0 && !fits(said)) { req.resume(); sendJson(res, 429, { error: 'daily_budget' }); return; }
       let buf;
       try { buf = await readRequestBuffer(req); } catch (e) { sendJson(res, 413, { error: 'too_large' }); return; }
       if (!buf.length) { sendJson(res, 400, { error: 'empty' }); return; }
       // ended, proposed on or confirmed while the bytes came in
-      if (over()) { sendJson(res, 410, { error: 'expired' }); return; }
-      if (f.turns.length || f.taskId || f.busy) { sendJson(res, 409, { error: 'started' }); return; }
-      if (f.files.length >= MAX_FILES) { sendJson(res, 413, { error: 'too_many' }); return; }
+      no = refused();
+      if (no) { sendJson(res, no[0], { error: no[1] }); return; }
+      if (!fits(buf.length)) { sendJson(res, 429, { error: 'daily_budget' }); return; }
+      spend(buf.length);
+      const n = slot != null ? slot : f.files.length;
       const dir = path.join(TMP, f.id);
       fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(path.join(dir, String(f.files.length)), buf);
-      f.files.push({ name, size: buf.length });
-      sendJson(res, 200, { ok: true, n: f.files.length - 1 });
+      fs.writeFileSync(path.join(dir, String(n)), buf);
+      f.files[n] = { name, size: buf.length, source: 'upload' };
+      if (slot != null) f.needUpload = f.needUpload.filter(x => x !== slot);
+      sendJson(res, 200, { ok: true, n });
       return;
     }
 
@@ -353,13 +405,17 @@ module.exports = function createFiling(ctx) {
       sendJson(res, 200, {
         kind: t.kind, lang: t.lang, project: t.project, folder: t.folder,
         ...(t.kind === 'open' && t.rel ? { rel: t.rel } : {}),
-        ...(t.kind === 'file' ? { files: f.files.map((x, i) => ({ n: i, name: x.name, size: x.size })), plan: t.plan } : {}),
+        ...(t.kind === 'file' ? {
+          files: f.files.map((x, i) => ({ n: i, name: x.name, size: x.size, source: x.source })), plan: t.plan,
+          // what classic Outlook on the PC finds the email by
+          mail: { internetMessageId: f.mail.internetMessageId, conversationId: f.mail.conversationId, subject: f.mail.subject, received: f.mail.received, from: f.mail.fromEmail }
+        } : {}),
         by: t.by
       });
       return;
     }
     if (what === 'file') {
-      const x = t.kind === 'file' && f && !f.closed && n != null ? f.files[Number(n)] : null;
+      const x = t.kind === 'file' && f && !f.closed && n != null && f.files[Number(n)] && f.files[Number(n)].source === 'upload' ? f.files[Number(n)] : null;
       if (!x) { sendJson(res, 404, { error: 'no_file' }); return; }
       res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': x.size, 'Cache-Control': 'no-store' });
       fs.createReadStream(path.join(TMP, f.id, String(Number(n)))).on('error', () => res.destroy()).pipe(res);
@@ -378,6 +434,14 @@ module.exports = function createFiling(ctx) {
     if (body.missing === true) {
       t.result = { missing: true };
       if (t.kind === 'file' && f && f.taskId === t.id) f.taskId = null;
+    } else if (t.kind === 'file' && body.needUpload != null) {
+      // classic Outlook on the PC could not give these files: nothing was filed; the pane uploads them and confirms again
+      const ns = [...new Set([].concat(body.needUpload))];
+      if (!f || f.closed || !ns.length || !ns.every(x => Number.isInteger(x) && f.files[x] && f.files[x].source === 'outlook')) { sendJson(res, 400, { error: 'needUpload' }); return; }
+      ns.sort((a, b) => a - b);
+      f.needUpload = ns;
+      if (f.taskId === t.id) f.taskId = null;
+      t.result = { needUpload: ns };
     } else if (t.kind === 'pick') {
       if (body.cancelled === true) t.result = { cancelled: true };
       else {

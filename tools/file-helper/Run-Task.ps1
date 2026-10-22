@@ -98,6 +98,82 @@ public class PhFront {
   } catch { try { Write-HelperLog ('open: could not bring the folder forward: ' + $_.Exception.Message) } catch { } }
 }
 
+# ── a file task's attachments, from classic Outlook on this PC (read only: nothing is moved, marked or sent) ──
+# Outlook is reached as the mail scanner does (Scan-Mail.ps1): New-Object attaches to the running Outlook, or starts it
+# in the background when it is not running. The email is found by its Internet message id in the Inbox, Sent Items and
+# then every other mail folder of the mailbox (where the conversation may have been moved), else by subject + received
+# time (±2 minutes) + sender. The choices are in FileHelper.Core.ps1; this is only the COM.
+function Get-OutlookSmtp($m) {
+  try { if ($m.SenderEmailType -eq 'EX' -and $m.Sender) { $u = $m.Sender.GetExchangeUser(); if ($u) { return [string]$u.PrimarySmtpAddress } } } catch { }
+  try { return [string]$m.SenderEmailAddress } catch { return '' }
+}
+function Get-OutlookMailFolders($Ns, [int]$Max = 400) {
+  # Inbox and Sent Items first, then the mailbox's other mail folders (breadth first, at most $Max)
+  $inbox = $Ns.GetDefaultFolder(6); $sent = $Ns.GetDefaultFolder(5)
+  $out = New-Object System.Collections.ArrayList
+  [void]$out.Add($inbox); [void]$out.Add($sent)
+  $seen = @{ ([string]$inbox.EntryID) = $true; ([string]$sent.EntryID) = $true }
+  $queue = New-Object System.Collections.Queue
+  try { $queue.Enqueue($inbox.Parent) } catch { }
+  while ($queue.Count -and $out.Count -lt $Max) {
+    $f = $queue.Dequeue()
+    try { $subs = @($f.Folders) } catch { continue }
+    foreach ($s in $subs) {
+      try {
+        $queue.Enqueue($s)
+        if ($s.DefaultItemType -ne 0 -or $seen.ContainsKey([string]$s.EntryID)) { continue }  # olMailItem folders only
+        $seen[[string]$s.EntryID] = $true
+        [void]$out.Add($s)
+      } catch { }
+    }
+  }
+  return ,$out
+}
+function Find-OutlookMail($Ns, $Mail) {
+  $folders = Get-OutlookMailFolders $Ns
+  if ($Mail.internetMessageId) {
+    $q = Get-MessageIdFilter ([string]$Mail.internetMessageId)
+    foreach ($f in $folders) { try { $it = $f.Items.Find($q); if ($it) { return $it } } catch { } }
+  }
+  $at = ConvertTo-LocalTime ([string]$Mail.received)
+  if ($null -eq $at) { return $null }
+  $q = Get-ReceivedFilter $at
+  foreach ($f in $folders) {
+    try {
+      foreach ($it in $f.Items.Restrict($q)) {
+        try {
+          if ($it.Class -ne 43) { continue }   # olMail
+          if (Test-MailMatch ([pscustomobject]@{ Subject = [string]$it.Subject; Received = [datetime]$it.ReceivedTime; From = (Get-OutlookSmtp $it) }) $Mail) { return $it }
+        } catch { }
+      }
+    } catch { }
+  }
+  return $null
+}
+function Save-OutlookFiles($Mail, $Wanted, [string]$Dir) {
+  # saves each wanted file as "<n>" in $Dir; returns the n of every file it could not save
+  $all = @($Wanted | ForEach-Object { [int]$_.n })
+  try {
+    $ol = New-Object -ComObject Outlook.Application
+    $ns = $ol.GetNamespace('MAPI')
+    $item = Find-OutlookMail $ns $Mail
+  } catch { Write-HelperLog ('outlook: ' + $_.Exception.Message); return $all }
+  if (-not $item) { Write-HelperLog 'outlook: the email is not in Outlook on this PC'; return $all }
+  $avail = @(for ($i = 1; $i -le $item.Attachments.Count; $i++) {
+    $a = $item.Attachments.Item($i)
+    if ($a.Type -eq 1) { [pscustomobject]@{ Index = $i; FileName = [string]$a.FileName; Size = [long]$a.Size } }   # olByValue
+  })
+  $map = Get-AttachmentMatch $avail $Wanted
+  $missing = New-Object System.Collections.Generic.List[int]
+  foreach ($n in $all) {
+    if (-not $map.ContainsKey($n)) { $missing.Add($n); continue }
+    try { $item.Attachments.Item($map[$n]).SaveAsFile((Join-Path $Dir ([string]$n))) }
+    catch { Write-HelperLog ('outlook: saving ' + $n + ': ' + $_.Exception.Message); $missing.Add($n) }
+  }
+  Write-HelperLog ('outlook: saved {0} of {1}' -f ($all.Count - $missing.Count), $all.Count)
+  return $missing.ToArray()  # unrolled: the caller collects it with @()
+}
+
 $tmp = $null
 $kind = '?'
 try {
@@ -121,12 +197,19 @@ try {
       $root = Resolve-ProjectsRoot $cfg
       if (-not (Get-ProjectDir $root $task.folder)) { $res = @{ missing = $true } }
       else {
-        # only the files the plan files are downloaded, each as "<n>"
+        # only the files the plan files, each as "<n>": from Outlook on this PC first; what it cannot give is asked of
+        # the pane (needUpload: nothing is filed now, the pane uploads them and confirms again); the rest is downloaded
         $tmp = Join-Path ([IO.Path]::GetTempPath()) ('ProjectHub-filing-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
         New-Item -ItemType Directory -Path $tmp | Out-Null
-        $wanted = @(@($task.plan.files) | Where-Object { $null -ne $_.dest } | ForEach-Object { [int]$_.n } | Sort-Object -Unique)
-        foreach ($n in $wanted) { Invoke-WebRequest -UseBasicParsing -TimeoutSec 300 -Uri ($base + '/file/' + $n) -OutFile (Join-Path $tmp ([string]$n)) }
-        $res = Invoke-FileTask $root $task $tmp
+        $needed = Get-NeededFiles $task
+        $local = @($needed | Where-Object { $_.source -eq 'outlook' })
+        $ask = @()
+        if ($local.Count) { $ask = @(Save-OutlookFiles $task.mail $local $tmp) }
+        if ($ask.Count) { $res = @{ needUpload = [int[]]$ask } }
+        else {
+          foreach ($x in @($needed | Where-Object { $_.source -ne 'outlook' })) { Invoke-WebRequest -UseBasicParsing -TimeoutSec 300 -Uri ($base + '/file/' + $x.n) -OutFile (Join-Path $tmp ([string]$x.n)) }
+          $res = Invoke-FileTask $root $task $tmp
+        }
       }
     }
   }
