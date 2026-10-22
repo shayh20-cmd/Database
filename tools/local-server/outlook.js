@@ -10,7 +10,13 @@
    Spec: docs/superpowers/specs/2026-10-21-outlook-addin-design.md */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const createTokens = require('./mail-tokens');
+const mailAi = require('./mail-ai');
+const ai = require('./outlook-ai');
+
+const UNDO_TTL = 10 * 60 * 1000;
+const sha = s => crypto.createHash('sha256').update(String(s)).digest('hex');
 
 /* The thread's key: the 16-byte conversation id, as 32 upper-case hex characters. Office.js gives
    it inside a longer base64 id that also names the mailbox (so it differs from person to person);
@@ -52,16 +58,20 @@ function guessProject(projects, links, mail) {
 }
 
 const clip = (v, n) => String(v == null ? '' : v).slice(0, n);
-// what the pane sends about the open email, kept to plain short strings
+// what the pane sends about the open email, kept to plain short strings (the body only for Claude)
 function mailOf(body) {
   const m = body && typeof body.mail === 'object' && body.mail ? body.mail : {};
   const f = m.from && typeof m.from === 'object' ? m.from : {};
+  const list = v => (Array.isArray(v) ? v : []).map(x => clip(x, 200)).slice(0, 30);
   return {
     conversationId: clip(m.conversationId, 400), internetMessageId: clip(m.internetMessageId, 400),
     subject: clip(m.subject, 300), from: { name: clip(f.name, 120), email: clip(f.email, 200).toLowerCase() },
-    received: clip(m.received, 40), receivedDate: /^\d{4}-\d{2}-\d{2}$/.test(m.receivedDate || '') ? m.receivedDate : ''
+    received: clip(m.received, 40), receivedDate: /^\d{4}-\d{2}-\d{2}$/.test(m.receivedDate || '') ? m.receivedDate : '',
+    to: clip(m.to, 1000), cc: clip(m.cc, 1000), body: clip(m.body, 6000), attachments: list(m.attachments)
   };
 }
+// the email's line in a task created from it
+const mailNote = mail => 'מהמייל: ' + [mail.from.name || mail.from.email, mail.subject, mail.receivedDate].filter(Boolean).join(' · ');
 
 module.exports = function createOutlook(ctx) {
   const { DATA_DIR, STATIC_ROOT, SITE_MODE, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, mcp } = ctx;
@@ -71,8 +81,82 @@ module.exports = function createOutlook(ctx) {
   // a key names a person by address ("local" on the local server, where there is none)
   const personOfKey = who => who === 'local' ? { email: null, name: LOCAL_USER_NAME } : { email: who, name: who };
   const baseOf = req => (SITE_MODE === 'cloud' || req.socket.encrypted ? 'https' : (req.headers['x-forwarded-proto'] || 'http')) + '://' + req.headers.host;
-  const loadLinks = () => { const d = readJson(LINKS); return d && d.threads ? d : { threads: {} }; };
-  const saveLinks = d => writeJsonAtomic(LINKS, d);
+  const loadLinks = () => { const d = readJson(LINKS); return d && d.threads ? { undo: {}, ...d } : { threads: {}, undo: {} }; };
+  const saveLinks = d => {
+    const t = Date.now();
+    for (const k of Object.keys(d.undo || {})) if (d.undo[k].exp < t) delete d.undo[k];
+    writeJsonAtomic(LINKS, d);
+  };
+  const MODEL = (process.env.OUTLOOK_AI_MODEL || '').trim() || 'claude-sonnet-5-5';
+  const client = ctx.aiClient !== undefined ? ctx.aiClient : mailAi.makeClient();
+  let lastAi = null; // 'ok' | 'failing', after the latest call
+  const health = () => !client ? 'no-key' : lastAi === 'failing' ? 'failing' : 'ok';
+
+  /* Remember that this email is already recorded on the thread's task (as a new task, an update…),
+     so opening it again does not log it a second time. Links the thread first when it is not linked. */
+  function recordMessage(p, key, mail, projectId, taskId, how) {
+    if (!key) return;
+    const links = loadLinks();
+    let th = links.threads[key];
+    if (!th) th = links.threads[key] = { projectId, taskId, linkedBy: mcp.whoAmI(p.email, p.name).name, linkedAt: now(), messages: [] };
+    if (th.taskId !== taskId || !mail.internetMessageId) { saveLinks(links); return; }
+    const msgs = th.messages || (th.messages = []);
+    const old = msgs.find(m => m.internetMessageId === mail.internetMessageId);
+    if (old) Object.assign(old, how);
+    else msgs.push({ internetMessageId: mail.internetMessageId, received: mail.received, from: mail.from.email, subject: mail.subject, eventId: null, auto: false, ...how });
+    th.messages = msgs.slice(-200);
+    saveLinks(links);
+  }
+
+  /* A new task from the email, written at once; the answer carries an undo token for 10 minutes. */
+  function createTask(p, who, base, mail, projectId, x) {
+    const me = mcp.whoAmI(p.email, p.name);
+    const g = mcp.runToolAs(p.email, p.name, base, 'get_project', { project: projectId });
+    const onTeam = g.team.some(m => m.id === me.id);
+    const assignees = (x.assignees || []).length ? x.assignees : onTeam ? [me.id] : [];
+    const note = [String(x.note || '').trim(), mailNote(mail)].filter(Boolean).join('\n');
+    const r = mcp.runToolAs(p.email, p.name, base, 'create_tasks', {
+      project: projectId,
+      tasks: [{
+        title: String(x.title || mail.subject || '').trim(), note,
+        ...(x.stage ? { stage: x.stage } : {}), ...(x.discipline ? { discipline: x.discipline } : {}), ...(x.priority ? { priority: x.priority } : {}),
+        ...(x.start_date ? { start_date: x.start_date } : {}), ...(x.due_date ? { due_date: x.due_date } : {}),
+        ...(assignees.length ? { assignees } : {})
+      }]
+    });
+    const c = r.created[0];
+    const key = threadKeyOf(mail.conversationId);
+    recordMessage(p, key, mail, projectId, c.id, { createdTask: c.id });
+    const token = crypto.randomBytes(18).toString('base64url');
+    const links = loadLinks();
+    links.undo[sha(token)] = { who, projectId, taskId: c.id, threadKey: key, exp: Date.now() + UNDO_TTL };
+    saveLinks(links);
+    const team = g.team;
+    return {
+      action: 'created', undoToken: token, undoUntil: new Date(Date.now() + UNDO_TTL).toISOString(),
+      created: { id: c.id, title: c.title, stage: c.stage, due: c.due, link: c.link, assignees: assignees.map(id => (team.find(m => m.id === id) || {}).name || id) }
+    };
+  }
+
+  /* What Claude needs to know about the project, in ids it may name. */
+  function projectContext(p, base, projectId, key) {
+    const g = mcp.runToolAs(p.email, p.name, base, 'get_project', { project: projectId });
+    const open = mcp.runToolAs(p.email, p.name, base, 'search_tasks', { project: projectId, limit: 100 });
+    const th = key ? loadLinks().threads[key] : null;
+    let linked = null;
+    if (th && th.projectId === projectId) {
+      const hit = open.tasks.find(x => x.id === th.taskId);
+      if (hit) linked = { id: hit.id, title: hit.title };
+      else { try { const t = mcp.runToolAs(p.email, p.name, base, 'get_task', { project: projectId, task: th.taskId }); if (t.id === th.taskId) linked = { id: t.id, title: t.title }; } catch (e) { if (!(e instanceof mcp.ToolError)) throw e; } }
+    }
+    return {
+      today: ai.todayOf(), me: mcp.whoAmI(p.email, p.name).name, project: g.project,
+      stages: g.stages.map(s => ({ id: s.id, path: s.path, default: !!s.default_for_new_tasks })),
+      disciplines: g.disciplines, priorities: g.priorities, statuses: g.statuses, update_statuses: g.update_statuses,
+      team: g.team, tasks: open.tasks.map(x => ({ id: x.id, title: x.title, stage: x.stage, status: x.status, latest_update: x.latest_update })),
+      linked
+    };
+  }
 
   /* The manifest names the server it was downloaded from, so one file serves the local HTTPS
      server and Azure alike. */
@@ -151,8 +235,8 @@ module.exports = function createOutlook(ctx) {
     return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
   }
 
-  const GET_ROUTES = ['/api/outlook/me', '/api/outlook/projects', '/api/outlook/tasks'];
-  const POST_ROUTES = ['/api/outlook/context', '/api/outlook/link', '/api/outlook/unlink', '/api/outlook/entry'];
+  const GET_ROUTES = ['/api/outlook/me', '/api/outlook/projects', '/api/outlook/tasks', '/api/outlook/project'];
+  const POST_ROUTES = ['/api/outlook/context', '/api/outlook/link', '/api/outlook/unlink', '/api/outlook/entry', '/api/outlook/parse', '/api/outlook/create', '/api/outlook/apply', '/api/outlook/undo'];
 
   async function run(req, res, url) {
     const m = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
@@ -176,11 +260,95 @@ module.exports = function createOutlook(ctx) {
       return;
     }
 
+    // the project's options for the manual forms
+    if (url.pathname === '/api/outlook/project') {
+      const g = mcp.runToolAs(p.email, p.name, base, 'get_project', { project: url.searchParams.get('project') || '' });
+      sendJson(res, 200, { project: g.project, stages: g.stages.map(s => ({ id: s.id, path: s.path, default: !!s.default_for_new_tasks })), disciplines: g.disciplines, priorities: g.priorities, statuses: g.statuses, update_statuses: g.update_statuses, team: g.team, defaults: g.defaults });
+      return;
+    }
+
     let body;
     try { body = await readJsonBody(req); } catch (e) { sendJson(res, 400, { error: 'Invalid JSON' }); return; }
     const mail = mailOf(body);
     const key = threadKeyOf(mail.conversationId);
     if (url.pathname === '/api/outlook/context') { sendJson(res, 200, context(p, base, mail)); return; }
+
+    /* the free-text box: Claude proposes; a new task is written at once (with undo), the rest waits for a yes */
+    if (url.pathname === '/api/outlook/parse') {
+      const text = clip(body.text, 2000).trim(), projectId = String(body.projectId || '');
+      if (!text) { sendJson(res, 400, { error: 'text expected' }); return; }
+      if (!projectId) { sendJson(res, 400, { error: 'Choose a project' }); return; }
+      if (!client) { sendJson(res, 503, { error: 'ai_unavailable' }); return; }
+      const pc = projectContext(p, base, projectId, key);
+      let proposal;
+      try {
+        proposal = await ai.parse(client, MODEL, text, mail, pc);
+        lastAi = 'ok';
+      } catch (e) {
+        lastAi = 'failing';
+        console.error('outlook parse failed:', e.message);
+        sendJson(res, 503, { error: 'ai_failed', detail: e.message });
+        return;
+      }
+      if (proposal.action === 'create') {
+        sendJson(res, 200, { summary: proposal.summary, ...createTask(p, who, base, mail, projectId, proposal.task) });
+        return;
+      }
+      const target = proposal.target_task_id ? pc.tasks.find(x => x.id === proposal.target_task_id) || pc.linked : null;
+      sendJson(res, 200, { action: proposal.action, summary: proposal.summary, proposal, target: target ? { id: target.id, title: target.title, stage: target.stage } : null });
+      return;
+    }
+    if (url.pathname === '/api/outlook/create') {
+      const projectId = String(body.projectId || '');
+      const x = body.task && typeof body.task === 'object' ? body.task : {};
+      if (!projectId) { sendJson(res, 400, { error: 'Choose a project' }); return; }
+      sendJson(res, 200, createTask(p, who, base, mail, projectId, {
+        title: clip(x.title, 200), stage: clip(x.stage, 100), discipline: clip(x.discipline, 60), priority: clip(x.priority, 60),
+        assignees: (Array.isArray(x.assignees) ? x.assignees : []).map(a => clip(a, 60)), start_date: clip(x.start_date, 10), due_date: clip(x.due_date, 10), note: clip(x.note, 500)
+      }));
+      return;
+    }
+    /* a confirmed update: when this email already has an automatic entry on that task, the entry
+       itself becomes the update; otherwise a new update is added */
+    if (url.pathname === '/api/outlook/apply') {
+      const projectId = String(body.projectId || '');
+      const pr = body.proposal && typeof body.proposal === 'object' ? body.proposal : {};
+      const taskId = String(pr.target_task_id || '');
+      const u = pr.update || {}, ch = pr.changes || {};
+      if (!projectId || !taskId) { sendJson(res, 400, { error: 'Choose a task' }); return; }
+      if (!String(u.text || '').trim()) { sendJson(res, 400, { error: 'Write what happened' }); return; }
+      const th = key ? loadLinks().threads[key] : null;
+      const msg = th && th.taskId === taskId && (th.messages || []).find(m => m.internetMessageId === mail.internetMessageId);
+      const changes = { ...(ch.due_date ? { due_date: ch.due_date } : {}), ...(ch.status ? { status: ch.status } : {}), ...((ch.assignees || []).length ? { assignees: ch.assignees } : {}) };
+      if (msg && msg.auto && msg.eventId) {
+        mcp.mailLogEdit(p.email, p.name, projectId, taskId, msg.eventId, { text: u.text, update_status: u.update_status || undefined, owner: u.owner || undefined });
+        if (Object.keys(changes).length) mcp.runToolAs(p.email, p.name, base, 'update_task', { project: projectId, task: taskId, ...changes });
+        recordMessage(p, key, mail, projectId, taskId, { auto: false });
+      } else {
+        mcp.runToolAs(p.email, p.name, base, 'update_task', {
+          project: projectId, task: taskId, ...changes,
+          add_update: { text: String(u.text).trim(), ...(u.update_status ? { update_status: u.update_status } : {}), ...(u.owner ? { owner: u.owner } : {}), ...(mail.receivedDate ? { date: mail.receivedDate } : {}) }
+        });
+        recordMessage(p, key, mail, projectId, taskId, { updated: true });
+      }
+      sendJson(res, 200, { ok: true, ...context(p, base, mail) });
+      return;
+    }
+    if (url.pathname === '/api/outlook/undo') {
+      const links = loadLinks();
+      const h = sha(String(body.undoToken || ''));
+      const u = links.undo[h];
+      if (!u || u.who !== who || u.exp < Date.now()) { sendJson(res, 409, { error: 'It is too late to undo this here; delete the task in Project Hub' }); return; }
+      const t = mcp.runToolAs(p.email, p.name, base, 'get_task', { project: u.projectId, task: u.taskId });
+      if ((t.updates || []).length) { sendJson(res, 409, { error: 'The task has updates since; delete it in Project Hub' }); return; }
+      mcp.runToolAs(p.email, p.name, base, 'delete_task', { project: u.projectId, task: u.taskId });
+      delete links.undo[h];
+      const th = u.threadKey && links.threads[u.threadKey];
+      if (th && th.taskId === u.taskId) delete links.threads[u.threadKey];
+      saveLinks(links);
+      sendJson(res, 200, { ok: true, ...context(p, base, mail) });
+      return;
+    }
     if (!key) { sendJson(res, 400, { error: 'conversationId expected' }); return; }
 
     if (url.pathname === '/api/outlook/link') {
@@ -240,7 +408,7 @@ module.exports = function createOutlook(ctx) {
     sendJson(res, 405, { error: 'Method not allowed' });
   }
 
-  return { handlePublic, handleConnection };
+  return { handlePublic, handleConnection, health };
 };
 module.exports.threadKeyOf = threadKeyOf;
 module.exports.guessProject = guessProject;

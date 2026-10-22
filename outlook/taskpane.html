@@ -122,22 +122,91 @@
     <div class="hint" id="projectWhy"></div>
   </div>
 
-  <!-- link the thread to an existing task -->
-  <div id="linkArea" hidden>
-    <button type="button" id="linkOpen" data-t="קשר את השרשור למשימה">קשר את השרשור למשימה</button>
-    <div class="picker" id="picker" hidden>
-      <input id="taskQuery" type="search" data-i18n-skip>
-      <ul class="results" id="taskResults" data-i18n-skip></ul>
-      <div class="row">
-        <button type="button" class="link" id="linkCancel" data-t="ביטול">ביטול</button>
-      </div>
+  <div>
+    <label for="ask" data-t="מה לעשות עם המייל הזה?">מה לעשות עם המייל הזה?</label>
+    <textarea id="ask" data-i18n-skip></textarea>
+    <div class="row" style="margin-block-start:6px">
+      <button class="primary" type="button" id="askGo" data-t="שלח">שלח</button>
+      <span class="hint" id="askState"></span>
     </div>
   </div>
 
-  <div>
-    <label for="ask" data-t="מה לעשות עם המייל הזה?">מה לעשות עם המייל הזה?</label>
-    <textarea id="ask" disabled></textarea>
-    <div class="hint" data-t="בשלב הבא: כותבים בחופשיות, ו-Project Hub מציע משימה חדשה, עדכון או צירוף.">בשלב הבא: כותבים בחופשיות, ו-Project Hub מציע משימה חדשה, עדכון או צירוף.</div>
+  <!-- what came back: a new task (with undo), a question, or a note -->
+  <div class="card" id="result" hidden></div>
+
+  <!-- a proposed (or manual) update, waiting for a yes -->
+  <div class="card" id="updForm" hidden>
+    <h2 data-t="עדכון למשימה">עדכון למשימה</h2>
+    <div class="task-title" id="uTask" data-i18n-skip></div>
+    <div class="meta" id="uTaskMeta" data-i18n-skip></div>
+    <label for="uText" style="margin-block-start:6px" data-t="מה קרה">מה קרה</label>
+    <textarea id="uText" data-i18n-skip></textarea>
+    <div class="row">
+      <div style="flex:1;min-width:120px">
+        <label for="uStatus" data-t="סטטוס העדכון">סטטוס העדכון</label>
+        <select id="uStatus" data-i18n-skip></select>
+      </div>
+      <div style="flex:1;min-width:120px">
+        <label for="uOwner" data-t="הכדור אצל">הכדור אצל</label>
+        <select id="uOwner" data-i18n-skip></select>
+      </div>
+    </div>
+    <div class="row">
+      <div style="flex:1;min-width:120px">
+        <label for="uDue" data-t="תאריך יעד חדש">תאריך יעד חדש</label>
+        <input id="uDue" type="date">
+      </div>
+      <div style="flex:1;min-width:120px">
+        <label for="uTaskStatus" data-t="סטטוס המשימה">סטטוס המשימה</label>
+        <select id="uTaskStatus" data-i18n-skip></select>
+      </div>
+    </div>
+    <div class="row" style="margin-block-start:8px">
+      <button class="primary" type="button" id="uOk" data-t="אשר">אשר</button>
+      <button type="button" id="uCancel" data-t="ביטול">ביטול</button>
+    </div>
+  </div>
+
+  <div class="row" id="manual">
+    <button type="button" id="mNew" data-t="משימה חדשה">משימה חדשה</button>
+    <button type="button" id="mUpdate" data-t="עדכון">עדכון</button>
+    <button type="button" id="linkOpen" data-t="קשר את השרשור למשימה">קשר את השרשור למשימה</button>
+    <button type="button" id="mAttach" disabled data-t="צירוף (בקרוב)">צירוף (בקרוב)</button>
+  </div>
+
+  <!-- pick a task: to link the thread, or to update it -->
+  <div class="picker" id="picker" hidden>
+    <div class="hint" id="pickerFor"></div>
+    <input id="taskQuery" type="search" data-i18n-skip>
+    <ul class="results" id="taskResults" data-i18n-skip></ul>
+    <div class="row">
+      <button type="button" class="link" id="linkCancel" data-t="ביטול">ביטול</button>
+    </div>
+  </div>
+
+  <!-- a new task by hand -->
+  <div class="card" id="newForm" hidden>
+    <h2 data-t="משימה חדשה">משימה חדשה</h2>
+    <label for="nTitle" data-t="כותרת">כותרת</label>
+    <input id="nTitle" data-i18n-skip>
+    <label for="nStage" style="margin-block-start:6px" data-t="שלב">שלב</label>
+    <select id="nStage" data-i18n-skip></select>
+    <div class="row">
+      <div style="flex:1;min-width:120px">
+        <label for="nDisc" data-t="תחום">תחום</label>
+        <select id="nDisc" data-i18n-skip></select>
+      </div>
+      <div style="flex:1;min-width:120px">
+        <label for="nWho" data-t="אחראי">אחראי</label>
+        <select id="nWho" data-i18n-skip></select>
+      </div>
+    </div>
+    <label for="nDue" style="margin-block-start:6px" data-t="תאריך יעד">תאריך יעד</label>
+    <input id="nDue" type="date">
+    <div class="row" style="margin-block-start:8px">
+      <button class="primary" type="button" id="nOk" data-t="צור">צור</button>
+      <button type="button" id="nCancel" data-t="ביטול">ביטול</button>
+    </div>
   </div>
 
   <p class="err" id="appErr" hidden></p>
@@ -169,7 +238,7 @@ var HE_EN = {
   'המייל הפתוח': 'This email',
   'פרויקט': 'Project',
   'מה לעשות עם המייל הזה?': 'What should happen with this email?',
-  'בשלב הבא: כותבים בחופשיות, ו-Project Hub מציע משימה חדשה, עדכון או צירוף.': 'Coming next: write freely, and Project Hub proposes a new task, an update or an attachment.',
+  'למשל: תעביר לקונסטרוקטור עד יום חמישי': 'For example: pass it to the structural engineer by Thursday',
   'פרטים טכניים': 'Technical details',
   'התנתק מהתוסף': 'Sign the add-in out',
   'פתח את החלונית מתוך מייל ב-Outlook.': 'Open this pane from an email in Outlook.',
@@ -204,6 +273,32 @@ var HE_EN = {
   'לנתק את השרשור מהמשימה? העדכונים שכבר נרשמו נשארים.': 'Unlink the thread from the task? Updates already logged stay.',
   'הפעולה לא הצליחה: {e}': 'That did not work: {e}',
   'ללא שינוי': 'No change',
+  'שלח': 'Send',
+  'חושב…': 'Thinking…',
+  'עדכון למשימה': 'Update on a task',
+  'תאריך יעד חדש': 'New due date',
+  'סטטוס המשימה': 'Task status',
+  'משימה חדשה': 'New task',
+  'צירוף (בקרוב)': 'Attach (soon)',
+  'כותרת': 'Title',
+  'שלב': 'Stage',
+  'תחום': 'Discipline',
+  'אחראי': 'Owner',
+  'תאריך יעד': 'Due date',
+  'צור': 'Create',
+  'ברירת המחדל': 'Default',
+  'אני': 'Me',
+  'נוצרה משימה': 'Task created',
+  'בטל ({s} שנ׳)': 'Undo ({s}s)',
+  'פתח ב-Project Hub': 'Open in Project Hub',
+  'המשימה בוטלה.': 'The task was removed.',
+  'העדכון נשמר.': 'The update was saved.',
+  'צירוף המייל והקבצים יגיע בשלב הבא. המשימה:': 'Attaching the email and files comes next. The task:',
+  'Claude לא זמין כרגע. אפשר להשתמש בכפתורים למטה.': 'Claude is not available right now. The buttons below still work.',
+  'בחר משימה לעדכון': 'Choose the task to update',
+  'בחר משימה לקישור השרשור': 'Choose the task to link the thread to',
+  'בחר קודם משימה': 'Choose a task first',
+  'כתוב מה קרה': 'Write what happened',
   // status names that ship with the hub (as in i18n-dict.js)
   'חסר': 'Missing', 'בעבודה': 'In work', 'נשלח': 'Sent', 'יש הערות': 'Has comments', 'עדכון': 'Update', 'מאושר': 'Approved',
   'תקוע': 'Stuck', 'בוצע': 'Done', 'לא התחיל': 'Not started', 'התייחסות': 'Response', 'עבודה': 'Work',
@@ -222,6 +317,7 @@ function applyLang() {
   document.querySelectorAll('[data-t]').forEach(function (el) { el.textContent = tx(el.getAttribute('data-t')); });
   $('lang').textContent = lang === 'en' ? 'עברית' : 'English';
   $('taskQuery').placeholder = tx('חפש משימה בפרויקט');
+  $('ask').placeholder = tx('למשל: תעביר לקונסטרוקטור עד יום חמישי');
 }
 function $(id) { return document.getElementById(id); }
 function show(id) { ['signin', 'app', 'noMail'].forEach(function (x) { $(x).hidden = x !== id; }); }
@@ -266,8 +362,9 @@ function readMail() {
   var it = mb.item;
   return new Promise(function (ok) {
     it.body.getAsync(Office.CoercionType.Text, function (r) {
+      var names = function (l) { return (l || []).map(function (a) { return a.displayName ? a.displayName + ' <' + a.emailAddress + '>' : a.emailAddress; }).join(', '); };
       ok({
-        subject: it.subject || '', from: it.from || {}, to: it.to || [], cc: it.cc || [],
+        subject: it.subject || '', from: it.from || {}, to: names(it.to), cc: names(it.cc),
         dateTimeCreated: it.dateTimeCreated, conversationId: it.conversationId || '',
         internetMessageId: it.internetMessageId || '', itemId: it.itemId || '',
         attachments: (it.attachments || []).map(function (a) { return { name: a.name, size: a.size, isInline: a.isInline, type: a.attachmentType }; }),
@@ -277,14 +374,19 @@ function readMail() {
   });
 }
 function localDate(d) { var p = function (n) { return String(n).padStart(2, '0'); }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
-// what the hub hears about the email (never the body here)
-function mailRef(m) {
+// what the hub hears about the email; the body and the recipients only when Claude reads it (full)
+function mailRef(m, full) {
   var d = m.dateTimeCreated ? new Date(m.dateTimeCreated) : null;
-  return {
+  var r = {
     conversationId: m.conversationId, internetMessageId: m.internetMessageId, subject: m.subject,
     from: { name: (m.from || {}).displayName || '', email: (m.from || {}).emailAddress || '' },
     received: d ? d.toISOString() : '', receivedDate: d ? localDate(d) : ''
   };
+  if (full) {
+    r.body = m.body || ''; r.to = m.to || ''; r.cc = m.cc || '';
+    r.attachments = (m.attachments || []).filter(function (a) { return !a.isInline; }).map(function (a) { return a.name; });
+  }
+  return r;
 }
 
 var projects = [], currentMail = null, ctx = null;
@@ -325,7 +427,9 @@ function renderContext() {
   var L = c.linked;
   $('hiddenCard').hidden = !(L && L.hidden);
   $('linkedCard').hidden = !(L && L.task);
-  $('linkArea').hidden = !!L || !c.canWrite;
+  $('manual').hidden = !c.canWrite;
+  $('linkOpen').hidden = !!L;
+  $('ask').disabled = $('askGo').disabled = !c.canWrite;
   closePicker();
   $('promoteForm').hidden = true;
   if (!(L && L.task)) return;
@@ -349,20 +453,176 @@ function fail(e) {
   if (e && e.code === 401) { show('signin'); showErr('signinErr', tx('המפתח לא תקין או בוטל. הפק מפתח חדש.')); return; }
   showErr('appErr', e && e.message === 'Failed to fetch' ? tx('השרת לא זמין. נסה שוב בעוד רגע.') : tx('הפעולה לא הצליחה: {e}', { e: e && e.message }));
 }
+function setCtx(c) {
+  ctx = c;
+  renderProjects(c.projectId || $('project').value || null);
+  renderContext();
+}
 function post(path, extra) {
   showErr('appErr', '');
   var body = { mail: mailRef(currentMail) };
   Object.keys(extra || {}).forEach(function (k) { body[k] = extra[k]; });
-  return api(path, body).then(function (c) {
-    ctx = c;
-    renderProjects(c.projectId || null);
-    renderContext();
-  }).catch(fail);
+  return api(path, body).then(setCtx).catch(fail);
+}
+function fill(sel, list, value) {
+  sel.innerHTML = '';
+  (list || []).forEach(function (x) { var op = el('option', tx(x.label)); op.value = x.id; sel.appendChild(op); });
+  sel.value = value || '';
 }
 
-/* ── linking the thread to a task ── */
-var searchTimer = null;
-function closePicker() { $('picker').hidden = true; $('linkOpen').hidden = false; }
+/* ── the project's options (stages, disciplines, statuses, team), once per project ── */
+var optCache = {};
+function projectOptions(pid) {
+  if (optCache[pid]) return Promise.resolve(optCache[pid]);
+  return api('/api/outlook/project?project=' + encodeURIComponent(pid)).then(function (o) { optCache[pid] = o; return o; });
+}
+
+/* ── the free-text box ── */
+var lastText = '', asking = false, undoTimer = null;
+function clearResult() { $('result').hidden = true; $('result').innerHTML = ''; $('updForm').hidden = true; $('newForm').hidden = true; clearInterval(undoTimer); }
+function resultCard(nodes) {
+  clearResult();
+  var r = $('result');
+  nodes.forEach(function (n) { if (n) r.appendChild(n); });
+  r.hidden = false;
+}
+function busy(on) { $('askGo').disabled = on; $('askState').textContent = on ? tx('חושב…') : ''; }
+function submitAsk() {
+  var t = $('ask').value.trim();
+  if (!t) return;
+  var pid = $('project').value;
+  if (!pid) { showErr('appErr', tx('בחר קודם פרויקט')); return; }
+  // an answer to Claude's question goes with the instruction it answers
+  var text = asking && lastText ? lastText + '\n' + t : t;
+  showErr('appErr', '');
+  busy(true);
+  api('/api/outlook/parse', { mail: mailRef(currentMail, true), text: text, projectId: pid }).then(function (r) {
+    busy(false);
+    lastText = text; asking = false;
+    $('ask').value = '';
+    showParsed(r, pid);
+  }).catch(function (e) {
+    busy(false);
+    if (/ai_unavailable|ai_failed/.test(e.message)) { resultCard([el('div', tx('Claude לא זמין כרגע. אפשר להשתמש בכפתורים למטה.'))]); return; }
+    fail(e);
+  });
+}
+function showParsed(r, pid) {
+  if (r.action === 'created') { showCreated(r); return; }
+  if (r.action === 'update') { openUpdate(pid, r.target, r.proposal); return; }
+  if (r.action === 'attach') {
+    resultCard([el('div', tx('צירוף המייל והקבצים יגיע בשלב הבא. המשימה:')), r.target ? el('div', r.target.title) : null]);
+    return;
+  }
+  // a question: its options answer it, or the box does
+  var q = r.proposal.question;
+  var row = el('div'); row.className = 'row';
+  (q.options || []).forEach(function (o) {
+    var b = el('button', o); b.type = 'button';
+    b.onclick = function () { $('ask').value = o; asking = true; submitAsk(); };
+    row.appendChild(b);
+  });
+  asking = true;
+  var h = el('div', q.text); h.style.fontWeight = '600';
+  resultCard([h, row]);
+  $('ask').focus();
+}
+function showCreated(r) {
+  var c = r.created;
+  var h = el('h2', tx('נוצרה משימה'));
+  var a = el('a', c.title); a.href = c.link; a.target = '_blank'; a.rel = 'noopener'; a.className = 'task-title';
+  var meta = el('div', [c.stage, c.due ? tx('יעד {d}', { d: c.due }) : '', (c.assignees || []).join(', ')].filter(Boolean).join(' · ')); meta.className = 'meta';
+  var row = el('div'); row.className = 'row'; row.style.marginBlockStart = '6px';
+  var undo = el('button'); undo.type = 'button';
+  row.appendChild(undo);
+  resultCard([h, a, meta, row]);
+  var until = Date.parse(r.undoUntil);
+  var tick = function () {
+    var left = Math.round((until - Date.now()) / 1000);
+    if (left <= 0) { clearInterval(undoTimer); undo.remove(); return; }
+    undo.textContent = tx('בטל ({s} שנ׳)', { s: left });
+  };
+  tick();
+  undoTimer = setInterval(tick, 1000);
+  undo.onclick = function () {
+    undo.disabled = true;
+    api('/api/outlook/undo', { mail: mailRef(currentMail), undoToken: r.undoToken }).then(function (c2) {
+      setCtx(c2);
+      resultCard([el('div', tx('המשימה בוטלה.'))]);
+    }).catch(function (e) { undo.disabled = false; fail(e); });
+  };
+  // the thread is now linked to the new task
+  post('/api/outlook/context');
+}
+
+/* ── an update, proposed by Claude or written by hand, saved only on "אשר" ── */
+var updTarget = null;
+function openUpdate(pid, target, proposal) {
+  clearResult();
+  updTarget = { pid: pid, id: target.id };
+  projectOptions(pid).then(function (o) {
+    var same = [{ id: '', label: tx('ללא שינוי') }];
+    var pr = proposal || { update: {}, changes: {} };
+    $('uTask').textContent = target.title;
+    $('uTaskMeta').textContent = target.stage || '';
+    $('uText').value = (pr.update && pr.update.text) || '';
+    fill($('uStatus'), same.concat(o.update_statuses), (pr.update && pr.update.update_status) || '');
+    fill($('uOwner'), same.concat(o.disciplines), (pr.update && pr.update.owner) || '');
+    $('uDue').value = (pr.changes && pr.changes.due_date) || '';
+    fill($('uTaskStatus'), same.concat(o.statuses), (pr.changes && pr.changes.status) || '');
+    $('updForm').hidden = false;
+    $('uText').focus();
+  }).catch(fail);
+}
+function saveUpdate() {
+  var text = $('uText').value.trim();
+  if (!text) { showErr('appErr', tx('כתוב מה קרה')); return; }
+  $('uOk').disabled = true;
+  api('/api/outlook/apply', {
+    mail: mailRef(currentMail), projectId: updTarget.pid,
+    proposal: { target_task_id: updTarget.id, update: { text: text, update_status: $('uStatus').value, owner: $('uOwner').value }, changes: { due_date: $('uDue').value, status: $('uTaskStatus').value, assignees: [] } }
+  }).then(function (c) {
+    $('uOk').disabled = false;
+    setCtx(c);
+    resultCard([el('div', tx('העדכון נשמר.'))]);
+  }).catch(function (e) { $('uOk').disabled = false; fail(e); });
+}
+
+/* ── a new task by hand ── */
+function openNew() {
+  var pid = $('project').value;
+  if (!pid) { showErr('appErr', tx('בחר קודם פרויקט')); return; }
+  clearResult();
+  projectOptions(pid).then(function (o) {
+    $('nTitle').value = (currentMail && currentMail.subject) || '';
+    fill($('nStage'), o.stages.map(function (s) { return { id: s.id, label: s.path }; }), (o.stages.find(function (s) { return s.default; }) || o.stages[0] || {}).id);
+    fill($('nDisc'), [{ id: '', label: '—' }].concat(o.disciplines), '');
+    fill($('nWho'), [{ id: '', label: tx('ברירת המחדל') }].concat(o.team.map(function (m) { return { id: m.id, label: m.name }; })), '');
+    $('nDue').value = (o.defaults && o.defaults.due_date) || '';
+    $('newForm').hidden = false;
+    $('nTitle').focus();
+  }).catch(fail);
+}
+function saveNew() {
+  var pid = $('project').value;
+  $('nOk').disabled = true;
+  api('/api/outlook/create', {
+    mail: mailRef(currentMail), projectId: pid,
+    task: { title: $('nTitle').value.trim(), stage: $('nStage').value, discipline: $('nDisc').value, assignees: $('nWho').value ? [$('nWho').value] : [], due_date: $('nDue').value }
+  }).then(function (r) { $('nOk').disabled = false; showCreated(r); }).catch(function (e) { $('nOk').disabled = false; fail(e); });
+}
+
+/* ── picking a task: to link the thread, or to update it ── */
+var searchTimer = null, pickerMode = 'link';
+function closePicker() { $('picker').hidden = true; }
+function openPicker(mode) {
+  if (!$('project').value) { showErr('appErr', tx('בחר קודם פרויקט')); return; }
+  clearResult();
+  pickerMode = mode;
+  $('pickerFor').textContent = tx(mode === 'update' ? 'בחר משימה לעדכון' : 'בחר משימה לקישור השרשור');
+  $('picker').hidden = false; $('taskQuery').value = ''; $('taskQuery').focus();
+  searchTasks();
+}
 function searchTasks() {
   var pid = $('project').value, ul = $('taskResults');
   ul.innerHTML = '';
@@ -375,7 +635,11 @@ function searchTasks() {
       li.tabIndex = 0;
       li.appendChild(el('div', t.title)).style.fontWeight = '600';
       li.appendChild(el('div', [t.stage, t.status && tx(t.status), t.due].filter(Boolean).join(' · '))).className = 'meta';
-      var pick = function () { post('/api/outlook/link', { projectId: pid, taskId: t.id }); };
+      var pick = function () {
+        closePicker();
+        if (pickerMode === 'update') openUpdate(pid, t, null);
+        else post('/api/outlook/link', { projectId: pid, taskId: t.id });
+      };
       li.onclick = pick;
       li.onkeydown = function (e) { if (e.key === 'Enter') pick(); };
       ul.appendChild(li);
@@ -386,7 +650,8 @@ function searchTasks() {
 function refreshMail() {
   return readMail().then(function (m) {
     currentMail = m;
-    ctx = null;
+    ctx = null; lastText = ''; asking = false;
+    clearResult();
     if (!m) { show('noMail'); return; }
     renderMail(m);
     renderProjects('');
@@ -430,10 +695,23 @@ function init() {
     start();
   };
   $('signout').onclick = function () { setSetting('key', null); $('who').textContent = ''; show('signin'); };
-  $('linkOpen').onclick = function () { $('linkOpen').hidden = true; $('picker').hidden = false; $('taskQuery').value = ''; $('taskQuery').focus(); searchTasks(); };
+  $('linkOpen').onclick = function () { openPicker('link'); };
+  $('mUpdate').onclick = function () {
+    // the linked task is the obvious one; otherwise pick
+    var L = ctx && ctx.linked;
+    if (L && L.task) openUpdate(L.projectId, { id: L.taskId, title: L.task.title, stage: L.task.stage }, null);
+    else openPicker('update');
+  };
+  $('mNew').onclick = openNew;
+  $('nOk').onclick = saveNew;
+  $('nCancel').onclick = clearResult;
+  $('uOk').onclick = saveUpdate;
+  $('uCancel').onclick = clearResult;
+  $('askGo').onclick = submitAsk;
+  $('ask').onkeydown = function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitAsk(); } };
   $('linkCancel').onclick = closePicker;
   $('taskQuery').oninput = function () { clearTimeout(searchTimer); searchTimer = setTimeout(searchTasks, 250); };
-  $('project').onchange = function () { if (!$('picker').hidden) searchTasks(); };
+  $('project').onchange = function () { clearResult(); lastText = ''; asking = false; if (!$('picker').hidden) searchTasks(); };
   $('unlinkBtn').onclick = function () {
     // window.confirm is not available in every Outlook, so the question is asked in the button itself
     var b = $('unlinkBtn');
@@ -444,11 +722,6 @@ function init() {
   $('removeBtn').onclick = function () { post('/api/outlook/entry', { action: 'remove' }); };
   $('promoteBtn').onclick = function () {
     var o = (ctx && ctx.linked && ctx.linked.options) || {};
-    var fill = function (sel, list, value) {
-      sel.innerHTML = '';
-      (list || []).forEach(function (x) { var op = el('option', tx(x.label)); op.value = x.id; sel.appendChild(op); });
-      if (value) sel.value = value;
-    };
     // "no change" keeps what the entry carries (the status and owner of the update before it)
     var same = [{ id: '', label: tx('ללא שינוי') }];
     fill($('pStatus'), same.concat(o.update_statuses || []), '');

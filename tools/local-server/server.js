@@ -433,7 +433,7 @@ function handleRequest(req, res) {
   if (url.pathname === '/health') {
     const body = {
       ok: healthy, mode: SITE_MODE, node: process.version,
-      authEnabled: AUTH_ENABLED, mailAi: mail.health(),
+      authEnabled: AUTH_ENABLED, mailAi: mail.health(), outlookAi: outlook.health(),
       error: bootError ? bootError.message : (AUTH_CONFIRMED ? null : 'authentication not confirmed')
     };
     // While unhealthy, show what the platform actually injected, so a misread flag is
