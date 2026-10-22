@@ -1616,6 +1616,38 @@ document.querySelectorAll('input[type=file]').forEach(function(inp){inp.onchange
   function attachToTask(email, name, projectId, taskId, saved, fileName) {
     return attachInto({ who: { email, name }, projectId, kind: 'task', id: taskId }, saved, fileName);
   }
+  /* The execution track as the Outlook add-in offers it: its item types and parties, or null when the track is
+     not open to this person (or the page's execution logic cannot be read). */
+  function execInfo(email, name) {
+    const me = identify({ email, name }, readJson(REGISTRY));
+    let lib;
+    try { lib = execLogic(); } catch (e) { return null; }
+    if (lib.trial && !lib.trial.includes(me.id)) return null;
+    return {
+      types: Object.entries(lib.L.EXEC_TYPES).map(([id, t]) => ({ id, label: t.label, prefix: t.prefix })),
+      parties: lib.L.EXEC_PARTIES.map(x => ({ id: x.id, label: x.label })),
+      due_workdays: lib.dueDays || {}
+    };
+  }
+  /* A file the server saved (saveAttachment) added to an execution item the way the page opens one with files:
+     on its opening message, and on a submittal also on its first round. */
+  function attachToExec(email, name, projectId, itemId, saved, fileName) {
+    const reg = readJson(REGISTRY);
+    const me = identify({ email, name }, reg);
+    canWrite(me);
+    execGate(me);
+    const p = findProject(me, reg, projectId);
+    return writeProject(p, me, doc => {
+      const it = (doc.execItems || []).find(x => x.id === itemId);
+      if (!it) throw new ToolError('That execution item is no longer in the project');
+      const f = { id: uid(), url: saved.url, name: fileName };
+      const n = { ...it };
+      if ((n.responses || []).length) n.responses = n.responses.map((r, i) => i === 0 ? { ...r, files: [...(r.files || []), f] } : r);
+      if (n.type === 'submittal' && (n.revisions || []).length) n.revisions = n.revisions.map((r, i) => i === 0 ? { ...r, files: [...(r.files || []), f] } : r);
+      doc.execItems = doc.execItems.map(x => x.id === itemId ? n : x);
+      return { id: itemId };
+    });
+  }
   function runToolAs(email, name, base, toolName, args) {
     const reg = readJson(REGISTRY);
     const tool = TOOLS.find(t => t.name === toolName);
@@ -1707,5 +1739,5 @@ document.querySelectorAll('input[type=file]').forEach(function(inp){inp.onchange
     try { authorize(req, res, url, user); } catch (e) { console.error('authorize', e); if (!res.headersSent) sendJson(res, 500, { error: 'server_error' }); }
   }
 
-  return { handlePublic, handleAuthorize, handleConnection, whoAmI, mailContext, runToolAs, mailLog, mailLogEdit, attachToTask, ToolError, _test: { identify, projectsFor, projList, stagesOf, findStage, officeData, handleRpc } };
+  return { handlePublic, handleAuthorize, handleConnection, whoAmI, mailContext, runToolAs, mailLog, mailLogEdit, attachToTask, execInfo, attachToExec, ToolError, _test: { identify, projectsFor, projList, stagesOf, findStage, officeData, handleRpc } };
 };

@@ -410,3 +410,64 @@ test('outlook + mail scanner: mail of a linked thread is logged on its task; the
   s = await sug();
   assert.deepStrictEqual([s.suggest, s.items.map(i => [i.id, i.status])], [true, [['<s4@x>', 'pending']]]);
 });
+
+test('outlook-ai: an execution item only for someone the track is open to, and with a real type', () => {
+  const ai = require('../outlook-ai');
+  const base = { stages: [], disciplines: [{ id: 'STRC', label: 'STRC' }], priorities: [], statuses: [], update_statuses: [], team: [], tasks: [], linked: null };
+  const exec = { types: [{ id: 'submittal', label: 'הגשה' }, { id: 'rfi', label: 'RFI' }], parties: [{ id: 'contractor', label: 'קבלן' }, { id: 'architect', label: 'אדריכל' }] };
+  const mail = { subject: 'הגשת דוגמאות ריצוף', attachments: ['tiles.pdf'] };
+  const raw = { action: 'exec', exec: { type: 'submittal', title: '', description: 'דוגמאות', opened_by: 'contractor', opened_by_name: 'א.ב. בנייה', ball_to: 'nobody', due_date: 'soon', discipline: 'STRC', attachments: ['tiles.pdf', 'x.pdf'] } };
+  let r = ai.sanitize(raw, { ...base, exec }, mail);
+  assert.deepStrictEqual([r.action, r.exec.type, r.exec.title, r.exec.opened_by, r.exec.ball_to, r.exec.due_date, r.exec.discipline, r.exec.attachments],
+    ['exec', 'submittal', 'הגשת דוגמאות ריצוף', 'contractor', '', '', 'STRC', ['tiles.pdf']]);
+  r = ai.sanitize({ ...raw, exec: { ...raw.exec, type: 'blueprint' } }, { ...base, exec }, mail);
+  assert.deepStrictEqual([r.action, r.question.options], ['ask', ['הגשה', 'RFI']]);
+  r = ai.sanitize(raw, { ...base, exec: null }, mail);
+  assert.strictEqual(r.action, 'ask', 'never for someone the track is not open to');
+  assert.ok(/Execution track: not available/.test(ai.userContent('x', { from: {}, attachments: [] }, { ...base, exec: null, today: { iso: '2026-10-22', weekday: 'Thursday' }, me: 'x', project: { code: 'X', name: 'Y' } })));
+});
+
+test('outlook: an execution item is opened on a yes, with the email\'s files on it', async (t) => {
+  // the real page: its execution logic and its trial list (the track is open to Shay)
+  const REPO_ROOT = path.join(__dirname, '..', '..', '..');
+  const data = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-outlook-exec-'));
+  fs.mkdirSync(path.join(data, 'projects'));
+  fs.writeFileSync(path.join(data, 'hub_projects.json'), '{}');
+  fs.writeFileSync(path.join(data, 'project_hub_01.json'), JSON.stringify({
+    projectName: 'PH01', sheets: [{ id: 's1', type: 'list', name: 'משימות שוטפות', tasks: [], groups: [] }], tracks: [],
+    team: [{ staffId: 'st07' }, { staffId: 'st08' }], execItems: []
+  }));
+  const port = 3975, base = 'http://127.0.0.1:' + port;
+  const proc = spawn('node', [SERVER, REPO_ROOT, '--port', String(port)], { stdio: 'ignore', env: { ...process.env, SITE_MODE: 'cloud', WEBSITE_AUTH_ENABLED: 'true', DATA_DIR: data } });
+  t.after(() => proc.kill());
+  for (let i = 0; i < 50; i++) { try { await fetch(base + '/health'); break; } catch (e) { await wait(100); } }
+  const keyOf = async email => (await (await fetch(base + '/api/outlook-connection', { method: 'POST', headers: { 'x-ms-client-principal': principal(email) } })).json()).key;
+  const shay = await keyOf('shay@kkarc.com'), assaf = await keyOf('assaf@kkarc.com');
+  const post = (key, route, body) => fetch(base + route, { method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const mail = { conversationId: 'EE000000000000000000000000000001', internetMessageId: '<x1@c>', subject: 'הגשת דוגמאות ריצוף', from: { name: 'א.ב. בנייה', email: 'office@ab.co.il' }, receivedDate: '2026-10-22' };
+  const doc = () => JSON.parse(fs.readFileSync(path.join(data, 'project_hub_01.json'), 'utf8'));
+
+  // the pane learns whether the track is open to the person
+  const cs = await (await post(shay, '/api/outlook/context', { mail })).json();
+  assert.ok(cs.exec && cs.exec.types.some(x => x.id === 'submittal') && cs.exec.parties.some(x => x.id === 'contractor'));
+  assert.strictEqual((await (await post(assaf, '/api/outlook/context', { mail })).json()).exec, null);
+
+  let r = await post(shay, '/api/outlook/exec', { mail, projectId: 'ph01', item: { type: 'submittal', title: 'דוגמאות ריצוף לובי', description: 'מצורפים קטלוג ודוגמאות', opened_by: 'contractor', opened_by_name: 'א.ב. בנייה', ball_to: '', due_date: '', discipline: '' } });
+  assert.strictEqual(r.status, 200);
+  const made = (await r.json()).created;
+  assert.match(made.number, /^SUB-/);
+  let it = doc().execItems[0];
+  assert.deepStrictEqual([it.type, it.title, it.openedBy.party, it.openedBy.name], ['submittal', 'דוגמאות ריצוף לובי', 'contractor', 'א.ב. בנייה']);
+  assert.match(it.description, /מהמייל: א\.ב\. בנייה · הגשת דוגמאות ריצוף · 2026-10-22/);
+
+  // its files: on the opening message and on the first round
+  const up = await fetch(base + '/api/outlook/upload?' + new URLSearchParams({ project: 'ph01', exec: made.id, name: 'catalog.pdf' }), { method: 'POST', headers: { Authorization: 'Bearer ' + shay, 'Content-Type': 'application/octet-stream' }, body: '%PDF-1.4' });
+  assert.strictEqual(up.status, 200);
+  it = doc().execItems[0];
+  assert.deepStrictEqual([it.responses[0].files.map(f => f.name), it.revisions[0].files.map(f => f.name)], [['catalog.pdf'], ['catalog.pdf']]);
+
+  // closed to someone else; a task and an item at once is refused
+  assert.strictEqual((await post(assaf, '/api/outlook/exec', { mail, projectId: 'ph01', item: { type: 'rfi', title: 'שאלה' } })).status, 400);
+  assert.strictEqual(doc().execItems.length, 1);
+  assert.strictEqual((await fetch(base + '/api/outlook/upload?' + new URLSearchParams({ project: 'ph01', exec: made.id, task: 't', name: 'a.pdf' }), { method: 'POST', headers: { Authorization: 'Bearer ' + shay }, body: '%PDF' })).status, 400);
+});

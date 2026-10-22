@@ -172,6 +172,7 @@
     <button type="button" id="mUpdate" data-t="עדכון">עדכון</button>
     <button type="button" id="linkOpen" data-t="קשר את השרשור למשימה">קשר את השרשור למשימה</button>
     <button type="button" id="mAttach" data-t="צירוף">צירוף</button>
+    <button type="button" id="mExec" hidden data-t="פריט ביצוע">פריט ביצוע</button>
   </div>
 
   <!-- attach the email itself and/or its files to a task -->
@@ -184,6 +185,52 @@
     <div class="row" style="margin-block-start:8px">
       <button class="primary" type="button" id="aOk" data-t="צרף">צרף</button>
       <button type="button" id="aCancel" data-t="ביטול">ביטול</button>
+    </div>
+  </div>
+
+  <!-- an execution item (submittal, RFI, Issue, change): opened only on "אשר", since it takes the next official number -->
+  <div class="card" id="execForm" hidden>
+    <h2 data-t="פריט ביצוע חדש">פריט ביצוע חדש</h2>
+    <div class="row">
+      <div style="flex:1;min-width:120px">
+        <label for="eType" data-t="סוג">סוג</label>
+        <select id="eType" data-i18n-skip></select>
+      </div>
+      <div style="flex:1;min-width:120px">
+        <label for="eDisc" data-t="תחום">תחום</label>
+        <select id="eDisc" data-i18n-skip></select>
+      </div>
+    </div>
+    <label for="eTitle" style="margin-block-start:6px" data-t="כותרת">כותרת</label>
+    <input id="eTitle" data-i18n-skip>
+    <label for="eDesc" style="margin-block-start:6px" data-t="תיאור">תיאור</label>
+    <textarea id="eDesc" data-i18n-skip></textarea>
+    <div class="row">
+      <div style="flex:1;min-width:120px">
+        <label for="eBy" data-t="נפתח על ידי">נפתח על ידי</label>
+        <select id="eBy" data-i18n-skip></select>
+      </div>
+      <div style="flex:1;min-width:120px">
+        <label for="eByName" data-t="שם (חברה או אדם)">שם (חברה או אדם)</label>
+        <input id="eByName" data-i18n-skip>
+      </div>
+    </div>
+    <div class="row">
+      <div style="flex:1;min-width:120px">
+        <label for="eBall" data-t="הכדור אצל">הכדור אצל</label>
+        <select id="eBall" data-i18n-skip></select>
+      </div>
+      <div style="flex:1;min-width:120px">
+        <label for="eDue" data-t="תאריך יעד">תאריך יעד</label>
+        <input id="eDue" type="date">
+      </div>
+    </div>
+    <div class="hint" data-t="ריק = ברירת המחדל לפי הסוג">ריק = ברירת המחדל לפי הסוג</div>
+    <div id="eFiles" style="display:flex;flex-direction:column;gap:4px;margin-block-start:8px"></div>
+    <div class="hint" id="eState"></div>
+    <div class="row" style="margin-block-start:8px">
+      <button class="primary" type="button" id="eOk" data-t="פתח פריט">פתח פריט</button>
+      <button type="button" id="eCancel" data-t="ביטול">ביטול</button>
     </div>
   </div>
 
@@ -296,6 +343,21 @@ var HE_EN = {
   'משימה חדשה': 'New task',
   'צירוף': 'Attach',
   'צירוף למשימה': 'Attach to a task',
+  'פריט ביצוע': 'Execution item',
+  'פריט ביצוע חדש': 'New execution item',
+  'סוג': 'Type',
+  'תיאור': 'Description',
+  'נפתח על ידי': 'Opened by',
+  'שם (חברה או אדם)': 'Name (company or person)',
+  'ריק = ברירת המחדל לפי הסוג': 'Empty = the default for the type',
+  'פתח פריט': 'Open item',
+  'ברירת מחדל': 'Default',
+  'נפתח {n}': 'Opened {n}',
+  'מצרף קבצים לפריט…': 'Attaching files to the item…',
+  'צורף קובץ אחד לפריט.': 'One file was attached to the item.',
+  'צורפו {n} קבצים לפריט.': '{n} files were attached to the item.',
+  // execution types and parties that ship with the hub
+  'הגשה': 'Submittal', 'שינוי': 'Change', 'אדריכל': 'Architect', 'קבלן': 'Contractor', 'מפקח': 'Supervisor', 'יועץ': 'Consultant',
   'צרף': 'Attach',
   'המייל עצמו (‎.eml)': 'The email itself (.eml)',
   'סוג קובץ לא נתמך': 'file type not supported',
@@ -455,6 +517,7 @@ function renderContext() {
   $('hiddenCard').hidden = !(L && L.hidden);
   $('linkedCard').hidden = !(L && L.task);
   $('manual').hidden = !c.canWrite;
+  $('mExec').hidden = !c.exec;
   $('linkOpen').hidden = !!L;
   $('ask').disabled = $('askGo').disabled = !c.canWrite;
   closePicker();
@@ -507,7 +570,7 @@ function projectOptions(pid) {
 
 /* ── the free-text box ── */
 var lastText = '', asking = false, undoTimer = null;
-function clearResult() { $('result').hidden = true; $('result').innerHTML = ''; $('updForm').hidden = true; $('newForm').hidden = true; $('attForm').hidden = true; clearInterval(undoTimer); }
+function clearResult() { $('result').hidden = true; $('result').innerHTML = ''; $('updForm').hidden = true; $('newForm').hidden = true; $('attForm').hidden = true; $('execForm').hidden = true; clearInterval(undoTimer); }
 function resultCard(nodes) {
   clearResult();
   var r = $('result');
@@ -539,6 +602,7 @@ function showParsed(r, pid) {
   if (r.action === 'created') { showCreated(r); return; }
   if (r.action === 'update') { openUpdate(pid, r.target, r.proposal); return; }
   if (r.action === 'attach') { openAttach(pid, r.target, r.proposal); return; }
+  if (r.action === 'exec') { openExec(pid, r.proposal.exec); return; }
   // a question: its options answer it, or the box does
   var q = r.proposal.question;
   var row = el('div'); row.className = 'row';
@@ -624,14 +688,9 @@ function canSaveEml() {
   try { return Office.context.requirements.isSetSupported('Mailbox', '1.14') && !!mailbox().item.getAsFileAsync; } catch (e) { return false; }
 }
 function safeName(s) { return String(s || 'mail').replace(/[\u0000-\u001f\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'mail'; }
-function openAttach(pid, target, proposal) {
-  clearResult();
-  attTarget = { pid: pid, id: target.id };
-  $('aTask').textContent = target.title;
-  $('aTaskMeta').textContent = target.stage || '';
-  $('attState').textContent = '';
-  var list = $('attList'); list.innerHTML = '';
-  var want = proposal && proposal.attach;
+/* the email and its files as checkboxes; want = { mail, attachments } picks the ticked ones (all when absent) */
+function fileChoices(list, want, withMail) {
+  list.innerHTML = '';
   var add = function (key, label, ok, why, checked) {
     var row = el('label'); row.style.display = 'flex'; row.style.gap = '6px'; row.style.alignItems = 'center'; row.style.fontSize = '13px'; row.style.color = 'var(--fg)';
     var cb = document.createElement('input'); cb.type = 'checkbox'; cb.style.width = 'auto'; cb.value = key; cb.disabled = !ok; cb.checked = ok && checked;
@@ -641,13 +700,21 @@ function openAttach(pid, target, proposal) {
     if (why) { var w = el('span', '(' + tx(why) + ')'); w.className = 'hint'; row.appendChild(w); }
     list.appendChild(row);
   };
-  if (canSaveEml()) add('mail', tx('המייל עצמו (‎.eml)'), true, '', want ? want.mail : true);
+  if (withMail && canSaveEml()) add('mail', tx('המייל עצמו (‎.eml)'), true, '', want ? want.mail : true);
   (currentMail.attachments || []).filter(function (a) { return !a.isInline; }).forEach(function (a) {
     var cloud = a.type === 'cloud';
     var ok = !cloud && SUPPORTED.test(a.name) && !(a.size > MAX_FILE);
     var why = cloud ? 'קובץ בענן — לא ניתן לצרף מכאן' : !SUPPORTED.test(a.name) ? 'סוג קובץ לא נתמך' : a.size > MAX_FILE ? 'גדול מדי' : '';
     add('att:' + a.id, a.name, ok, why, want ? (want.attachments || []).indexOf(a.name) >= 0 : true);
   });
+}
+function openAttach(pid, target, proposal) {
+  clearResult();
+  attTarget = { pid: pid, id: target.id };
+  $('aTask').textContent = target.title;
+  $('aTaskMeta').textContent = target.stage || '';
+  $('attState').textContent = '';
+  fileChoices($('attList'), proposal && proposal.attach, true);
   $('attForm').hidden = false;
 }
 function b64ToBytes(b64) { var bin = atob(b64), out = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; }
@@ -679,9 +746,10 @@ function contentOf(key) {
     });
   });
 }
-function uploadOne(key) {
+function uploadOne(key, target) {
+  target = target || { pid: attTarget.pid, task: attTarget.id };
   return contentOf(key).then(function (f) {
-    var q = '?project=' + encodeURIComponent(attTarget.pid) + '&task=' + encodeURIComponent(attTarget.id) + '&name=' + encodeURIComponent(f.name);
+    var q = '?project=' + encodeURIComponent(target.pid) + (target.exec ? '&exec=' + encodeURIComponent(target.exec) : '&task=' + encodeURIComponent(target.task)) + '&name=' + encodeURIComponent(f.name);
     return fetch('/api/outlook/upload' + q, { method: 'POST', headers: { Authorization: 'Bearer ' + getSetting('key'), 'Content-Type': f.type }, body: f.body }).then(function (r) {
       if (r.status === 401) { var e = new Error('invalid_key'); e.code = 401; throw e; }
       return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return f.name; });
@@ -713,6 +781,63 @@ function saveAttach() {
     if (failed.length) { var f = el('div', tx('לא צורפו: {f}', { f: failed.join('; ') })); f.className = 'err'; nodes.push(f); }
     resultCard(nodes);
   }).catch(function (e) { $('aOk').disabled = false; fail(e); });
+}
+
+/* ── an execution item: proposed by Claude or opened by hand, written only on "פתח פריט" ── */
+var execPid = null;
+function openExec(pid, proposal) {
+  if (!pid) { showErr('appErr', tx('בחר קודם פרויקט')); return; }
+  var X = ctx && ctx.exec;
+  if (!X) return;
+  clearResult();
+  execPid = pid;
+  var pr = proposal || {};
+  projectOptions(pid).then(function (o) {
+    var def = [{ id: '', label: tx('ברירת מחדל') }];
+    fill($('eType'), X.types, pr.type || 'submittal');
+    fill($('eDisc'), [{ id: '', label: '—' }].concat(o.disciplines), pr.discipline || '');
+    $('eTitle').value = pr.title || (currentMail && currentMail.subject) || '';
+    $('eDesc').value = pr.description || '';
+    fill($('eBy'), def.concat(X.parties), pr.opened_by || '');
+    $('eByName').value = pr.opened_by_name || '';
+    fill($('eBall'), def.concat(X.parties), pr.ball_to || '');
+    $('eDue').value = pr.due_date || '';
+    $('eState').textContent = '';
+    fileChoices($('eFiles'), proposal ? { mail: false, attachments: pr.attachments || [] } : null, true);
+    $('execForm').hidden = false;
+    $('eTitle').focus();
+  }).catch(fail);
+}
+function saveExec() {
+  var title = $('eTitle').value.trim();
+  if (!title) return;
+  $('eOk').disabled = true;
+  var keys = [].slice.call($('eFiles').querySelectorAll('input:checked')).map(function (cb) { return cb.value; });
+  api('/api/outlook/exec', {
+    mail: mailRef(currentMail), projectId: execPid,
+    item: { type: $('eType').value, title: title, description: $('eDesc').value.trim(), opened_by: $('eBy').value, opened_by_name: $('eByName').value.trim(), ball_to: $('eBall').value, due_date: $('eDue').value, discipline: $('eDisc').value }
+  }).then(function (r) {
+    var c = r.created, done = 0, failed = [];
+    var target = { pid: execPid, exec: c.id };
+    var next = function (i) {
+      if (i >= keys.length) return Promise.resolve();
+      $('eState').textContent = tx('מצרף קבצים לפריט…');
+      return uploadOne(keys[i], target).then(function () { done++; }, function (e) {
+        if (e.code === 401) throw e;
+        failed.push(keys[i] === 'mail' ? tx('המייל עצמו (‎.eml)') : (((currentMail.attachments || []).find(function (a) { return 'att:' + a.id === keys[i]; }) || {}).name) + ' — ' + e.message);
+      }).then(function () { return next(i + 1); });
+    };
+    return next(0).then(function () {
+      $('eOk').disabled = false;
+      var h = el('h2', tx('נפתח {n}', { n: c.number }));
+      var a = el('a', c.title); a.href = c.link; a.target = '_blank'; a.rel = 'noopener'; a.className = 'task-title';
+      var meta = el('div', [c.due ? tx('יעד {d}', { d: c.due }) : '', c.ball].filter(Boolean).join(' · ')); meta.className = 'meta';
+      var nodes = [h, a, meta];
+      if (done) nodes.push(el('div', done === 1 ? tx('צורף קובץ אחד לפריט.') : tx('צורפו {n} קבצים לפריט.', { n: done })));
+      if (failed.length) { var f = el('div', tx('לא צורפו: {f}', { f: failed.join('; ') })); f.className = 'err'; nodes.push(f); }
+      resultCard(nodes);
+    });
+  }).catch(function (e) { $('eOk').disabled = false; fail(e); });
 }
 
 /* ── a new task by hand ── */
@@ -837,6 +962,9 @@ function init() {
     else openPicker('attach');
   };
   $('aOk').onclick = saveAttach;
+  $('mExec').onclick = function () { openExec($('project').value, null); };
+  $('eOk').onclick = saveExec;
+  $('eCancel').onclick = clearResult;
   $('aCancel').onclick = clearResult;
   $('nOk').onclick = saveNew;
   $('nCancel').onclick = clearResult;

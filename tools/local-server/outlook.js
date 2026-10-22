@@ -154,7 +154,7 @@ module.exports = function createOutlook(ctx) {
       stages: g.stages.map(s => ({ id: s.id, path: s.path, default: !!s.default_for_new_tasks })),
       disciplines: g.disciplines, priorities: g.priorities, statuses: g.statuses, update_statuses: g.update_statuses,
       team: g.team, tasks: open.tasks.map(x => ({ id: x.id, title: x.title, stage: x.stage, status: x.status, latest_update: x.latest_update })),
-      linked
+      linked, exec: mcp.execInfo(p.email, p.name)
     };
   }
 
@@ -244,7 +244,7 @@ module.exports = function createOutlook(ctx) {
     if (th) {
       const lt = linkedTask(p, base, th, projects);
       if (lt.gone) { delete links.threads[key]; saveLinks(links); }
-      else if (lt.hidden) return { threadKey: key, projectId: null, why: null, linked: { hidden: true }, canWrite };
+      else if (lt.hidden) return { threadKey: key, projectId: null, why: null, linked: { hidden: true }, canWrite, exec: mcp.execInfo(p.email, p.name) };
       else {
         let msg = mail.internetMessageId ? (th.messages || []).find(m => m.internetMessageId === mail.internetMessageId) : null;
         if (!msg && mail.internetMessageId && canWrite) {
@@ -257,12 +257,12 @@ module.exports = function createOutlook(ctx) {
           options = { update_statuses: g.update_statuses, disciplines: g.disciplines };
         } catch (e) { if (!(e instanceof mcp.ToolError)) throw e; }
         return {
-          threadKey: key, projectId: th.projectId, why: 'linked', canWrite,
+          threadKey: key, projectId: th.projectId, why: 'linked', canWrite, exec: mcp.execInfo(p.email, p.name),
           linked: { projectId: th.projectId, taskId: th.taskId, task: lt.task, linkedAt: th.linkedAt, message: msg ? { eventId: msg.eventId || null, auto: !!msg.auto, removed: !!msg.removed, created: !!msg.createdTask, attached: !!msg.attached } : null, options }
         };
       }
     }
-    return { threadKey: key, ...guessProject(projects, links, mail), linked: null, canWrite };
+    return { threadKey: key, ...guessProject(projects, links, mail), linked: null, canWrite, exec: mcp.execInfo(p.email, p.name) };
   }
 
   // a body that is not a JSON object is treated as empty
@@ -273,7 +273,7 @@ module.exports = function createOutlook(ctx) {
   }
 
   const GET_ROUTES = ['/api/outlook/me', '/api/outlook/projects', '/api/outlook/tasks', '/api/outlook/project'];
-  const POST_ROUTES = ['/api/outlook/context', '/api/outlook/link', '/api/outlook/unlink', '/api/outlook/entry', '/api/outlook/parse', '/api/outlook/create', '/api/outlook/apply', '/api/outlook/undo', '/api/outlook/upload', '/api/outlook/attached'];
+  const POST_ROUTES = ['/api/outlook/context', '/api/outlook/link', '/api/outlook/unlink', '/api/outlook/entry', '/api/outlook/parse', '/api/outlook/create', '/api/outlook/apply', '/api/outlook/undo', '/api/outlook/upload', '/api/outlook/attached', '/api/outlook/exec'];
 
   async function run(req, res, url) {
     const m = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
@@ -307,18 +307,26 @@ module.exports = function createOutlook(ctx) {
     /* one file — the email itself (.eml) or one of its attachments — added to a task; raw bytes, the
        name and the task in the query */
     if (url.pathname === '/api/outlook/upload') {
-      const projectId = url.searchParams.get('project') || '', taskId = url.searchParams.get('task') || '';
+      const projectId = url.searchParams.get('project') || '', taskId = url.searchParams.get('task') || '', execId = url.searchParams.get('exec') || '';
       const name = String(url.searchParams.get('name') || 'file').replace(/[\u0000-\u001f\\/:*?"<>|]/g, '').slice(0, 150) || 'file';
-      if (!projectId || !taskId) { sendJson(res, 400, { error: 'project and task expected' }); return; }
-      // the task must be one this person can see, by its exact id
-      const t = mcp.runToolAs(p.email, p.name, base, 'get_task', { project: projectId, task: taskId });
-      if (t.id !== taskId) { sendJson(res, 400, { error: 'No such task' }); return; }
+      if (!projectId || !taskId === !execId) { sendJson(res, 400, { error: 'project and a task or an execution item expected' }); return; }
+      // the task or item must be one this person can see, by its exact id
+      if (taskId) {
+        const t = mcp.runToolAs(p.email, p.name, base, 'get_task', { project: projectId, task: taskId });
+        if (t.id !== taskId) { sendJson(res, 400, { error: 'No such task' }); return; }
+      } else {
+        const it = mcp.runToolAs(p.email, p.name, base, 'get_exec_item', { project: projectId, item: execId });
+        if (!it || (it.item ? it.item.id : it.id) !== execId) { sendJson(res, 400, { error: 'No such execution item' }); return; }
+      }
       let buf;
       try { buf = await readRequestBuffer(req); } catch (e) { sendJson(res, 413, { error: 'too_large' }); return; }
       if (!buf.length) { sendJson(res, 400, { error: 'empty' }); return; }
       const saved = saveAttachment('project-hub-01', buf, req.headers['content-type'], name);
       if (!saved) { sendJson(res, 415, { error: 'type' }); return; }
-      try { mcp.attachToTask(p.email, p.name, projectId, taskId, saved, name); } catch (e) {
+      try {
+        if (taskId) mcp.attachToTask(p.email, p.name, projectId, taskId, saved, name);
+        else mcp.attachToExec(p.email, p.name, projectId, execId, saved, name);
+      } catch (e) {
         if (e instanceof mcp.ToolError) { sendJson(res, 403, { error: e.message }); return; }
         throw e;
       }
@@ -391,6 +399,24 @@ module.exports = function createOutlook(ctx) {
         recordMessage(p, key, mail, projectId, taskId, { updated: true });
       }
       sendJson(res, 200, { ok: true, ...context(p, base, mail) });
+      return;
+    }
+    /* a confirmed execution item (a submittal, an RFI, an Issue, a change): opened with the next official
+       number, so only after the person's yes; its files follow through /api/outlook/upload?exec= */
+    if (url.pathname === '/api/outlook/exec') {
+      const projectId = String(body.projectId || '');
+      const x = body.item && typeof body.item === 'object' ? body.item : {};
+      if (!projectId) { sendJson(res, 400, { error: 'Choose a project' }); return; }
+      if (!String(x.type || '').trim() || !String(x.title || '').trim()) { sendJson(res, 400, { error: 'type and title expected' }); return; }
+      const party = (id, nm) => id ? { party: clip(id, 40), ...(nm ? { name: clip(nm, 120) } : {}) } : null;
+      const opened = party(x.opened_by, x.opened_by_name), ball = party(x.ball_to, x.ball_to_name);
+      const r = mcp.runToolAs(p.email, p.name, base, 'create_exec_item', {
+        project: projectId, type: clip(x.type, 20), title: clip(x.title, 200).trim(),
+        description: [clip(x.description, 2000).trim(), mailNote(mail)].filter(Boolean).join('\n\n'),
+        ...(opened ? { opened_by: opened } : {}), ...(ball ? { ball_to: ball } : {}),
+        ...(x.due_date ? { due_date: clip(x.due_date, 10) } : {}), ...(x.discipline ? { discipline: clip(x.discipline, 60) } : {})
+      });
+      sendJson(res, 200, { action: 'exec_created', created: { id: r.created.id, number: r.created.number, type: r.created.type, title: r.created.title, due: r.created.due, ball: r.created.ball, link: r.link } });
       return;
     }
     // after the files are up: the thread is linked to the task and this email is marked as attached there

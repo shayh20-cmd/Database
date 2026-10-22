@@ -13,6 +13,7 @@ const SYSTEM = [
   '- create: a new task in the project. Fill task: title (short and imperative, in the instruction\'s language), stage (a stage id; "" for the project\'s default), discipline and priority (ids, "" when not said), assignees (team member ids the person named; [] when none), start_date and due_date (YYYY-MM-DD, "" when not said), note (one short line of context from the email, or "").',
   '- update: progress on one of the project\'s open tasks listed below (a reply arrived, something was sent, approved, needs comments). target_task_id = that task\'s id. update.text = what happened, one or two short sentences in the instruction\'s language; update.update_status = one of the update status ids; update.owner = the discipline id that holds the ball after this step ("" keeps the current one). changes: only what the person explicitly asked to change (due_date, status id, assignees ids); otherwise "" and [].',
   '- attach: the person wants this email or some of its attachments added to an existing task. target_task_id = the task; attach.mail = true to attach the email itself; attach.attachments = the file names to attach, exactly as listed.',
+  '- exec: the instruction is about the execution track (מסלול ביצוע): a submittal (הגשה, e.g. a contractor\'s shop drawings, samples or product data for approval), an RFI (a question from the site), an Issue (a problem on site), or a contractor change / waiver request (שינוי / ויתור). These are never tasks. Fill exec: type (an execution type id), title (short, in the instruction\'s language), description (what is submitted / asked / the problem, from the email), opened_by (a party id: usually contractor for a submittal, RFI or change that arrived by email; architect for an Issue the office raises), opened_by_name (the company or person, from the email, or ""), ball_to (a party id who must act now, usually architect; "" for the default), due_date ("" for the default by type), discipline (an id or ""), attachments (the file names to put on the item, exactly as listed; usually all of them for a submittal). Only when "Execution track" is listed below; otherwise never choose exec.',
   '- ask: you cannot tell which task is meant, or what the person wants. question.text = one short question in the instruction\'s language; question.options = 2 to 4 short answers (task titles when the question is which task).',
   'When the thread is linked to a task, "this", "it" or "the task" mean the linked task, and an instruction that reads like progress is an update on it.',
   'A word naming a discipline (קונסטרוקטור, חשמל, אינסטלציה, יועץ תנועה…) is a discipline, not a person, unless a team member is named. "תעביר ל..." / "send to ..." means the ball moves to that discipline: on a new task set discipline to it; on an update set update.owner to it.',
@@ -25,7 +26,7 @@ const STRS = { type: 'array', items: STR };
 const SCHEMA = {
   type: 'object',
   properties: {
-    action: { type: 'string', enum: ['create', 'update', 'attach', 'ask'] },
+    action: { type: 'string', enum: ['create', 'update', 'attach', 'exec', 'ask'] },
     summary: STR,
     task: {
       type: 'object',
@@ -36,9 +37,14 @@ const SCHEMA = {
     update: { type: 'object', properties: { text: STR, update_status: STR, owner: STR }, required: ['text', 'update_status', 'owner'], additionalProperties: false },
     changes: { type: 'object', properties: { due_date: STR, status: STR, assignees: STRS }, required: ['due_date', 'status', 'assignees'], additionalProperties: false },
     attach: { type: 'object', properties: { mail: { type: 'boolean' }, attachments: STRS }, required: ['mail', 'attachments'], additionalProperties: false },
-    question: { type: 'object', properties: { text: STR, options: STRS }, required: ['text', 'options'], additionalProperties: false }
+    question: { type: 'object', properties: { text: STR, options: STRS }, required: ['text', 'options'], additionalProperties: false },
+    exec: {
+      type: 'object',
+      properties: { type: STR, title: STR, description: STR, opened_by: STR, opened_by_name: STR, ball_to: STR, due_date: STR, discipline: STR, attachments: STRS },
+      required: ['type', 'title', 'description', 'opened_by', 'opened_by_name', 'ball_to', 'due_date', 'discipline', 'attachments'], additionalProperties: false
+    }
   },
-  required: ['action', 'summary', 'task', 'target_task_id', 'update', 'changes', 'attach', 'question'],
+  required: ['action', 'summary', 'task', 'target_task_id', 'update', 'changes', 'attach', 'question', 'exec'],
   additionalProperties: false
 };
 
@@ -76,6 +82,7 @@ function userContent(text, mail, ctx) {
     'Open tasks (id | title | stage | status | latest update):',
     ...(ctx.tasks.length ? ctx.tasks.map(x => `- ${x.id} | ${t(x.title)} | ${x.stage || ''} | ${x.status || ''} | ${t(x.latest_update || '')}`) : ['(none)']),
     ctx.linked ? `This email's thread is linked to task ${ctx.linked.id} | ${t(ctx.linked.title)}` : 'This email\'s thread is not linked to a task.',
+    ctx.exec ? 'Execution track: types ' + opts(ctx.exec.types) + '; parties ' + opts(ctx.exec.parties) : 'Execution track: not available to this person.',
     '',
     '<email>',
     'From: ' + [t(mail.from && mail.from.name), mail.from && mail.from.email ? '<' + t(mail.from.email) + '>' : ''].filter(Boolean).join(' '),
@@ -97,9 +104,10 @@ function sanitize(raw, ctx, mail) {
   const team = ids(ctx.team);
   const people = v => [...new Set((Array.isArray(v) ? v : []).filter(x => team.has(x)))];
   const taskIds = new Set(ctx.tasks.map(x => x.id).concat(ctx.linked ? [ctx.linked.id] : []));
-  const task = r.task || {}, up = r.update || {}, ch = r.changes || {}, at = r.attach || {}, q = r.question || {};
+  const task = r.task || {}, up = r.update || {}, ch = r.changes || {}, at = r.attach || {}, q = r.question || {}, ex = r.exec || {};
+  const ex_ = ctx.exec || { types: [], parties: [] };
   const out = {
-    action: ['create', 'update', 'attach', 'ask'].includes(r.action) ? r.action : 'ask',
+    action: ['create', 'update', 'attach', 'exec', 'ask'].includes(r.action) ? r.action : 'ask',
     summary: clip(r.summary, 300).trim(),
     task: {
       title: clip(task.title, 200).trim(), stage: pick(task.stage, ctx.stages), discipline: pick(task.discipline, ctx.disciplines),
@@ -110,8 +118,22 @@ function sanitize(raw, ctx, mail) {
     update: { text: clip(up.text, 1000).trim(), update_status: pick(up.update_status, ctx.update_statuses), owner: pick(up.owner, ctx.disciplines) },
     changes: { due_date: date(ch.due_date), status: pick(ch.status, ctx.statuses), assignees: people(ch.assignees) },
     attach: { mail: !!at.mail, attachments: (Array.isArray(at.attachments) ? at.attachments : []).filter(n => (mail.attachments || []).includes(n)) },
-    question: { text: clip(q.text, 300).trim(), options: (Array.isArray(q.options) ? q.options : []).map(o => clip(o, 120).trim()).filter(Boolean).slice(0, 4) }
+    question: { text: clip(q.text, 300).trim(), options: (Array.isArray(q.options) ? q.options : []).map(o => clip(o, 120).trim()).filter(Boolean).slice(0, 4) },
+    exec: {
+      type: pick(ex.type, ex_.types), title: clip(ex.title, 200).trim(), description: clip(ex.description, 2000).trim(),
+      opened_by: pick(ex.opened_by, ex_.parties), opened_by_name: clip(ex.opened_by_name, 120).trim(), ball_to: pick(ex.ball_to, ex_.parties),
+      due_date: date(ex.due_date), discipline: pick(ex.discipline, ctx.disciplines),
+      attachments: (Array.isArray(ex.attachments) ? ex.attachments : []).filter(n => (mail.attachments || []).includes(n))
+    }
   };
+  // the execution track only for someone it is open to, and only with a real type
+  if (out.action === 'exec' && (!ctx.exec || !out.exec.type)) {
+    out.action = 'ask';
+    out.question = ctx.exec
+      ? { text: 'איזה פריט ביצוע לפתוח?', options: ex_.types.map(x => x.label) }
+      : { text: 'מסלול ביצוע לא פתוח לך. לפתוח משימה במקום?', options: ['כן, משימה'] };
+  }
+  if (out.action === 'exec' && !out.exec.title) out.exec.title = clip(mail.subject, 200).trim();
   if (out.action === 'create' && !out.task.title) out.task.title = clip(mail.subject, 200).trim();
   if ((out.action === 'update' || out.action === 'attach') && !out.target_task_id) {
     out.action = 'ask';
