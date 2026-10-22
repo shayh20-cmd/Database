@@ -4,7 +4,7 @@
 
 **Goal:** From the Outlook add-in, file an email's attachments into the project's folder on the office network drive, through a small window on the user's PC that shows Claude's proposal on the real folder tree.
 
-**Architecture:** The pane uploads the chosen files to a new server module (`filing.js`), which holds them behind a one-time token and opens `projecthub-file:<token>`. A PowerShell/WinForms helper on the PC uses the token alone: it reads the job, links the Hub project to its folder the first time (folder name + free-text filing guide, stored per project in `data/filing.json`), sends the folder tree to the server, where Claude (`filing-ai.js`) returns a plan of safe steps (`mkdir`, `move`, `move-contents`, copies; never delete). The user confirms in the window, the helper files and reports back, and the server logs the filing (project history + the linked task's activity log).
+**Architecture:** The pane uploads the chosen files to a new server module (`filing.js`), which holds them behind a one-time token and marks the job ready. A background agent on the PC (started at Windows sign-in, personal `pho_` key in DPAPI) long-polls the server for its person's next ready job, receives the token once, and starts a PowerShell/WinForms window with it. (Opening the window from a browser link was tested and dropped — see Task 1.) The window uses the token alone: it reads the job, links the Hub project to its folder the first time (folder name + free-text filing guide, stored per project in `data/filing.json`), sends the folder tree to the server, where Claude (`filing-ai.js`) returns a plan of safe steps (`mkdir`, `move`, `move-contents`, copies; never delete). The user confirms in the window, the helper files and reports back, and the server logs the filing (project history + the linked task's activity log).
 
 **Tech Stack:** Node (server, `node:test`), `@anthropic-ai/sdk` (already a dependency), Windows PowerShell 5.1 + WinForms (helper), plain JS in `outlook/taskpane.html` (no build step).
 
@@ -22,9 +22,10 @@
 | `tools/local-server/outlook.js` (modify) | Creates `filing`, routes the pane calls to it, puts the token routes in `handlePublic`. |
 | `tools/local-server/test/filing.test.js` (new) | Unit tests for `filing-ai.js`, integration tests through a spawned server with a fake Claude. |
 | `tools/file-helper/FileHelper.Core.ps1` (new) | Pure helper logic (paths, tree, versions, free names, plan modes, executing a plan, config, texts HE/EN). |
-| `tools/file-helper/File-Helper.ps1` (new) | The windows and the HTTP calls. |
-| `tools/file-helper/run-file-helper.vbs` (new) | Hidden launcher for the protocol; validates the link before running anything. |
-| `tools/file-helper/Install-FileHelper.ps1`, `Uninstall-FileHelper.ps1`, `README.md` (new) | Per-user install (HKCU protocol), removal, Hebrew instructions. |
+| `tools/file-helper/File-Helper.ps1` (new) | The windows and the HTTP calls for one job (`-Token`). |
+| `tools/file-helper/FileHelper-Agent.ps1` (new) | The background agent: long-polls `/api/outlook/filing-next` with the key, starts `File-Helper.ps1` per job. |
+| `tools/file-helper/run-file-helper-agent.vbs` (new) | Starts the agent with no console window (Startup shortcut, installer). |
+| `tools/file-helper/Install-FileHelper.ps1`, `Uninstall-FileHelper.ps1`, `README.md` (new) | Per-user install (key in DPAPI, Startup shortcut, agent started), removal, Hebrew instructions. |
 | `tools/file-helper/test/FileHelper.Core.Tests.ps1` (new) | Self-contained test script for the core (no Pester). |
 | `outlook/taskpane.html` (modify) | "תייק בתיקיית הפרויקט" button + form, upload, launch link, status polling, HE_EN entries. |
 | `Deploy-Azure.ps1` (modify) | Packs `filing.js` and `filing-ai.js`. |
@@ -50,7 +51,7 @@ Get-ChildItem tools/file-helper -Recurse -Include *.ps1 | ForEach-Object { $t = 
 4. The pane watches the job through `GET /api/outlook/filing-status?id=` (opened / done / expired); "העזר לא מותקן" is shown after 15 seconds without `opened`.
 5. The pane's texts go into `HE_EN` inside `outlook/taskpane.html` (the pane has its own table and does not load `i18n.js`), not into `i18n-dict.js`.
 6. The helper window shows who created the job (`by`), since a token is enough to open it.
-7. Launch: after the upload the pane shows a button-link "פתח את חלון התיוק" (`<a href="projecthub-file:…">`) — opening a custom protocol needs a fresh click, and the uploads take longer than the browser's click allowance. Task 1 decides the exact form.
+7. Launch: decided by Task 1 — no browser link; a background agent on the PC picks the job up (the spec was updated after the spike).
 8. "תחום המשימה המקושרת" is dropped from Claude's input (not needed: the guide, the tree and the history carry it).
 9. Switching "גרסה חדשה" ⇄ "הוסף לקיימת" in the window: back to Claude's own mode restores Claude's plan as it was; the other mode is computed from the folders (existing → the highest `vNN`; new → the next `vNN` + `mkdir`), keeping only Claude's `move-contents` steps. Picking a folder in the tree sets it for the selected files, clears the steps and becomes the base for switching.
 
@@ -63,50 +64,14 @@ git commit -m "plan: file an email's attachments into the project folder; spec c
 
 ---
 
-### Task 1: Spike — can the add-in open `projecthub-file:`?
+### Task 1: Spike — can the add-in open `projecthub-file:`? (DONE 2026-10-22: no)
 
-The one risk in the spec. Decide the launch form before building the pane part. Needs the user (the add-in is sideloaded in their Outlook on the web, against `https://localhost:3443`).
+Tested with the user in Outlook on the web (Chrome), against `https://localhost:3443`:
 
-**Files:**
-- Create (temporary, not committed): `%TEMP%\ph-spike\spike.vbs`
-- Modify (temporary, reverted): `outlook/taskpane.html`
-
-- [ ] **Step 1: Register a throwaway protocol handler that shows its argument**
-
-```powershell
-$d = Join-Path $env:TEMP 'ph-spike'; New-Item -ItemType Directory -Force -Path $d | Out-Null
-Set-Content -Path (Join-Path $d 'spike.vbs') -Value 'MsgBox "spike: " & WScript.Arguments(0)' -Encoding ASCII
-$k = 'HKCU:\Software\Classes\projecthub-file'
-New-Item -Path "$k\shell\open\command" -Force | Out-Null
-Set-ItemProperty -Path $k -Name '(default)' -Value 'URL:Project Hub filing'
-Set-ItemProperty -Path $k -Name 'URL Protocol' -Value ''
-Set-ItemProperty -Path "$k\shell\open\command" -Name '(default)' -Value "wscript.exe `"$d\spike.vbs`" `"%1`""
-```
-
-- [ ] **Step 2: Add three temporary test links at the top of the pane's `#app` section**
-
-```html
-<div id="spike" style="border:1px dashed red;padding:6px">
-  <a href="projecthub-file:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" target="_blank">A: link _blank</a> |
-  <a href="projecthub-file:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB">B: link</a> |
-  <button type="button" onclick="window.open('projecthub-file:CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC')">C: window.open</button>
-</div>
-```
-
-- [ ] **Step 3: Run the add-in server and ask the user to click A, B, C in Outlook on the web (and, if they have it, the new Outlook)**
-
-Start the `outlook-addin` preview config (`.claude/launch.json`, https on 3443). Ask the user which of A/B/C showed the "spike:" message box, and whether the pane stayed usable afterwards.
-
-- [ ] **Step 4: Record the result and revert**
-
-Write the result (which form works where) into the spec under "סיכון לבדוק ראשון". Revert `outlook/taskpane.html` (`git checkout -- outlook/taskpane.html`), remove `%TEMP%\ph-spike` and the `projecthub-file` registry key (`Remove-Item -Path HKCU:\Software\Classes\projecthub-file -Recurse`). Task 9 uses the working form (A is assumed below; adjust Task 9 Step 3 if B or C won). If none works, stop and ask the user (fallback: the link is copied and opened from the Windows Run box).
-
-- [ ] **Step 5: Commit the spec note**
-
-```bash
-git add docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md
-git commit -m "spec: how the add-in opens projecthub-file: (spike result)"
-```
+- From the add-in's iframe: `<a target=_blank>` and `window.open` open an empty tab and never reach Windows; a link without `target` breaks the pane.
+- From a normal top-level page (link or button click): the user's Chrome profile never launched newly registered schemes (`projecthub-file`, `projecthub-filing`, `projecthubfile`), even after Chrome was fully restarted (it had been running in the background since 20.10), while the existing `projecthub-scan:` and `ms-screenclip:` launched from the same page. A clean Chrome profile launched the same link at once.
+- Decision (user): no browser link. A background agent on the PC long-polls the server for its person's ready jobs and opens the window (Tasks 4, 6–9 below are written for that).
+- Cleaned up: test links reverted, `projecthub-file`/`projecthub-filing`/`projecthubfile` keys removed from HKCU, temp files removed. Left on purpose for Task 10: the "Project Hub LOCAL" add-in sideloaded in the user's Outlook (manifest `O:\@Omicron Office\Desktop\project-hub-local-test.xml`, pointing at `https://localhost:3443`), and the local `data/` copy in this worktree (gitignored).
 
 ---
 
@@ -375,12 +340,18 @@ git commit -m "feat(mcp): taskLog, a line in a task's activity log"
 
 ---
 
-### Task 4: `filing.js` — jobs, tokens, the project store, and the routes
+### Task 4: `filing.js` — jobs, the agent's long-poll, tokens, the project store, and the routes
 
 **Files:**
 - Create: `tools/local-server/filing.js`
 - Modify: `tools/local-server/outlook.js`
 - Test: `tools/local-server/test/filing.test.js`
+
+The flow on the server:
+1. Pane (pho key): `POST /api/outlook/filing` → `{ id, exp }`; `POST /api/outlook/filing-file?id=&name=` per file; `POST /api/outlook/filing-ready?id=`.
+2. Agent on the PC (same person's pho key): `GET /api/outlook/filing-next?pc=<COMPUTERNAME>` — waits up to `FILING_POLL_MS` (25 s) for that person's next ready job and returns `{ job: { id, token } }` once, or `{ job: null }`.
+3. Window (token only): `GET /api/filing/<token>`, `PUT …/project`, `POST …/suggest`, `GET …/file/<n>`, `POST …/done`, `POST …/cancel`.
+4. Pane: `GET /api/outlook/filing-status?id=` → `{ ready, handed: { at, pc } | null, opened, done, expired }`.
 
 - [ ] **Step 1: Write the failing integration test (append to `filing.test.js`)**
 
@@ -445,7 +416,7 @@ function fakeClaude(port) {
 }
 async function start(t, port, env) {
   const { root, data } = makeSite();
-  const proc = spawn('node', [SERVER, root, '--port', String(port)], { stdio: 'ignore', env: { ...process.env, SITE_MODE: 'cloud', WEBSITE_AUTH_ENABLED: 'true', DATA_DIR: data, ANTHROPIC_API_KEY: '', ...env } });
+  const proc = spawn('node', [SERVER, root, '--port', String(port)], { stdio: 'ignore', env: { ...process.env, SITE_MODE: 'cloud', WEBSITE_AUTH_ENABLED: 'true', DATA_DIR: data, ANTHROPIC_API_KEY: '', FILING_POLL_MS: '400', ...env } });
   t.after(() => proc.kill());
   const base = 'http://127.0.0.1:' + port;
   for (let i = 0; i < 50; i++) { try { await fetch(base + '/health'); break; } catch (e) { await wait(100); } }
@@ -454,14 +425,15 @@ async function start(t, port, env) {
     const r = await fetch(base + route, { method: method || (body ? 'POST' : 'GET'), headers: { ...(key ? { Authorization: 'Bearer ' + key } : {}), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
     return { status: r.status, body: await r.json().catch(() => null) };
   };
-  return { base, data, keyOf, call };
+  const up = (key, id, name, bytes) => fetch(base + '/api/outlook/filing-file?' + new URLSearchParams({ id, name }), { method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/octet-stream' }, body: bytes });
+  return { base, data, keyOf, call, up };
 }
 const MAIL = { conversationId: 'EE000000000000000000000000000001', internetMessageId: '<k1@x>', subject: 'תכנית קונסטרוקציה', from: { name: 'דני', email: 'dani@eng.co.il' } };
 
-test('filing: the pane opens a job, the helper files with the token alone, and the server remembers', async (t) => {
+test('filing: the pane opens a job, the agent on the PC takes it, the window files with the token alone, and the server remembers', async (t) => {
   const fake = await fakeClaude(3962);
   t.after(() => fake.close());
-  const { base, data, keyOf, call } = await start(t, 3961, { ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: 'http://127.0.0.1:3962' });
+  const { base, data, keyOf, call, up } = await start(t, 3961, { ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: 'http://127.0.0.1:3962' });
   const dana = await keyOf('dana@kkarc.com'), ron = await keyOf('ron@kkarc.com'), yoav = await keyOf('yoav@kkarc.com');
 
   // a viewer cannot file; an unknown project is refused
@@ -470,23 +442,34 @@ test('filing: the pane opens a job, the helper files with the token alone, and t
 
   const job = await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail: MAIL, lang: 'en' });
   assert.strictEqual(job.status, 200);
-  assert.match(job.body.url, /^projecthub-file:[A-Za-z0-9_-]{43}$/);
-  const token = job.body.url.slice('projecthub-file:'.length);
-  const up = (key, name, bytes) => fetch(base + '/api/outlook/filing-file?' + new URLSearchParams({ id: job.body.id, name }), { method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/octet-stream' }, body: bytes });
-  assert.strictEqual((await up(dana, 'K-101.pdf', '%PDF-1.4 k101')).status, 200);
-  assert.strictEqual((await up(dana, 'run.exe', 'MZ')).status, 415, 'no programs');
-  assert.strictEqual((await up(dana, 'empty.pdf', '')).status, 400);
-  assert.strictEqual((await up(yoav, 'K-102.pdf', '%PDF')).status, 404, 'only the person who opened the job');
-  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-status?id=' + job.body.id)).body, { opened: false, done: null, expired: false });
+  assert.deepStrictEqual(Object.keys(job.body).sort(), ['exp', 'id'], 'the pane never sees the token');
+  const id = job.body.id;
+  assert.strictEqual((await up(dana, id, 'K-101.pdf', '%PDF-1.4 k101')).status, 200);
+  assert.strictEqual((await up(dana, id, 'run.exe', 'MZ')).status, 415, 'no programs');
+  assert.strictEqual((await up(dana, id, 'empty.pdf', '')).status, 400);
+  assert.strictEqual((await up(yoav, id, 'K-102.pdf', '%PDF')).status, 404, 'only the person who opened the job');
+  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-status?id=' + id)).body, { ready: false, handed: null, opened: false, done: null, expired: false });
 
-  // the helper: the job, with the files and the default guide
+  // the agent gets nothing before the job is ready, and never another person's job
+  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-next?pc=PC1')).body, { job: null });
+  assert.strictEqual((await call(yoav, '/api/outlook/filing-ready?id=' + id, {})).status, 404);
+  assert.strictEqual((await call(dana, '/api/outlook/filing-ready?id=' + id, {})).status, 200);
+  assert.strictEqual((await up(dana, id, 'K-103.pdf', '%PDF')).status, 409, 'no more files once the job is ready');
+  assert.deepStrictEqual((await call(yoav, '/api/outlook/filing-next?pc=PC9')).body, { job: null });
+  const next = await call(dana, '/api/outlook/filing-next?pc=PC1');
+  assert.strictEqual(next.body.job.id, id);
+  const token = next.body.job.token;
+  assert.match(token, /^[A-Za-z0-9_-]{43}$/);
+  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-next?pc=PC2')).body, { job: null }, 'a job is handed out once');
+  assert.strictEqual((await call(dana, '/api/outlook/filing-status?id=' + id)).body.handed.pc, 'PC1');
+
+  // the window: the job, with the files and the default guide
   assert.strictEqual((await call(null, '/api/filing/' + 'x'.repeat(43))).status, 410);
   const g = await call(null, '/api/filing/' + token);
   assert.strictEqual(g.status, 200);
   assert.deepStrictEqual([g.body.project.code, g.body.folder, g.body.lang, g.body.by, g.body.files], ['LDPB', '', 'en', 'דנה', [{ n: 0, name: 'K-101.pdf', size: 13 }]]);
   assert.match(g.body.defaultGuide, /CONSULTANTS/);
-  assert.strictEqual((await call(dana, '/api/outlook/filing-status?id=' + job.body.id)).body.opened, true);
-  assert.strictEqual((await up(dana, 'K-103.pdf', '%PDF')).status, 409, 'no more files once the helper has the job');
+  assert.strictEqual((await call(dana, '/api/outlook/filing-status?id=' + id)).body.opened, true);
 
   // linking the project to its folder: one folder name, never a path
   assert.strictEqual((await call(null, '/api/filing/' + token + '/project', { folder: '../x', guide: '' }, 'PUT')).status, 400);
@@ -517,17 +500,25 @@ test('filing: the pane opens a job, the helper files with the token alone, and t
   const task = JSON.parse(fs.readFileSync(path.join(data, 'projects', 'pabc123.json'), 'utf8')).sheets[0].tasks[0];
   assert.match(task.activityLog.slice(-1)[0].text, /^תויק: K-101\.pdf ← CONS\\LDPB-structural\\plans\\LDPB-structural-plans-v04$/);
   assert.strictEqual((await call(null, '/api/filing/' + token)).status, 410, 'the token is spent');
-  assert.ok(!fs.existsSync(path.join(data, 'filing-tmp', job.body.id)), 'the waiting files are gone');
-  const st = (await call(dana, '/api/outlook/filing-status?id=' + job.body.id)).body;
+  assert.ok(!fs.existsSync(path.join(data, 'filing-tmp', id)), 'the waiting files are gone');
+  const st = (await call(dana, '/api/outlook/filing-status?id=' + id)).body;
   assert.deepStrictEqual([st.done.files.length, st.done.taskLogged], [1, true]);
 
-  // the next job of this project starts from what is known
-  const job2 = await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail: MAIL });
-  const g2 = await call(null, '/api/filing/' + job2.body.url.slice(16));
+  // a waiting agent wakes as soon as a job is ready; the next job of this project starts from what is known
+  const job2 = (await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail: MAIL })).body;
+  assert.strictEqual((await up(dana, job2.id, 'A.pdf', '%PDF')).status, 200);
+  const pending = call(dana, '/api/outlook/filing-next?pc=PC1');
+  await wait(50);
+  assert.strictEqual((await call(dana, '/api/outlook/filing-ready?id=' + job2.id, {})).status, 200);
+  const token2 = (await pending).body.job.token;
+  const g2 = await call(null, '/api/filing/' + token2);
   assert.deepStrictEqual([g2.body.folder, g2.body.guide, g2.body.log.length, g2.body.lang], ['2026-05-20-26 - Tel Aviv School', 'תכניות מיועץ → CONS', 1, 'he']);
   // cancel: the token stops working
-  assert.strictEqual((await call(null, '/api/filing/' + job2.body.url.slice(16) + '/cancel', {})).status, 200);
-  assert.strictEqual((await call(null, '/api/filing/' + job2.body.url.slice(16))).status, 410);
+  assert.strictEqual((await call(null, '/api/filing/' + token2 + '/cancel', {})).status, 200);
+  assert.strictEqual((await call(null, '/api/filing/' + token2)).status, 410);
+  // a job without files cannot be ready
+  const job3 = (await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail: MAIL })).body;
+  assert.strictEqual((await call(dana, '/api/outlook/filing-ready?id=' + job3.id, {})).status, 400);
 });
 ```
 
@@ -541,10 +532,12 @@ Expected: the new test FAILs (`/api/outlook/filing` → 404 or 401 from the gate
 ```js
 'use strict';
 /* Filing an email's files into the project's folder on the office network.
-   The Outlook pane (personal pho_ key, through outlook.js) opens a job: the chosen files wait here, in
-   DATA_DIR/filing-tmp/<job>, behind a one-time token. The pane then opens projecthub-file:<token>, and the
-   helper on the person's PC (tools/file-helper) uses the token alone: it reads the job and what the office
-   knows about the project's folder, asks Claude for a plan, files on the PC and reports back.
+   The Outlook pane (personal pho_ key, through outlook.js) opens a job, uploads the chosen files to
+   DATA_DIR/filing-tmp/<job> and marks it ready. The agent on the person's PC (tools/file-helper, same key)
+   waits on /api/outlook/filing-next and receives the job's one-time token — once — and its window then uses
+   the token alone: it reads the job and what the office knows about the project's folder, asks Claude for a
+   plan, files on the PC and reports back. (A browser link that would start the window was tried and does not
+   work reliably in Chrome; see the spec.)
    What each Hub project knows — its folder's name under "@Omicron Projects", its filing guide, the filings
    so far — is kept in filing.json. Jobs live in memory: a restart only loses jobs nobody finished.
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md */
@@ -553,8 +546,9 @@ const path = require('path');
 const crypto = require('crypto');
 const ai = require('./filing-ai');
 
-const TTL = Number(process.env.FILING_TTL_MS) || 15 * 60 * 1000; // a token's life
-const KEEP = 60 * 60 * 1000;   // a job stays this long after its token ends, for the pane's status
+const TTL = Number(process.env.FILING_TTL_MS) || 15 * 60 * 1000; // a job's (and its token's) life
+const POLL = Number(process.env.FILING_POLL_MS) || 25 * 1000;     // how long the agent's request waits for a job
+const KEEP = 60 * 60 * 1000;   // a job stays this long after it ends, for the pane's status
 const MAX_FILES = 20;
 const LOG_MAX = 200;
 const WRITERS = ['editor', 'admin', 'superadmin'];
@@ -582,14 +576,18 @@ module.exports = function createFiling(ctx) {
   fs.rmSync(TMP, { recursive: true, force: true }); // left by a restart: nobody can reach those jobs any more
   const jobs = new Map();    // id → job
   const byToken = new Map(); // sha(token) → job id
+  const waiting = new Map(); // who → Set of wake-ups of agents waiting for a job
 
   const load = () => { const d = readJson(STORE); return d && d.projects ? d : { projects: {} }; };
   const known = id => load().projects[id] || { folder: '', guide: '', log: [] };
   const writer = person => WRITERS.includes(mcp.whoAmI(person.email, person.name).role);
+  const nextFor = who => { for (const j of jobs.values()) if (j.who === who && j.ready && !j.handed && !j.closed && j.exp > Date.now()) return j; return null; };
+  const wake = who => { for (const f of [...(waiting.get(who) || [])]) f(); };
 
   // the token stops working and the waiting files go
   function close(j) {
     for (const [h, id] of byToken) if (id === j.id) byToken.delete(h);
+    delete j.token;
     fs.rmSync(path.join(TMP, j.id), { recursive: true, force: true });
     j.closed = true;
   }
@@ -601,7 +599,7 @@ module.exports = function createFiling(ctx) {
   }
   const json = async req => { const raw = await readRequestBody(req); const v = raw ? JSON.parse(raw) : {}; return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; };
 
-  /* ── the pane (outlook.js has checked the key; p is the person, who the key's owner) ── */
+  /* ── the pane and the agent (outlook.js has checked the key; p is the person, who the key's owner) ── */
   async function handlePane(req, res, url, p, who, base) {
     sweep();
     if (url.pathname === '/api/outlook/filing') {
@@ -612,28 +610,60 @@ module.exports = function createFiling(ctx) {
       const from = m.from && typeof m.from === 'object' ? m.from : {};
       const token = crypto.randomBytes(32).toString('base64url');
       const j = {
-        id: crypto.randomBytes(9).toString('hex'), who, person: p, base, by: mcp.whoAmI(p.email, p.name).name,
+        id: crypto.randomBytes(9).toString('hex'), who, person: p, base, by: mcp.whoAmI(p.email, p.name).name, token,
         projectId: g.project.id, project: { id: g.project.id, code: g.project.code || '', name: g.project.name },
         mail: {
           subject: String(m.subject || '').slice(0, 300),
           from: [from.name, from.email ? '<' + from.email + '>' : ''].filter(Boolean).join(' ').slice(0, 300),
           conversationId: String(m.conversationId || '').slice(0, 400)
         },
-        lang: body.lang === 'en' ? 'en' : 'he', files: [], exp: Date.now() + TTL, opened: false, done: null, closed: false
+        lang: body.lang === 'en' ? 'en' : 'he', files: [], exp: Date.now() + TTL,
+        ready: false, handed: null, opened: false, done: null, closed: false
       };
       jobs.set(j.id, j);
       byToken.set(sha(token), j.id);
-      sendJson(res, 200, { id: j.id, url: 'projecthub-file:' + token, exp: new Date(j.exp).toISOString() });
+      sendJson(res, 200, { id: j.id, exp: new Date(j.exp).toISOString() });
+      return;
+    }
+    /* the agent on the PC: this person's next ready job, handed out once; waits up to POLL for one */
+    if (url.pathname === '/api/outlook/filing-next') {
+      const pc = String(url.searchParams.get('pc') || '').slice(0, 60);
+      let j = nextFor(who);
+      if (!j) {
+        await new Promise(resolve => {
+          const set = waiting.get(who) || new Set();
+          waiting.set(who, set);
+          const done = () => { clearTimeout(timer); set.delete(done); if (!set.size) waiting.delete(who); resolve(); };
+          const timer = setTimeout(done, POLL);
+          set.add(done);
+          res.on('close', done);
+        });
+        if (res.writableEnded || res.destroyed) return;
+        j = nextFor(who);
+      }
+      if (!j) { sendJson(res, 200, { job: null }); return; }
+      j.handed = { at: new Date().toISOString(), pc };
+      const token = j.token;
+      delete j.token;
+      sendJson(res, 200, { job: { id: j.id, token } });
       return;
     }
     const j = jobs.get(url.searchParams.get('id') || '');
     if (!j || j.who !== who) { sendJson(res, 404, { error: 'no_job' }); return; }
     if (url.pathname === '/api/outlook/filing-status') {
-      sendJson(res, 200, { opened: j.opened, done: j.done, expired: !j.done && j.exp < Date.now() });
+      sendJson(res, 200, { ready: j.ready, handed: j.handed, opened: j.opened, done: j.done, expired: !j.done && j.exp < Date.now() });
       return;
     }
-    // /api/outlook/filing-file: one file, raw bytes, while the helper has not taken the job yet
-    if (j.closed || j.opened) { sendJson(res, 409, { error: 'started' }); return; }
+    if (url.pathname === '/api/outlook/filing-ready') {
+      if (j.closed) { sendJson(res, 410, { error: 'expired' }); return; }
+      if (!j.files.length) { sendJson(res, 400, { error: 'no_files' }); return; }
+      j.ready = true;
+      wake(who);
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+    // /api/outlook/filing-file: one file, raw bytes, while the job is not ready yet
+    if (j.closed || j.ready) { sendJson(res, 409, { error: 'started' }); return; }
     const name = safeName(url.searchParams.get('name'));
     if (!name || BLOCKED.test(name)) { sendJson(res, 415, { error: 'type' }); return; }
     if (j.files.length >= MAX_FILES) { sendJson(res, 413, { error: 'too_many' }); return; }
@@ -647,7 +677,7 @@ module.exports = function createFiling(ctx) {
     sendJson(res, 200, { ok: true, n: j.files.length - 1 });
   }
 
-  /* ── the helper on the PC: the token is its only permission ── */
+  /* ── the window on the PC: the token is its only permission ── */
   const ROUTE = /^\/api\/filing\/([A-Za-z0-9_-]{20,80})(?:\/(project|suggest|done|cancel|file)(?:\/(\d{1,2}))?)?$/;
   const METHOD = { '': 'GET', file: 'GET', project: 'PUT', suggest: 'POST', done: 'POST', cancel: 'POST' };
   function handleToken(req, res, url) {
@@ -712,7 +742,7 @@ module.exports = function createFiling(ctx) {
       }
       return;
     }
-    // done: what the helper actually did
+    // done: what the window actually did
     const did = (Array.isArray(body.files) ? body.files : []).slice(0, MAX_FILES)
       .map(f => f && typeof f === 'object' ? { name: safeName(f.name), dest: ai.relPath(f.dest), savedAs: safeName(f.savedAs) } : {})
       .filter(f => f.name && f.dest != null);
@@ -756,8 +786,8 @@ After the `const health = …` line (where `client`, `MODEL` and `loadLinks` exi
 Extend the route lists:
 
 ```js
-  const GET_ROUTES = ['/api/outlook/me', '/api/outlook/projects', '/api/outlook/tasks', '/api/outlook/project', '/api/outlook/filing-status'];
-  const POST_ROUTES = ['/api/outlook/context', '/api/outlook/link', '/api/outlook/unlink', '/api/outlook/entry', '/api/outlook/parse', '/api/outlook/create', '/api/outlook/apply', '/api/outlook/undo', '/api/outlook/upload', '/api/outlook/attached', '/api/outlook/exec', '/api/outlook/filing', '/api/outlook/filing-file'];
+  const GET_ROUTES = ['/api/outlook/me', '/api/outlook/projects', '/api/outlook/tasks', '/api/outlook/project', '/api/outlook/filing-status', '/api/outlook/filing-next'];
+  const POST_ROUTES = ['/api/outlook/context', '/api/outlook/link', '/api/outlook/unlink', '/api/outlook/entry', '/api/outlook/parse', '/api/outlook/create', '/api/outlook/apply', '/api/outlook/undo', '/api/outlook/upload', '/api/outlook/attached', '/api/outlook/exec', '/api/outlook/filing', '/api/outlook/filing-file', '/api/outlook/filing-ready'];
 ```
 
 In `run()`, right after the method check (`if (req.method !== (isGet ? 'GET' : 'POST')) …`), add:
@@ -786,7 +816,7 @@ Expected: all pass except the known `mcp.test.js:168` date failure.
 
 ```bash
 git add tools/local-server/filing.js tools/local-server/outlook.js tools/local-server/test/filing.test.js
-git commit -m "feat(filing): jobs behind a one-time token, the project's folder and guide, and the filing log"
+git commit -m "feat(filing): jobs handed to the PC's agent once, the project's folder and guide, and the filing log"
 ```
 
 ---
@@ -799,16 +829,18 @@ git commit -m "feat(filing): jobs behind a one-time token, the project's folder 
 - [ ] **Step 1: Append the test**
 
 ```js
-test('filing: a token ends after its time, and without Claude the helper gets no plan', async (t) => {
-  const { keyOf, call } = await start(t, 3963, { FILING_TTL_MS: '600' });
+test('filing: a token ends after its time, and without Claude the window gets no plan', async (t) => {
+  const { keyOf, call, up } = await start(t, 3963, { FILING_TTL_MS: '700', FILING_POLL_MS: '200' });
   const dana = await keyOf('dana@kkarc.com');
-  const job = await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail: MAIL });
-  const token = job.body.url.slice(16);
+  const id = (await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail: MAIL })).body.id;
+  assert.strictEqual((await up(dana, id, 'A.pdf', '%PDF')).status, 200);
+  assert.strictEqual((await call(dana, '/api/outlook/filing-ready?id=' + id, {})).status, 200);
+  const token = (await call(dana, '/api/outlook/filing-next?pc=PC1')).body.job.token;
   const s = await call(null, '/api/filing/' + token + '/suggest', { tree: ['CONS'] });
   assert.deepStrictEqual(s.body, { plan: null, reason: 'ai_unavailable' });
-  await wait(800);
+  await wait(900);
   assert.strictEqual((await call(null, '/api/filing/' + token)).status, 410);
-  assert.strictEqual((await call(dana, '/api/outlook/filing-status?id=' + job.body.id)).body.expired, true);
+  assert.strictEqual((await call(dana, '/api/outlook/filing-status?id=' + id)).body.expired, true);
 });
 ```
 
@@ -932,10 +964,17 @@ try {
   $cands = Find-ProjectFolder $p1 'TASC' 'Tel Aviv School' $fm
   Check 'project folder: from Folder Manager by code' ($cands[0] -eq 'S')
 
-  # the link
-  Check 'token: plain' ((Get-TokenFromUri ('projecthub-file:' + ('a' * 43))) -eq ('a' * 43))
-  Check 'token: slashes' ((Get-TokenFromUri ('projecthub-file://' + ('a' * 43) + '/')) -eq ('a' * 43))
-  Check 'token: refuses anything else' ($null -eq (Get-TokenFromUri 'projecthub-file:abc" & calc'))
+  # the job's token, as the agent passes it on a command line
+  Check 'token: plain' (Test-HelperToken ('a' * 43))
+  Check 'token: refuses anything else' (-not (Test-HelperToken 'abc" & calc'))
+  Check 'token: refuses empty' (-not (Test-HelperToken ''))
+
+  # the personal key, kept with DPAPI
+  $keyPath = Join-Path $root 'cfg\file-helper.key'
+  Check 'key: none yet' ($null -eq (Read-HelperKey $keyPath))
+  Save-HelperKey 'pho_test123' $keyPath
+  Check 'key: round trip' ((Read-HelperKey $keyPath) -eq 'pho_test123')
+  Check 'key: not stored in plain text' (-not ((Get-Content -Raw $keyPath) -match 'pho_test123'))
 
   # config
   $cfgPath = Join-Path $root 'cfg\file-helper.json'
@@ -973,13 +1012,14 @@ Expected: an error — `FileHelper.Core.ps1` does not exist.
 
 $script:ConfigPath = Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper.json'
 $script:FmProjects = Join-Path $env:LOCALAPPDATA 'FolderManager\projects.json'
+$script:KeyPath = Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper.key'
 
 # ── texts: Hebrew is the source; English when the pane that opened the job runs in English ──
 $script:Lang = 'he'
 $script:EN = @{
   'תיוק בתיקיית הפרויקט' = 'File in the project folder'
   'קישור הפרויקט לתיקייה' = 'Link the project to its folder'
-  'הקישור לא תקין.' = 'The link is not valid.'
+  'הבקשה לא תקינה.' = 'The request is not valid.'
   'הבקשה פגה. לחץ שוב בחלונית של Outlook.' = 'The request has expired. Click again in the Outlook pane.'
   'השרת לא זמין: {e}' = 'The server is not available: {e}'
   'איפה תיקיית הפרויקטים של המשרד ("@Omicron Projects") במחשב הזה?' = 'Where is the office''s projects folder ("@Omicron Projects") on this computer?'
@@ -1210,10 +1250,21 @@ function Find-ProjectFolder([string]$ProjectsRoot, [string]$Code, [string]$Name,
   }
   return ,$out.ToArray()
 }
-function Get-TokenFromUri([string]$Uri) {
-  # projecthub-file:<token>, as Windows hands it over (some browsers add "//" or a trailing "/")
-  if ($Uri -match '^projecthub-file:/*([A-Za-z0-9_-]{20,80})/?$') { return $Matches[1] }
-  return $null
+function Test-HelperToken([string]$Token) {
+  # a job's token, as the server makes it; anything else never reaches a command line
+  return [bool]($Token -match '^[A-Za-z0-9_-]{20,80}$')
+}
+function Save-HelperKey([string]$Key, [string]$Path = $script:KeyPath) {
+  # the person's Outlook add-in key, readable only by this Windows user (DPAPI), like the mail scanner's
+  New-Item -ItemType Directory -Force -Path (Split-Path $Path -Parent) | Out-Null
+  ConvertTo-SecureString $Key -AsPlainText -Force | ConvertFrom-SecureString | Set-Content -LiteralPath $Path
+}
+function Read-HelperKey([string]$Path = $script:KeyPath) {
+  if (-not (Test-Path -LiteralPath $Path)) { return $null }
+  try {
+    $sec = Get-Content -LiteralPath $Path | ConvertTo-SecureString
+    return [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
+  } catch { return $null }
 }
 function Get-HelperConfig([string]$Path = $script:ConfigPath) {
   $c = $null
@@ -1244,40 +1295,83 @@ git commit -m "feat(file-helper): the PC side's logic — safe paths, folder tre
 
 ---
 
-### Task 7: `File-Helper.ps1` and its launcher — the windows
+### Task 7: The background agent and the window
 
-No automated test (WinForms); checked by hand in Task 10. Keep all logic in the core.
+No automated test (WinForms, a long-running loop); checked by hand in Task 10. Keep all logic in the core.
 
 **Files:**
+- Create: `tools/file-helper/FileHelper-Agent.ps1`
+- Create: `tools/file-helper/run-file-helper-agent.vbs`
 - Create: `tools/file-helper/File-Helper.ps1`
-- Create: `tools/file-helper/run-file-helper.vbs`
 
-- [ ] **Step 1: Write `run-file-helper.vbs`**
+- [ ] **Step 1: Write `run-file-helper-agent.vbs`**
 
 ```vbs
-' Runs File-Helper.ps1 with no console window, for a projecthub-file: link (registered by Install-FileHelper.ps1).
-' The link is checked first: a page could hand Windows any text after "projecthub-file:", and it goes on a command line.
-Dim sh, ps1, arg, re
-If WScript.Arguments.Count = 0 Then WScript.Quit 1
-arg = WScript.Arguments(0)
-Set re = New RegExp
-re.Pattern = "^projecthub-file:/*[A-Za-z0-9_-]{20,80}/?$"
-If Not re.Test(arg) Then WScript.Quit 1
+' Starts the filing helper's background agent (FileHelper-Agent.ps1) with no console window.
+' Run by the Startup shortcut at every Windows sign-in, and by Install-FileHelper.ps1 right after installing.
+Dim sh, ps1
 Set sh = CreateObject("WScript.Shell")
-ps1 = Replace(WScript.ScriptFullName, WScript.ScriptName, "File-Helper.ps1")
-sh.Run "powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File """ & ps1 & """ -Uri """ & arg & """", 0, False
+ps1 = Replace(WScript.ScriptFullName, WScript.ScriptName, "FileHelper-Agent.ps1")
+sh.Run "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File """ & ps1 & """", 0, False
 ```
 
-- [ ] **Step 2: Write `File-Helper.ps1`**
+- [ ] **Step 2: Write `FileHelper-Agent.ps1`**
 
 ```powershell
-<# Project Hub — filing helper: the window. Opened by a projecthub-file:<token> link from the Outlook add-in
-   (run-file-helper.vbs). The token is its only permission: it reads the job, links the project to its folder the
+<# Project Hub — filing helper: the background agent. Started hidden at Windows sign-in (Startup shortcut,
+   run-file-helper-agent.vbs). It keeps one request open to the hub (/api/outlook/filing-next, up to 25 seconds,
+   with the person's Outlook add-in key) and, when the person clicks "תייק בתיקיית הפרויקט" in Outlook, receives
+   that job's one-time token and opens the filing window (File-Helper.ps1) with it.
+   One agent per Windows session. Log: %LOCALAPPDATA%\ProjectHub\file-helper.log.
+   Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md
+   Saved as UTF-8 with BOM. #>
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+. (Join-Path $PSScriptRoot 'FileHelper.Core.ps1')
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+$mutex = New-Object Threading.Mutex($false, 'Local\ProjectHubFileHelperAgent')
+if (-not $mutex.WaitOne(0)) { exit 0 }
+
+$log = Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper.log'
+function Log([string]$Text) {
+  try {
+    if ((Test-Path -LiteralPath $log) -and (Get-Item -LiteralPath $log).Length -gt 200KB) { Remove-Item -LiteralPath $log }
+    Add-Content -LiteralPath $log -Value ('{0:s} {1}' -f (Get-Date), $Text) -Encoding UTF8
+  } catch {}
+}
+$window = Join-Path $PSScriptRoot 'File-Helper.ps1'
+Log 'started'
+while ($true) {
+  $cfg = Get-HelperConfig
+  $key = Read-HelperKey
+  if (-not $key) { Log 'no key: run Install-FileHelper.ps1'; Start-Sleep -Seconds 300; continue }
+  try {
+    $uri = $cfg.hub.TrimEnd('/') + '/api/outlook/filing-next?pc=' + [uri]::EscapeDataString($env:COMPUTERNAME)
+    $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Headers @{ Authorization = "Bearer $key" } -Uri $uri
+    $j = [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray()) | ConvertFrom-Json
+    if ($j.job -and (Test-HelperToken $j.job.token)) {
+      Log "job $($j.job.id)"
+      Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @('-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', "`"$window`"", '-Token', $j.job.token)
+    }
+  } catch {
+    $code = try { [int]$_.Exception.Response.StatusCode } catch { 0 }
+    if ($code -eq 401) { Log 'the key was refused (401): issue a new key and run Install-FileHelper.ps1 again'; Start-Sleep -Seconds 300 }
+    else { Log "error: $($_.Exception.Message)"; Start-Sleep -Seconds 15 }
+  }
+}
+```
+
+- [ ] **Step 3: Write `File-Helper.ps1`**
+
+```powershell
+<# Project Hub — filing helper: the window for one job. Started by the background agent (FileHelper-Agent.ps1)
+   with the job's one-time token. The token is its only permission: it reads the job, links the project to its folder the
    first time, asks the server for Claude's plan, shows it on the real folder tree, and files on a yes.
    The logic is in FileHelper.Core.ps1.
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md
    Saved as UTF-8 with BOM. #>
-param([string]$Uri)
+param([string]$Token)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 . (Join-Path $PSScriptRoot 'FileHelper.Core.ps1')
@@ -1286,7 +1380,7 @@ Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $cfg = Get-HelperConfig
-$token = Get-TokenFromUri $Uri
+$token = if (Test-HelperToken $Token) { $Token } else { $null }
 
 function Say([string]$Text, [string]$Icon = 'Information', [string]$Buttons = 'OK') {
   $opt = if ($script:Lang -eq 'en') { [Windows.Forms.MessageBoxOptions]0 } else { [Windows.Forms.MessageBoxOptions]'RightAlign, RtlReading' }
@@ -1452,7 +1546,7 @@ function Show-PlanDialog($Job, [string]$Root, [string[]]$Tree, $Plan) {
 }
 
 # ── the run ──
-if (-not $token) { [void](Say (T 'הקישור לא תקין.') 'Warning'); exit 1 }
+if (-not $token) { [void](Say (T 'הבקשה לא תקינה.') 'Warning'); exit 1 }
 try { $job = Api 'GET' '' $null } catch {
   [void](Say $(if ((StatusOf $_) -eq 410) { T 'הבקשה פגה. לחץ שוב בחלונית של Outlook.' } else { T 'השרת לא זמין: {e}' @{ e = $_.Exception.Message } }) 'Warning')
   exit 1
@@ -1527,21 +1621,21 @@ try {
 }
 ```
 
-- [ ] **Step 3: Save with BOM; parse-check the script**
+- [ ] **Step 4: Save with BOM; parse-check the scripts**
 
 Run the BOM command, then:
 
 ```powershell
-$null = [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path tools\file-helper\File-Helper.ps1), [ref]$null, [ref]$e); $e
+foreach ($f in 'File-Helper.ps1', 'FileHelper-Agent.ps1') { $e = $null; $null = [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path "tools\file-helper\$f"), [ref]$null, [ref]$e); $f; $e }
 ```
 
-Expected: no parse errors printed.
+Expected: the two file names, and no parse errors printed.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add tools/file-helper/File-Helper.ps1 tools/file-helper/run-file-helper.vbs
-git commit -m "feat(file-helper): the window — link the project once, then Claude's plan on the real folder tree"
+git add tools/file-helper/File-Helper.ps1 tools/file-helper/FileHelper-Agent.ps1 tools/file-helper/run-file-helper-agent.vbs
+git commit -m "feat(file-helper): the background agent, and the window — link the project once, then Claude's plan on the real folder tree"
 ```
 
 ---
@@ -1554,31 +1648,53 @@ git commit -m "feat(file-helper): the window — link the project once, then Cla
 - [ ] **Step 1: Write `Install-FileHelper.ps1`**
 
 ```powershell
-<# Project Hub — filing helper: install for the current Windows user (no admin rights, no key).
-   Copies the helper to %LOCALAPPDATA%\ProjectHub\file-helper, notes the hub's address and where "@Omicron Projects"
-   is on this PC (from Folder Manager's list, when there is one), and registers the projecthub-file: link that the
-   Outlook add-in's "תייק בתיקיית הפרויקט" opens. Run it again after an update.
+<# Project Hub — filing helper: install for the current Windows user (no admin rights).
+   Asks for the person's Outlook add-in key (the one pasted in the add-in's pane), checks it with the hub and keeps
+   it with DPAPI; copies the helper to %LOCALAPPDATA%\ProjectHub\file-helper; notes where "@Omicron Projects" is on
+   this PC (from Folder Manager's list, when there is one); adds a Startup shortcut that runs the background agent
+   at every Windows sign-in, and starts it now. Run it again after an update or to replace the key.
    Saved as UTF-8 with BOM. #>
 param([string]$Hub = 'https://kkarc-hub.azurewebsites.net')
 $ErrorActionPreference = 'Stop'
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $dir = Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper'
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
-foreach ($f in 'File-Helper.ps1', 'FileHelper.Core.ps1', 'run-file-helper.vbs') { Copy-Item -LiteralPath (Join-Path $here $f) -Destination $dir -Force }
 
+# an agent of an earlier install is stopped first, so the new files are the ones that run
+Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -match 'FileHelper-Agent\.ps1' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+foreach ($f in 'File-Helper.ps1', 'FileHelper.Core.ps1', 'FileHelper-Agent.ps1', 'run-file-helper-agent.vbs') { Copy-Item -LiteralPath (Join-Path $here $f) -Destination $dir -Force }
 . (Join-Path $dir 'FileHelper.Core.ps1')
+
 $cfg = Get-HelperConfig
 $cfg.hub = $Hub.TrimEnd('/')
 if (-not $cfg.projectsRoot) { $found = Find-ProjectsRoot; if ($found) { $cfg.projectsRoot = $found } }
 Save-HelperConfig $cfg
 
-$key = 'HKCU:\Software\Classes\projecthub-file'
-New-Item -Path "$key\shell\open\command" -Force | Out-Null
-Set-ItemProperty -Path $key -Name '(default)' -Value 'URL:Project Hub filing'
-Set-ItemProperty -Path $key -Name 'URL Protocol' -Value ''
-Set-ItemProperty -Path "$key\shell\open\command" -Name '(default)' -Value "wscript.exe //B //Nologo `"$dir\run-file-helper.vbs`" `"%1`""
+# the key: checked with the hub before it is kept
+while ($true) {
+  Write-Host 'הדבק את המפתח האישי של תוסף ה-Outlook (אותו מפתח שמודבק בחלונית של התוסף) ולחץ Enter:'
+  $sec = Read-Host -AsSecureString
+  if ($sec.Length -eq 0) { continue }
+  $key = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
+  try {
+    $me = Invoke-RestMethod -UseBasicParsing -Uri ($cfg.hub + '/api/outlook/me') -Headers @{ Authorization = "Bearer $key" }
+    Save-HelperKey $key
+    Write-Host "המפתח תקין ($($me.email))."
+    break
+  } catch { Write-Host 'המפתח לא התקבל בשרת. נסה שוב.' }
+}
 
-Write-Host 'הותקן.'
+# at every sign-in, and now
+$startup = [Environment]::GetFolderPath('Startup')
+$shell = New-Object -ComObject WScript.Shell
+$lnk = $shell.CreateShortcut((Join-Path $startup 'Project Hub filing helper.lnk'))
+$lnk.TargetPath = 'wscript.exe'
+$lnk.Arguments = "//B //Nologo `"$dir\run-file-helper-agent.vbs`""
+$lnk.Save()
+Start-Process wscript.exe -ArgumentList '//B', '//Nologo', "`"$dir\run-file-helper-agent.vbs`""
+
+Write-Host 'הותקן. עוזר התיוק פועל ברקע, ויופעל מחדש בכל כניסה ל-Windows.'
 if ($cfg.projectsRoot) { Write-Host "תיקיית הפרויקטים במחשב הזה: $($cfg.projectsRoot)" }
 else { Write-Host 'תיקיית הפרויקטים לא זוהתה. בתיוק הראשון תתבקש לבחור אותה.' }
 ```
@@ -1588,9 +1704,10 @@ else { Write-Host 'תיקיית הפרויקטים לא זוהתה. בתיוק �
 ```powershell
 <# Project Hub — filing helper: remove for the current Windows user. Saved as UTF-8 with BOM. #>
 $ErrorActionPreference = 'SilentlyContinue'
-Remove-Item -Path 'HKCU:\Software\Classes\projecthub-file' -Recurse
+Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -match 'FileHelper-Agent\.ps1' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+Remove-Item -LiteralPath (Join-Path ([Environment]::GetFolderPath('Startup')) 'Project Hub filing helper.lnk') -Force
 Remove-Item -LiteralPath (Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper') -Recurse -Force
-Remove-Item -LiteralPath (Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper.json') -Force
+foreach ($f in 'file-helper.json', 'file-helper.key', 'file-helper.log') { Remove-Item -LiteralPath (Join-Path $env:LOCALAPPDATA "ProjectHub\$f") -Force }
 Write-Host 'הוסר.'
 ```
 
@@ -1599,17 +1716,21 @@ Write-Host 'הוסר.'
 ```markdown
 # תיוק קבצים ממייל לתיקיית הפרויקט
 
-חלון קטן במחשב שלך, שנפתח מהכפתור **תייק בתיקיית הפרויקט** בתוסף Outlook של Project Hub. הוא מציג
-את עץ התיקיות האמיתי של הפרויקט בכונן המשרד, עם הצעה של Claude לאן לשמור כל קובץ (ואם לפתוח תיקיית
-גרסה חדשה). שום דבר לא נשמר בלי **תייק**, ושום דבר לא נמחק או נדרס: קובץ בשם קיים מקבל ‎" (2)".
+עוזר קטן במחשב שלך. כשלוחצים **תייק בתיקיית הפרויקט** בתוסף Outlook של Project Hub, נפתח במחשב חלון עם
+עץ התיקיות האמיתי של הפרויקט בכונן המשרד, והצעה של Claude לאן לשמור כל קובץ (ואם לפתוח תיקיית גרסה חדשה).
+שום דבר לא נשמר בלי **תייק**, ושום דבר לא נמחק או נדרס: קובץ בשם קיים מקבל ‎" (2)".
 
-## התקנה (פעם אחת בכל מחשב, בלי הרשאות מנהל ובלי מפתח)
+העוזר רץ ברקע מהכניסה ל-Windows ומחכה לבקשות שלך בשרת, ולכן הוא עובד מכל דפדפן ומכל גרסה של Outlook.
 
-מתיקיית Project Hub:
+## התקנה (פעם אחת בכל מחשב, בלי הרשאות מנהל)
 
-    powershell -ExecutionPolicy Bypass -File tools\file-helper\Install-FileHelper.ps1
+1. המפתח האישי של תוסף ה-Outlook: ב-Project Hub, הגדרות ← תוסף Outlook (אותו מפתח שהדבקת בחלונית).
+2. מתיקיית Project Hub:
 
-ההתקנה מזהה איפה "@Omicron Projects" במחשב הזה לפי Folder Manager. אם לא — בתיוק הראשון תתבקש לבחור.
+       powershell -ExecutionPolicy Bypass -File tools\file-helper\Install-FileHelper.ps1
+
+   הדבק את המפתח כשהוא מתבקש. ההתקנה בודקת אותו מול השרת, מזהה איפה "@Omicron Projects" במחשב הזה לפי
+   Folder Manager (אם לא — בתיוק הראשון תתבקש לבחור), ומפעילה את העוזר.
 
 ## הפעם הראשונה בכל פרויקט
 
@@ -1620,20 +1741,21 @@ Write-Host 'הוסר.'
 
 | מה רואים | מה לעשות |
 |---|---|
-| בחלונית: "החלון לא נפתח?" | להריץ את ההתקנה במחשב הזה |
-| "הבקשה פגה" | ללחוץ שוב בחלונית (הבקשה תקפה 15 דקות) |
+| בחלונית: "עוזר התיוק לא פועל במחשב הזה" | להריץ את ההתקנה במחשב הזה, או להתנתק ולהתחבר ל-Windows |
+| "הבקשה פגה" | ללחוץ שוב בחלונית (בקשה תקפה 15 דקות) |
 | "לא מוצאת את תיקיית הפרויקט" | לבדוק שהכונן מחובר, או לבחור מחדש בחלון |
+| שום דבר לא קורה | הלוג: `%LOCALAPPDATA%\ProjectHub\file-helper.log` (למשל "the key was refused": מפתח חדש והתקנה מחדש) |
 
 הסרה: `powershell -ExecutionPolicy Bypass -File tools\file-helper\Uninstall-FileHelper.ps1`.
 ```
 
 - [ ] **Step 4: BOM, parse-check both scripts, commit**
 
-Run the BOM command; parse-check as in Task 7 Step 3 for both files.
+Run the BOM command; parse-check `Install-FileHelper.ps1` and `Uninstall-FileHelper.ps1` as in Task 7 Step 4.
 
 ```bash
 git add tools/file-helper/Install-FileHelper.ps1 tools/file-helper/Uninstall-FileHelper.ps1 tools/file-helper/README.md
-git commit -m "feat(file-helper): per-user install of the projecthub-file: link"
+git commit -m "feat(file-helper): per-user install — the key, the Startup shortcut, the agent"
 ```
 
 ---
@@ -1661,14 +1783,11 @@ After the `attForm` card:
     <div id="fileList" style="display:flex;flex-direction:column;gap:4px;margin-block-start:8px"></div>
     <div class="hint" id="fileState"></div>
     <div class="row" style="margin-block-start:8px">
-      <button class="primary" type="button" id="fOk" data-t="העלה">העלה</button>
-      <a class="primary" id="fOpen" hidden target="_blank" style="text-decoration:none;padding:6px 12px;border-radius:6px" data-t="פתח את חלון התיוק">פתח את חלון התיוק</a>
+      <button class="primary" type="button" id="fOk" data-t="תייק">תייק</button>
       <button type="button" id="fCancel" data-t="ביטול">ביטול</button>
     </div>
   </div>
 ```
-
-(Use the launch form Task 1 found to work; this is form A. Match the `a.primary` look to the existing `button.primary` style in the page's `<style>` if needed.)
 
 - [ ] **Step 2: `fileChoices` takes a check per file**
 
@@ -1698,13 +1817,13 @@ var BLOCKED = /\.(exe|com|bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|msi|msp|scr|ln
 function fileWhy(a) { return a.type === 'cloud' ? 'קובץ בענן — לא ניתן לצרף מכאן' : BLOCKED.test(a.name) ? 'סוג קובץ לא נתמך' : a.size > MAX_FILE ? 'גדול מדי' : ''; }
 ```
 
-- [ ] **Step 3: The flow — upload, the link, watching the job**
+- [ ] **Step 3: The flow — upload, ready, watching the job**
 
 After `saveAttach`:
 
 ```js
-/* ── filing into the project's folder on the office network: the files wait on the server behind a one-time
-   token; the helper on this PC (projecthub-file:) shows Claude's plan and files them; the pane only watches ── */
+/* ── filing into the project's folder on the office network: the files wait on the server; the helper running on
+   the person's PC (tools/file-helper) picks the job up, shows Claude's plan and files them; the pane only watches ── */
 var fileJob = null, filePoll = null;
 function openFiling() {
   var pid = $('project').value;
@@ -1712,7 +1831,7 @@ function openFiling() {
   clearResult();
   fileJob = null;
   $('fileState').textContent = '';
-  $('fOk').hidden = false; $('fOk').disabled = false; $('fOpen').hidden = true;
+  $('fOk').disabled = false;
   fileChoices($('fileList'), { mail: false, attachments: (currentMail.attachments || []).map(function (a) { return a.name; }) }, true, fileWhy);
   $('fileForm').hidden = false;
 }
@@ -1737,24 +1856,22 @@ function saveFiling() {
     };
     return next(0);
   }).then(function () {
-    // opening a link to a program needs a fresh click: the uploads took longer than the browser allows
-    $('fOk').hidden = true;
-    $('fOpen').href = fileJob.url; $('fOpen').hidden = false;
-    $('fileState').textContent = tx('הקבצים מוכנים. לחץ "פתח את חלון התיוק".');
+    return api('/api/outlook/filing-ready?id=' + encodeURIComponent(fileJob.id), {});
+  }).then(function () {
+    $('fileState').textContent = tx('חלון התיוק ייפתח במחשב שלך בעוד רגע…');
     watchFiling();
   }).catch(function (e) { $('fOk').disabled = false; fail(e); });
 }
 function watchFiling() {
   clearInterval(filePoll);
-  var clicked = 0;
-  $('fOpen').onclick = function () { clicked = Date.now(); $('fileState').textContent = tx('נפתח חלון התיוק במחשב…'); };
+  var started = Date.now();
   filePoll = setInterval(function () {
     if (!fileJob) { clearInterval(filePoll); return; }
     api('/api/outlook/filing-status?id=' + encodeURIComponent(fileJob.id)).then(function (s) {
       if (s.done) { clearInterval(filePoll); showFiled(s.done); return; }
-      if (s.expired) { clearInterval(filePoll); $('fOpen').hidden = true; $('fOk').hidden = false; $('fOk').disabled = false; $('fileState').textContent = tx('הבקשה פגה. אפשר לנסות שוב.'); return; }
-      if (s.opened) $('fileState').textContent = tx('חלון התיוק פתוח במחשב. ממתין לאישור שלך שם…');
-      else if (clicked && Date.now() - clicked > 15000) $('fileState').textContent = tx('החלון לא נפתח? ייתכן שהעזר לא מותקן במחשב הזה: tools\\file-helper\\Install-FileHelper.ps1');
+      if (s.expired) { clearInterval(filePoll); $('fOk').disabled = false; $('fileState').textContent = tx('הבקשה פגה. אפשר לנסות שוב.'); return; }
+      if (s.handed) $('fileState').textContent = tx('חלון התיוק נפתח ב-{pc}. ממתין לאישור שלך שם…', { pc: s.handed.pc || '?' });
+      else if (Date.now() - started > 15000) $('fileState').textContent = tx('עוזר התיוק לא פועל במחשב הזה. התקנה: tools\\file-helper\\Install-FileHelper.ps1');
     }).catch(function () {});
   }, 2000);
 }
@@ -1770,6 +1887,8 @@ function showFiled(done) {
   resultCard(nodes);
 }
 ```
+
+(The computer name in "נפתח ב-{pc}" is data: it goes through the `{pc}` slot, so it is never translated.)
 
 - [ ] **Step 4: Hook it up**
 
@@ -1787,24 +1906,22 @@ In `clearResult()` add `$('fileForm').hidden = true; clearInterval(filePoll);`. 
   'תייק בתיקיית הפרויקט': 'File in the project folder',
   'תיוק בתיקיית הפרויקט': 'Filing in the project folder',
   'הקבצים יישמרו בתיקיית הפרויקט ברשת המשרד, דרך חלון שייפתח במחשב שלך.': 'The files are saved in the project folder on the office network, through a window that opens on your computer.',
-  'העלה': 'Upload',
-  'פתח את חלון התיוק': 'Open the filing window',
+  'תייק': 'File',
   'מעלה {i} מתוך {n}…': 'Uploading {i} of {n}…',
-  'הקבצים מוכנים. לחץ "פתח את חלון התיוק".': 'The files are ready. Click "Open the filing window".',
-  'נפתח חלון התיוק במחשב…': 'Opening the filing window on your computer…',
-  'חלון התיוק פתוח במחשב. ממתין לאישור שלך שם…': 'The filing window is open on your computer. Waiting for your confirmation there…',
+  'חלון התיוק ייפתח במחשב שלך בעוד רגע…': 'The filing window will open on your computer in a moment…',
+  'חלון התיוק נפתח ב-{pc}. ממתין לאישור שלך שם…': 'The filing window opened on {pc}. Waiting for your confirmation there…',
   'הבקשה פגה. אפשר לנסות שוב.': 'The request has expired. You can try again.',
-  'החלון לא נפתח? ייתכן שהעזר לא מותקן במחשב הזה: tools\\file-helper\\Install-FileHelper.ps1': 'No window? The helper may not be installed on this computer: tools\\file-helper\\Install-FileHelper.ps1',
+  'עוזר התיוק לא פועל במחשב הזה. התקנה: tools\\file-helper\\Install-FileHelper.ps1': 'The filing helper is not running on this computer. To install: tools\\file-helper\\Install-FileHelper.ps1',
   'תויק קובץ אחד בתיקיית הפרויקט.': 'One file filed in the project folder.',
   'תויקו {n} קבצים בתיקיית הפרויקט.': '{n} files filed in the project folder.',
   'נרשם ביומן המשימה המקושרת.': 'Logged on the linked task.',
 ```
 
-(`'ביטול'`, `'סמן לפחות קובץ אחד'`, `'בחר קודם פרויקט'`, `'סוג קובץ לא נתמך'`, `'גדול מדי'` and the cloud-file text already exist — check with `grep -n "'ביטול'" outlook/taskpane.html` and add only what is missing.)
+(`'ביטול'`, `'סמן לפחות קובץ אחד'`, `'בחר קודם פרויקט'`, `'סוג קובץ לא נתמך'`, `'גדול מדי'` and the cloud-file text already exist — check with `grep -n "'ביטול'" outlook/taskpane.html` and add only what is missing. If `'תייק'` already exists with another meaning, keep the existing entry.)
 
 - [ ] **Step 6: Check in the demo pane (no Outlook)**
 
-Start the `outlook-addin` preview, open `/outlook/taskpane.html` (demo mode when there is no mailbox). Check: the button shows; the form lists the demo attachments; English toggle shows every new text in English and the layout flips to LTR; no console errors. With a local key set, "העלה" creates a job and shows the link (the link itself is tried in Task 10).
+Start the `outlook-addin` preview, open `/outlook/taskpane.html` (demo mode when there is no mailbox). Check: the button shows; the form lists the demo attachments; English toggle shows every new text in English and the layout flips to LTR; no console errors. With a local key set, "תייק" creates a job, uploads, marks it ready and, with no agent running, shows the "not running" text after 15 seconds.
 
 - [ ] **Step 7: Commit**
 
@@ -1841,10 +1958,10 @@ Expected: all pass, except the known `mcp.test.js:168` date failure. Report any 
 - [ ] **Step 3: End-to-end on the user's PC, against the local server — never the real project folders first**
 
 1. Make a test projects folder, e.g. `%TEMP%\Omicron-test\2026-10-22-99 - Filing Test\CONSULTANTS\TEST-structural\TEST-structural-plans\TEST-structural-plans-v01` (plus `-@ver`, `-updated-PDF`).
-2. Install against the local HTTPS server: `powershell -ExecutionPolicy Bypass -File tools\file-helper\Install-FileHelper.ps1 -Hub https://localhost:3443`, then set `projectsRoot` in `%LOCALAPPDATA%\ProjectHub\file-helper.json` to `%TEMP%\Omicron-test`.
-3. Ask the user to open an email with a PDF in Outlook on the web (add-in sideloaded against localhost:3443), choose a project, click **תייק בתיקיית הפרויקט** → **העלה** → **פתח את חלון התיוק**.
-4. Check together: the link dialog (first time), the guide draft, the plan window (Claude's proposal needs `ANTHROPIC_API_KEY` locally; without it the window says Claude is unavailable and the tree pick works), switching new version ⇄ existing, the copy, the pane's "תויק…" result, `data/filing.json`, and the linked task's activity log. Check English too (pane in English → window in English, LTR).
-5. Afterwards restore `file-helper.json` (`-Hub` default) by re-running the install without `-Hub`.
+2. Start the `outlook-addin` preview (local HTTPS on 3443, this worktree's `data/` copy). Install against it: `powershell -ExecutionPolicy Bypass -File tools\file-helper\Install-FileHelper.ps1 -Hub https://localhost:3443` with the user's local add-in key (the one the "Project Hub LOCAL" pane uses), then set `projectsRoot` in `%LOCALAPPDATA%\ProjectHub\file-helper.json` to `%TEMP%\Omicron-test`. Check `%LOCALAPPDATA%\ProjectHub\file-helper.log` says `started`.
+3. Ask the user to open an email with a PDF in Outlook on the web, open **Project Hub LOCAL**, choose a project, click **תייק בתיקיית הפרויקט** → tick files → **תייק**. The window should open on its own within a few seconds; the pane says "נפתח ב-<PC>".
+4. Check together: the link dialog (first time), the guide draft, the plan window (Claude's proposal needs `ANTHROPIC_API_KEY` locally; without it the window says Claude is unavailable and the tree pick works), switching new version ⇄ existing, the copy, the pane's "תויק…" result, `data/filing.json`, and the linked task's activity log. Check English too (pane in English → window in English, LTR). Stop the agent and check the pane's "not running" text after 15 s.
+5. Afterwards: run `Uninstall-FileHelper.ps1` (the agent must not keep polling localhost), or re-install without `-Hub` with the Azure key once the feature is deployed. Ask the user whether to remove the "Project Hub LOCAL" add-in and `O:\@Omicron Office\Desktop\project-hub-local-test.xml`.
 
 - [ ] **Step 4: Commit and report**
 
