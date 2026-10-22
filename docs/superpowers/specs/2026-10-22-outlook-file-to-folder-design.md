@@ -84,7 +84,8 @@ Claude: אשמור את 2 הקבצים ב-CONSULTANTS\TASC-structural\…\TASC-s
 ## מה נשמר איפה
 
 - **שרת, `data/filing.json`**: `{ projects: { <hubProjectId>: { folder, guide, updatedBy, updatedAt,
-  contacts: { at, by, list: [{ name, role, firm, emails[] }] }, log: [ … עד 200 ] } } }`.
+  log: [ … עד 200 ] } }, contacts: { <registerProjectId>: { at, by, list: [{ name, role, firm, emails[] }] } } }`
+  (אנשי הקשר לפי פרויקט הרשם; פרויקט Hub מוצא אותם דרך `registerProjectId` שבמסמך שלו).
   רשומת log: `{ at, by, from, subject, file, dest, mode }`.
 - **שרת, תיקייה זמנית** `DATA_DIR/filing-tmp/<job>/` — נמחקת בסיום, בביטול או כשפג תוקף.
 - **מחשב**: `%LOCALAPPDATA%\ProjectHub\file-helper.json` `{ hub, projectsRoot }`, המפתח ב-`file-helper.key` (DPAPI),
