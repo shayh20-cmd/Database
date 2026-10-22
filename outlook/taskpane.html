@@ -1,0 +1,1015 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project Hub</title>
+<!-- Office.js must come from Microsoft's CDN (it cannot be self-hosted) -->
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<style>
+  :root { --bg: #fff; --fg: #1f2937; --muted: #6b7280; --line: #e5e7eb; --card: #f9fafb; --accent: #2563eb; --accent-fg: #fff; --err: #b91c1c; --ok-bg: #ecfdf5; --ok-line: #a7f3d0; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1f1f1f; --fg: #e5e7eb; --muted: #9ca3af; --line: #374151; --card: #262626; --accent: #60a5fa; --accent-fg: #0b1220; --err: #f87171; --ok-bg: #0f2a22; --ok-line: #14532d; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 "Segoe UI", Arial, sans-serif; }
+  header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 15px; margin: 0; flex: 1; }
+  header .who { color: var(--muted); font-size: 12px; }
+  main { padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .card h2 { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0 0 6px; }
+  .subject { font-weight: 600; word-break: break-word; }
+  .meta { color: var(--muted); font-size: 12px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-block-end: 4px; }
+  select, input, textarea { width: 100%; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+  textarea { resize: vertical; min-height: 64px; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  button.link { border: 0; background: none; color: var(--accent); padding: 0; }
+  a { color: var(--accent); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .err { color: var(--err); font-size: 13px; }
+  .hint { color: var(--muted); font-size: 12px; }
+  .linked { border-color: var(--ok-line); background: var(--ok-bg); }
+  .task-title { font-weight: 600; word-break: break-word; }
+  .updates { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  .updates li { font-size: 12px; border-inline-start: 2px solid var(--line); padding-inline-start: 6px; }
+  .entry { margin-block-start: 8px; padding-block-start: 8px; border-top: 1px solid var(--ok-line); display: flex; flex-direction: column; gap: 6px; }
+  .picker { display: flex; flex-direction: column; gap: 6px; }
+  .results { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; }
+  .results li { padding: 6px 8px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .results li:last-child { border-bottom: 0; }
+  .results li:hover, .results li:focus { background: var(--card); outline: none; }
+  details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+  .tech { font: 11px/1.4 Consolas, monospace; word-break: break-all; color: var(--muted); margin: 6px 0 0; white-space: pre-wrap; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Project Hub</h1>
+  <span class="who" id="who" data-i18n-skip></span>
+  <button class="link" id="lang" type="button"></button>
+</header>
+
+<main id="signin" hidden>
+  <div class="card">
+    <h2 data-t="התחברות">התחברות</h2>
+    <p data-t="כדי שהתוסף יעבוד בשמך, הדבק את המפתח האישי שלך לתוסף Outlook.">כדי שהתוסף יעבוד בשמך, הדבק את המפתח האישי שלך לתוסף Outlook.</p>
+    <label for="key" data-t="מפתח אישי">מפתח אישי</label>
+    <input id="key" type="password" autocomplete="off" dir="ltr" placeholder="pho_…">
+    <div class="row" style="margin-block-start:8px">
+      <button class="primary" id="saveKey" type="button" data-t="התחבר">התחבר</button>
+      <a id="getKey" target="_blank" rel="noopener" data-t="איפה מקבלים מפתח?">איפה מקבלים מפתח?</a>
+    </div>
+    <p class="err" id="signinErr" hidden></p>
+  </div>
+</main>
+
+<main id="app" hidden>
+  <div class="card">
+    <h2 data-t="המייל הפתוח">המייל הפתוח</h2>
+    <div class="subject" id="subject" data-i18n-skip></div>
+    <div class="meta" id="from" data-i18n-skip></div>
+    <div class="meta" id="received" data-i18n-skip></div>
+    <div class="meta" id="attachments"></div>
+  </div>
+
+  <!-- the task this thread is linked to -->
+  <div class="card linked" id="linkedCard" hidden>
+    <h2 data-t="השרשור קשור למשימה">השרשור קשור למשימה</h2>
+    <a class="task-title" id="taskTitle" target="_blank" rel="noopener" data-i18n-skip></a>
+    <div class="meta" id="taskMeta" data-i18n-skip></div>
+    <ul class="updates" id="taskUpdates" data-i18n-skip></ul>
+    <div class="entry" id="entry" hidden>
+      <div class="hint" id="entryState"></div>
+      <div class="row" id="entryActions">
+        <button type="button" id="promoteBtn" data-t="הפוך לעדכון מלא">הפוך לעדכון מלא</button>
+        <button type="button" class="link" id="removeBtn" data-t="הסר">הסר</button>
+      </div>
+      <div id="promoteForm" hidden>
+        <label for="pText" data-t="מה קרה">מה קרה</label>
+        <textarea id="pText" data-i18n-skip></textarea>
+        <div class="row">
+          <div style="flex:1;min-width:120px">
+            <label for="pStatus" data-t="סטטוס העדכון">סטטוס העדכון</label>
+            <select id="pStatus" data-i18n-skip></select>
+          </div>
+          <div style="flex:1;min-width:120px">
+            <label for="pOwner" data-t="הכדור אצל">הכדור אצל</label>
+            <select id="pOwner" data-i18n-skip></select>
+          </div>
+        </div>
+        <div class="row" style="margin-block-start:6px">
+          <button class="primary" type="button" id="promoteOk" data-t="אשר">אשר</button>
+          <button type="button" id="promoteCancel" data-t="ביטול">ביטול</button>
+        </div>
+      </div>
+    </div>
+    <div class="row" style="margin-block-start:8px">
+      <button type="button" class="link" id="unlinkBtn" data-t="נתק את השרשור מהמשימה">נתק את השרשור מהמשימה</button>
+    </div>
+  </div>
+  <div class="card" id="hiddenCard" hidden>
+    <p data-t="השרשור קשור למשימה בפרויקט שאין לך גישה אליו.">השרשור קשור למשימה בפרויקט שאין לך גישה אליו.</p>
+  </div>
+
+  <div>
+    <label for="project" data-t="פרויקט">פרויקט</label>
+    <select id="project" data-i18n-skip></select>
+    <div class="hint" id="projectWhy"></div>
+  </div>
+
+  <div>
+    <label for="ask" data-t="מה לעשות עם המייל הזה?">מה לעשות עם המייל הזה?</label>
+    <textarea id="ask" data-i18n-skip></textarea>
+    <div class="row" style="margin-block-start:6px">
+      <button class="primary" type="button" id="askGo" data-t="שלח">שלח</button>
+      <span class="hint" id="askState"></span>
+    </div>
+  </div>
+
+  <!-- what came back: a new task (with undo), a question, or a note -->
+  <div class="card" id="result" hidden></div>
+
+  <!-- a proposed (or manual) update, waiting for a yes -->
+  <div class="card" id="updForm" hidden>
+    <h2 data-t="עדכון למשימה">עדכון למשימה</h2>
+    <div class="task-title" id="uTask" data-i18n-skip></div>
+    <div class="meta" id="uTaskMeta" data-i18n-skip></div>
+    <label for="uText" style="margin-block-start:6px" data-t="מה קרה">מה קרה</label>
+    <textarea id="uText" data-i18n-skip></textarea>
+    <div class="row">
+      <div style="flex:1;min-width:120px">
+        <label for="uStatus" data-t="סטטוס העדכון">סטטוס העדכון</label>
+        <select id="uStatus" data-i18n-skip></select>
+      </div>
+      <div style="flex:1;min-width:120px">
+        <label for="uOwner" data-t="הכדור אצל">הכדור אצל</label>
+        <select id="uOwner" data-i18n-skip></select>
+      </div>
+    </div>
+    <div class="row">
+      <div style="flex:1;min-width:120px">
+        <label for="uDue" data-t="תאריך יעד חדש">תאריך יעד חדש</label>
+        <input id="uDue" type="date">
+      </div>
+      <div style="flex:1;min-width:120px">
+        <label for="uTaskStatus" data-t="סטטוס המשימה">סטטוס המשימה</label>
+        <select id="uTaskStatus" data-i18n-skip></select>
+      </div>
+    </div>
+    <div class="row" style="margin-block-start:8px">
+      <button class="primary" type="button" id="uOk" data-t="אשר">אשר</button>
+      <button type="button" id="uCancel" data-t="ביטול">ביטול</button>
+    </div>
+  </div>
+
+  <div class="row" id="manual">
+    <button type="button" id="mNew" data-t="משימה חדשה">משימה חדשה</button>
+    <button type="button" id="mUpdate" data-t="עדכון">עדכון</button>
+    <button type="button" id="linkOpen" data-t="קשר את השרשור למשימה">קשר את השרשור למשימה</button>
+    <button type="button" id="mAttach" data-t="צירוף">צירוף</button>
+    <button type="button" id="mExec" hidden data-t="פריט ביצוע">פריט ביצוע</button>
+  </div>
+
+  <!-- attach the email itself and/or its files to a task -->
+  <div class="card" id="attForm" hidden>
+    <h2 data-t="צירוף למשימה">צירוף למשימה</h2>
+    <div class="task-title" id="aTask" data-i18n-skip></div>
+    <div class="meta" id="aTaskMeta" data-i18n-skip></div>
+    <div id="attList" style="display:flex;flex-direction:column;gap:4px;margin-block-start:8px"></div>
+    <div class="hint" id="attState"></div>
+    <div class="row" style="margin-block-start:8px">
+      <button class="primary" type="button" id="aOk" data-t="צרף">צרף</button>
+      <button type="button" id="aCancel" data-t="ביטול">ביטול</button>
+    </div>
+  </div>
+
+  <!-- an execution item (submittal, RFI, Issue, change): opened only on "אשר", since it takes the next official number -->
+  <div class="card" id="execForm" hidden>
+    <h2 data-t="פריט ביצוע חדש">פריט ביצוע חדש</h2>
+    <div class="row">
+      <div style="flex:1;min-width:120px">
+        <label for="eType" data-t="סוג">סוג</label>
+        <select id="eType" data-i18n-skip></select>
+      </div>
+      <div style="flex:1;min-width:120px">
+        <label for="eDisc" data-t="תחום">תחום</label>
+        <select id="eDisc" data-i18n-skip></select>
+      </div>
+    </div>
+    <label for="eTitle" style="margin-block-start:6px" data-t="כותרת">כותרת</label>
+    <input id="eTitle" data-i18n-skip>
+    <label for="eDesc" style="margin-block-start:6px" data-t="תיאור">תיאור</label>
+    <textarea id="eDesc" data-i18n-skip></textarea>
+    <div class="row">
+      <div style="flex:1;min-width:120px">
+        <label for="eBy" data-t="נפתח על ידי">נפתח על ידי</label>
+        <select id="eBy" data-i18n-skip></select>
+      </div>
+      <div style="flex:1;min-width:120px">
+        <label for="eByName" data-t="שם (חברה או אדם)">שם (חברה או אדם)</label>
+        <input id="eByName" data-i18n-skip>
+      </div>
+    </div>
+    <div class="row">
+      <div style="flex:1;min-width:120px">
+        <label for="eBall" data-t="הכדור אצל">הכדור אצל</label>
+        <select id="eBall" data-i18n-skip></select>
+      </div>
+      <div style="flex:1;min-width:120px">
+        <label for="eDue" data-t="תאריך יעד">תאריך יעד</label>
+        <input id="eDue" type="date">
+      </div>
+    </div>
+    <div class="hint" data-t="ריק = ברירת המחדל לפי הסוג">ריק = ברירת המחדל לפי הסוג</div>
+    <div id="eFiles" style="display:flex;flex-direction:column;gap:4px;margin-block-start:8px"></div>
+    <div class="hint" id="eState"></div>
+    <div class="row" style="margin-block-start:8px">
+      <button class="primary" type="button" id="eOk" data-t="פתח פריט">פתח פריט</button>
+      <button type="button" id="eCancel" data-t="ביטול">ביטול</button>
+    </div>
+  </div>
+
+  <!-- pick a task: to link the thread, to update it, or to attach to it -->
+  <div class="picker" id="picker" hidden>
+    <div class="hint" id="pickerFor"></div>
+    <input id="taskQuery" type="search" data-i18n-skip>
+    <ul class="results" id="taskResults" data-i18n-skip></ul>
+    <div class="row">
+      <button type="button" class="link" id="linkCancel" data-t="ביטול">ביטול</button>
+    </div>
+  </div>
+
+  <!-- a new task by hand -->
+  <div class="card" id="newForm" hidden>
+    <h2 data-t="משימה חדשה">משימה חדשה</h2>
+    <label for="nTitle" data-t="כותרת">כותרת</label>
+    <input id="nTitle" data-i18n-skip>
+    <label for="nStage" style="margin-block-start:6px" data-t="שלב">שלב</label>
+    <select id="nStage" data-i18n-skip></select>
+    <div class="row">
+      <div style="flex:1;min-width:120px">
+        <label for="nDisc" data-t="תחום">תחום</label>
+        <select id="nDisc" data-i18n-skip></select>
+      </div>
+      <div style="flex:1;min-width:120px">
+        <label for="nWho" data-t="אחראי">אחראי</label>
+        <select id="nWho" data-i18n-skip></select>
+      </div>
+    </div>
+    <label for="nDue" style="margin-block-start:6px" data-t="תאריך יעד">תאריך יעד</label>
+    <input id="nDue" type="date">
+    <div class="row" style="margin-block-start:8px">
+      <button class="primary" type="button" id="nOk" data-t="צור">צור</button>
+      <button type="button" id="nCancel" data-t="ביטול">ביטול</button>
+    </div>
+  </div>
+
+  <p class="err" id="appErr" hidden></p>
+
+  <details>
+    <summary data-t="פרטים טכניים">פרטים טכניים</summary>
+    <pre class="tech" id="tech" data-i18n-skip></pre>
+    <div class="row">
+      <button class="link" id="signout" type="button" data-t="התנתק מהתוסף">התנתק מהתוסף</button>
+    </div>
+  </details>
+</main>
+
+<main id="noMail" hidden>
+  <div class="card"><p data-t="פתח את החלונית מתוך מייל ב-Outlook.">פתח את החלונית מתוך מייל ב-Outlook.</p></div>
+</main>
+
+<script>
+'use strict';
+/* Project Hub's Outlook task pane. Reads the open email through Office.js and talks to the hub
+   with a personal key (/api/outlook/*). Hebrew is the source language; the English is below.
+   Spec: docs/superpowers/specs/2026-10-21-outlook-addin-design.md */
+var HE_EN = {
+  'התחברות': 'Sign in',
+  'כדי שהתוסף יעבוד בשמך, הדבק את המפתח האישי שלך לתוסף Outlook.': 'So the add-in can work as you, paste your personal Outlook add-in key.',
+  'מפתח אישי': 'Personal key',
+  'התחבר': 'Sign in',
+  'איפה מקבלים מפתח?': 'Where do I get a key?',
+  'המייל הפתוח': 'This email',
+  'פרויקט': 'Project',
+  'מה לעשות עם המייל הזה?': 'What should happen with this email?',
+  'למשל: תעביר לקונסטרוקטור עד יום חמישי': 'For example: pass it to the structural engineer by Thursday',
+  'פרטים טכניים': 'Technical details',
+  'התנתק מהתוסף': 'Sign the add-in out',
+  'פתח את החלונית מתוך מייל ב-Outlook.': 'Open this pane from an email in Outlook.',
+  'בחר פרויקט': 'Choose a project',
+  'לפי הנושא': 'From the subject',
+  'לפי השולח': 'From the sender',
+  'הפרויקט של המשימה הקשורה': 'The linked task\'s project',
+  'המפתח לא תקין או בוטל. הפק מפתח חדש.': 'The key is not valid or was revoked. Create a new one.',
+  'השרת לא זמין. נסה שוב בעוד רגע.': 'The server is not reachable. Try again in a moment.',
+  'אין קבצים מצורפים': 'No attachments',
+  '{n} קבצים מצורפים': '{n} attachments',
+  'קובץ מצורף אחד': 'One attachment',
+  'מאת': 'From',
+  'השרשור קשור למשימה': 'This thread is linked to a task',
+  'השרשור קשור למשימה בפרויקט שאין לך גישה אליו.': 'This thread is linked to a task in a project you cannot open.',
+  'הפוך לעדכון מלא': 'Make it a full update',
+  'הסר': 'Remove',
+  'מה קרה': 'What happened',
+  'סטטוס העדכון': 'Update status',
+  'הכדור אצל': 'Ball is with',
+  'אשר': 'Confirm',
+  'ביטול': 'Cancel',
+  'נתק את השרשור מהמשימה': 'Unlink the thread from the task',
+  'קשר את השרשור למשימה': 'Link this thread to a task',
+  'חפש משימה בפרויקט': 'Search for a task in the project',
+  'אין משימות פתוחות שמתאימות': 'No open tasks match',
+  'בחר קודם פרויקט': 'Choose a project first',
+  'המייל הזה נרשם אוטומטית כעדכון במשימה.': 'This email was logged on the task automatically.',
+  'המשימה נוצרה מהמייל הזה.': 'The task was created from this email.',
+  'המייל הזה (או קבצים ממנו) צורף למשימה.': 'This email (or files from it) was attached to the task.',
+  'המייל הזה רשום כעדכון במשימה.': 'This email is recorded as an update on the task.',
+  'הרישום של המייל הזה הוסר מהמשימה.': 'This email\'s entry was removed from the task.',
+  'יעד {d}': 'Due {d}',
+  'לנתק את השרשור מהמשימה? העדכונים שכבר נרשמו נשארים.': 'Unlink the thread from the task? Updates already logged stay.',
+  'הפעולה לא הצליחה: {e}': 'That did not work: {e}',
+  'ללא שינוי': 'No change',
+  'שלח': 'Send',
+  'חושב…': 'Thinking…',
+  'עדכון למשימה': 'Update on a task',
+  'תאריך יעד חדש': 'New due date',
+  'סטטוס המשימה': 'Task status',
+  'משימה חדשה': 'New task',
+  'צירוף': 'Attach',
+  'צירוף למשימה': 'Attach to a task',
+  'פריט ביצוע': 'Execution item',
+  'פריט ביצוע חדש': 'New execution item',
+  'סוג': 'Type',
+  'תיאור': 'Description',
+  'נפתח על ידי': 'Opened by',
+  'שם (חברה או אדם)': 'Name (company or person)',
+  'ריק = ברירת המחדל לפי הסוג': 'Empty = the default for the type',
+  'פתח פריט': 'Open item',
+  'ברירת מחדל': 'Default',
+  'נפתח {n}': 'Opened {n}',
+  'מצרף קבצים לפריט…': 'Attaching files to the item…',
+  'צורף קובץ אחד לפריט.': 'One file was attached to the item.',
+  'צורפו {n} קבצים לפריט.': '{n} files were attached to the item.',
+  // execution types and parties that ship with the hub
+  'הגשה': 'Submittal', 'שינוי': 'Change', 'אדריכל': 'Architect', 'קבלן': 'Contractor', 'מפקח': 'Supervisor', 'יועץ': 'Consultant',
+  'צרף': 'Attach',
+  'המייל עצמו (‎.eml)': 'The email itself (.eml)',
+  'סוג קובץ לא נתמך': 'file type not supported',
+  'גדול מדי': 'too large',
+  'קובץ בענן — לא ניתן לצרף מכאן': 'a cloud file cannot be attached from here',
+  'מצרף {i} מתוך {n}…': 'Attaching {i} of {n}…',
+  'צורפו {n} קבצים למשימה.': '{n} files were attached to the task.',
+  'צורף קובץ אחד למשימה.': 'One file was attached to the task.',
+  'לא צורפו: {f}': 'Not attached: {f}',
+  'סמן לפחות קובץ אחד': 'Pick at least one file',
+  'בחר משימה לצירוף': 'Choose the task to attach to',
+  'כותרת': 'Title',
+  'שלב': 'Stage',
+  'תחום': 'Discipline',
+  'אחראי': 'Owner',
+  'תאריך יעד': 'Due date',
+  'צור': 'Create',
+  'ברירת המחדל': 'Default',
+  'אני': 'Me',
+  'נוצרה משימה': 'Task created',
+  'בטל ({s} שנ׳)': 'Undo ({s}s)',
+  'פתח ב-Project Hub': 'Open in Project Hub',
+  'המשימה בוטלה.': 'The task was removed.',
+  'העדכון נשמר.': 'The update was saved.',
+  'Claude לא זמין כרגע. אפשר להשתמש בכפתורים למטה.': 'Claude is not available right now. The buttons below still work.',
+  'בחר משימה לעדכון': 'Choose the task to update',
+  'בחר משימה לקישור השרשור': 'Choose the task to link the thread to',
+  'בחר קודם משימה': 'Choose a task first',
+  'כתוב מה קרה': 'Write what happened',
+  // status names that ship with the hub (as in i18n-dict.js)
+  'חסר': 'Missing', 'בעבודה': 'In work', 'נשלח': 'Sent', 'יש הערות': 'Has comments', 'עדכון': 'Update', 'מאושר': 'Approved',
+  'תקוע': 'Stuck', 'בוצע': 'Done', 'לא התחיל': 'Not started', 'התייחסות': 'Response', 'עבודה': 'Work',
+  'English': 'English',
+  'עברית': 'עברית'
+};
+var lang = 'he';
+function tx(he, slots) {
+  var s = lang === 'en' && HE_EN[he] ? HE_EN[he] : he;
+  if (slots) Object.keys(slots).forEach(function (k) { s = s.split('{' + k + '}').join(slots[k]); });
+  return s;
+}
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === 'en' ? 'ltr' : 'rtl';
+  document.querySelectorAll('[data-t]').forEach(function (el) { el.textContent = tx(el.getAttribute('data-t')); });
+  $('lang').textContent = lang === 'en' ? 'עברית' : 'English';
+  $('taskQuery').placeholder = tx('חפש משימה בפרויקט');
+  $('ask').placeholder = tx('למשל: תעביר לקונסטרוקטור עד יום חמישי');
+}
+function $(id) { return document.getElementById(id); }
+function show(id) { ['signin', 'app', 'noMail'].forEach(function (x) { $(x).hidden = x !== id; }); }
+function showErr(id, msg) { $(id).textContent = msg || ''; $(id).hidden = !msg; }
+function el(tag, text) { var e = document.createElement(tag); if (text != null) e.textContent = text; return e; }
+
+/* ── settings: Office roaming settings (follow the account), else this browser ── */
+var demo = /[?&]demo\b/.test(location.search);
+function roaming() { try { return Office.context.roamingSettings || null; } catch (e) { return null; } }
+function getSetting(k) {
+  var r = roaming();
+  if (r) return r.get(k) || null;
+  try { return localStorage.getItem('outlook.' + k); } catch (e) { return null; }
+}
+function setSetting(k, v) {
+  var r = roaming();
+  if (r) { if (v == null) r.remove(k); else r.set(k, v); r.saveAsync(function () {}); return; }
+  try { if (v == null) localStorage.removeItem('outlook.' + k); else localStorage.setItem('outlook.' + k, v); } catch (e) {}
+}
+
+/* ── the hub ── */
+function api(path, body) {
+  var opts = { headers: { Authorization: 'Bearer ' + getSetting('key') }, cache: 'no-store' };
+  if (body) { opts.method = 'POST'; opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  return fetch(path, opts).then(function (r) {
+    if (r.status === 401) { var e = new Error('invalid_key'); e.code = 401; throw e; }
+    return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; });
+  });
+}
+
+/* ── the open email ── */
+function mailbox() { try { return Office.context.mailbox || null; } catch (e) { return null; } }
+var DEMO_MAIL = {
+  subject: 'LDPB — תוכנית קונסטרוקציה מעודכנת', from: { displayName: 'דני כהן', emailAddress: 'dani@example.com' },
+  dateTimeCreated: new Date(), conversationId: 'DE000000000000000000000000000001',
+  internetMessageId: '<demo-' + new Date().toISOString().slice(0, 10) + '@example.com>', itemId: 'demo-item',
+  attachments: [{ id: 'demo-1', name: 'K-101.pdf', size: 1200, isInline: false, contentType: 'application/pdf' }, { id: 'demo-2', name: 'K-101.dwg', size: 900, isInline: false, contentType: 'application/octet-stream' }, { id: 'demo-3', name: 'notes.exe', size: 10, isInline: false }],
+  body: 'שלום, מצורפת תוכנית מעודכנת.'
+};
+function readMail() {
+  var mb = mailbox();
+  if (!mb || !mb.item) return Promise.resolve(demo ? DEMO_MAIL : null);
+  var it = mb.item;
+  return new Promise(function (ok) {
+    it.body.getAsync(Office.CoercionType.Text, function (r) {
+      var names = function (l) { return (l || []).map(function (a) { return a.displayName ? a.displayName + ' <' + a.emailAddress + '>' : a.emailAddress; }).join(', '); };
+      ok({
+        subject: it.subject || '', from: it.from || {}, to: names(it.to), cc: names(it.cc),
+        dateTimeCreated: it.dateTimeCreated, conversationId: it.conversationId || '',
+        internetMessageId: it.internetMessageId || '', itemId: it.itemId || '',
+        attachments: (it.attachments || []).map(function (a) { return { id: a.id, name: a.name, size: a.size, isInline: a.isInline, type: a.attachmentType, contentType: a.contentType }; }),
+        body: r.status === Office.AsyncResultStatus.Succeeded ? String(r.value || '').slice(0, 6000) : ''
+      });
+    });
+  });
+}
+function localDate(d) { var p = function (n) { return String(n).padStart(2, '0'); }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
+// what the hub hears about the email; the body and the recipients only when Claude reads it (full)
+function mailRef(m, full) {
+  var d = m.dateTimeCreated ? new Date(m.dateTimeCreated) : null;
+  var r = {
+    conversationId: m.conversationId, internetMessageId: m.internetMessageId, subject: m.subject,
+    from: { name: (m.from || {}).displayName || '', email: (m.from || {}).emailAddress || '' },
+    received: d ? d.toISOString() : '', receivedDate: d ? localDate(d) : ''
+  };
+  if (full) {
+    r.body = m.body || ''; r.to = m.to || ''; r.cc = m.cc || '';
+    r.attachments = (m.attachments || []).filter(function (a) { return !a.isInline; }).map(function (a) { return a.name; });
+  }
+  return r;
+}
+
+var projects = [], currentMail = null, ctx = null;
+function renderMail(m) {
+  $('subject').textContent = m.subject || '—';
+  var f = m.from || {};
+  $('from').textContent = tx('מאת') + ': ' + [f.displayName, f.emailAddress ? '<' + f.emailAddress + '>' : ''].filter(Boolean).join(' ');
+  var d = m.dateTimeCreated ? new Date(m.dateTimeCreated) : null;
+  $('received').textContent = d ? d.toLocaleString(lang === 'en' ? 'en-GB' : 'he-IL', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+  var files = (m.attachments || []).filter(function (a) { return !a.isInline; });
+  $('attachments').textContent = !files.length ? tx('אין קבצים מצורפים') : files.length === 1 ? tx('קובץ מצורף אחד') : tx('{n} קבצים מצורפים', { n: files.length });
+  var mb = mailbox();
+  $('tech').textContent = [
+    'host: ' + (mb && mb.diagnostics ? mb.diagnostics.hostName + ' ' + mb.diagnostics.hostVersion : demo ? 'demo' : '?'),
+    'conversationId: ' + m.conversationId,
+    'threadKey: ' + (ctx ? ctx.threadKey : ''),
+    'internetMessageId: ' + m.internetMessageId,
+    'itemId: ' + m.itemId,
+    'body: ' + (m.body || '').length + ' chars'
+  ].join('\n');
+}
+function renderProjects(selected) {
+  var sel = $('project'), keep = selected != null ? selected : sel.value;
+  sel.innerHTML = '';
+  var none = el('option', tx('בחר פרויקט')); none.value = '';
+  sel.appendChild(none);
+  projects.forEach(function (p) {
+    var o = el('option', (p.code ? p.code + ' · ' : '') + p.name); o.value = p.id;
+    sel.appendChild(o);
+  });
+  sel.value = keep || '';
+}
+var WHY = { linked: 'הפרויקט של המשימה הקשורה', sender: 'לפי השולח', subject: 'לפי הנושא' };
+
+function renderContext() {
+  var c = ctx || {};
+  $('projectWhy').textContent = c.why ? tx(WHY[c.why]) : '';
+  var L = c.linked;
+  $('hiddenCard').hidden = !(L && L.hidden);
+  $('linkedCard').hidden = !(L && L.task);
+  $('manual').hidden = !c.canWrite;
+  $('mExec').hidden = !c.exec;
+  $('linkOpen').hidden = !!L;
+  $('ask').disabled = $('askGo').disabled = !c.canWrite;
+  closePicker();
+  $('promoteForm').hidden = true;
+  if (!(L && L.task)) return;
+  var t = L.task;
+  $('taskTitle').textContent = t.title;
+  $('taskTitle').href = t.link;
+  $('taskMeta').textContent = [t.stage, t.status && tx(t.status), t.due ? tx('יעד {d}', { d: t.due }) : '', (t.assignees || []).join(', ')].filter(Boolean).join(' · ');
+  var ul = $('taskUpdates'); ul.innerHTML = '';
+  (t.updates || []).slice().reverse().forEach(function (u) {
+    ul.appendChild(el('li', [u.date, u.status && tx(u.status), u.owner].filter(Boolean).join(' · ') + (u.title ? ' — ' + u.title : '')));
+  });
+  var msg = L.message;
+  $('entry').hidden = !msg;
+  $('unlinkBtn').hidden = !c.canWrite;
+  if (msg) {
+    $('entryState').textContent = tx(msg.removed ? 'הרישום של המייל הזה הוסר מהמשימה.' : msg.auto ? 'המייל הזה נרשם אוטומטית כעדכון במשימה.'
+      : msg.created && !msg.eventId ? 'המשימה נוצרה מהמייל הזה.' : msg.attached && !msg.eventId ? 'המייל הזה (או קבצים ממנו) צורף למשימה.' : 'המייל הזה רשום כעדכון במשימה.');
+    $('entryActions').hidden = !(msg.auto && c.canWrite);
+  }
+}
+function fail(e) {
+  if (e && e.code === 401) { show('signin'); showErr('signinErr', tx('המפתח לא תקין או בוטל. הפק מפתח חדש.')); return; }
+  showErr('appErr', e && e.message === 'Failed to fetch' ? tx('השרת לא זמין. נסה שוב בעוד רגע.') : tx('הפעולה לא הצליחה: {e}', { e: e && e.message }));
+}
+function setCtx(c) {
+  ctx = c;
+  renderProjects(c.projectId || $('project').value || null);
+  renderContext();
+}
+function post(path, extra) {
+  showErr('appErr', '');
+  var body = { mail: mailRef(currentMail) };
+  Object.keys(extra || {}).forEach(function (k) { body[k] = extra[k]; });
+  return api(path, body).then(setCtx).catch(fail);
+}
+function fill(sel, list, value) {
+  sel.innerHTML = '';
+  (list || []).forEach(function (x) { var op = el('option', tx(x.label)); op.value = x.id; sel.appendChild(op); });
+  sel.value = value || '';
+}
+
+/* ── the project's options (stages, disciplines, statuses, team), once per project ── */
+var optCache = {};
+function projectOptions(pid) {
+  if (optCache[pid]) return Promise.resolve(optCache[pid]);
+  return api('/api/outlook/project?project=' + encodeURIComponent(pid)).then(function (o) { optCache[pid] = o; return o; });
+}
+
+/* ── the free-text box ── */
+var lastText = '', asking = false, undoTimer = null;
+function clearResult() { $('result').hidden = true; $('result').innerHTML = ''; $('updForm').hidden = true; $('newForm').hidden = true; $('attForm').hidden = true; $('execForm').hidden = true; clearInterval(undoTimer); }
+function resultCard(nodes) {
+  clearResult();
+  var r = $('result');
+  nodes.forEach(function (n) { if (n) r.appendChild(n); });
+  r.hidden = false;
+}
+function busy(on) { $('askGo').disabled = on; $('askState').textContent = on ? tx('חושב…') : ''; }
+function submitAsk() {
+  var t = $('ask').value.trim();
+  if (!t) return;
+  var pid = $('project').value;
+  if (!pid) { showErr('appErr', tx('בחר קודם פרויקט')); return; }
+  // an answer to Claude's question goes with the instruction it answers
+  var text = asking && lastText ? lastText + '\n' + t : t;
+  showErr('appErr', '');
+  busy(true);
+  api('/api/outlook/parse', { mail: mailRef(currentMail, true), text: text, projectId: pid }).then(function (r) {
+    busy(false);
+    lastText = text; asking = false;
+    $('ask').value = '';
+    showParsed(r, pid);
+  }).catch(function (e) {
+    busy(false);
+    if (/ai_unavailable|ai_failed/.test(e.message)) { resultCard([el('div', tx('Claude לא זמין כרגע. אפשר להשתמש בכפתורים למטה.'))]); return; }
+    fail(e);
+  });
+}
+function showParsed(r, pid) {
+  if (r.action === 'created') { showCreated(r); return; }
+  if (r.action === 'update') { openUpdate(pid, r.target, r.proposal); return; }
+  if (r.action === 'attach') { openAttach(pid, r.target, r.proposal); return; }
+  if (r.action === 'exec') { openExec(pid, r.proposal.exec); return; }
+  // a question: its options answer it, or the box does
+  var q = r.proposal.question;
+  var row = el('div'); row.className = 'row';
+  (q.options || []).forEach(function (o) {
+    var b = el('button', o); b.type = 'button';
+    b.onclick = function () { $('ask').value = o; asking = true; submitAsk(); };
+    row.appendChild(b);
+  });
+  asking = true;
+  var h = el('div', q.text); h.style.fontWeight = '600';
+  resultCard([h, row]);
+  $('ask').focus();
+}
+function showCreated(r) {
+  var c = r.created;
+  var h = el('h2', tx('נוצרה משימה'));
+  var a = el('a', c.title); a.href = c.link; a.target = '_blank'; a.rel = 'noopener'; a.className = 'task-title';
+  var meta = el('div', [c.stage, c.due ? tx('יעד {d}', { d: c.due }) : '', (c.assignees || []).join(', ')].filter(Boolean).join(' · ')); meta.className = 'meta';
+  var row = el('div'); row.className = 'row'; row.style.marginBlockStart = '6px';
+  var undo = el('button'); undo.type = 'button';
+  row.appendChild(undo);
+  resultCard([h, a, meta, row]);
+  var until = Date.parse(r.undoUntil);
+  var tick = function () {
+    var left = Math.round((until - Date.now()) / 1000);
+    if (left <= 0) { clearInterval(undoTimer); undo.remove(); return; }
+    undo.textContent = tx('בטל ({s} שנ׳)', { s: left });
+  };
+  tick();
+  undoTimer = setInterval(tick, 1000);
+  undo.onclick = function () {
+    undo.disabled = true;
+    api('/api/outlook/undo', { mail: mailRef(currentMail), undoToken: r.undoToken }).then(function (c2) {
+      setCtx(c2);
+      resultCard([el('div', tx('המשימה בוטלה.'))]);
+    }).catch(function (e) { undo.disabled = false; fail(e); });
+  };
+  // the thread is now linked to the new task
+  post('/api/outlook/context');
+}
+
+/* ── an update, proposed by Claude or written by hand, saved only on "אשר" ── */
+var updTarget = null;
+function openUpdate(pid, target, proposal) {
+  clearResult();
+  updTarget = { pid: pid, id: target.id };
+  projectOptions(pid).then(function (o) {
+    var same = [{ id: '', label: tx('ללא שינוי') }];
+    var pr = proposal || { update: {}, changes: {} };
+    $('uTask').textContent = target.title;
+    $('uTaskMeta').textContent = target.stage || '';
+    $('uText').value = (pr.update && pr.update.text) || '';
+    fill($('uStatus'), same.concat(o.update_statuses), (pr.update && pr.update.update_status) || '');
+    fill($('uOwner'), same.concat(o.disciplines), (pr.update && pr.update.owner) || '');
+    $('uDue').value = (pr.changes && pr.changes.due_date) || '';
+    fill($('uTaskStatus'), same.concat(o.statuses), (pr.changes && pr.changes.status) || '');
+    $('updForm').hidden = false;
+    $('uText').focus();
+  }).catch(fail);
+}
+function saveUpdate() {
+  var text = $('uText').value.trim();
+  if (!text) { showErr('appErr', tx('כתוב מה קרה')); return; }
+  $('uOk').disabled = true;
+  api('/api/outlook/apply', {
+    mail: mailRef(currentMail), projectId: updTarget.pid,
+    proposal: { target_task_id: updTarget.id, update: { text: text, update_status: $('uStatus').value, owner: $('uOwner').value }, changes: { due_date: $('uDue').value, status: $('uTaskStatus').value, assignees: [] } }
+  }).then(function (c) {
+    $('uOk').disabled = false;
+    setCtx(c);
+    resultCard([el('div', tx('העדכון נשמר.'))]);
+  }).catch(function (e) { $('uOk').disabled = false; fail(e); });
+}
+
+/* ── attaching the email (.eml) and its files to a task ── */
+// what the hub stores (server.js FILE_EXT and the images)
+var SUPPORTED = /\.(png|jpe?g|gif|webp|pdf|msg|eml|dwg|dwf|docx?|xlsx?|pptx|zip|rar|txt|csv)$/i;
+var MAX_FILE = 20 * 1024 * 1024;
+var IMAGE_TYPE = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' };
+var attTarget = null;
+function canSaveEml() {
+  if (demo && !mailbox()) return true;
+  try { return Office.context.requirements.isSetSupported('Mailbox', '1.14') && !!mailbox().item.getAsFileAsync; } catch (e) { return false; }
+}
+function safeName(s) { return String(s || 'mail').replace(/[\u0000-\u001f\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'mail'; }
+/* the email and its files as checkboxes; want = { mail, attachments } picks the ticked ones (all when absent) */
+function fileChoices(list, want, withMail) {
+  list.innerHTML = '';
+  var add = function (key, label, ok, why, checked) {
+    var row = el('label'); row.style.display = 'flex'; row.style.gap = '6px'; row.style.alignItems = 'center'; row.style.fontSize = '13px'; row.style.color = 'var(--fg)';
+    var cb = document.createElement('input'); cb.type = 'checkbox'; cb.style.width = 'auto'; cb.value = key; cb.disabled = !ok; cb.checked = ok && checked;
+    row.appendChild(cb);
+    var span = el('span', label); span.setAttribute('data-i18n-skip', '');
+    row.appendChild(span);
+    if (why) { var w = el('span', '(' + tx(why) + ')'); w.className = 'hint'; row.appendChild(w); }
+    list.appendChild(row);
+  };
+  if (withMail && canSaveEml()) add('mail', tx('המייל עצמו (‎.eml)'), true, '', want ? want.mail : true);
+  (currentMail.attachments || []).filter(function (a) { return !a.isInline; }).forEach(function (a) {
+    var cloud = a.type === 'cloud';
+    var ok = !cloud && SUPPORTED.test(a.name) && !(a.size > MAX_FILE);
+    var why = cloud ? 'קובץ בענן — לא ניתן לצרף מכאן' : !SUPPORTED.test(a.name) ? 'סוג קובץ לא נתמך' : a.size > MAX_FILE ? 'גדול מדי' : '';
+    add('att:' + a.id, a.name, ok, why, want ? (want.attachments || []).indexOf(a.name) >= 0 : true);
+  });
+}
+function openAttach(pid, target, proposal) {
+  clearResult();
+  attTarget = { pid: pid, id: target.id };
+  $('aTask').textContent = target.title;
+  $('aTaskMeta').textContent = target.stage || '';
+  $('attState').textContent = '';
+  fileChoices($('attList'), proposal && proposal.attach, true);
+  $('attForm').hidden = false;
+}
+function b64ToBytes(b64) { var bin = atob(b64), out = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; }
+/* the file's bytes from Outlook: the whole email as .eml (Mailbox 1.14), or one attachment */
+function contentOf(key) {
+  var mb = mailbox();
+  if (key === 'mail') {
+    var name = safeName(currentMail.subject) + '.eml';
+    if (!mb || !mb.item) return Promise.resolve({ name: name, type: 'message/rfc822', body: 'Subject: ' + currentMail.subject + '\r\n\r\n' + (currentMail.body || '') });
+    return new Promise(function (ok, no) {
+      mb.item.getAsFileAsync(function (r) {
+        if (r.status !== Office.AsyncResultStatus.Succeeded) { no(new Error(r.error && r.error.message || 'eml')); return; }
+        ok({ name: name, type: 'message/rfc822', body: b64ToBytes(r.value) });
+      });
+    });
+  }
+  var id = key.slice(4);
+  var a = (currentMail.attachments || []).find(function (x) { return x.id === id; });
+  var ext = (a.name.split('.').pop() || '').toLowerCase();
+  var type = IMAGE_TYPE[ext] || 'application/octet-stream';
+  if (!mb || !mb.item) return Promise.resolve({ name: a.name, type: type, body: '%PDF-1.4\n% demo file ' + a.name + '\n' });
+  return new Promise(function (ok, no) {
+    mb.item.getAttachmentContentAsync(id, function (r) {
+      if (r.status !== Office.AsyncResultStatus.Succeeded) { no(new Error(r.error && r.error.message || 'attachment')); return; }
+      var v = r.value, F = Office.MailboxEnums.AttachmentContentFormat;
+      if (v.format === F.Base64) ok({ name: a.name, type: type, body: b64ToBytes(v.content) });
+      else if (v.format === F.Eml) ok({ name: /\.eml$/i.test(a.name) ? a.name : safeName(a.name) + '.eml', type: 'message/rfc822', body: v.content });
+      else no(new Error(tx('קובץ בענן — לא ניתן לצרף מכאן')));
+    });
+  });
+}
+function uploadOne(key, target) {
+  target = target || { pid: attTarget.pid, task: attTarget.id };
+  return contentOf(key).then(function (f) {
+    var q = '?project=' + encodeURIComponent(target.pid) + (target.exec ? '&exec=' + encodeURIComponent(target.exec) : '&task=' + encodeURIComponent(target.task)) + '&name=' + encodeURIComponent(f.name);
+    return fetch('/api/outlook/upload' + q, { method: 'POST', headers: { Authorization: 'Bearer ' + getSetting('key'), 'Content-Type': f.type }, body: f.body }).then(function (r) {
+      if (r.status === 401) { var e = new Error('invalid_key'); e.code = 401; throw e; }
+      return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return f.name; });
+    });
+  });
+}
+function saveAttach() {
+  var keys = [].slice.call($('attList').querySelectorAll('input:checked')).map(function (cb) { return cb.value; });
+  if (!keys.length) { $('attState').textContent = tx('סמן לפחות קובץ אחד'); return; }
+  $('aOk').disabled = true;
+  var done = [], failed = [];
+  var labelOf = function (k) { return k === 'mail' ? tx('המייל עצמו (‎.eml)') : ((currentMail.attachments || []).find(function (a) { return 'att:' + a.id === k; }) || {}).name; };
+  // one at a time: each file is its own request, within the server's size limit
+  var next = function (i) {
+    if (i >= keys.length) return Promise.resolve();
+    $('attState').textContent = tx('מצרף {i} מתוך {n}…', { i: i + 1, n: keys.length });
+    return uploadOne(keys[i]).then(function (n) { done.push(n); }, function (e) {
+      if (e.code === 401) throw e;
+      failed.push(labelOf(keys[i]) + ' — ' + e.message);
+    }).then(function () { return next(i + 1); });
+  };
+  next(0).then(function () {
+    if (!done.length) return null;
+    return api('/api/outlook/attached', { mail: mailRef(currentMail), projectId: attTarget.pid, taskId: attTarget.id }).then(setCtx);
+  }).then(function () {
+    $('aOk').disabled = false;
+    var nodes = [];
+    if (done.length) nodes.push(el('div', done.length === 1 ? tx('צורף קובץ אחד למשימה.') : tx('צורפו {n} קבצים למשימה.', { n: done.length })));
+    if (failed.length) { var f = el('div', tx('לא צורפו: {f}', { f: failed.join('; ') })); f.className = 'err'; nodes.push(f); }
+    resultCard(nodes);
+  }).catch(function (e) { $('aOk').disabled = false; fail(e); });
+}
+
+/* ── an execution item: proposed by Claude or opened by hand, written only on "פתח פריט" ── */
+var execPid = null;
+function openExec(pid, proposal) {
+  if (!pid) { showErr('appErr', tx('בחר קודם פרויקט')); return; }
+  var X = ctx && ctx.exec;
+  if (!X) return;
+  clearResult();
+  execPid = pid;
+  var pr = proposal || {};
+  projectOptions(pid).then(function (o) {
+    var def = [{ id: '', label: tx('ברירת מחדל') }];
+    fill($('eType'), X.types, pr.type || 'submittal');
+    fill($('eDisc'), [{ id: '', label: '—' }].concat(o.disciplines), pr.discipline || '');
+    $('eTitle').value = pr.title || (currentMail && currentMail.subject) || '';
+    $('eDesc').value = pr.description || '';
+    fill($('eBy'), def.concat(X.parties), pr.opened_by || '');
+    $('eByName').value = pr.opened_by_name || '';
+    fill($('eBall'), def.concat(X.parties), pr.ball_to || '');
+    $('eDue').value = pr.due_date || '';
+    $('eState').textContent = '';
+    fileChoices($('eFiles'), proposal ? { mail: false, attachments: pr.attachments || [] } : null, true);
+    $('execForm').hidden = false;
+    $('eTitle').focus();
+  }).catch(fail);
+}
+function saveExec() {
+  var title = $('eTitle').value.trim();
+  if (!title) return;
+  $('eOk').disabled = true;
+  var keys = [].slice.call($('eFiles').querySelectorAll('input:checked')).map(function (cb) { return cb.value; });
+  api('/api/outlook/exec', {
+    mail: mailRef(currentMail), projectId: execPid,
+    item: { type: $('eType').value, title: title, description: $('eDesc').value.trim(), opened_by: $('eBy').value, opened_by_name: $('eByName').value.trim(), ball_to: $('eBall').value, due_date: $('eDue').value, discipline: $('eDisc').value }
+  }).then(function (r) {
+    var c = r.created, done = 0, failed = [];
+    var target = { pid: execPid, exec: c.id };
+    var next = function (i) {
+      if (i >= keys.length) return Promise.resolve();
+      $('eState').textContent = tx('מצרף קבצים לפריט…');
+      return uploadOne(keys[i], target).then(function () { done++; }, function (e) {
+        if (e.code === 401) throw e;
+        failed.push(keys[i] === 'mail' ? tx('המייל עצמו (‎.eml)') : (((currentMail.attachments || []).find(function (a) { return 'att:' + a.id === keys[i]; }) || {}).name) + ' — ' + e.message);
+      }).then(function () { return next(i + 1); });
+    };
+    return next(0).then(function () {
+      $('eOk').disabled = false;
+      var h = el('h2', tx('נפתח {n}', { n: c.number }));
+      var a = el('a', c.title); a.href = c.link; a.target = '_blank'; a.rel = 'noopener'; a.className = 'task-title';
+      var meta = el('div', [c.due ? tx('יעד {d}', { d: c.due }) : '', c.ball].filter(Boolean).join(' · ')); meta.className = 'meta';
+      var nodes = [h, a, meta];
+      if (done) nodes.push(el('div', done === 1 ? tx('צורף קובץ אחד לפריט.') : tx('צורפו {n} קבצים לפריט.', { n: done })));
+      if (failed.length) { var f = el('div', tx('לא צורפו: {f}', { f: failed.join('; ') })); f.className = 'err'; nodes.push(f); }
+      resultCard(nodes);
+    });
+  }).catch(function (e) { $('eOk').disabled = false; fail(e); });
+}
+
+/* ── a new task by hand ── */
+function openNew() {
+  var pid = $('project').value;
+  if (!pid) { showErr('appErr', tx('בחר קודם פרויקט')); return; }
+  clearResult();
+  projectOptions(pid).then(function (o) {
+    $('nTitle').value = (currentMail && currentMail.subject) || '';
+    fill($('nStage'), o.stages.map(function (s) { return { id: s.id, label: s.path }; }), (o.stages.find(function (s) { return s.default; }) || o.stages[0] || {}).id);
+    fill($('nDisc'), [{ id: '', label: '—' }].concat(o.disciplines), '');
+    fill($('nWho'), [{ id: '', label: tx('ברירת המחדל') }].concat(o.team.map(function (m) { return { id: m.id, label: m.name }; })), '');
+    $('nDue').value = (o.defaults && o.defaults.due_date) || '';
+    $('newForm').hidden = false;
+    $('nTitle').focus();
+  }).catch(fail);
+}
+function saveNew() {
+  var pid = $('project').value;
+  $('nOk').disabled = true;
+  api('/api/outlook/create', {
+    mail: mailRef(currentMail), projectId: pid,
+    task: { title: $('nTitle').value.trim(), stage: $('nStage').value, discipline: $('nDisc').value, assignees: $('nWho').value ? [$('nWho').value] : [], due_date: $('nDue').value }
+  }).then(function (r) { $('nOk').disabled = false; showCreated(r); }).catch(function (e) { $('nOk').disabled = false; fail(e); });
+}
+
+/* ── picking a task: to link the thread, or to update it ── */
+var searchTimer = null, pickerMode = 'link';
+function closePicker() { $('picker').hidden = true; }
+function openPicker(mode) {
+  if (!$('project').value) { showErr('appErr', tx('בחר קודם פרויקט')); return; }
+  clearResult();
+  pickerMode = mode;
+  $('pickerFor').textContent = tx(mode === 'update' ? 'בחר משימה לעדכון' : mode === 'attach' ? 'בחר משימה לצירוף' : 'בחר משימה לקישור השרשור');
+  $('picker').hidden = false; $('taskQuery').value = ''; $('taskQuery').focus();
+  searchTasks();
+}
+function searchTasks() {
+  var pid = $('project').value, ul = $('taskResults');
+  ul.innerHTML = '';
+  if (!pid) { ul.appendChild(el('li', tx('בחר קודם פרויקט'))); return; }
+  api('/api/outlook/tasks?project=' + encodeURIComponent(pid) + '&q=' + encodeURIComponent($('taskQuery').value.trim())).then(function (r) {
+    ul.innerHTML = '';
+    if (!r.tasks.length) { ul.appendChild(el('li', tx('אין משימות פתוחות שמתאימות'))); return; }
+    r.tasks.forEach(function (t) {
+      var li = el('li');
+      li.tabIndex = 0;
+      li.appendChild(el('div', t.title)).style.fontWeight = '600';
+      li.appendChild(el('div', [t.stage, t.status && tx(t.status), t.due].filter(Boolean).join(' · '))).className = 'meta';
+      var pick = function () {
+        closePicker();
+        if (pickerMode === 'update') openUpdate(pid, t, null);
+        else if (pickerMode === 'attach') openAttach(pid, t, null);
+        else post('/api/outlook/link', { projectId: pid, taskId: t.id });
+      };
+      li.onclick = pick;
+      li.onkeydown = function (e) { if (e.key === 'Enter') pick(); };
+      ul.appendChild(li);
+    });
+  }).catch(fail);
+}
+
+function refreshMail() {
+  return readMail().then(function (m) {
+    currentMail = m;
+    ctx = null; lastText = ''; asking = false;
+    clearResult();
+    if (!m) { show('noMail'); return; }
+    renderMail(m);
+    renderProjects('');
+    renderContext();
+    return post('/api/outlook/context').then(function () { renderMail(m); });
+  });
+}
+function start() {
+  showErr('appErr', '');
+  if (!getSetting('key')) { show('signin'); return; }
+  Promise.all([api('/api/outlook/me'), api('/api/outlook/projects')]).then(function (r) {
+    $('who').textContent = r[0].name || '';
+    projects = r[1].projects || [];
+    show('app');
+    return refreshMail();
+  }).catch(function (e) {
+    if (e.code === 401) { fail(e); return; }
+    show('app');
+    showErr('appErr', tx('השרת לא זמין. נסה שוב בעוד רגע.'));
+  });
+}
+
+function init() {
+  lang = getSetting('lang') === 'en' ? 'en' : 'he';
+  applyLang();
+  $('getKey').href = location.origin + '/outlook_connect';
+  $('lang').onclick = function () {
+    lang = lang === 'en' ? 'he' : 'en';
+    setSetting('lang', lang);
+    applyLang();
+    if (currentMail) renderMail(currentMail);
+    renderProjects(null);
+    renderContext();
+  };
+  $('saveKey').onclick = function () {
+    var k = $('key').value.trim();
+    if (!k) return;
+    setSetting('key', k);
+    $('key').value = '';
+    showErr('signinErr', '');
+    start();
+  };
+  $('signout').onclick = function () { setSetting('key', null); $('who').textContent = ''; show('signin'); };
+  $('linkOpen').onclick = function () { openPicker('link'); };
+  $('mUpdate').onclick = function () {
+    // the linked task is the obvious one; otherwise pick
+    var L = ctx && ctx.linked;
+    if (L && L.task) openUpdate(L.projectId, { id: L.taskId, title: L.task.title, stage: L.task.stage }, null);
+    else openPicker('update');
+  };
+  $('mNew').onclick = openNew;
+  $('mAttach').onclick = function () {
+    var L = ctx && ctx.linked;
+    if (L && L.task) openAttach(L.projectId, { id: L.taskId, title: L.task.title, stage: L.task.stage }, null);
+    else openPicker('attach');
+  };
+  $('aOk').onclick = saveAttach;
+  $('mExec').onclick = function () { openExec($('project').value, null); };
+  $('eOk').onclick = saveExec;
+  $('eCancel').onclick = clearResult;
+  $('aCancel').onclick = clearResult;
+  $('nOk').onclick = saveNew;
+  $('nCancel').onclick = clearResult;
+  $('uOk').onclick = saveUpdate;
+  $('uCancel').onclick = clearResult;
+  $('askGo').onclick = submitAsk;
+  $('ask').onkeydown = function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitAsk(); } };
+  $('linkCancel').onclick = closePicker;
+  $('taskQuery').oninput = function () { clearTimeout(searchTimer); searchTimer = setTimeout(searchTasks, 250); };
+  $('project').onchange = function () { clearResult(); lastText = ''; asking = false; if (!$('picker').hidden) searchTasks(); };
+  $('unlinkBtn').onclick = function () {
+    // window.confirm is not available in every Outlook, so the question is asked in the button itself
+    var b = $('unlinkBtn');
+    if (b.getAttribute('data-armed') !== '1') { b.setAttribute('data-armed', '1'); b.textContent = tx('לנתק את השרשור מהמשימה? העדכונים שכבר נרשמו נשארים.'); return; }
+    b.removeAttribute('data-armed'); b.textContent = tx('נתק את השרשור מהמשימה');
+    post('/api/outlook/unlink');
+  };
+  $('removeBtn').onclick = function () { post('/api/outlook/entry', { action: 'remove' }); };
+  $('promoteBtn').onclick = function () {
+    var o = (ctx && ctx.linked && ctx.linked.options) || {};
+    // "no change" keeps what the entry carries (the status and owner of the update before it)
+    var same = [{ id: '', label: tx('ללא שינוי') }];
+    fill($('pStatus'), same.concat(o.update_statuses || []), '');
+    fill($('pOwner'), same.concat(o.disciplines || []), '');
+    $('pText').value = '';
+    $('promoteForm').hidden = false;
+    $('entryActions').hidden = true;
+    $('pText').focus();
+  };
+  $('promoteCancel').onclick = function () { $('promoteForm').hidden = true; $('entryActions').hidden = false; };
+  $('promoteOk').onclick = function () {
+    var extra = { action: 'promote' };
+    if ($('pStatus').value) extra.update_status = $('pStatus').value;
+    if ($('pText').value.trim()) extra.text = $('pText').value.trim();
+    if ($('pOwner').value) extra.owner = $('pOwner').value;
+    post('/api/outlook/entry', extra);
+  };
+  // a pinned pane stays open while the person moves between emails
+  var mb = mailbox();
+  if (mb && mb.addHandlerAsync) mb.addHandlerAsync(Office.EventType.ItemChanged, function () { refreshMail(); });
+  start();
+}
+
+if (window.Office && Office.onReady) Office.onReady(init);
+else document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

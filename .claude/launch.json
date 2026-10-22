@@ -23,6 +23,19 @@
       "autoPort": true
     },
     {
+      "name": "outlook-addin",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "tools/local-server/server.js",
+        ".",
+        "--port",
+        "3440",
+        "--https-port",
+        "3443"
+      ],
+      "port": 3440
+    },
+    {
       "name": "spec-creator",
       "runtimeExecutable": "node",
       "runtimeArgs": [

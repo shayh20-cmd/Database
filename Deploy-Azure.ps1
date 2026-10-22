@@ -355,7 +355,10 @@ try {
     Copy-Item (Join-Path $root "tools/quick-access/project-hub-cube-new-task.ico") (Join-Path $stage "qa-new-task.ico")
     # the "hub" Claude skill, offered for download in Settings ← Claude
     Copy-Item (Join-Path $root "tools/claude-skill/hub.zip") (Join-Path $stage "claude-hub-skill.zip")
-    foreach ($f in "server.js", "mcp.js", "history.js", "mail.js", "mail-store.js", "mail-ai.js", "mail-tokens.js", "package.json", "package-lock.json") {
+    # the Outlook add-in: its manifest, task pane and icons under outlook/, and the page that issues its key
+    Copy-Item (Join-Path $root "outlook") (Join-Path $stage "outlook") -Recurse
+    Copy-Item (Join-Path $root "outlook_connect.html") $stage
+    foreach ($f in "server.js", "mcp.js", "history.js", "mail.js", "mail-store.js", "mail-ai.js", "mail-tokens.js", "outlook.js", "outlook-ai.js", "package.json", "package-lock.json") {
         Copy-Item (Join-Path $root "tools/local-server/$f") (Join-Path $stage "tools/local-server")
     }
     Copy-Item (Join-Path $root "tools/local-server/node_modules") (Join-Path $stage "tools/local-server/node_modules") -Recurse

@@ -1564,6 +1564,90 @@ document.querySelectorAll('input[type=file]').forEach(function(inp){inp.onchange
       return { id: p.id, code: p.code || '', name: p.name || '', mine: (doc.team || []).some(m => m.staffId === me.id), tasks: tasks.slice(-150) };
     });
   }
+  /* The Outlook add-in's mail log: an email in a linked thread becomes an update on its task. It
+     carries forward the status and owner of the update before it, so neither the task's derived
+     status nor the ball moves (a bare "update" would send the page back to the raw statusId);
+     `auto` marks it until the person makes it a real update or removes it. */
+  function mailLog(email, name, projectId, taskId, entry) {
+    const reg = readJson(REGISTRY);
+    const me = identify({ email, name }, reg);
+    canWrite(me);
+    const p = findProject(me, reg, projectId);
+    checkDates(entry.date);
+    return writeProject(p, me, doc => {
+      const { t, s } = findTask(doc, taskId);
+      const date = entry.date || todayISO();
+      const before = evChrono(t.events).filter(e => (e.date || '') <= date).pop();
+      const ev = {
+        id: uid(), status: (before && before.status) || 'update', assignee: (before && before.assignee) || t.discipline || '',
+        date, title: String(entry.text || '').trim(), note: '', ...(entry.mail ? { mail: entry.mail } : {}), auto: true
+      };
+      putTask(doc, s.id, { ...t, events: [...(t.events || []), ev], activityLog: [...(t.activityLog || []), logEntry(me, 'נרשם אוטומטית מהמייל')] });
+      return { eventId: ev.id };
+    });
+  }
+  /* Remove an automatic mail entry (change null), or make it a real update: text, update status, owner. */
+  function mailLogEdit(email, name, projectId, taskId, eventId, change) {
+    const reg = readJson(REGISTRY);
+    const me = identify({ email, name }, reg);
+    canWrite(me);
+    const p = findProject(me, reg, projectId);
+    return writeProject(p, me, doc => {
+      const { t, s } = findTask(doc, taskId);
+      const ev = (t.events || []).find(e => e.id === eventId);
+      if (!ev) throw new ToolError('That update is no longer on the task');
+      if (!change) {
+        if (!ev.auto) throw new ToolError('Only an automatic mail entry can be removed here');
+        putTask(doc, s.id, { ...t, events: t.events.filter(e => e.id !== eventId), activityLog: [...(t.activityLog || []), logEntry(me, 'רישום אוטומטי מהמייל הוסר')] });
+        return { removed: true };
+      }
+      const evs = Object.keys(EV_STATUSES);
+      const ust = change.update_status ? (evs.find(k => k === change.update_status) || evs.find(k => norm(EV_STATUSES[k]) === norm(change.update_status))) : ev.status;
+      if (!ust) throw new ToolError(`Unknown update status "${change.update_status}"`);
+      const owner = change.owner != null ? pickOption(projList(doc, 'disciplines', reg), change.owner, 'discipline') : ev.assignee;
+      const next = { ...ev, status: ust, assignee: owner || '', title: change.text != null ? String(change.text).trim() : ev.title };
+      delete next.auto;
+      putTask(doc, s.id, { ...t, events: t.events.map(e => e.id === eventId ? next : e), activityLog: [...(t.activityLog || []), logEntry(me, 'עדכון מהמייל אושר')] });
+      return { eventId, status: ust };
+    });
+  }
+  /* A file saved by the server (saveAttachment) added to one task, as the person — the add-in's way
+     of attaching an email or its files. */
+  function attachToTask(email, name, projectId, taskId, saved, fileName) {
+    return attachInto({ who: { email, name }, projectId, kind: 'task', id: taskId }, saved, fileName);
+  }
+  /* The execution track as the Outlook add-in offers it: its item types and parties, or null when the track is
+     not open to this person (or the page's execution logic cannot be read). */
+  function execInfo(email, name) {
+    const me = identify({ email, name }, readJson(REGISTRY));
+    let lib;
+    try { lib = execLogic(); } catch (e) { return null; }
+    if (lib.trial && !lib.trial.includes(me.id)) return null;
+    return {
+      types: Object.entries(lib.L.EXEC_TYPES).map(([id, t]) => ({ id, label: t.label, prefix: t.prefix })),
+      parties: lib.L.EXEC_PARTIES.map(x => ({ id: x.id, label: x.label })),
+      due_workdays: lib.dueDays || {}
+    };
+  }
+  /* A file the server saved (saveAttachment) added to an execution item the way the page opens one with files:
+     on its opening message, and on a submittal also on its first round. */
+  function attachToExec(email, name, projectId, itemId, saved, fileName) {
+    const reg = readJson(REGISTRY);
+    const me = identify({ email, name }, reg);
+    canWrite(me);
+    execGate(me);
+    const p = findProject(me, reg, projectId);
+    return writeProject(p, me, doc => {
+      const it = (doc.execItems || []).find(x => x.id === itemId);
+      if (!it) throw new ToolError('That execution item is no longer in the project');
+      const f = { id: uid(), url: saved.url, name: fileName };
+      const n = { ...it };
+      if ((n.responses || []).length) n.responses = n.responses.map((r, i) => i === 0 ? { ...r, files: [...(r.files || []), f] } : r);
+      if (n.type === 'submittal' && (n.revisions || []).length) n.revisions = n.revisions.map((r, i) => i === 0 ? { ...r, files: [...(r.files || []), f] } : r);
+      doc.execItems = doc.execItems.map(x => x.id === itemId ? n : x);
+      return { id: itemId };
+    });
+  }
   function runToolAs(email, name, base, toolName, args) {
     const reg = readJson(REGISTRY);
     const tool = TOOLS.find(t => t.name === toolName);
@@ -1655,5 +1739,5 @@ document.querySelectorAll('input[type=file]').forEach(function(inp){inp.onchange
     try { authorize(req, res, url, user); } catch (e) { console.error('authorize', e); if (!res.headersSent) sendJson(res, 500, { error: 'server_error' }); }
   }
 
-  return { handlePublic, handleAuthorize, handleConnection, whoAmI, mailContext, runToolAs, ToolError, _test: { identify, projectsFor, projList, stagesOf, findStage, officeData, handleRpc } };
+  return { handlePublic, handleAuthorize, handleConnection, whoAmI, mailContext, runToolAs, mailLog, mailLogEdit, attachToTask, execInfo, attachToExec, ToolError, _test: { identify, projectsFor, projList, stagesOf, findStage, officeData, handleRpc } };
 };

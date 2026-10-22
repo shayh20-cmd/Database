@@ -1,5 +1,7 @@
 'use strict';
 const http = require('http');
+const https = require('https');
+const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
@@ -14,19 +16,21 @@ process.on('uncaughtException', e => { console.error('uncaught exception (kept r
 process.on('unhandledRejection', e => { console.error('unhandled rejection (kept running):', e); });
 
 function parseArgs(argv) {
-  let port = null;
+  let port = null, httpsPort = null;
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--port') {
       port = argv[++i];
+    } else if (argv[i] === '--https-port') {
+      httpsPort = argv[++i];
     } else {
       rest.push(argv[i]);
     }
   }
-  return { root: rest[0] || null, port };
+  return { root: rest[0] || null, port, httpsPort };
 }
 
-const { root, port: portArg } = parseArgs(process.argv.slice(2));
+const { root, port: portArg, httpsPort: httpsPortArg } = parseArgs(process.argv.slice(2));
 const STATIC_ROOT = root || path.resolve(__dirname, '..', '..');
 const PORT = Number(portArg || process.env.PORT || 3000);
 
@@ -132,13 +136,21 @@ const IMAGE_EXT = {
   'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif',
   'image/webp': 'webp', 'image/svg+xml': 'svg'
 };
-// A saved Outlook message. Outlook hands a dragged .msg over as octet-stream, so the
-// extension comes from ?name= rather than from the content type.
-const FILE_EXT = new Set(['msg', 'eml', 'pdf']);
+// A saved Outlook message, a PDF, and the files an architect's email carries (drawings, office
+// documents, archives). Outlook hands a dragged .msg over as octet-stream, so the extension comes
+// from ?name= rather than from the content type.
+const FILE_EXT = new Set(['msg', 'eml', 'pdf', 'dwg', 'dwf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'zip', 'rar', 'txt', 'csv']);
 const ATTACH_MIME = {
   png: 'image/png', jpg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
-  pdf: 'application/pdf', msg: 'application/vnd.ms-outlook', eml: 'message/rfc822'
+  pdf: 'application/pdf', msg: 'application/vnd.ms-outlook', eml: 'message/rfc822',
+  dwg: 'application/acad', dwf: 'model/vnd.dwf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', doc: 'application/msword',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', xls: 'application/vnd.ms-excel',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  zip: 'application/zip', rar: 'application/vnd.rar', txt: 'text/plain; charset=utf-8', csv: 'text/csv; charset=utf-8'
 };
+// served for download only, never shown inside the hub's own origin
+const DOWNLOAD_ONLY = new Set(['dwg', 'dwf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'zip', 'rar', 'txt', 'csv']);
 
 function extFor(req, url) {
   const type = (req.headers['content-type'] || '').split(';')[0].trim();
@@ -193,6 +205,7 @@ function handleAttachment(res, appName, fileName, ext) {
     };
     // An uploaded SVG must not run script on this origin.
     if (ext === 'svg') headers['Content-Security-Policy'] = 'sandbox';
+    if (DOWNLOAD_ONLY.has(ext)) { headers['Content-Disposition'] = 'attachment'; headers['Content-Security-Policy'] = 'sandbox'; }
     res.writeHead(200, headers);
     fs.createReadStream(filePath).pipe(res);
   });
@@ -355,6 +368,9 @@ const QUICK_ACCESS_FILES = {
   '/claude-hub-skill.zip': ['tools/claude-skill/hub.zip', 'application/zip']
 };
 const LOGIN_PAGES = new Set(['/login', '/login.html']);
+/* The Outlook add-in (outlook/): its manifest, task pane and icons hold no data, and Outlook loads
+   them without the hub's session, so they are public; the pane's calls carry a personal key. */
+const OUTLOOK_FILE = /^\/outlook\/[A-Za-z0-9_-]+(\.(html|xml|png))?$/;
 /* The register (KKarcDB on Supabase) that the page reads through KKarcDB.Api. Public values
    only — the anon key is meant for browsers. Null when unset; the page then shows no register. */
 function registerConfig() {
@@ -414,16 +430,20 @@ const mcp = require('./mcp')({
   beforeProjectWrite: (file, oldDoc, newDoc, who) => history.beforeSave(projectIdOfFile(file), file, oldDoc, newDoc, who)
 });
 
-/* Mail suggestions (the scanner's intake and the tray in המשימות שלי); see mail.js. */
-const mail = require('./mail')({ DATA_DIR, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, mcp });
+/* The Outlook add-in's task pane and its key; see outlook.js. */
+const outlook = require('./outlook')({ DATA_DIR, STATIC_ROOT, SITE_MODE, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, readRequestBuffer, saveAttachment, mcp });
 
-const server = http.createServer((req, res) => {
+/* Mail suggestions (the scanner's intake and the tray in המשימות שלי); see mail.js. Mail of a thread linked
+   to a task is logged there through the add-in's links. */
+const mail = require('./mail')({ DATA_DIR, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, mcp, outlook });
+
+function handleRequest(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const healthy = AUTH_CONFIRMED && !bootError;
   if (url.pathname === '/health') {
     const body = {
       ok: healthy, mode: SITE_MODE, node: process.version,
-      authEnabled: AUTH_ENABLED, mailAi: mail.health(),
+      authEnabled: AUTH_ENABLED, mailAi: mail.health(), outlookAi: outlook.health(),
       error: bootError ? bootError.message : (AUTH_CONFIRMED ? null : 'authentication not confirmed')
     };
     // While unhealthy, show what the platform actually injected, so a misread flag is
@@ -441,13 +461,15 @@ const server = http.createServer((req, res) => {
   if (mcp.handlePublic(req, res, url)) return;
   // the mail scanner carries its own key too
   if (mail.handlePublic(req, res, url)) return;
+  // and so does the Outlook add-in
+  if (outlook.handlePublic(req, res, url)) return;
 
   /* Easy Auth lets anonymous requests through (AllowAnonymous), so this is the gate. A visitor
      who is not signed in gets only the sign-in page, whose button starts Microsoft sign-in. */
   const user = principalFrom(req);
   if (!user) {
     if (url.pathname.startsWith('/api/')) { sendJson(res, 401, { error: 'Sign in required' }); return; }
-    if (!LOGIN_PAGES.has(url.pathname) && !PUBLIC_ASSETS.has(url.pathname)) {
+    if (!LOGIN_PAGES.has(url.pathname) && !PUBLIC_ASSETS.has(url.pathname) && !OUTLOOK_FILE.test(url.pathname)) {
       redirect(res, '/login?next=' + encodeURIComponent(url.pathname + url.search));
       return;
     }
@@ -463,6 +485,7 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (url.pathname === '/oauth/authorize') { mcp.handleAuthorize(req, res, url, user); return; }
+  if (url.pathname === '/api/outlook-connection') { outlook.handleConnection(req, res, user); return; }
   if (url.pathname.startsWith('/api/claude-connection')) { mcp.handleConnection(req, res, url, user); return; }
   if (url.pathname.startsWith('/api/mail-connection') || url.pathname.startsWith('/api/mail-suggestions')) {
     mail.handle(req, res, url, user).catch(e => sendJson(res, 500, { error: e.message }));
@@ -505,7 +528,7 @@ const server = http.createServer((req, res) => {
   // index.html sends the GitHub Pages root to Site Note; this server's root is Project Hub
   if (url.pathname === '/') { redirect(res, '/project_hub_01'); return; }
   if (SITE_MODE === 'cloud') {
-    if (!CLOUD_PAGE.test(url.pathname) && !CLOUD_ASSETS.has(url.pathname)) { sendJson(res, 404, { error: 'Not found' }); return; }
+    if (!CLOUD_PAGE.test(url.pathname) && !CLOUD_ASSETS.has(url.pathname) && !OUTLOOK_FILE.test(url.pathname)) { sendJson(res, 404, { error: 'Not found' }); return; }
   }
   const qa = QUICK_ACCESS_FILES[url.pathname];
   if (qa) {
@@ -529,8 +552,23 @@ const server = http.createServer((req, res) => {
     directoryListing: SITE_MODE === 'local',
     headers: [{ source: '**', headers: [{ key: 'Cache-Control', value: 'no-cache' }] }]
   });
-});
+}
 
+const server = http.createServer(handleRequest);
 server.listen(PORT, () => {
   console.log('Local server running at http://localhost:' + PORT + ' (serving ' + STATIC_ROOT + ', ' + SITE_MODE + ' mode, data in ' + DATA_DIR + ')');
 });
+
+/* Local HTTPS for the Outlook add-in (Outlook loads add-ins over https only): --https-port 3443,
+   with the development certificate of office-addin-dev-certs (DEV_CERT_DIR overrides where). */
+if (httpsPortArg && SITE_MODE === 'local') {
+  const dir = process.env.DEV_CERT_DIR || path.join(os.homedir(), '.office-addin-dev-certs');
+  try {
+    const tls = { cert: fs.readFileSync(path.join(dir, 'localhost.crt')), key: fs.readFileSync(path.join(dir, 'localhost.key')) };
+    https.createServer(tls, handleRequest).listen(Number(httpsPortArg), () => {
+      console.log('HTTPS at https://localhost:' + httpsPortArg + ' (certificate from ' + dir + ')');
+    });
+  } catch (e) {
+    console.error('HTTPS not started: no development certificate in ' + dir + ' (run: npx office-addin-dev-certs install). ' + e.message);
+  }
+}

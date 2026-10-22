@@ -42,3 +42,9 @@
 | שום דבר לא קורה | הלוג: `%LOCALAPPDATA%\ProjectHub\mail-scan.log`; בדיקה: `Scan-Mail.ps1 -DryRun` |
 
 הסרה: `powershell -ExecutionPolicy Bypass -File tools\mail-scan\Uninstall-MailScan.ps1`.
+
+## Threads linked to a task (Outlook add-in)
+
+Each message also carries `conversationId` (Outlook's `ConversationID`), `inReplyTo` and `references`. A message of a
+thread linked to a task in the Outlook add-in is logged on that task by the server and goes no further. Suggestions
+from other new mail are off unless the person turns them on (Settings → גישה מהירה → סריקת מייל).

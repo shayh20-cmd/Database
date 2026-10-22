@@ -11,7 +11,7 @@ const ai = require('./mail-ai');
 const createTokens = require('./mail-tokens');
 
 module.exports = function createMail(ctx) {
-  const { DATA_DIR, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, mcp } = ctx;
+  const { DATA_DIR, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, mcp, outlook } = ctx;
   const DIR = path.join(DATA_DIR, 'mail');
   const tokens = createTokens(path.join(DATA_DIR, 'mail_tokens.json'), { readJson, writeJsonAtomic });
   const MODEL = (process.env.MAIL_AI_MODEL || '').trim() || 'claude-opus-5-5';
@@ -101,10 +101,25 @@ module.exports = function createMail(ctx) {
     let body;
     try { body = await readJsonBody(req); } catch (e) { sendJson(res, 400, { error: 'Invalid JSON' }); return; }
     if (!Array.isArray(body.mails)) { sendJson(res, 400, { error: 'mails[] expected' }); return; }
-    const r = store.ingest(load(p.email), body.mails.slice(0, 10), now());
-    saveDoc(p.email, r.doc);
-    triageSoon(p);
-    sendJson(res, 200, { accepted: r.accepted, duplicates: r.duplicates, ai: client ? 'on' : 'off' });
+    /* A message of a thread linked to a task is logged on that task (outlook.js) and goes no further.
+       The rest go to Claude only when the person turned suggestions on; otherwise they are just seen. */
+    const batch = body.mails.slice(0, 10);
+    let doc = load(p.email);
+    const fresh = store.unseen(doc, batch);
+    const done = [], forClaude = [];
+    let logged = 0;
+    for (const m of fresh) {
+      let r = null;
+      try { r = outlook ? outlook.logScanned(p, m) : null; } catch (e) { console.error('mail: thread log failed:', e.message); }
+      if (r) { done.push(m.id); if (r === 'logged') logged++; }
+      else if (store.suggestOf(doc)) forClaude.push(m);
+      else done.push(m.id);
+    }
+    const r = store.ingest(doc, forClaude, now());
+    doc = store.markSeen(r.doc, done);
+    saveDoc(p.email, doc);
+    if (forClaude.length) triageSoon(p);
+    sendJson(res, 200, { accepted: fresh.length, duplicates: batch.length - fresh.length, logged, ai: client ? 'on' : 'off' });
   }
   function handlePublic(req, res, url) {
     if (!['/api/mail-intake', '/api/mail-intake/status', '/api/mail-intake/schedule', '/api/mail-intake/ran'].includes(url.pathname)) return false;
@@ -141,12 +156,21 @@ module.exports = function createMail(ctx) {
     if (url.pathname === '/api/mail-connection') {
       if (req.method === 'GET') {
         const doc = load(p.email);
-        sendJson(res, 200, { key: tokens.status(p.email), ai: health(), schedule: store.scheduleOf(doc), lastScanAt: doc.lastScanAt || null });
+        sendJson(res, 200, { key: tokens.status(p.email), ai: health(), schedule: store.scheduleOf(doc), lastScanAt: doc.lastScanAt || null, suggest: store.suggestOf(doc) });
         return;
       }
       if (req.method === 'POST') { sendJson(res, 200, { key: tokens.issue(p.email, now()) }); return; }
       if (req.method === 'DELETE') { tokens.revoke(p.email); sendJson(res, 200, { ok: true }); return; }
       sendJson(res, 405, { error: 'Method not allowed' });
+      return;
+    }
+    if (url.pathname === '/api/mail-connection/suggest') {
+      if (req.method !== 'PUT') { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+      let body;
+      try { body = await readJsonBody(req); } catch (e) { sendJson(res, 400, { error: 'Invalid JSON' }); return; }
+      if (typeof body.suggest !== 'boolean') { sendJson(res, 400, { error: 'suggest must be true or false' }); return; }
+      saveDoc(p.email, store.setSuggest(load(p.email), body.suggest));
+      sendJson(res, 200, { suggest: body.suggest });
       return;
     }
     if (url.pathname === '/api/mail-connection/schedule') {
