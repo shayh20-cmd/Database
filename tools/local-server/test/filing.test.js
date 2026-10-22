@@ -221,3 +221,17 @@ test('filing: the pane opens a job, the agent on the PC takes it, the window fil
   const job3 = (await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail: MAIL })).body;
   assert.strictEqual((await call(dana, '/api/outlook/filing-ready?id=' + job3.id, {})).status, 400);
 });
+
+test('filing: a token ends after its time, and without Claude the window gets no plan', async (t) => {
+  const { keyOf, call, up } = await start(t, 3963, { FILING_TTL_MS: '700', FILING_POLL_MS: '200' });
+  const dana = await keyOf('dana@kkarc.com');
+  const id = (await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail: MAIL })).body.id;
+  assert.strictEqual((await up(dana, id, 'A.pdf', '%PDF')).status, 200);
+  assert.strictEqual((await call(dana, '/api/outlook/filing-ready?id=' + id, {})).status, 200);
+  const token = (await call(dana, '/api/outlook/filing-next?pc=PC1')).body.job.token;
+  const s = await call(null, '/api/filing/' + token + '/suggest', { tree: ['CONS'] });
+  assert.deepStrictEqual(s.body, { plan: null, reason: 'ai_unavailable' });
+  await wait(900);
+  assert.strictEqual((await call(null, '/api/filing/' + token)).status, 410);
+  assert.strictEqual((await call(dana, '/api/outlook/filing-status?id=' + id)).body.expired, true);
+});
