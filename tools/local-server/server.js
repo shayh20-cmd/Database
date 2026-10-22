@@ -136,13 +136,21 @@ const IMAGE_EXT = {
   'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif',
   'image/webp': 'webp', 'image/svg+xml': 'svg'
 };
-// A saved Outlook message. Outlook hands a dragged .msg over as octet-stream, so the
-// extension comes from ?name= rather than from the content type.
-const FILE_EXT = new Set(['msg', 'eml', 'pdf']);
+// A saved Outlook message, a PDF, and the files an architect's email carries (drawings, office
+// documents, archives). Outlook hands a dragged .msg over as octet-stream, so the extension comes
+// from ?name= rather than from the content type.
+const FILE_EXT = new Set(['msg', 'eml', 'pdf', 'dwg', 'dwf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'zip', 'rar', 'txt', 'csv']);
 const ATTACH_MIME = {
   png: 'image/png', jpg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
-  pdf: 'application/pdf', msg: 'application/vnd.ms-outlook', eml: 'message/rfc822'
+  pdf: 'application/pdf', msg: 'application/vnd.ms-outlook', eml: 'message/rfc822',
+  dwg: 'application/acad', dwf: 'model/vnd.dwf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', doc: 'application/msword',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', xls: 'application/vnd.ms-excel',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  zip: 'application/zip', rar: 'application/vnd.rar', txt: 'text/plain; charset=utf-8', csv: 'text/csv; charset=utf-8'
 };
+// served for download only, never shown inside the hub's own origin
+const DOWNLOAD_ONLY = new Set(['dwg', 'dwf', 'docx', 'doc', 'xlsx', 'xls', 'pptx', 'zip', 'rar', 'txt', 'csv']);
 
 function extFor(req, url) {
   const type = (req.headers['content-type'] || '').split(';')[0].trim();
@@ -197,6 +205,7 @@ function handleAttachment(res, appName, fileName, ext) {
     };
     // An uploaded SVG must not run script on this origin.
     if (ext === 'svg') headers['Content-Security-Policy'] = 'sandbox';
+    if (DOWNLOAD_ONLY.has(ext)) { headers['Content-Disposition'] = 'attachment'; headers['Content-Security-Policy'] = 'sandbox'; }
     res.writeHead(200, headers);
     fs.createReadStream(filePath).pipe(res);
   });
@@ -425,7 +434,7 @@ const mcp = require('./mcp')({
 const mail = require('./mail')({ DATA_DIR, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, mcp });
 
 /* The Outlook add-in's task pane and its key; see outlook.js. */
-const outlook = require('./outlook')({ DATA_DIR, STATIC_ROOT, SITE_MODE, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, mcp });
+const outlook = require('./outlook')({ DATA_DIR, STATIC_ROOT, SITE_MODE, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, readRequestBuffer, saveAttachment, mcp });
 
 function handleRequest(req, res) {
   const url = new URL(req.url, 'http://localhost');

@@ -74,7 +74,7 @@ function mailOf(body) {
 const mailNote = mail => 'מהמייל: ' + [mail.from.name || mail.from.email, mail.subject, mail.receivedDate].filter(Boolean).join(' · ');
 
 module.exports = function createOutlook(ctx) {
-  const { DATA_DIR, STATIC_ROOT, SITE_MODE, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, mcp } = ctx;
+  const { DATA_DIR, STATIC_ROOT, SITE_MODE, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, readRequestBuffer, saveAttachment, mcp } = ctx;
   const tokens = createTokens(path.join(DATA_DIR, 'outlook_tokens.json'), { readJson, writeJsonAtomic }, 'pho_');
   const LINKS = path.join(DATA_DIR, 'outlook_links.json');
   const now = () => new Date().toISOString();
@@ -221,7 +221,7 @@ module.exports = function createOutlook(ctx) {
         } catch (e) { if (!(e instanceof mcp.ToolError)) throw e; }
         return {
           threadKey: key, projectId: th.projectId, why: 'linked', canWrite,
-          linked: { projectId: th.projectId, taskId: th.taskId, task: lt.task, linkedAt: th.linkedAt, message: msg ? { eventId: msg.eventId || null, auto: !!msg.auto, removed: !!msg.removed } : null, options }
+          linked: { projectId: th.projectId, taskId: th.taskId, task: lt.task, linkedAt: th.linkedAt, message: msg ? { eventId: msg.eventId || null, auto: !!msg.auto, removed: !!msg.removed, created: !!msg.createdTask, attached: !!msg.attached } : null, options }
         };
       }
     }
@@ -236,7 +236,7 @@ module.exports = function createOutlook(ctx) {
   }
 
   const GET_ROUTES = ['/api/outlook/me', '/api/outlook/projects', '/api/outlook/tasks', '/api/outlook/project'];
-  const POST_ROUTES = ['/api/outlook/context', '/api/outlook/link', '/api/outlook/unlink', '/api/outlook/entry', '/api/outlook/parse', '/api/outlook/create', '/api/outlook/apply', '/api/outlook/undo'];
+  const POST_ROUTES = ['/api/outlook/context', '/api/outlook/link', '/api/outlook/unlink', '/api/outlook/entry', '/api/outlook/parse', '/api/outlook/create', '/api/outlook/apply', '/api/outlook/undo', '/api/outlook/upload', '/api/outlook/attached'];
 
   async function run(req, res, url) {
     const m = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
@@ -264,6 +264,28 @@ module.exports = function createOutlook(ctx) {
     if (url.pathname === '/api/outlook/project') {
       const g = mcp.runToolAs(p.email, p.name, base, 'get_project', { project: url.searchParams.get('project') || '' });
       sendJson(res, 200, { project: g.project, stages: g.stages.map(s => ({ id: s.id, path: s.path, default: !!s.default_for_new_tasks })), disciplines: g.disciplines, priorities: g.priorities, statuses: g.statuses, update_statuses: g.update_statuses, team: g.team, defaults: g.defaults });
+      return;
+    }
+
+    /* one file — the email itself (.eml) or one of its attachments — added to a task; raw bytes, the
+       name and the task in the query */
+    if (url.pathname === '/api/outlook/upload') {
+      const projectId = url.searchParams.get('project') || '', taskId = url.searchParams.get('task') || '';
+      const name = String(url.searchParams.get('name') || 'file').replace(/[\u0000-\u001f\\/:*?"<>|]/g, '').slice(0, 150) || 'file';
+      if (!projectId || !taskId) { sendJson(res, 400, { error: 'project and task expected' }); return; }
+      // the task must be one this person can see, by its exact id
+      const t = mcp.runToolAs(p.email, p.name, base, 'get_task', { project: projectId, task: taskId });
+      if (t.id !== taskId) { sendJson(res, 400, { error: 'No such task' }); return; }
+      let buf;
+      try { buf = await readRequestBuffer(req); } catch (e) { sendJson(res, 413, { error: 'too_large' }); return; }
+      if (!buf.length) { sendJson(res, 400, { error: 'empty' }); return; }
+      const saved = saveAttachment('project-hub-01', buf, req.headers['content-type'], name);
+      if (!saved) { sendJson(res, 415, { error: 'type' }); return; }
+      try { mcp.attachToTask(p.email, p.name, projectId, taskId, saved, name); } catch (e) {
+        if (e instanceof mcp.ToolError) { sendJson(res, 403, { error: e.message }); return; }
+        throw e;
+      }
+      sendJson(res, 200, { ok: true, name, url: saved.url });
       return;
     }
 
@@ -332,6 +354,14 @@ module.exports = function createOutlook(ctx) {
         recordMessage(p, key, mail, projectId, taskId, { updated: true });
       }
       sendJson(res, 200, { ok: true, ...context(p, base, mail) });
+      return;
+    }
+    // after the files are up: the thread is linked to the task and this email is marked as attached there
+    if (url.pathname === '/api/outlook/attached') {
+      const projectId = String(body.projectId || ''), taskId = String(body.taskId || '');
+      if (!projectId || !taskId) { sendJson(res, 400, { error: 'project and task expected' }); return; }
+      recordMessage(p, key, mail, projectId, taskId, { attached: true });
+      sendJson(res, 200, context(p, base, mail));
       return;
     }
     if (url.pathname === '/api/outlook/undo') {

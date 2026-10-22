@@ -171,10 +171,23 @@
     <button type="button" id="mNew" data-t="משימה חדשה">משימה חדשה</button>
     <button type="button" id="mUpdate" data-t="עדכון">עדכון</button>
     <button type="button" id="linkOpen" data-t="קשר את השרשור למשימה">קשר את השרשור למשימה</button>
-    <button type="button" id="mAttach" disabled data-t="צירוף (בקרוב)">צירוף (בקרוב)</button>
+    <button type="button" id="mAttach" data-t="צירוף">צירוף</button>
   </div>
 
-  <!-- pick a task: to link the thread, or to update it -->
+  <!-- attach the email itself and/or its files to a task -->
+  <div class="card" id="attForm" hidden>
+    <h2 data-t="צירוף למשימה">צירוף למשימה</h2>
+    <div class="task-title" id="aTask" data-i18n-skip></div>
+    <div class="meta" id="aTaskMeta" data-i18n-skip></div>
+    <div id="attList" style="display:flex;flex-direction:column;gap:4px;margin-block-start:8px"></div>
+    <div class="hint" id="attState"></div>
+    <div class="row" style="margin-block-start:8px">
+      <button class="primary" type="button" id="aOk" data-t="צרף">צרף</button>
+      <button type="button" id="aCancel" data-t="ביטול">ביטול</button>
+    </div>
+  </div>
+
+  <!-- pick a task: to link the thread, to update it, or to attach to it -->
   <div class="picker" id="picker" hidden>
     <div class="hint" id="pickerFor"></div>
     <input id="taskQuery" type="search" data-i18n-skip>
@@ -267,6 +280,8 @@ var HE_EN = {
   'אין משימות פתוחות שמתאימות': 'No open tasks match',
   'בחר קודם פרויקט': 'Choose a project first',
   'המייל הזה נרשם אוטומטית כעדכון במשימה.': 'This email was logged on the task automatically.',
+  'המשימה נוצרה מהמייל הזה.': 'The task was created from this email.',
+  'המייל הזה (או קבצים ממנו) צורף למשימה.': 'This email (or files from it) was attached to the task.',
   'המייל הזה רשום כעדכון במשימה.': 'This email is recorded as an update on the task.',
   'הרישום של המייל הזה הוסר מהמשימה.': 'This email\'s entry was removed from the task.',
   'יעד {d}': 'Due {d}',
@@ -279,7 +294,19 @@ var HE_EN = {
   'תאריך יעד חדש': 'New due date',
   'סטטוס המשימה': 'Task status',
   'משימה חדשה': 'New task',
-  'צירוף (בקרוב)': 'Attach (soon)',
+  'צירוף': 'Attach',
+  'צירוף למשימה': 'Attach to a task',
+  'צרף': 'Attach',
+  'המייל עצמו (‎.eml)': 'The email itself (.eml)',
+  'סוג קובץ לא נתמך': 'file type not supported',
+  'גדול מדי': 'too large',
+  'קובץ בענן — לא ניתן לצרף מכאן': 'a cloud file cannot be attached from here',
+  'מצרף {i} מתוך {n}…': 'Attaching {i} of {n}…',
+  'צורפו {n} קבצים למשימה.': '{n} files were attached to the task.',
+  'צורף קובץ אחד למשימה.': 'One file was attached to the task.',
+  'לא צורפו: {f}': 'Not attached: {f}',
+  'סמן לפחות קובץ אחד': 'Pick at least one file',
+  'בחר משימה לצירוף': 'Choose the task to attach to',
   'כותרת': 'Title',
   'שלב': 'Stage',
   'תחום': 'Discipline',
@@ -293,7 +320,6 @@ var HE_EN = {
   'פתח ב-Project Hub': 'Open in Project Hub',
   'המשימה בוטלה.': 'The task was removed.',
   'העדכון נשמר.': 'The update was saved.',
-  'צירוף המייל והקבצים יגיע בשלב הבא. המשימה:': 'Attaching the email and files comes next. The task:',
   'Claude לא זמין כרגע. אפשר להשתמש בכפתורים למטה.': 'Claude is not available right now. The buttons below still work.',
   'בחר משימה לעדכון': 'Choose the task to update',
   'בחר משימה לקישור השרשור': 'Choose the task to link the thread to',
@@ -354,7 +380,8 @@ var DEMO_MAIL = {
   subject: 'LDPB — תוכנית קונסטרוקציה מעודכנת', from: { displayName: 'דני כהן', emailAddress: 'dani@example.com' },
   dateTimeCreated: new Date(), conversationId: 'DE000000000000000000000000000001',
   internetMessageId: '<demo-' + new Date().toISOString().slice(0, 10) + '@example.com>', itemId: 'demo-item',
-  attachments: [{ name: 'K-101.pdf', size: 120000, isInline: false }], body: 'שלום, מצורפת תוכנית מעודכנת.'
+  attachments: [{ id: 'demo-1', name: 'K-101.pdf', size: 1200, isInline: false, contentType: 'application/pdf' }, { id: 'demo-2', name: 'K-101.dwg', size: 900, isInline: false, contentType: 'application/octet-stream' }, { id: 'demo-3', name: 'notes.exe', size: 10, isInline: false }],
+  body: 'שלום, מצורפת תוכנית מעודכנת.'
 };
 function readMail() {
   var mb = mailbox();
@@ -367,7 +394,7 @@ function readMail() {
         subject: it.subject || '', from: it.from || {}, to: names(it.to), cc: names(it.cc),
         dateTimeCreated: it.dateTimeCreated, conversationId: it.conversationId || '',
         internetMessageId: it.internetMessageId || '', itemId: it.itemId || '',
-        attachments: (it.attachments || []).map(function (a) { return { name: a.name, size: a.size, isInline: a.isInline, type: a.attachmentType }; }),
+        attachments: (it.attachments || []).map(function (a) { return { id: a.id, name: a.name, size: a.size, isInline: a.isInline, type: a.attachmentType, contentType: a.contentType }; }),
         body: r.status === Office.AsyncResultStatus.Succeeded ? String(r.value || '').slice(0, 6000) : ''
       });
     });
@@ -445,7 +472,8 @@ function renderContext() {
   $('entry').hidden = !msg;
   $('unlinkBtn').hidden = !c.canWrite;
   if (msg) {
-    $('entryState').textContent = tx(msg.removed ? 'הרישום של המייל הזה הוסר מהמשימה.' : msg.auto ? 'המייל הזה נרשם אוטומטית כעדכון במשימה.' : 'המייל הזה רשום כעדכון במשימה.');
+    $('entryState').textContent = tx(msg.removed ? 'הרישום של המייל הזה הוסר מהמשימה.' : msg.auto ? 'המייל הזה נרשם אוטומטית כעדכון במשימה.'
+      : msg.created && !msg.eventId ? 'המשימה נוצרה מהמייל הזה.' : msg.attached && !msg.eventId ? 'המייל הזה (או קבצים ממנו) צורף למשימה.' : 'המייל הזה רשום כעדכון במשימה.');
     $('entryActions').hidden = !(msg.auto && c.canWrite);
   }
 }
@@ -479,7 +507,7 @@ function projectOptions(pid) {
 
 /* ── the free-text box ── */
 var lastText = '', asking = false, undoTimer = null;
-function clearResult() { $('result').hidden = true; $('result').innerHTML = ''; $('updForm').hidden = true; $('newForm').hidden = true; clearInterval(undoTimer); }
+function clearResult() { $('result').hidden = true; $('result').innerHTML = ''; $('updForm').hidden = true; $('newForm').hidden = true; $('attForm').hidden = true; clearInterval(undoTimer); }
 function resultCard(nodes) {
   clearResult();
   var r = $('result');
@@ -510,10 +538,7 @@ function submitAsk() {
 function showParsed(r, pid) {
   if (r.action === 'created') { showCreated(r); return; }
   if (r.action === 'update') { openUpdate(pid, r.target, r.proposal); return; }
-  if (r.action === 'attach') {
-    resultCard([el('div', tx('צירוף המייל והקבצים יגיע בשלב הבא. המשימה:')), r.target ? el('div', r.target.title) : null]);
-    return;
-  }
+  if (r.action === 'attach') { openAttach(pid, r.target, r.proposal); return; }
   // a question: its options answer it, or the box does
   var q = r.proposal.question;
   var row = el('div'); row.className = 'row';
@@ -588,6 +613,108 @@ function saveUpdate() {
   }).catch(function (e) { $('uOk').disabled = false; fail(e); });
 }
 
+/* ── attaching the email (.eml) and its files to a task ── */
+// what the hub stores (server.js FILE_EXT and the images)
+var SUPPORTED = /\.(png|jpe?g|gif|webp|pdf|msg|eml|dwg|dwf|docx?|xlsx?|pptx|zip|rar|txt|csv)$/i;
+var MAX_FILE = 20 * 1024 * 1024;
+var IMAGE_TYPE = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp' };
+var attTarget = null;
+function canSaveEml() {
+  if (demo && !mailbox()) return true;
+  try { return Office.context.requirements.isSetSupported('Mailbox', '1.14') && !!mailbox().item.getAsFileAsync; } catch (e) { return false; }
+}
+function safeName(s) { return String(s || 'mail').replace(/[\u0000-\u001f\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'mail'; }
+function openAttach(pid, target, proposal) {
+  clearResult();
+  attTarget = { pid: pid, id: target.id };
+  $('aTask').textContent = target.title;
+  $('aTaskMeta').textContent = target.stage || '';
+  $('attState').textContent = '';
+  var list = $('attList'); list.innerHTML = '';
+  var want = proposal && proposal.attach;
+  var add = function (key, label, ok, why, checked) {
+    var row = el('label'); row.style.display = 'flex'; row.style.gap = '6px'; row.style.alignItems = 'center'; row.style.fontSize = '13px'; row.style.color = 'var(--fg)';
+    var cb = document.createElement('input'); cb.type = 'checkbox'; cb.style.width = 'auto'; cb.value = key; cb.disabled = !ok; cb.checked = ok && checked;
+    row.appendChild(cb);
+    var span = el('span', label); span.setAttribute('data-i18n-skip', '');
+    row.appendChild(span);
+    if (why) { var w = el('span', '(' + tx(why) + ')'); w.className = 'hint'; row.appendChild(w); }
+    list.appendChild(row);
+  };
+  if (canSaveEml()) add('mail', tx('המייל עצמו (‎.eml)'), true, '', want ? want.mail : true);
+  (currentMail.attachments || []).filter(function (a) { return !a.isInline; }).forEach(function (a) {
+    var cloud = a.type === 'cloud';
+    var ok = !cloud && SUPPORTED.test(a.name) && !(a.size > MAX_FILE);
+    var why = cloud ? 'קובץ בענן — לא ניתן לצרף מכאן' : !SUPPORTED.test(a.name) ? 'סוג קובץ לא נתמך' : a.size > MAX_FILE ? 'גדול מדי' : '';
+    add('att:' + a.id, a.name, ok, why, want ? (want.attachments || []).indexOf(a.name) >= 0 : true);
+  });
+  $('attForm').hidden = false;
+}
+function b64ToBytes(b64) { var bin = atob(b64), out = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; }
+/* the file's bytes from Outlook: the whole email as .eml (Mailbox 1.14), or one attachment */
+function contentOf(key) {
+  var mb = mailbox();
+  if (key === 'mail') {
+    var name = safeName(currentMail.subject) + '.eml';
+    if (!mb || !mb.item) return Promise.resolve({ name: name, type: 'message/rfc822', body: 'Subject: ' + currentMail.subject + '\r\n\r\n' + (currentMail.body || '') });
+    return new Promise(function (ok, no) {
+      mb.item.getAsFileAsync(function (r) {
+        if (r.status !== Office.AsyncResultStatus.Succeeded) { no(new Error(r.error && r.error.message || 'eml')); return; }
+        ok({ name: name, type: 'message/rfc822', body: b64ToBytes(r.value) });
+      });
+    });
+  }
+  var id = key.slice(4);
+  var a = (currentMail.attachments || []).find(function (x) { return x.id === id; });
+  var ext = (a.name.split('.').pop() || '').toLowerCase();
+  var type = IMAGE_TYPE[ext] || 'application/octet-stream';
+  if (!mb || !mb.item) return Promise.resolve({ name: a.name, type: type, body: '%PDF-1.4\n% demo file ' + a.name + '\n' });
+  return new Promise(function (ok, no) {
+    mb.item.getAttachmentContentAsync(id, function (r) {
+      if (r.status !== Office.AsyncResultStatus.Succeeded) { no(new Error(r.error && r.error.message || 'attachment')); return; }
+      var v = r.value, F = Office.MailboxEnums.AttachmentContentFormat;
+      if (v.format === F.Base64) ok({ name: a.name, type: type, body: b64ToBytes(v.content) });
+      else if (v.format === F.Eml) ok({ name: /\.eml$/i.test(a.name) ? a.name : safeName(a.name) + '.eml', type: 'message/rfc822', body: v.content });
+      else no(new Error(tx('קובץ בענן — לא ניתן לצרף מכאן')));
+    });
+  });
+}
+function uploadOne(key) {
+  return contentOf(key).then(function (f) {
+    var q = '?project=' + encodeURIComponent(attTarget.pid) + '&task=' + encodeURIComponent(attTarget.id) + '&name=' + encodeURIComponent(f.name);
+    return fetch('/api/outlook/upload' + q, { method: 'POST', headers: { Authorization: 'Bearer ' + getSetting('key'), 'Content-Type': f.type }, body: f.body }).then(function (r) {
+      if (r.status === 401) { var e = new Error('invalid_key'); e.code = 401; throw e; }
+      return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return f.name; });
+    });
+  });
+}
+function saveAttach() {
+  var keys = [].slice.call($('attList').querySelectorAll('input:checked')).map(function (cb) { return cb.value; });
+  if (!keys.length) { $('attState').textContent = tx('סמן לפחות קובץ אחד'); return; }
+  $('aOk').disabled = true;
+  var done = [], failed = [];
+  var labelOf = function (k) { return k === 'mail' ? tx('המייל עצמו (‎.eml)') : ((currentMail.attachments || []).find(function (a) { return 'att:' + a.id === k; }) || {}).name; };
+  // one at a time: each file is its own request, within the server's size limit
+  var next = function (i) {
+    if (i >= keys.length) return Promise.resolve();
+    $('attState').textContent = tx('מצרף {i} מתוך {n}…', { i: i + 1, n: keys.length });
+    return uploadOne(keys[i]).then(function (n) { done.push(n); }, function (e) {
+      if (e.code === 401) throw e;
+      failed.push(labelOf(keys[i]) + ' — ' + e.message);
+    }).then(function () { return next(i + 1); });
+  };
+  next(0).then(function () {
+    if (!done.length) return null;
+    return api('/api/outlook/attached', { mail: mailRef(currentMail), projectId: attTarget.pid, taskId: attTarget.id }).then(setCtx);
+  }).then(function () {
+    $('aOk').disabled = false;
+    var nodes = [];
+    if (done.length) nodes.push(el('div', done.length === 1 ? tx('צורף קובץ אחד למשימה.') : tx('צורפו {n} קבצים למשימה.', { n: done.length })));
+    if (failed.length) { var f = el('div', tx('לא צורפו: {f}', { f: failed.join('; ') })); f.className = 'err'; nodes.push(f); }
+    resultCard(nodes);
+  }).catch(function (e) { $('aOk').disabled = false; fail(e); });
+}
+
 /* ── a new task by hand ── */
 function openNew() {
   var pid = $('project').value;
@@ -619,7 +746,7 @@ function openPicker(mode) {
   if (!$('project').value) { showErr('appErr', tx('בחר קודם פרויקט')); return; }
   clearResult();
   pickerMode = mode;
-  $('pickerFor').textContent = tx(mode === 'update' ? 'בחר משימה לעדכון' : 'בחר משימה לקישור השרשור');
+  $('pickerFor').textContent = tx(mode === 'update' ? 'בחר משימה לעדכון' : mode === 'attach' ? 'בחר משימה לצירוף' : 'בחר משימה לקישור השרשור');
   $('picker').hidden = false; $('taskQuery').value = ''; $('taskQuery').focus();
   searchTasks();
 }
@@ -638,6 +765,7 @@ function searchTasks() {
       var pick = function () {
         closePicker();
         if (pickerMode === 'update') openUpdate(pid, t, null);
+        else if (pickerMode === 'attach') openAttach(pid, t, null);
         else post('/api/outlook/link', { projectId: pid, taskId: t.id });
       };
       li.onclick = pick;
@@ -703,6 +831,13 @@ function init() {
     else openPicker('update');
   };
   $('mNew').onclick = openNew;
+  $('mAttach').onclick = function () {
+    var L = ctx && ctx.linked;
+    if (L && L.task) openAttach(L.projectId, { id: L.taskId, title: L.task.title, stage: L.task.stage }, null);
+    else openPicker('attach');
+  };
+  $('aOk').onclick = saveAttach;
+  $('aCancel').onclick = clearResult;
   $('nOk').onclick = saveNew;
   $('nCancel').onclick = clearResult;
   $('uOk').onclick = saveUpdate;

@@ -135,8 +135,15 @@ Outlook (כרום / חדש / קלאסי)
 - **`/api/outlook/project`** — אפשרויות הפרויקט לטפסים הידניים (שלבים, תחומים, סטטוסים, צוות).
 - **`/api/outlook/undo`** — `{ undoToken }` → `delete_task` על המשימה שנוצרה, רק אם נוצרה מהתוסף
   ע״י אותו אדם, בתוך 10 דקות, ועוד לא נוספו לה עדכונים מאז. אחרת 409 עם הסבר. הקישור נמחק.
-- **`/api/outlook/upload`** — `POST` גולמי (`?name=&taskId=&project=`), עד 25MB; נשמר ב-
-  `saveAttachment` הקיים ומצורף למשימה כמו ב-`attach_file` (אותו `attachInto` — ייחשף מ-`mcp.js`).
+- **`/api/outlook/upload`** — `POST` גולמי (`?project=&task=&name=`), קובץ אחד לבקשה, עד 20MB (המגבלה הקיימת
+  של השרת); נשמר ב-`saveAttachment` הקיים ומצורף למשימה דרך `attachInto` של `mcp.js` (`mcp.attachToTask`).
+  אחרי ההעלאות `/api/outlook/attached` מקשר את השרשור ומסמן את המייל כמצורף (כדי שלא יירשם שוב).
+- **סוגי קבצים (הוחלט 2026-10-22):** מעבר לתמונות, PDF, msg ו-eml — גם DWG, DWF, DOCX/DOC, XLSX/XLS, PPTX, ZIP,
+  RAR, TXT, CSV. החדשים מוגשים להורדה בלבד (`Content-Disposition: attachment`, `CSP: sandbox`), ולא נפתחים
+  בתוך האתר. ההרחבה חלה על כל העלאה לשרת, גם מה-Hub. בחלונית: קובץ מסוג אחר, קובץ גדול מ-20MB או קובץ בענן
+  מוצג לא זמין עם הסבר.
+- **התוכן מ-Outlook:** המייל כולו — `item.getAsFileAsync` (Mailbox 1.14; כשלא נתמך, האפשרות לא מוצגת);
+  קובץ מצורף — `getAttachmentContentAsync` (base64, או eml למייל מצורף).
 - **שגיאות:** מפתח חסר/שגוי → 401; תפקיד צפייה → 403 עם הודעה (`ToolError` של `canWrite`);
   `ToolError` אחר → 400 עם ההודעה; Claude נכשל / אין מפתח → 503 `{ error: 'ai_unavailable' }`, והחלונית
   מציעה את המסלול הידני. השרת לא יוצא בגלל זה; `/health` מוסיף `outlookAi`.

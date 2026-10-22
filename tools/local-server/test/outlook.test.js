@@ -319,3 +319,42 @@ test('outlook: free text becomes a new task at once (with undo) or a proposed up
   await call(dana, '/api/outlook/apply', { mail: mail('<a7@x>', { conversationId: 'CC000000000000000000000000000002' }), projectId: 'pabc123', proposal: { target_task_id: r.body.created.id, update: { text: 'התקדמות', update_status: '', owner: '' }, changes: {} } });
   assert.strictEqual((await call(dana, '/api/outlook/undo', { mail: mail('<a5@x>'), undoToken: r.body.undoToken })).status, 409);
 });
+
+test('outlook: the email and its files are attached to a task; drawings and office files download only', async (t) => {
+  const port = 3977, base = 'http://127.0.0.1:' + port;
+  const { root, data } = makeSite();
+  const proc = spawn('node', [SERVER, root, '--port', String(port)], { stdio: 'ignore', env: { ...process.env, SITE_MODE: 'cloud', WEBSITE_AUTH_ENABLED: 'true', DATA_DIR: data } });
+  t.after(() => proc.kill());
+  for (let i = 0; i < 50; i++) { try { await fetch(base + '/health'); break; } catch (e) { await wait(100); } }
+  const keyOf = async email => (await (await fetch(base + '/api/outlook-connection', { method: 'POST', headers: { 'x-ms-client-principal': principal(email) } })).json()).key;
+  const dana = await keyOf('dana@kkarc.com'), ron = await keyOf('ron@kkarc.com');
+  const up = (key, q, body, type) => fetch(base + '/api/outlook/upload?' + new URLSearchParams(q), { method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': type || 'application/octet-stream' }, body });
+  const task = id => JSON.parse(fs.readFileSync(path.join(data, 'projects', 'pabc123.json'), 'utf8')).sheets[0].tasks.find(x => x.id === id);
+
+  let r = await up(dana, { project: 'pabc123', task: 't2', name: 'Re: חזית.eml' }, 'Subject: x\r\n\r\nbody', 'message/rfc822');
+  assert.strictEqual(r.status, 200);
+  r = await up(dana, { project: 'pabc123', task: 't2', name: 'A-101.dwg' }, Buffer.from([0x41, 0x43, 0x31, 0x30]));
+  assert.strictEqual(r.status, 200);
+  const dwg = (await r.json()).url;
+  assert.deepStrictEqual(task('t2').attachments.map(a => a.name), ['Re חזית.eml', 'A-101.dwg'], 'the name is cleaned of characters a file cannot carry');
+  assert.match(task('t2').activityLog.slice(-1)[0].text, /A-101\.dwg/);
+
+  // a drawing is served for download, never shown in the hub's origin
+  const f = await fetch(base + dwg, { headers: { 'x-ms-client-principal': principal('dana@kkarc.com') } });
+  assert.deepStrictEqual([f.status, f.headers.get('content-disposition'), f.headers.get('content-security-policy')], [200, 'attachment', 'sandbox']);
+
+  // refused: an unknown type, an empty body, a task that is not there, no key, a viewer
+  assert.strictEqual((await up(dana, { project: 'pabc123', task: 't2', name: 'run.exe' }, 'MZ')).status, 415);
+  assert.strictEqual((await up(dana, { project: 'pabc123', task: 't2', name: 'a.pdf' }, '')).status, 400);
+  assert.strictEqual((await up(dana, { project: 'pabc123', task: 'nope', name: 'a.pdf' }, '%PDF')).status, 400);
+  assert.strictEqual((await up('pho_x', { project: 'pabc123', task: 't2', name: 'a.pdf' }, '%PDF')).status, 401);
+  assert.strictEqual((await up(ron, { project: 'pabc123', task: 't2', name: 'a.pdf' }, '%PDF')).status, 403);
+  assert.strictEqual(task('t2').attachments.length, 2);
+
+  // afterwards the thread is linked to the task, and this email is not logged on it again
+  const mail = { conversationId: 'DD000000000000000000000000000001', internetMessageId: '<f1@x>', subject: 'Re: חזית', from: { name: 'דני', email: 'dani@eng.co.il' }, receivedDate: '2026-10-22' };
+  r = await fetch(base + '/api/outlook/attached', { method: 'POST', headers: { Authorization: 'Bearer ' + dana, 'Content-Type': 'application/json' }, body: JSON.stringify({ mail, projectId: 'pabc123', taskId: 't2' }) });
+  const c = await r.json();
+  assert.deepStrictEqual([c.linked.taskId, c.linked.message.auto], ['t2', false]);
+  assert.strictEqual((task('t2').events || []).length, 0);
+});

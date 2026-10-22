@@ -1611,6 +1611,11 @@ document.querySelectorAll('input[type=file]').forEach(function(inp){inp.onchange
       return { eventId, status: ust };
     });
   }
+  /* A file saved by the server (saveAttachment) added to one task, as the person — the add-in's way
+     of attaching an email or its files. */
+  function attachToTask(email, name, projectId, taskId, saved, fileName) {
+    return attachInto({ who: { email, name }, projectId, kind: 'task', id: taskId }, saved, fileName);
+  }
   function runToolAs(email, name, base, toolName, args) {
     const reg = readJson(REGISTRY);
     const tool = TOOLS.find(t => t.name === toolName);
@@ -1702,5 +1707,5 @@ document.querySelectorAll('input[type=file]').forEach(function(inp){inp.onchange
     try { authorize(req, res, url, user); } catch (e) { console.error('authorize', e); if (!res.headersSent) sendJson(res, 500, { error: 'server_error' }); }
   }
 
-  return { handlePublic, handleAuthorize, handleConnection, whoAmI, mailContext, runToolAs, mailLog, mailLogEdit, ToolError, _test: { identify, projectsFor, projList, stagesOf, findStage, officeData, handleRpc } };
+  return { handlePublic, handleAuthorize, handleConnection, whoAmI, mailContext, runToolAs, mailLog, mailLogEdit, attachToTask, ToolError, _test: { identify, projectsFor, projList, stagesOf, findStage, officeData, handleRpc } };
 };
