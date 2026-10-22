@@ -14,7 +14,7 @@ const SYSTEM = [
   'mode: "new-version" when the files start a new version folder (…-vNN, the next number after the highest one there), "existing" when they go into a folder that is already there.',
   'When the guide says what happens to the previous version or to a folder of current copies, add those steps.',
   'Past filings show where this project\'s files from the same sender or of the same kind went: prefer the same place.',
-  'why: one short sentence in Hebrew saying where and why.'
+  'why: one short sentence saying where and why, in the language given on the "Language of why:" line (he = Hebrew, en = English).'
 ].join('\n');
 
 const STR = { type: 'string' };
@@ -73,15 +73,25 @@ function sanitizePlan(raw, tree, fileNames) {
       if (!from || !to || !has(from)) continue;
       if (s.op === 'move') {
         if (has(to) || !has(parentOf(to)) || (to + '/').toLowerCase().startsWith(from.toLowerCase() + '/')) continue;
-        known.add(to.toLowerCase());
+        const f = from.toLowerCase(), t = to.toLowerCase();
+        for (const k of [...known]) if (k === f || k.startsWith(f + '/')) { known.delete(k); known.add(t + k.slice(f.length)); }
+        known.add(t);
       } else if (!has(to) || to.toLowerCase() === from.toLowerCase()) continue;
       steps.push({ op: s.op, path: '', from, to });
     }
   }
+  // Claude's entries are matched to the job's files by name, in order: the k-th entry named X is for the k-th file named X
   const given = new Map();
-  for (const f of Array.isArray(r.files) ? r.files : []) if (f && typeof f === 'object' && !given.has(String(f.name))) given.set(String(f.name), relPath(f.dest));
+  for (const f of Array.isArray(r.files) ? r.files : []) if (f && typeof f === 'object') {
+    const k = String(f.name);
+    if (!given.has(k)) given.set(k, []);
+    given.get(k).push(relPath(f.dest));
+  }
+  const seen = new Map();
   const files = (fileNames || []).map((name, n) => {
-    const d = given.get(name);
+    const k = seen.get(name) || 0;
+    seen.set(name, k + 1);
+    const d = (given.get(name) || [])[k];
     return { n, name, dest: d && has(d) ? d : null };
   });
   return {
@@ -96,6 +106,7 @@ function sanitizePlan(raw, tree, fileNames) {
 function userContent(x) {
   const t = v => String(v == null ? '' : v).replace(/<\/?(email|guide)>/gi, '');
   return [
+    'Language of why: ' + (x.lang === 'en' ? 'English' : 'Hebrew'),
     `Project: ${t(x.project.code)} ${t(x.project.name)}`,
     '<guide>', t(x.guide).trim() || '(none yet: go by the folder names)', '</guide>',
     'Folders (relative to the project folder):',

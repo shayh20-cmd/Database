@@ -41,7 +41,7 @@ module.exports = function createFiling(ctx) {
   const { DATA_DIR, readJson, writeJsonAtomic, sendJson, readRequestBody, readRequestBuffer, mcp, client, model, linkedTaskOf } = ctx;
   const STORE = path.join(DATA_DIR, 'filing.json');
   const TMP = path.join(DATA_DIR, 'filing-tmp');
-  fs.rmSync(TMP, { recursive: true, force: true }); // left by a restart: nobody can reach those jobs any more
+  try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (e) { console.error('filing: clearing', TMP, e.message); } // left by a restart: nobody can reach those jobs any more; the server never fails to start
   const jobs = new Map();    // id → job
   const byToken = new Map(); // sha(token) → job id
   const waiting = new Map(); // who → Set of wake-ups of agents waiting for a job
@@ -101,7 +101,14 @@ module.exports = function createFiling(ctx) {
         await new Promise(resolve => {
           const set = waiting.get(who) || new Set();
           waiting.set(who, set);
-          const done = () => { clearTimeout(timer); set.delete(done); if (!set.size) waiting.delete(who); resolve(); };
+          let fired = false;
+          const done = () => {
+            if (fired) return;
+            fired = true;
+            clearTimeout(timer); set.delete(done);
+            if (!set.size && waiting.get(who) === set) waiting.delete(who);
+            resolve();
+          };
           const timer = setTimeout(done, POLL);
           set.add(done);
           res.on('close', done);
@@ -119,7 +126,7 @@ module.exports = function createFiling(ctx) {
     const j = jobs.get(url.searchParams.get('id') || '');
     if (!j || j.who !== who) { sendJson(res, 404, { error: 'no_job' }); return; }
     if (url.pathname === '/api/outlook/filing-status') {
-      sendJson(res, 200, { ready: j.ready, handed: j.handed, opened: j.opened, done: j.done, expired: !j.done && j.exp < Date.now() });
+      sendJson(res, 200, { ready: j.ready, handed: j.handed, opened: j.opened, done: j.done, cancelled: !!j.cancelled, expired: !j.done && !j.cancelled && j.exp < Date.now() });
       return;
     }
     if (url.pathname === '/api/outlook/filing-ready') {
@@ -138,6 +145,7 @@ module.exports = function createFiling(ctx) {
     let buf;
     try { buf = await readRequestBuffer(req); } catch (e) { sendJson(res, 413, { error: 'too_large' }); return; }
     if (!buf.length) { sendJson(res, 400, { error: 'empty' }); return; }
+    if (j.closed || j.ready) { sendJson(res, 409, { error: 'started' }); return; } // ready, cancelled or expired while the bytes came in
     const dir = path.join(TMP, j.id);
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, String(j.files.length)), buf);
@@ -179,10 +187,10 @@ module.exports = function createFiling(ctx) {
       const f = n == null ? null : j.files[Number(n)];
       if (!f) { sendJson(res, 404, { error: 'no_file' }); return; }
       res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': f.size, 'Cache-Control': 'no-store' });
-      fs.createReadStream(path.join(TMP, j.id, String(Number(n)))).pipe(res);
+      fs.createReadStream(path.join(TMP, j.id, String(Number(n)))).on('error', () => res.destroy()).pipe(res);
       return;
     }
-    if (what === 'cancel') { close(j); sendJson(res, 200, { ok: true }); return; }
+    if (what === 'cancel') { j.cancelled = true; close(j); sendJson(res, 200, { ok: true }); return; }
     const body = await json(req);
 
     if (what === 'project') {
@@ -202,7 +210,7 @@ module.exports = function createFiling(ctx) {
       if (!client) { sendJson(res, 200, { plan: null, reason: 'ai_unavailable' }); return; }
       const pr = known(j.projectId);
       try {
-        const plan = await ai.suggest(client, model, { project: j.project, guide: pr.guide || '', tree, log: (pr.log || []).slice(-30).reverse(), mail: j.mail, files: j.files });
+        const plan = await ai.suggest(client, model, { project: j.project, guide: pr.guide || '', tree, log: (pr.log || []).slice(-30).reverse(), mail: j.mail, files: j.files, lang: j.lang });
         sendJson(res, 200, { plan });
       } catch (e) {
         console.error('filing suggest failed:', e.message);
