@@ -44,6 +44,16 @@
   .results li:hover, .results li:focus { background: var(--card); outline: none; }
   details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
   .tech { font: 11px/1.4 Consolas, monospace; word-break: break-all; color: var(--muted); margin: 6px 0 0; white-space: pre-wrap; }
+  button.sm { padding: 2px 8px; font-size: 12px; }
+  .frow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 13px; border-radius: 6px; }
+  .frow.need { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .grow { flex: 1; min-width: 0; width: auto; }
+  .conv { display: flex; flex-direction: column; gap: 6px; margin-block-start: 8px; }
+  .conv:empty { display: none; }
+  .msg { font-size: 13px; white-space: pre-wrap; word-break: break-word; }
+  .msg.me { color: var(--muted); border-inline-start: 2px solid var(--line); padding-inline-start: 6px; }
+  .msg.ai { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+  .plan { margin: 4px 0 0; padding-inline-start: 16px; font-size: 12px; white-space: normal; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -189,16 +199,45 @@
     </div>
   </div>
 
-  <!-- the email's files into the project's folder on the office network, through the helper on this PC (tools/file-helper) -->
+  <!-- the email's files into the project's folder on the office network, as a conversation: Claude proposes in words,
+       the helper on this PC (tools/file-helper) picks a folder, opens it and files -->
   <div class="card" id="fileForm" hidden>
     <h2 data-t="תיוק בתיקיית הפרויקט">תיוק בתיקיית הפרויקט</h2>
-    <div class="hint" data-t="הקבצים יישמרו בתיקיית הפרויקט ברשת המשרד, דרך חלון שייפתח במחשב שלך.">הקבצים יישמרו בתיקיית הפרויקט ברשת המשרד, דרך חלון שייפתח במחשב שלך.</div>
+    <div class="frow" id="fFolderRow">
+      <span class="hint" data-t="תיקיית הפרויקט:">תיקיית הפרויקט:</span>
+      <span id="fFolder" style="font-weight:600;word-break:break-word" data-i18n-skip></span>
+      <button type="button" class="sm" id="fOpen" data-t="📂 פתח">📂 פתח</button>
+      <button type="button" class="sm" id="fPick"></button>
+    </div>
+    <div class="hint" id="fFolderHint"></div>
     <div id="fileList" style="display:flex;flex-direction:column;gap:4px;margin-block-start:8px"></div>
-    <div class="hint" id="fileState"></div>
-    <div class="row" style="margin-block-start:8px">
-      <button class="primary" type="button" id="fOk" data-t="תייק">תייק</button>
+    <div class="row" style="margin-block-start:6px;flex-wrap:nowrap">
+      <input id="fText" class="grow" data-i18n-skip>
+      <button class="primary" type="button" id="fPropose" data-t="הצע">הצע</button>
+    </div>
+    <div class="conv" id="fConv" data-i18n-skip></div>
+    <div class="row" id="fConfirmRow" style="margin-block-start:6px" hidden>
+      <button class="primary" type="button" id="fOk" data-t="אשר ותייק">אשר ותייק</button>
       <button type="button" id="fCancel" data-t="ביטול">ביטול</button>
     </div>
+    <div class="row" id="fFixRow" style="margin-block-start:6px;flex-wrap:nowrap" hidden>
+      <input id="fFix" class="grow" data-i18n-skip>
+      <button type="button" id="fFixGo" data-t="שלח">שלח</button>
+    </div>
+    <div class="hint" id="fileState"></div>
+    <div id="fDone" style="display:flex;flex-direction:column;gap:2px;margin-block-start:6px"></div>
+    <div class="row" id="fLearn" style="margin-block-start:6px;flex-wrap:nowrap" hidden>
+      <span class="hint grow" id="fLearnText" data-i18n-skip></span>
+      <button type="button" class="sm" id="fLearnGo" data-t="הוסף להנחיה">הוסף להנחיה</button>
+    </div>
+    <details style="margin-block-start:8px">
+      <summary data-t="הנחיית התיוק של הפרויקט">הנחיית התיוק של הפרויקט</summary>
+      <textarea id="fGuide" maxlength="4000" style="min-height:140px;margin-block-start:6px;font-size:12px" data-i18n-skip></textarea>
+      <div class="row" style="margin-block-start:4px">
+        <button type="button" class="sm" id="fGuideSave" data-t="שמור">שמור</button>
+        <span class="hint" id="fGuideState"></span>
+      </div>
+    </details>
   </div>
 
   <!-- an execution item (submittal, RFI, Issue, change): opened only on "אשר", since it takes the next official number -->
@@ -405,17 +444,51 @@ var HE_EN = {
   'תקוע': 'Stuck', 'בוצע': 'Done', 'לא התחיל': 'Not started', 'התייחסות': 'Response', 'עבודה': 'Work',
   'תייק בתיקיית הפרויקט': 'File in the project folder',
   'תיוק בתיקיית הפרויקט': 'Filing in the project folder',
-  'הקבצים יישמרו בתיקיית הפרויקט ברשת המשרד, דרך חלון שייפתח במחשב שלך.': 'The files are saved in the project folder on the office network, through a window that opens on your computer.',
-  'תייק': 'File',
   'מעלה {i} מתוך {n}…': 'Uploading {i} of {n}…',
-  'חלון התיוק ייפתח במחשב שלך בעוד רגע…': 'The filing window will open on your computer in a moment…',
-  'חלון התיוק נפתח ב-{pc}. ממתין לאישור שלך שם…': 'The filing window opened on {pc}. Waiting for your confirmation there…',
   'הבקשה פגה. אפשר לנסות שוב.': 'The request has expired. You can try again.',
-  'התיוק בוטל בחלון במחשב.': 'Filing was cancelled in the window on your computer.',
   'עוזר התיוק לא פועל במחשב הזה. התקנה: tools\\file-helper\\Install-FileHelper.ps1': 'The filing helper is not running on this computer. To install: tools\\file-helper\\Install-FileHelper.ps1',
   'תויק קובץ אחד בתיקיית הפרויקט.': 'One file filed in the project folder.',
   'תויקו {n} קבצים בתיקיית הפרויקט.': '{n} files filed in the project folder.',
   'נרשם ביומן המשימה המקושרת.': 'Logged on the linked task.',
+  'תיקיית הפרויקט:': 'Project folder:',
+  'לא הוגדרה עדיין': 'Not set yet',
+  '📂 פתח': '📂 Open',
+  'שנה': 'Change',
+  'בחר תיקייה': 'Choose folder',
+  'בחר את תיקיית הפרויקט כדי שאפשר יהיה לתייק.': 'Choose the project folder first, so the files can be filed.',
+  'לא מוצאת את תיקיית הפרויקט במחשב הזה': 'Cannot find the project folder on this computer',
+  'בורר התיקיות ייפתח במחשב שלך בעוד רגע…': 'The folder picker will open on your computer in a moment…',
+  'בורר התיקיות נפתח ב-{pc}…': 'The folder picker opened on {pc}…',
+  'פותח את התיקייה במחשב…': 'Opening the folder on your computer…',
+  'הוראה (לא חובה), למשל: תכניות קונסטרוקציה, גרסה חדשה': 'Instruction (optional), e.g. structural plans, new version',
+  'הצע': 'Suggest',
+  'קורא את התיקיות במחשב…': 'Reading the folders on your computer…',
+  'Claude לא זמין כרגע — אפשר לפתוח את התיקייה ולתייק ידנית': 'Claude is not available right now — you can open the folder and file by hand',
+  'עוזר התיוק לא הספיק לקרוא את התיקיות. נסה שוב.': 'The filing helper did not read the folders in time. Try again.',
+  'קריאת התיקיות במחשב לא הצליחה. נסה שוב.': 'Reading the folders on your computer did not work. Try again.',
+  'תיקייה חדשה: {p}': 'New folder: {p}',
+  'העברת {a} אל {b}': 'Move {a} to {b}',
+  'העברת התוכן של {a} אל {b}': 'Move the contents of {a} to {b}',
+  'העתקת {f} אל {d}': 'Copy {f} to {d}',
+  'לא יתויק: {f}': 'Not filed: {f}',
+  'אשר ותייק': 'Confirm and file',
+  'תיקון, למשל: לא, זה מסמך — ל-docs': 'Correction, e.g. no, it is a document — to docs',
+  'ממתין לעוזר התיוק במחשב…': 'Waiting for the filing helper on your computer…',
+  'מתייק ב-{pc}…': 'Filing on {pc}…',
+  'לא הועלה: {f}': 'Not uploaded: {f}',
+  'התיוק נעצר: {e}': 'Filing stopped: {e}',
+  'לא תויק אף קובץ.': 'No file was filed.',
+  'התיוק בוטל במחשב.': 'Filing was cancelled on the computer.',
+  'להוסיף להנחיה: „{g}”?': 'Add to the guide: "{g}"?',
+  'הוסף להנחיה': 'Add to the guide',
+  'נוסף להנחיה.': 'Added to the guide.',
+  'הנחיית התיוק של הפרויקט': 'The project\'s filing guide',
+  'שמור': 'Save',
+  'ההנחיה נשמרה.': 'The guide was saved.',
+  'ההנחיה ארוכה מדי.': 'The guide is too long.',
+  'כתוב הוראה או סמן קובץ': 'Write an instruction or pick a file',
+  'אין לך הרשאת כתיבה בפרויקט הזה.': 'You cannot make changes in this project.',
+  'בקשה קודמת עדיין בטיפול. רגע…': 'The previous request is still being handled. One moment…',
   'English': 'English',
   'עברית': 'עברית'
 };
@@ -432,6 +505,8 @@ function applyLang() {
   $('lang').textContent = lang === 'en' ? 'עברית' : 'English';
   $('taskQuery').placeholder = tx('חפש משימה בפרויקט');
   $('ask').placeholder = tx('למשל: תעביר לקונסטרוקטור עד יום חמישי');
+  $('fText').placeholder = tx('הוראה (לא חובה), למשל: תכניות קונסטרוקציה, גרסה חדשה');
+  $('fFix').placeholder = tx('תיקון, למשל: לא, זה מסמך — ל-docs');
 }
 function $(id) { return document.getElementById(id); }
 function show(id) { ['signin', 'app', 'noMail'].forEach(function (x) { $(x).hidden = x !== id; }); }
@@ -453,12 +528,12 @@ function setSetting(k, v) {
 }
 
 /* ── the hub ── */
-function api(path, body) {
+function api(path, body, method) {
   var opts = { headers: { Authorization: 'Bearer ' + getSetting('key') }, cache: 'no-store' };
-  if (body) { opts.method = 'POST'; opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  if (body) { opts.method = method || 'POST'; opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
   return fetch(path, opts).then(function (r) {
     if (r.status === 401) { var e = new Error('invalid_key'); e.code = 401; throw e; }
-    return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; });
+    return r.json().then(function (j) { if (!r.ok) { var x = new Error(j.error || r.status); x.status = r.status; throw x; } return j; });
   });
 }
 
@@ -596,7 +671,7 @@ function projectOptions(pid) {
 
 /* ── the free-text box ── */
 var lastText = '', asking = false, undoTimer = null;
-function clearResult() { $('result').hidden = true; $('result').innerHTML = ''; $('updForm').hidden = true; $('newForm').hidden = true; $('attForm').hidden = true; $('fileForm').hidden = true; clearInterval(filePoll); $('execForm').hidden = true; clearInterval(undoTimer); }
+function clearResult() { $('result').hidden = true; $('result').innerHTML = ''; $('updForm').hidden = true; $('newForm').hidden = true; $('attForm').hidden = true; $('fileForm').hidden = true; endFilingCard(); $('execForm').hidden = true; clearInterval(undoTimer); }
 function resultCard(nodes) {
   clearResult();
   var r = $('result');
@@ -812,70 +887,310 @@ function saveAttach() {
   }).catch(function (e) { $('aOk').disabled = false; fail(e); });
 }
 
-/* ── filing into the project's folder on the office network: the files wait on the server; the helper running on
-   the person's PC (tools/file-helper) picks the job up, shows Claude's plan and files them; the pane only watches ── */
-var fileJob = null, filePoll = null;
+/* ── filing into the project's folder on the office network, as a conversation: the pane uploads the files, Claude
+   proposes in words where they go, the person corrects or confirms; the helper on the person's PC (tools/file-helper)
+   takes tasks from the server — pick the folder, read the tree, open a folder, file — and the pane polls them ── */
+var fGen = 0, fTimers = [], fProj = null, fJob = null, fTurns = [], fPlan = null, fGuideAdd = '', fBusy = false, fFiling = false;
+var HELPER_OFF = 'עוזר התיוק לא פועל במחשב הזה. התקנה: tools\\file-helper\\Install-FileHelper.ps1';
+var NO_FOLDER_HERE = 'לא מוצאת את תיקיית הפרויקט במחשב הזה';
+function slash(p) { return String(p || '').replace(/\//g, '\\'); }
+// a path or file name inside a sentence keeps its own direction (first-strong isolate)
+function iso(s) { return '\u2068' + s + '\u2069'; }
+function where(dest) { return dest ? slash(dest) : (fProj && fProj.folder) || '\\'; }
+function fState(t) { $('fileState').textContent = t || ''; }
+function fHint(t) { $('fFolderHint').textContent = t || ''; }
+// the card closes (or another project comes): watchers stop and late answers are dropped
+function endFilingCard() { fGen++; fTimers.forEach(clearInterval); fTimers = []; fBusy = false; fFiling = false; }
+function filingKeys() { return [].slice.call($('fileList').querySelectorAll('input:checked')).map(function (cb) { return cb.value; }); }
+function keyLabel(k) { return k === 'mail' ? tx('המייל עצמו (‎.eml)') : ((currentMail.attachments || []).find(function (a) { return 'att:' + a.id === k; }) || {}).name; }
+
 function openFiling() {
   var pid = $('project').value;
   if (!pid) { showErr('appErr', tx('בחר קודם פרויקט')); return; }
   clearResult();
-  fileJob = null;
-  $('fileState').textContent = '';
-  $('fOk').disabled = false;
+  var gen = fGen;
+  fProj = null; fJob = null; fTurns = []; fPlan = null; fGuideAdd = '';
+  $('fText').value = ''; $('fFix').value = ''; $('fGuide').value = ''; $('fGuide').placeholder = '';
+  $('fDone').innerHTML = ''; $('fGuideState').textContent = '';
+  $('fFolderRow').classList.remove('need');
+  fState(''); fHint('');
   fileChoices($('fileList'), { mail: false, attachments: (currentMail.attachments || []).map(function (a) { return a.name; }) }, true, fileWhy);
+  renderFolder(); renderConv();
   $('fileForm').hidden = false;
+  api('/api/outlook/filing-project?project=' + encodeURIComponent(pid)).then(function (p) {
+    if (gen !== fGen) return;
+    fProj = { pid: pid, folder: p.folder || '', canWrite: !!p.canWrite };
+    $('fGuide').value = p.guide || '';
+    $('fGuide').placeholder = p.defaultGuide || '';
+    if (!p.canWrite) fState(tx('אין לך הרשאת כתיבה בפרויקט הזה.'));
+    renderFolder();
+  }).catch(fail);
 }
-function saveFiling() {
-  var pid = $('project').value;
-  var keys = [].slice.call($('fileList').querySelectorAll('input:checked')).map(function (cb) { return cb.value; });
-  if (!keys.length) { $('fileState').textContent = tx('סמן לפחות קובץ אחד'); return; }
-  $('fOk').disabled = true;
-  api('/api/outlook/filing', { mail: mailRef(currentMail), projectId: pid, lang: lang }).then(function (j) {
-    fileJob = j;
-    // one at a time: each file is its own request, within the server's size limit
-    var next = function (i) {
-      if (i >= keys.length) return Promise.resolve();
-      $('fileState').textContent = tx('מעלה {i} מתוך {n}…', { i: i + 1, n: keys.length });
-      return contentOf(keys[i]).then(function (f) {
-        return fetch('/api/outlook/filing-file?id=' + encodeURIComponent(j.id) + '&name=' + encodeURIComponent(f.name), { method: 'POST', headers: { Authorization: 'Bearer ' + getSetting('key'), 'Content-Type': 'application/octet-stream' }, body: f.body })
-          .then(function (r) {
-            if (r.status === 401) { var e = new Error('invalid_key'); e.code = 401; throw e; }
-            if (!r.ok) return r.json().then(function (x) { throw new Error(x.error || r.status); });
-          });
-      }).then(function () { return next(i + 1); });
-    };
-    return next(0);
-  }).then(function () {
-    return api('/api/outlook/filing-ready?id=' + encodeURIComponent(fileJob.id), {});
-  }).then(function () {
-    $('fileState').textContent = tx('חלון התיוק ייפתח במחשב שלך בעוד רגע…');
-    watchFiling();
-  }).catch(function (e) { $('fOk').disabled = false; fail(e); });
+function renderFolder() {
+  var p = fProj, has = !!(p && p.folder), w = !!(p && p.canWrite);
+  $('fFolder').textContent = !p ? '…' : has ? p.folder : tx('לא הוגדרה עדיין');
+  $('fOpen').hidden = !has;
+  $('fPick').textContent = tx(has ? 'שנה' : 'בחר תיקייה');
+  $('fPick').disabled = !w;
+  $('fText').disabled = !w;
+  $('fPropose').disabled = $('fOk').disabled = $('fFixGo').disabled = !w || fBusy;
+  $('fLearnGo').disabled = $('fGuideSave').disabled = !w;
+  $('fGuide').readOnly = !w;
 }
-function watchFiling() {
-  clearInterval(filePoll);
-  var started = Date.now();
-  filePoll = setInterval(function () {
-    if (!fileJob) { clearInterval(filePoll); return; }
-    api('/api/outlook/filing-status?id=' + encodeURIComponent(fileJob.id)).then(function (s) {
-      if (s.done) { clearInterval(filePoll); showFiled(s.done); return; }
-      if (s.expired) { clearInterval(filePoll); $('fOk').disabled = false; $('fileState').textContent = tx('הבקשה פגה. אפשר לנסות שוב.'); return; }
-      if (s.cancelled) { clearInterval(filePoll); $('fOk').disabled = false; $('fileState').textContent = tx('התיוק בוטל בחלון במחשב.'); return; }
-      if (s.handed) $('fileState').textContent = tx('חלון התיוק נפתח ב-{pc}. ממתין לאישור שלך שם…', { pc: s.handed.pc || '?' });
-      else if (Date.now() - started > 15000) $('fileState').textContent = tx('עוזר התיוק לא פועל במחשב הזה. התקנה: tools\\file-helper\\Install-FileHelper.ps1');
-    }).catch(function () {});
-  }, 2000);
+function setFBusy(on) { fBusy = on; renderFolder(); }
+function needFolder() {
+  if (fProj) fProj.folder = '';
+  renderFolder();
+  $('fFolderRow').classList.add('need');
+  fHint(tx('בחר את תיקיית הפרויקט כדי שאפשר יהיה לתייק.'));
 }
-function showFiled(done) {
-  var n = (done.files || []).length;
-  var nodes = [el('div', n === 1 ? tx('תויק קובץ אחד בתיקיית הפרויקט.') : tx('תויקו {n} קבצים בתיקיית הפרויקט.', { n: n }))];
-  (done.files || []).forEach(function (f) {
-    var row = el('div', (f.savedAs || f.name) + ' → ' + (f.dest ? f.dest.replace(/\//g, '\\') : '\\'));
-    row.className = 'meta'; row.setAttribute('data-i18n-skip', '');
-    nodes.push(row);
+function folderMissing() { $('fFolderRow').classList.add('need'); fHint(tx(NO_FOLDER_HERE)); }
+
+/* a task for the helper on the PC, polled until it has a result: o = { limit, say, handed(pc), done(result|null) };
+   no helper took it within 15 s → the install hint (it keeps waiting, in case the helper is just starting) */
+function watchTask(taskId, o) {
+  var gen = fGen, started = Date.now(), inFlight = false, timer;
+  var over = function (r) { clearInterval(timer); o.done(r); };
+  timer = setInterval(function () {
+    if (gen !== fGen) { clearInterval(timer); return; }
+    if (inFlight) return;
+    if (Date.now() - started > o.limit) { o.say(tx('הבקשה פגה. אפשר לנסות שוב.')); over(null); return; }
+    inFlight = true;
+    api('/api/outlook/filing-task?id=' + encodeURIComponent(taskId)).then(function (s) {
+      inFlight = false;
+      if (gen !== fGen) return;
+      if (s.result || s.cancelled) { over(s.result || { cancelled: true }); return; }
+      if (s.expired) { o.say(tx('הבקשה פגה. אפשר לנסות שוב.')); over(null); return; }
+      if (s.handed) { if (o.handed) o.handed(s.handed.pc || '?'); }
+      else if (Date.now() - started > 15000) o.say(tx(HELPER_OFF));
+    }, function (e) {
+      inFlight = false;
+      if (e.code === 401) { clearInterval(timer); fail(e); }
+    });
+  }, 1500);
+  fTimers.push(timer);
+}
+function pickFolder() {
+  if (!fProj) return;
+  $('fPick').disabled = true;
+  $('fFolderRow').classList.remove('need');
+  fHint(tx('בורר התיקיות ייפתח במחשב שלך בעוד רגע…'));
+  api('/api/outlook/filing-pick', { projectId: fProj.pid, lang: lang }).then(function (j) {
+    watchTask(j.taskId, {
+      limit: 120000, say: fHint,
+      handed: function (pc) { fHint(tx('בורר התיקיות נפתח ב-{pc}…', { pc: pc })); },
+      done: function (r) {
+        if (r && r.picked) { fProj.folder = r.picked; fHint(''); }
+        else if (r && r.missing) folderMissing();
+        else if (r) fHint('');
+        renderFolder();
+      }
+    });
+  }).catch(function (e) { fHint(''); renderFolder(); fail(e); });
+}
+function openFolder(rel) {
+  if (!fProj) return;
+  fHint(tx('פותח את התיקייה במחשב…'));
+  api('/api/outlook/filing-open', { projectId: fProj.pid, rel: rel || '', lang: lang }).then(function (j) {
+    watchTask(j.taskId, {
+      limit: 120000, say: fHint,
+      done: function (r) { if (r && r.missing) folderMissing(); else if (r) fHint(''); }
+    });
+  }).catch(function (e) {
+    if (e.message === 'no_folder') { needFolder(); return; }
+    fHint(''); fail(e);
   });
-  if (done.taskLogged) nodes.push(el('div', tx('נרשם ביומן המשימה המקושרת.')));
-  resultCard(nodes);
+}
+
+/* "הצע": a new filing when there is none yet or the checked files changed after a proposal (the server takes no
+   more files once the conversation started); then Claude proposes. Corrections continue the same filing. */
+function uploadFiling(id, keys, gen) {
+  var sent = 0;
+  var next = function (i) {
+    if (i >= keys.length || gen !== fGen) return Promise.resolve(sent);
+    fState(tx('מעלה {i} מתוך {n}…', { i: i + 1, n: keys.length }));
+    // one at a time: each file is its own request, within the server's size limit
+    return contentOf(keys[i]).then(function (f) {
+      return fetch('/api/outlook/filing-file?id=' + encodeURIComponent(id) + '&name=' + encodeURIComponent(f.name), { method: 'POST', headers: { Authorization: 'Bearer ' + getSetting('key'), 'Content-Type': 'application/octet-stream' }, body: f.body })
+        .then(function (r) {
+          if (r.status === 401) { var e = new Error('invalid_key'); e.code = 401; throw e; }
+          if (!r.ok) return r.json().then(function (x) { throw new Error(x.error || r.status); });
+          sent++;
+        });
+    }).then(null, function (e) {
+      if (e.code === 401 || e.message === 'expired') throw e;
+      fTurns.push({ err: 'לא הועלה: {f}', s: { f: keyLabel(keys[i]) + ' — ' + e.message } });
+      renderConv();
+    }).then(function () { return next(i + 1); });
+  };
+  return next(0);
+}
+function proposeFiling(fromFix) {
+  if (!fProj || fBusy) return;
+  var input = fromFix ? $('fFix') : $('fText');
+  var text = input.value.trim(), keys = filingKeys(), sig = keys.join('|');
+  if (fromFix && !text) return;
+  if (!fromFix && !keys.length && !text) { fState(tx('כתוב הוראה או סמן קובץ')); return; }
+  var gen = fGen, pid = fProj.pid;
+  var fresh = !fJob || (!fromFix && fJob.sig !== sig);
+  $('fFolderRow').classList.remove('need'); fHint('');
+  $('fDone').innerHTML = '';
+  setFBusy(true);
+  var ready = !fresh ? Promise.resolve(true) : api('/api/outlook/filing', { projectId: pid, mail: mailRef(currentMail, true), lang: lang }).then(function (j) {
+    if (gen !== fGen) return false;
+    fJob = { id: j.id, sig: sig, proposed: false }; fTurns = []; fPlan = null; fGuideAdd = '';
+    renderConv();
+    return uploadFiling(j.id, keys, gen).then(function (sent) { return sent > 0 || !!text; });
+  });
+  ready.then(function (go) {
+    if (gen !== fGen) return null;
+    if (!go) { fJob = null; setFBusy(false); fState(''); renderConv(); return null; } // nothing reached the server
+    fState(tx(fJob.proposed ? 'חושב…' : 'קורא את התיקיות במחשב…'));
+    return api('/api/outlook/filing-propose?id=' + encodeURIComponent(fJob.id), { text: text });
+  }).then(function (r) {
+    if (!r || gen !== fGen) return;
+    setFBusy(false); fState('');
+    if (r.needsFolder) { needFolder(); return; }
+    if (r.agent === 'none') { fState(tx(HELPER_OFF)); return; }
+    if (r.agent === 'slow') { fState(tx('עוזר התיוק לא הספיק לקרוא את התיקיות. נסה שוב.')); return; }
+    if (r.agent === 'failed') { fState(tx('קריאת התיקיות במחשב לא הצליחה. נסה שוב.')); return; }
+    if (r.missing) { folderMissing(); return; }
+    if (r.ai) { manualHint(); return; }
+    fJob.proposed = true;
+    if (text) fTurns.push({ me: text });
+    fTurns.push({ ai: r.message || '', plan: r.plan });
+    fPlan = r.plan || null;
+    fGuideAdd = r.guideAdd || '';
+    input.value = '';
+    renderConv();
+  }).catch(function (e) {
+    if (gen !== fGen) return;
+    setFBusy(false); fState('');
+    if (e.message === 'busy') { fState(tx('בקשה קודמת עדיין בטיפול. רגע…')); return; }
+    if (/^(expired|confirmed|started|no_filing)$/.test(e.message)) { fJob = null; renderConv(); fState(tx('הבקשה פגה. אפשר לנסות שוב.')); return; }
+    fail(e);
+  });
+}
+// Claude is out: the folder can still be opened and the files filed by hand
+function manualHint() {
+  var box = $('fDone'); box.innerHTML = '';
+  var row = el('div'); row.className = 'row';
+  row.appendChild(el('span', tx('Claude לא זמין כרגע — אפשר לפתוח את התיקייה ולתייק ידנית'))).className = 'hint grow';
+  if (fProj && fProj.folder) { var b = el('button', tx('📂 פתח')); b.type = 'button'; b.className = 'sm'; b.onclick = function () { openFolder(''); }; row.appendChild(b); }
+  box.appendChild(row);
+}
+// the plan in a few lines: new folders, moves, and where each file is copied
+function planLines(plan) {
+  var out = [];
+  (plan.steps || []).forEach(function (s) {
+    if (s.op === 'mkdir') out.push(tx('תיקייה חדשה: {p}', { p: iso(slash(s.path)) }));
+    else out.push(tx(s.op === 'move-contents' ? 'העברת התוכן של {a} אל {b}' : 'העברת {a} אל {b}', { a: iso(slash(s.from)), b: iso(slash(s.to)) }));
+  });
+  var by = {}, order = [];
+  (plan.files || []).forEach(function (f) {
+    var k = f.dest === null ? '*' : f.dest; // '*' never occurs in a path
+    if (!by[k]) { by[k] = []; order.push(k); }
+    by[k].push(f.name);
+  });
+  order.forEach(function (k) {
+    var names = iso(by[k].join(', '));
+    out.push(k === '*' ? tx('לא יתויק: {f}', { f: names }) : tx('העתקת {f} אל {d}', { f: names, d: iso(where(k)) }));
+  });
+  return out;
+}
+function renderConv() {
+  var box = $('fConv'), last = -1;
+  box.innerHTML = '';
+  fTurns.forEach(function (t, i) { if (t.ai != null) last = i; });
+  fTurns.forEach(function (t, i) {
+    if (t.err) { var e = el('div', tx(t.err, t.s)); e.className = 'err'; box.appendChild(e); return; }
+    var d = el('div', t.me != null ? t.me : t.ai);
+    d.className = 'msg ' + (t.me != null ? 'me' : 'ai');
+    d.dir = 'auto'; // the person's words and Claude's keep their own direction
+    if (i === last && t.plan) {
+      var lines = planLines(t.plan);
+      if (lines.length) { var ul = el('ul'); ul.className = 'plan'; lines.forEach(function (l) { ul.appendChild(el('li', l)); }); d.appendChild(ul); }
+    }
+    box.appendChild(d);
+  });
+  var open = !!(fJob && fJob.proposed && !fFiling);
+  $('fConfirmRow').hidden = !(open && fPlan && (fPlan.files || []).some(function (f) { return f.dest !== null; }));
+  $('fFixRow').hidden = !open;
+  $('fLearn').hidden = !fGuideAdd;
+  $('fLearnText').textContent = fGuideAdd ? tx('להוסיף להנחיה: „{g}”?', { g: iso(fGuideAdd) }) : '';
+}
+function confirmFiling() {
+  if (!fJob || fBusy) return;
+  var gen = fGen;
+  setFBusy(true);
+  fState(tx('ממתין לעוזר התיוק במחשב…'));
+  api('/api/outlook/filing-confirm?id=' + encodeURIComponent(fJob.id), {}).then(function (j) {
+    if (gen !== fGen) return;
+    fFiling = true; renderConv();
+    watchTask(j.taskId, {
+      limit: 15 * 60 * 1000, say: fState,
+      handed: function (pc) { fState(tx('מתייק ב-{pc}…', { pc: pc })); },
+      done: function (r) {
+        fFiling = false; setFBusy(false);
+        if (!r) { fJob = null; renderConv(); return; }
+        // the folder is not on this PC: the server keeps the filing open for another try
+        if (r.missing) { fState(''); folderMissing(); renderConv(); return; }
+        if (r.cancelled) { fJob = null; renderConv(); fState(tx('התיוק בוטל במחשב.')); return; }
+        showFiled(r);
+      }
+    });
+  }).catch(function (e) {
+    if (gen !== fGen) return;
+    setFBusy(false); fState('');
+    if (e.message === 'no_folder') { needFolder(); return; }
+    if (e.message === 'busy') { fState(tx('בקשה קודמת עדיין בטיפול. רגע…')); return; }
+    if (/^(expired|confirmed|no_plan|no_filing)$/.test(e.message)) { fJob = null; renderConv(); fState(tx('הבקשה פגה. אפשר לנסות שוב.')); return; }
+    fail(e);
+  });
+}
+function showFiled(r) {
+  fJob = null;
+  fState('');
+  var files = r.files || [], n = files.length, box = $('fDone');
+  box.innerHTML = '';
+  box.appendChild(el('div', !n ? tx('לא תויק אף קובץ.') : '✓ ' + (n === 1 ? tx('תויק קובץ אחד בתיקיית הפרויקט.') : tx('תויקו {n} קבצים בתיקיית הפרויקט.', { n: n }))));
+  files.forEach(function (f) {
+    var row = el('div', iso(f.savedAs || f.name) + (lang === 'en' ? ' → ' : ' ← ') + iso(where(f.dest)));
+    row.className = 'meta'; row.setAttribute('data-i18n-skip', '');
+    box.appendChild(row);
+  });
+  if (r.error) { var e = el('div', tx('התיוק נעצר: {e}', { e: r.error })); e.className = 'err'; box.appendChild(e); }
+  if (r.taskLogged) box.appendChild(el('div', tx('נרשם ביומן המשימה המקושרת.')));
+  if (n) {
+    var b = el('button', tx('📂 פתח')); b.type = 'button'; b.className = 'sm'; b.style.alignSelf = 'start';
+    b.onclick = function () { openFolder(files[0].dest); };
+    box.appendChild(b);
+  }
+  renderConv();
+}
+// "תלמד" and corrections end in a sentence for the project's guide; the person adds it with one click
+function addToGuide() {
+  if (!fProj || !fGuideAdd) return;
+  $('fLearnGo').disabled = true;
+  api('/api/outlook/filing-guide-add', { projectId: fProj.pid, text: fGuideAdd }).then(function (j) {
+    $('fGuide').value = j.guide || '';
+    fGuideAdd = ''; renderConv(); renderFolder();
+    fState(tx('נוסף להנחיה.'));
+  }).catch(function (e) {
+    renderFolder();
+    if (e.message === 'too_long') { fState(tx('ההנחיה ארוכה מדי.')); return; }
+    fail(e);
+  });
+}
+function saveGuide() {
+  if (!fProj) return;
+  $('fGuideSave').disabled = true;
+  $('fGuideState').textContent = '';
+  api('/api/outlook/filing-guide', { projectId: fProj.pid, guide: $('fGuide').value }, 'PUT').then(function (j) {
+    $('fGuide').value = j.guide || '';
+    $('fGuideState').textContent = tx('ההנחיה נשמרה.');
+    renderFolder();
+  }).catch(function (e) { renderFolder(); fail(e); });
 }
 
 /* ── an execution item: proposed by Claude or opened by hand, written only on "פתח פריט" ── */
@@ -1033,6 +1348,7 @@ function init() {
     if (currentMail) renderMail(currentMail);
     renderProjects(null);
     renderContext();
+    if (!$('fileForm').hidden) { renderFolder(); renderConv(); }
   };
   $('saveKey').onclick = function () {
     var k = $('key').value.trim();
@@ -1058,8 +1374,16 @@ function init() {
   };
   $('aOk').onclick = saveAttach;
   $('mFile').onclick = openFiling;
-  $('fOk').onclick = saveFiling;
+  $('fPick').onclick = pickFolder;
+  $('fOpen').onclick = function () { openFolder(''); };
+  $('fPropose').onclick = function () { proposeFiling(false); };
+  $('fText').onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); proposeFiling(false); } };
+  $('fFixGo').onclick = function () { proposeFiling(true); };
+  $('fFix').onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); proposeFiling(true); } };
+  $('fOk').onclick = confirmFiling;
   $('fCancel').onclick = clearResult;
+  $('fLearnGo').onclick = addToGuide;
+  $('fGuideSave').onclick = saveGuide;
   $('mExec').onclick = function () { openExec($('project').value, null); };
   $('eOk').onclick = saveExec;
   $('eCancel').onclick = clearResult;
@@ -1072,7 +1396,12 @@ function init() {
   $('ask').onkeydown = function (e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitAsk(); } };
   $('linkCancel').onclick = closePicker;
   $('taskQuery').oninput = function () { clearTimeout(searchTimer); searchTimer = setTimeout(searchTasks, 250); };
-  $('project').onchange = function () { clearResult(); lastText = ''; asking = false; if (!$('picker').hidden) searchTasks(); };
+  $('project').onchange = function () {
+    var filing = !$('fileForm').hidden;
+    clearResult(); lastText = ''; asking = false;
+    if (!$('picker').hidden) searchTasks();
+    if (filing && $('project').value) openFiling(); // the filing card follows the project
+  };
   $('unlinkBtn').onclick = function () {
     // window.confirm is not available in every Outlook, so the question is asked in the button itself
     var b = $('unlinkBtn');
