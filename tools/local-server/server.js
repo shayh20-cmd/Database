@@ -493,6 +493,11 @@ function handleRequest(req, res) {
   }
   if (url.pathname === '/api/me') { sendJson(res, 200, { name: user.name, email: user.email, mode: SITE_MODE }); return; }
   if (url.pathname === '/api/register-config') { sendJson(res, 200, registerConfig()); return; }
+  // a project's consultants from the register, sent by the Hub page and kept for filing email attachments (filing.js)
+  if (url.pathname.startsWith('/api/register-contacts/')) {
+    outlook.handleContacts(req, res, url, user).catch(e => sendJson(res, e instanceof SyntaxError ? 400 : 500, { error: e.message }));
+    return;
+  }
   if (url.pathname === '/api/snip' && SITE_MODE === 'local') { handleSnip(req, res); return; }
   if (url.pathname === '/api/projects' && req.method === 'GET') {
     handleProjectList(res);

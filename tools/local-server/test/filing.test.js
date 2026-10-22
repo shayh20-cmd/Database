@@ -151,7 +151,7 @@ function makeSite() {
   fs.writeFileSync(path.join(data, 'hub_projects.json'), JSON.stringify({ projects: [{ id: 'pabc123', name: 'מגרש 4021', code: 'LDPB', visibility: 'shared' }] }));
   fs.writeFileSync(path.join(data, 'project_hub_01.json'), JSON.stringify({ projectName: 'PH01', sheets: [], tracks: [], team: [] }));
   fs.writeFileSync(path.join(data, 'projects', 'pabc123.json'), JSON.stringify({
-    projectName: 'מגרש 4021', team: [{ staffId: 'st01' }, { staffId: 'st03' }],
+    projectName: 'מגרש 4021', registerProjectId: 'reg-77', team: [{ staffId: 'st01' }, { staffId: 'st03' }],
     tracks: [{ id: 'ongoing', label: 'מסלול תכנון', stageOrder: ['home'] }],
     sheets: [{ id: 'home', name: 'משימות שוטפות', type: 'list', track: null, groups: [{ id: 'g1', name: 'כללי' }], tasks: [
       { id: 't2', title: 'חזית מערבית', statusId: 'N', events: [], subtasks: [] }
@@ -161,7 +161,7 @@ function makeSite() {
 }
 const principal = email => Buffer.from(JSON.stringify({ claims: [{ typ: 'preferred_username', val: email }, { typ: 'name', val: email }] })).toString('base64');
 
-// a stand-in for the Claude API: answers every filing prompt with one plan, and keeps the last prompt
+// a stand-in for the Claude API: answers every filing prompt with fake.answer, and keeps the last prompt
 function fakeClaude(port) {
   const http = require('node:http');
   const srv = http.createServer((req, res) => {
@@ -169,16 +169,8 @@ function fakeClaude(port) {
     req.on('data', c => { body += c; });
     req.on('end', () => {
       srv.last = JSON.parse(body).messages[0].content;
-      const plan = {
-        files: [{ name: 'K-101.pdf', dest: 'CONS/LDPB-structural/plans/LDPB-structural-plans-v04' }],
-        steps: [
-          { op: 'mkdir', path: 'CONS/LDPB-structural/plans/LDPB-structural-plans-v04', from: '', to: '' },
-          { op: 'move', path: '', from: '../outside', to: 'CONS/x' }
-        ],
-        mode: 'new-version', why: 'גרסה חדשה מהקונסטרוקטור'
-      };
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ id: 'msg', type: 'message', role: 'assistant', model: 'm', content: [{ type: 'text', text: JSON.stringify(plan) }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } }));
+      res.end(JSON.stringify({ id: 'msg', type: 'message', role: 'assistant', model: 'm', content: [{ type: 'text', text: JSON.stringify(srv.answer) }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } }));
     });
   });
   return new Promise(r => srv.listen(port, '127.0.0.1', () => r(srv)));
@@ -195,147 +187,252 @@ async function start(t, port, env) {
     return { status: r.status, body: await r.json().catch(() => null) };
   };
   const up = (key, id, name, bytes) => fetch(base + '/api/outlook/filing-file?' + new URLSearchParams({ id, name }), { method: 'POST', headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/octet-stream' }, body: bytes });
-  return { base, data, keyOf, call, up };
+  // the agent on the PC: takes the person's next task and reads it with the token alone
+  const agent = async key => {
+    const task = (await call(key, '/api/outlook/filing-next?pc=PC1')).body.task;
+    if (!task) return null;
+    const got = await call(null, '/api/filing/' + task.token);
+    return { ...task, got: got.body, result: body => call(null, '/api/filing/' + task.token + '/result', body) };
+  };
+  const contacts = (email, id, rows) => fetch(base + '/api/register-contacts/' + id, { method: 'PUT', headers: { 'x-ms-client-principal': principal(email), 'Content-Type': 'application/json' }, body: JSON.stringify(rows) });
+  return { base, data, keyOf, call, up, agent, contacts };
 }
-const MAIL = { conversationId: 'EE000000000000000000000000000001', internetMessageId: '<k1@x>', subject: 'תכנית קונסטרוקציה', from: { name: 'דני', email: 'dani@eng.co.il' } };
+const MAIL = { conversationId: 'EE000000000000000000000000000001', internetMessageId: '<k1@x>', subject: 'תכנית קונסטרוקציה', from: { name: 'דני', email: 'dani@eng.co.il' }, body: 'מצורפות תכניות קונסטרוקציה, גרסה 4' };
+const FOLDER = '2026-05-20-26 - Tel Aviv School';
+const TREE = ['CONS', 'CONS/LDPB-structural', 'CONS/LDPB-structural/plans', 'CONS/LDPB-structural/plans/LDPB-structural-plans-v03', 'CONS/LDPB-structural/docs', '../evil'];
+const V04 = 'CONS/LDPB-structural/plans/LDPB-structural-plans-v04';
+const FIRST = {
+  message: 'I will file K-101.pdf in CONS\\LDPB-structural\\plans\\LDPB-structural-plans-v04 (a new folder).', guide_add: '',
+  files: [{ name: 'K-101.pdf', dest: V04 }],
+  steps: [{ op: 'mkdir', path: V04, from: '', to: '' }, { op: 'move', path: '', from: '../outside', to: 'CONS/x' }],
+  mode: 'new-version'
+};
+const SECOND = {
+  message: 'Then K-101.pdf goes to CONS\\LDPB-structural\\docs.', guide_add: 'מסמכים מדני ← docs',
+  files: [{ name: 'K-101.pdf', dest: 'CONS/LDPB-structural/docs' }], steps: [], mode: 'existing'
+};
 
-test('filing: the pane opens a job, the agent on the PC takes it, the window files with the token alone, and the server remembers', async (t) => {
+test('filing: the folder is picked on the PC, Claude proposes from the real tree, takes a correction, the agent files the confirmed plan', async (t) => {
   const fake = await fakeClaude(3962);
   t.after(() => fake.close());
-  const { base, data, keyOf, call, up } = await start(t, 3961, { ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: 'http://127.0.0.1:3962' });
+  const { base, data, keyOf, call, up, agent, contacts } = await start(t, 3961, { ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: 'http://127.0.0.1:3962' });
   const dana = await keyOf('dana@kkarc.com'), ron = await keyOf('ron@kkarc.com'), yoav = await keyOf('yoav@kkarc.com');
 
-  // a viewer cannot file; an unknown project is refused
-  assert.strictEqual((await call(ron, '/api/outlook/filing', { projectId: 'pabc123', mail: MAIL })).status, 403);
-  assert.strictEqual((await call(dana, '/api/outlook/filing', { projectId: 'nope', mail: MAIL })).status, 400);
+  // what the pane knows about the project
+  const info = await call(dana, '/api/outlook/filing-project?project=pabc123');
+  assert.strictEqual(info.status, 200);
+  assert.deepStrictEqual([info.body.folder, info.body.guide, info.body.contacts, info.body.canWrite], ['', '', 0, true]);
+  assert.match(info.body.defaultGuide, /CONSULTANTS/);
+  assert.strictEqual((await call(ron, '/api/outlook/filing-project?project=pabc123')).body.canWrite, false);
+  assert.strictEqual((await call(yoav, '/api/outlook/filing-project?project=pabc123')).status, 400, 'a project this person cannot open');
 
+  // a viewer cannot pick the folder, change the guide or open a filing
+  assert.strictEqual((await call(ron, '/api/outlook/filing-pick', { projectId: 'pabc123' })).status, 403);
+  assert.strictEqual((await call(ron, '/api/outlook/filing-guide', { projectId: 'pabc123', guide: 'x' }, 'PUT')).status, 403);
+  assert.strictEqual((await call(ron, '/api/outlook/filing-guide-add', { projectId: 'pabc123', text: 'x' })).status, 403);
+  assert.strictEqual((await call(ron, '/api/outlook/filing', { projectId: 'pabc123', mail: MAIL })).status, 403);
+
+  // pick: a task for the agent, handed out once and only to this person; the pick is saved for the project
+  const pick = await call(dana, '/api/outlook/filing-pick', { projectId: 'pabc123', lang: 'en' });
+  assert.strictEqual(pick.status, 200);
+  assert.deepStrictEqual(Object.keys(pick.body), ['taskId'], 'the pane never sees the token');
+  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-task?id=' + pick.body.taskId)).body, { kind: 'pick', handed: null, opened: false, result: null, expired: false, cancelled: false });
+  assert.strictEqual((await call(yoav, '/api/outlook/filing-task?id=' + pick.body.taskId)).status, 404);
+  assert.deepStrictEqual((await call(yoav, '/api/outlook/filing-next?pc=PC9')).body, { task: null });
+  const a1 = await agent(dana);
+  assert.deepStrictEqual([a1.id, a1.kind], [pick.body.taskId, 'pick']);
+  assert.match(a1.token, /^[A-Za-z0-9_-]{43}$/);
+  assert.deepStrictEqual(a1.got, { kind: 'pick', lang: 'en', project: { id: 'pabc123', code: 'LDPB', name: 'מגרש 4021' }, folder: '', by: 'דנה' });
+  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-next?pc=PC2')).body, { task: null }, 'a task is handed out once');
+  assert.strictEqual((await call(null, '/api/filing/' + 'x'.repeat(43))).status, 410);
+  assert.strictEqual((await a1.result({ picked: '../x' })).status, 400);
+  assert.strictEqual((await a1.result({ picked: 'O:\\@Omicron Projects\\x' })).status, 400, 'one folder name, never a path');
+  assert.strictEqual((await a1.result({ picked: FOLDER })).status, 200);
+  assert.strictEqual((await call(null, '/api/filing/' + a1.token)).status, 410, 'the token is spent');
+  const st1 = (await call(dana, '/api/outlook/filing-task?id=' + a1.id)).body;
+  assert.deepStrictEqual([st1.handed.pc, st1.opened, st1.result], ['PC1', true, { picked: FOLDER }]);
+  assert.strictEqual((await call(dana, '/api/outlook/filing-project?project=pabc123')).body.folder, FOLDER);
+
+  // the guide, edited in the pane
+  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-guide', { projectId: 'pabc123', guide: 'תכניות מיועץ → CONS' }, 'PUT')).body, { guide: 'תכניות מיועץ → CONS' });
+
+  // open: the folder (or a folder inside it) in Explorer on the PC; a viewer may open
+  assert.strictEqual((await call(ron, '/api/outlook/filing-open', { projectId: 'pabc123', rel: '../x' })).status, 400);
+  const open = await call(ron, '/api/outlook/filing-open', { projectId: 'pabc123', rel: 'CONS\\LDPB-structural' });
+  assert.strictEqual(open.status, 200);
+  const a2 = await agent(ron);
+  assert.deepStrictEqual([a2.got.kind, a2.got.folder, a2.got.rel], ['open', FOLDER, 'CONS/LDPB-structural']);
+  assert.strictEqual((await a2.result({ missing: true })).status, 200);
+  assert.deepStrictEqual((await call(ron, '/api/outlook/filing-task?id=' + open.body.taskId)).body.result, { missing: true });
+
+  // the project's contacts, from the register, as the Hub page sends them (writers only)
+  const rows = [{ name: 'דני כהן', role: 'קונסטרוקציה', firm: 'כהן הנדסה', emails: ['dani@eng.co.il'] }, { name: '', role: 'x' }];
+  assert.strictEqual((await contacts('ron@kkarc.com', 'reg-77', rows)).status, 403);
+  assert.strictEqual((await contacts('dana@kkarc.com', 'bad id!', rows)).status, 404);
+  assert.strictEqual((await contacts('dana@kkarc.com', 'reg-77', Array(201).fill(rows[0]))).status, 400);
+  assert.strictEqual((await contacts('dana@kkarc.com', 'reg-77', rows)).status, 200);
+  assert.strictEqual((await fetch(base + '/api/register-contacts/reg-77', { method: 'PUT', body: '[]' })).status, 401, 'signed in only');
+  const kept = JSON.parse(fs.readFileSync(path.join(data, 'filing.json'), 'utf8')).contacts['reg-77'];
+  assert.deepStrictEqual([kept.by, kept.list], ['דנה', [{ name: 'דני כהן', role: 'קונסטרוקציה', firm: 'כהן הנדסה', emails: ['dani@eng.co.il'] }]]);
+  assert.strictEqual((await call(dana, '/api/outlook/filing-project?project=pabc123')).body.contacts, 1);
+
+  // a filing: the files go up; Claude proposes once the agent has sent the project's tree
   const job = await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail: MAIL, lang: 'en' });
-  assert.strictEqual(job.status, 200);
-  assert.deepStrictEqual(Object.keys(job.body).sort(), ['exp', 'id'], 'the pane never sees the token');
+  assert.deepStrictEqual([job.status, Object.keys(job.body).sort()], [200, ['exp', 'id']]);
   const id = job.body.id;
   assert.strictEqual((await up(dana, id, 'K-101.pdf', '%PDF-1.4 k101')).status, 200);
   assert.strictEqual((await up(dana, id, 'run.exe', 'MZ')).status, 415, 'no programs');
   assert.strictEqual((await up(dana, id, 'empty.pdf', '')).status, 400);
-  assert.strictEqual((await up(yoav, id, 'K-102.pdf', '%PDF')).status, 404, 'only the person who opened the job');
-  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-status?id=' + id)).body, { ready: false, handed: null, opened: false, done: null, cancelled: false, expired: false });
-
-  // the agent gets nothing before the job is ready, and never another person's job
-  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-next?pc=PC1')).body, { job: null });
-  assert.strictEqual((await call(yoav, '/api/outlook/filing-ready?id=' + id, {})).status, 404);
-  assert.strictEqual((await call(dana, '/api/outlook/filing-ready?id=' + id, {})).status, 200);
-  assert.strictEqual((await up(dana, id, 'K-103.pdf', '%PDF')).status, 409, 'no more files once the job is ready');
-  assert.deepStrictEqual((await call(yoav, '/api/outlook/filing-next?pc=PC9')).body, { job: null });
-  const next = await call(dana, '/api/outlook/filing-next?pc=PC1');
-  assert.strictEqual(next.body.job.id, id);
-  const token = next.body.job.token;
-  assert.match(token, /^[A-Za-z0-9_-]{43}$/);
-  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-next?pc=PC2')).body, { job: null }, 'a job is handed out once');
-  assert.strictEqual((await call(dana, '/api/outlook/filing-status?id=' + id)).body.handed.pc, 'PC1');
-
-  // the window: the job, with the files and the default guide
-  assert.strictEqual((await call(null, '/api/filing/' + 'x'.repeat(43))).status, 410);
-  const g = await call(null, '/api/filing/' + token);
-  assert.strictEqual(g.status, 200);
-  assert.deepStrictEqual([g.body.project.code, g.body.folder, g.body.lang, g.body.by, g.body.files], ['LDPB', '', 'en', 'דנה', [{ n: 0, name: 'K-101.pdf', size: 13 }]]);
-  assert.match(g.body.defaultGuide, /CONSULTANTS/);
-  assert.strictEqual((await call(dana, '/api/outlook/filing-status?id=' + id)).body.opened, true);
-
-  // linking the project to its folder: one folder name, never a path
-  assert.strictEqual((await call(null, '/api/filing/' + token + '/project', { folder: '../x', guide: '' }, 'PUT')).status, 400);
-  assert.strictEqual((await call(null, '/api/filing/' + token + '/project', { folder: 'O:\\@Omicron Projects\\x', guide: '' }, 'PUT')).status, 400);
-  const linked = await call(null, '/api/filing/' + token + '/project', { folder: '2026-05-20-26 - Tel Aviv School', guide: 'תכניות מיועץ → CONS' }, 'PUT');
-  assert.deepStrictEqual([linked.status, linked.body.folder], [200, '2026-05-20-26 - Tel Aviv School']);
-
-  // Claude's plan, from the guide and the real tree; what is not safe is gone
-  const tree = ['CONS', 'CONS/LDPB-structural', 'CONS/LDPB-structural/plans', 'CONS/LDPB-structural/plans/LDPB-structural-plans-v03', '../evil'];
-  const s = await call(null, '/api/filing/' + token + '/suggest', { tree });
-  assert.strictEqual(s.status, 200);
-  assert.deepStrictEqual(s.body.plan.files, [{ n: 0, name: 'K-101.pdf', dest: 'CONS/LDPB-structural/plans/LDPB-structural-plans-v04' }]);
-  assert.deepStrictEqual(s.body.plan.steps.map(x => x.op), ['mkdir']);
+  assert.strictEqual((await up(yoav, id, 'K-102.pdf', '%PDF')).status, 404, 'only the person who opened the filing');
+  assert.strictEqual((await call(yoav, '/api/outlook/filing-propose?id=' + id, {})).status, 404);
+  fake.answer = FIRST;
+  const proposing = call(dana, '/api/outlook/filing-propose?id=' + id, {});
+  const a3 = await agent(dana);
+  assert.deepStrictEqual([a3.got.kind, a3.got.folder, a3.got.lang], ['tree', FOLDER, 'en']);
+  assert.strictEqual((await a3.result({ tree: TREE })).status, 200);
+  const p1 = await proposing;
+  assert.strictEqual(p1.status, 200);
+  assert.deepStrictEqual(p1.body, { message: FIRST.message, plan: { files: [{ n: 0, name: 'K-101.pdf', dest: V04 }], steps: [{ op: 'mkdir', path: V04, from: '', to: '' }], mode: 'new-version' }, guideAdd: '' });
   assert.match(fake.last, /<guide>\nתכניות מיועץ → CONS\n<\/guide>/);
+  assert.match(fake.last, /<contacts>\n- דני כהן \| קונסטרוקציה \| כהן הנדסה \| dani@eng\.co\.il\n<\/contacts>/);
+  assert.match(fake.last, /Body:\nמצורפות תכניות קונסטרוקציה, גרסה 4\n/);
+  assert.match(fake.last, /Language: English/);
+  assert.match(fake.last, /Person: \(propose a filing\)$/);
   assert.ok(!fake.last.includes('../evil'), 'a path out of the project never reaches Claude');
 
-  // the file itself
-  const f = await fetch(base + '/api/filing/' + token + '/file/0');
-  assert.deepStrictEqual([f.status, await f.text()], [200, '%PDF-1.4 k101']);
-  assert.strictEqual((await fetch(base + '/api/filing/' + token + '/file/5')).status, 404);
+  // a correction: the tree is already known, and Claude gets the conversation so far
+  fake.answer = SECOND;
+  const p2 = await call(dana, '/api/outlook/filing-propose?id=' + id, { text: 'לא, זה מסמך — ל-docs' });
+  assert.deepStrictEqual([p2.body.plan.files[0].dest, p2.body.guideAdd], ['CONS/LDPB-structural/docs', 'מסמכים מדני ← docs']);
+  assert.ok(fake.last.endsWith('Conversation:\nPerson: (propose a filing)\nYou: ' + FIRST.message + '\nPerson: לא, זה מסמך — ל-docs'), fake.last.slice(-300));
+  // the suggested rule goes into the guide
+  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-guide-add', { projectId: 'pabc123', text: p2.body.guideAdd })).body, { guide: 'תכניות מיועץ → CONS\nמסמכים מדני ← docs' });
+  assert.strictEqual((await call(dana, '/api/outlook/filing-guide-add', { projectId: 'pabc123', text: '  ' })).status, 400);
 
-  // the thread is linked to t2; done → the project's history, the task's log, the token closed, the files gone
+  // confirm: the plan Claude made last, never one from the pane
+  const conf = await call(dana, '/api/outlook/filing-confirm?id=' + id, { plan: { files: [{ n: 0, name: 'K-101.pdf', dest: '../evil' }], steps: [], mode: 'existing' } });
+  assert.strictEqual(conf.status, 200);
+  assert.strictEqual((await call(dana, '/api/outlook/filing-confirm?id=' + id, {})).status, 409, 'once');
+  assert.strictEqual((await up(dana, id, 'K-103.pdf', '%PDF')).status, 409, 'no more files once confirmed');
+  assert.strictEqual((await call(dana, '/api/outlook/filing-propose?id=' + id, { text: 'x' })).status, 409);
+  // the thread is linked to t2
   assert.strictEqual((await call(dana, '/api/outlook/link', { mail: MAIL, projectId: 'pabc123', taskId: 't2' })).status, 200);
-  const done = await call(null, '/api/filing/' + token + '/done', { files: [{ name: 'K-101.pdf', dest: 'CONS/LDPB-structural/plans/LDPB-structural-plans-v04', savedAs: 'K-101.pdf' }, { name: 'x', dest: '../up', savedAs: 'x' }], mode: 'new-version' });
-  assert.deepStrictEqual(done.body, { ok: true, taskLogged: true });
+  const a4 = await agent(dana);
+  assert.strictEqual(a4.id, conf.body.taskId);
+  assert.deepStrictEqual([a4.got.kind, a4.got.folder, a4.got.files, a4.got.plan], ['file', FOLDER, [{ n: 0, name: 'K-101.pdf', size: 13 }], { files: [{ n: 0, name: 'K-101.pdf', dest: 'CONS/LDPB-structural/docs' }], steps: [], mode: 'existing' }]);
+  const f = await fetch(base + '/api/filing/' + a4.token + '/file/0');
+  assert.deepStrictEqual([f.status, await f.text()], [200, '%PDF-1.4 k101']);
+  assert.strictEqual((await fetch(base + '/api/filing/' + a4.token + '/file/5')).status, 404);
+  const did = await a4.result({ files: [{ name: 'K-101.pdf', dest: 'CONS\\LDPB-structural\\docs', savedAs: 'K-101 (2).pdf' }, { name: 'x', dest: '../up', savedAs: 'x' }], error: null });
+  assert.strictEqual(did.status, 200);
+  const st4 = (await call(dana, '/api/outlook/filing-task?id=' + a4.id)).body;
+  assert.deepStrictEqual(st4.result, { files: [{ name: 'K-101.pdf', dest: 'CONS/LDPB-structural/docs', savedAs: 'K-101 (2).pdf' }], error: null, taskLogged: true });
   const store = JSON.parse(fs.readFileSync(path.join(data, 'filing.json'), 'utf8')).projects.pabc123;
-  assert.deepStrictEqual(store.log.map(l => [l.file, l.dest, l.mode, l.by, l.from]), [['K-101.pdf', 'CONS/LDPB-structural/plans/LDPB-structural-plans-v04', 'new-version', 'דנה', 'דני <dani@eng.co.il>']]);
+  assert.deepStrictEqual(store.log.map(l => [l.file, l.dest, l.mode, l.by, l.from, l.subject]), [['K-101.pdf', 'CONS/LDPB-structural/docs', 'existing', 'דנה', 'דני <dani@eng.co.il>', 'תכנית קונסטרוקציה']]);
   const task = JSON.parse(fs.readFileSync(path.join(data, 'projects', 'pabc123.json'), 'utf8')).sheets[0].tasks[0];
-  assert.match(task.activityLog.slice(-1)[0].text, /^תויק: K-101\.pdf ← CONS\\LDPB-structural\\plans\\LDPB-structural-plans-v04$/);
-  assert.strictEqual((await call(null, '/api/filing/' + token)).status, 410, 'the token is spent');
+  assert.match(task.activityLog.slice(-1)[0].text, /^תויק: K-101 \(2\)\.pdf ← CONS\\LDPB-structural\\docs$/);
+  assert.strictEqual((await call(null, '/api/filing/' + a4.token)).status, 410, 'the token is spent');
   assert.ok(!fs.existsSync(path.join(data, 'filing-tmp', id)), 'the waiting files are gone');
-  const st = (await call(dana, '/api/outlook/filing-status?id=' + id)).body;
-  assert.deepStrictEqual([st.done.files.length, st.done.taskLogged], [1, true]);
+  assert.strictEqual((await call(dana, '/api/outlook/filing-propose?id=' + id, {})).status, 410, 'the filing is over');
 
-  // a waiting agent wakes as soon as a job is ready; the next job of this project starts from what is known
+  // the next proposal in this project learns from the history
   const job2 = (await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail: MAIL })).body;
-  assert.strictEqual((await up(dana, job2.id, 'A.pdf', '%PDF')).status, 200);
-  const pending = call(dana, '/api/outlook/filing-next?pc=PC1');
-  await wait(50);
-  assert.strictEqual((await call(dana, '/api/outlook/filing-ready?id=' + job2.id, {})).status, 200);
-  const token2 = (await pending).body.job.token;
-  const g2 = await call(null, '/api/filing/' + token2);
-  assert.deepStrictEqual([g2.body.folder, g2.body.guide, g2.body.log.length, g2.body.lang], ['2026-05-20-26 - Tel Aviv School', 'תכניות מיועץ → CONS', 1, 'he']);
-  // cancel: the token stops working
-  assert.strictEqual((await call(null, '/api/filing/' + token2 + '/cancel', {})).status, 200);
-  assert.strictEqual((await call(null, '/api/filing/' + token2)).status, 410);
-  assert.strictEqual((await call(dana, '/api/outlook/filing-status?id=' + job2.id)).body.cancelled, true);
-  // a job without files cannot be ready
-  const job3 = (await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail: MAIL })).body;
-  assert.strictEqual((await call(dana, '/api/outlook/filing-ready?id=' + job3.id, {})).status, 400);
+  fake.answer = FIRST;
+  const proposing2 = call(dana, '/api/outlook/filing-propose?id=' + job2.id, { text: 'תלמד: חשבונות ← RECEIVE' });
+  await (await agent(dana)).result({ tree: TREE });
+  assert.strictEqual((await proposing2).status, 200, 'a filing without files can still talk (teaching)');
+  assert.match(fake.last, /- דני <dani@eng\.co\.il> \| K-101\.pdf \| CONS\/LDPB-structural\/docs \| existing/);
+  assert.match(fake.last, /Language: Hebrew/);
 });
 
-test('filing: a token ends after its time, and without Claude the window gets no plan', async (t) => {
-  const { keyOf, call, up } = await start(t, 3963, { FILING_TTL_MS: '2000', FILING_POLL_MS: '200' });
+test('filing: no agent, a slow agent, a missing folder, no Claude; cancel and expiry', async (t) => {
+  const { data, keyOf, call, up, agent } = await start(t, 3963, { FILING_AGENT_WAIT_MS: '300', FILING_TREE_WAIT_MS: '700', FILING_QUICK_TTL_MS: '1500', FILING_POLL_MS: '200' });
   const dana = await keyOf('dana@kkarc.com');
   const id = (await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail: MAIL })).body.id;
   assert.strictEqual((await up(dana, id, 'A.pdf', '%PDF')).status, 200);
-  assert.strictEqual((await call(dana, '/api/outlook/filing-ready?id=' + id, {})).status, 200);
-  const token = (await call(dana, '/api/outlook/filing-next?pc=PC1')).body.job.token;
-  const s = await call(null, '/api/filing/' + token + '/suggest', { tree: ['CONS'] });
-  assert.deepStrictEqual(s.body, { plan: null, reason: 'ai_unavailable' });
-  await wait(2300);
-  assert.strictEqual((await call(null, '/api/filing/' + token)).status, 410);
-  assert.strictEqual((await call(dana, '/api/outlook/filing-status?id=' + id)).body.expired, true);
+  // no project folder yet
+  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-propose?id=' + id, {})).body, { needsFolder: true });
+  assert.strictEqual((await call(dana, '/api/outlook/filing-open', { projectId: 'pabc123' })).status, 409, 'nothing to open yet');
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, guide: '', log: [] } }, contacts: {} }));
+  // nobody takes the tree task
+  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-propose?id=' + id, {})).body, { agent: 'none' });
+  // the same tree task is still open: an agent takes it, but sends nothing in time
+  const slow = call(dana, '/api/outlook/filing-propose?id=' + id, {});
+  const a1 = await agent(dana);
+  assert.strictEqual(a1.kind, 'tree');
+  assert.deepStrictEqual((await slow).body, { agent: 'slow' });
+  // its answer still counts: the folder is not on this PC
+  assert.strictEqual((await a1.result({ missing: true })).status, 200);
+  const again = call(dana, '/api/outlook/filing-propose?id=' + id, {});
+  await (await agent(dana)).result({ missing: true });
+  assert.deepStrictEqual((await again).body, { missing: true });
+  // the tree arrives, but there is no Claude
+  const third = call(dana, '/api/outlook/filing-propose?id=' + id, {});
+  await (await agent(dana)).result({ tree: ['CONS'] });
+  assert.deepStrictEqual((await third).body, { ai: 'unavailable' });
+  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-propose?id=' + id, {})).body, { ai: 'unavailable' }, 'the tree is kept for the filing');
+  assert.strictEqual((await call(dana, '/api/outlook/filing-confirm?id=' + id, {})).status, 409, 'no plan to confirm');
+
+  // the agent gives up on a task: cancelled
+  const open = (await call(dana, '/api/outlook/filing-open', { projectId: 'pabc123' })).body;
+  const a2 = await agent(dana);
+  assert.deepStrictEqual([a2.got.kind, a2.got.rel], ['open', undefined]);
+  assert.strictEqual((await call(null, '/api/filing/' + a2.token + '/cancel', {})).status, 200);
+  assert.strictEqual((await call(null, '/api/filing/' + a2.token)).status, 410);
+  assert.strictEqual((await call(dana, '/api/outlook/filing-task?id=' + open.taskId)).body.cancelled, true);
+  // a quick task nobody takes ends after its time, and its token with it
+  const pick = (await call(dana, '/api/outlook/filing-pick', { projectId: 'pabc123' })).body;
+  await wait(1700);
+  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-next?pc=PC1')).body, { task: null });
+  assert.strictEqual((await call(dana, '/api/outlook/filing-task?id=' + pick.taskId)).body.expired, true);
+  // a token taken and kept too long stops working
+  await call(dana, '/api/outlook/filing-pick', { projectId: 'pabc123' });
+  const a3 = await agent(dana);
+  await wait(1700);
+  assert.strictEqual((await a3.result({ picked: 'X' })).status, 410);
 });
 
-test('filing: a job whose creator lost write access cannot link the project; a file arriving after ready is refused', async (t) => {
-  const { data, keyOf, call, up, base } = await start(t, 3964, {});
+test('filing: a writer who lost write access cannot confirm; a file arriving after the filing ended is refused', async (t) => {
+  const fake = await fakeClaude(3968);
+  t.after(() => fake.close());
+  fake.answer = FIRST;
+  const { data, keyOf, call, up, agent, base } = await start(t, 3964, { ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: 'http://127.0.0.1:3968', FILING_TTL_MS: '1500' });
   const dana = await keyOf('dana@kkarc.com');
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, guide: '', log: [] } } }));
   const id = (await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail: MAIL })).body.id;
-  assert.strictEqual((await up(dana, id, 'A.pdf', '%PDF')).status, 200);
-  // a second upload whose bytes are still coming in when the job becomes ready
+  assert.strictEqual((await up(dana, id, 'K-101.pdf', '%PDF')).status, 200);
+  const proposing = call(dana, '/api/outlook/filing-propose?id=' + id, {});
+  await (await agent(dana)).result({ tree: TREE });
+  assert.strictEqual((await proposing).body.plan.files[0].dest, V04);
+  fs.writeFileSync(path.join(data, 'hub_projects.json'), JSON.stringify({ projects: [{ id: 'pabc123', name: 'מגרש 4021', code: 'LDPB', visibility: 'shared' }], officeRoles: { st01: 'viewer' } }));
+  assert.strictEqual((await call(dana, '/api/outlook/filing-confirm?id=' + id, {})).status, 403);
+  fs.writeFileSync(path.join(data, 'hub_projects.json'), JSON.stringify({ projects: [{ id: 'pabc123', name: 'מגרש 4021', code: 'LDPB', visibility: 'shared' }] }));
+
+  // an upload whose bytes are still coming in when the filing ends
+  const id2 = (await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail: MAIL })).body.id;
   const http = require('node:http');
   const late = new Promise((resolve, reject) => {
-    const rq = http.request(base + '/api/outlook/filing-file?' + new URLSearchParams({ id, name: 'late.pdf' }), { method: 'POST', headers: { Authorization: 'Bearer ' + dana, 'Content-Length': '8' } }, r => { r.resume(); resolve(r.statusCode); });
+    const rq = http.request(base + '/api/outlook/filing-file?' + new URLSearchParams({ id: id2, name: 'late.pdf' }), { method: 'POST', headers: { Authorization: 'Bearer ' + dana, 'Content-Length': '8' } }, r => { r.resume(); resolve(r.statusCode); });
     rq.on('error', reject);
     rq.write('%PDF');
-    setTimeout(() => { call(dana, '/api/outlook/filing-ready?id=' + id, {}).then(() => rq.end('1234')); }, 150);
+    setTimeout(() => rq.end('1234'), 1700);
   });
-  assert.strictEqual(await late, 409);
-  const token = (await call(dana, '/api/outlook/filing-next?pc=PC1')).body.job.token;
-  assert.strictEqual((await call(null, '/api/filing/' + token)).body.files.length, 1, 'the late file was not added');
-  fs.writeFileSync(path.join(data, 'hub_projects.json'), JSON.stringify({ projects: [{ id: 'pabc123', name: 'מגרש 4021', code: 'LDPB', visibility: 'shared' }], officeRoles: { st01: 'viewer' } }));
-  assert.strictEqual((await call(null, '/api/filing/' + token + '/project', { folder: 'X', guide: '' }, 'PUT')).status, 403);
+  assert.strictEqual(await late, 410);
+  assert.ok(!fs.existsSync(path.join(data, 'filing-tmp', id2, '0')), 'the late file was not kept');
 });
 
-test('filing: when Claude fails the window gets no plan, with the reason', async (t) => {
+test('filing: when Claude fails the pane is told, and the turn is not kept', async (t) => {
   const http = require('node:http');
   const bad = http.createServer((req, res) => { req.resume(); req.on('end', () => { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end('{"type":"error","error":{"type":"api_error","message":"boom"}}'); }); });
   await new Promise(r => bad.listen(3966, '127.0.0.1', r));
   t.after(() => bad.close());
-  const { keyOf, call, up } = await start(t, 3965, { ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: 'http://127.0.0.1:3966', ANTHROPIC_MAX_RETRIES: '0' });
+  const { data, keyOf, call, up, agent } = await start(t, 3965, { ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: 'http://127.0.0.1:3966', ANTHROPIC_MAX_RETRIES: '0' });
   const dana = await keyOf('dana@kkarc.com');
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, guide: '', log: [] } } }));
   const id = (await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail: MAIL })).body.id;
   await up(dana, id, 'A.pdf', '%PDF');
-  await call(dana, '/api/outlook/filing-ready?id=' + id, {});
-  const token = (await call(dana, '/api/outlook/filing-next?pc=PC1')).body.job.token;
-  const s = await call(null, '/api/filing/' + token + '/suggest', { tree: ['CONS'] });
-  assert.deepStrictEqual(s.body, { plan: null, reason: 'ai_failed' });
+  const proposing = call(dana, '/api/outlook/filing-propose?id=' + id, {});
+  await (await agent(dana)).result({ tree: ['CONS'] });
+  assert.deepStrictEqual((await proposing).body, { ai: 'failed' });
+  assert.strictEqual((await call(dana, '/api/outlook/filing-confirm?id=' + id, {})).status, 409);
 });

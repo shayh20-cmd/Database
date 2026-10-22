@@ -278,8 +278,9 @@ module.exports = function createOutlook(ctx) {
     return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
   }
 
-  const GET_ROUTES = ['/api/outlook/me', '/api/outlook/projects', '/api/outlook/tasks', '/api/outlook/project', '/api/outlook/filing-status', '/api/outlook/filing-next'];
-  const POST_ROUTES = ['/api/outlook/context', '/api/outlook/link', '/api/outlook/unlink', '/api/outlook/entry', '/api/outlook/parse', '/api/outlook/create', '/api/outlook/apply', '/api/outlook/undo', '/api/outlook/upload', '/api/outlook/attached', '/api/outlook/exec', '/api/outlook/filing', '/api/outlook/filing-file', '/api/outlook/filing-ready'];
+  const GET_ROUTES = ['/api/outlook/me', '/api/outlook/projects', '/api/outlook/tasks', '/api/outlook/project', '/api/outlook/filing-project', '/api/outlook/filing-task', '/api/outlook/filing-next'];
+  const POST_ROUTES = ['/api/outlook/context', '/api/outlook/link', '/api/outlook/unlink', '/api/outlook/entry', '/api/outlook/parse', '/api/outlook/create', '/api/outlook/apply', '/api/outlook/undo', '/api/outlook/upload', '/api/outlook/attached', '/api/outlook/exec', '/api/outlook/filing', '/api/outlook/filing-file', '/api/outlook/filing-pick', '/api/outlook/filing-open', '/api/outlook/filing-guide-add', '/api/outlook/filing-propose', '/api/outlook/filing-confirm'];
+  const PUT_ROUTES = ['/api/outlook/filing-guide'];
 
   async function run(req, res, url) {
     const m = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
@@ -287,8 +288,8 @@ module.exports = function createOutlook(ctx) {
     if (!who) { sendJson(res, 401, { error: 'invalid_key' }); return; }
     const p = personOfKey(who);
     const base = baseOf(req);
-    const isGet = GET_ROUTES.includes(url.pathname);
-    if (req.method !== (isGet ? 'GET' : 'POST')) { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+    const method = GET_ROUTES.includes(url.pathname) ? 'GET' : PUT_ROUTES.includes(url.pathname) ? 'PUT' : 'POST';
+    if (req.method !== method) { sendJson(res, 405, { error: 'Method not allowed' }); return; }
     if (url.pathname.startsWith('/api/outlook/filing')) { await filing.handlePane(req, res, url, p, who, base); return; }
 
     if (url.pathname === '/api/outlook/me') {
@@ -491,7 +492,7 @@ module.exports = function createOutlook(ctx) {
   function handlePublic(req, res, url) {
     if (filing.handleToken(req, res, url)) return true;
     if (url.pathname === '/outlook/manifest.xml' || url.pathname === '/outlook/manifest') { manifest(req, res); return true; }
-    if (!GET_ROUTES.includes(url.pathname) && !POST_ROUTES.includes(url.pathname)) return false;
+    if (!GET_ROUTES.includes(url.pathname) && !POST_ROUTES.includes(url.pathname) && !PUT_ROUTES.includes(url.pathname)) return false;
     run(req, res, url).catch(e => {
       if (e instanceof mcp.ToolError) { sendJson(res, /viewer/.test(e.message) ? 403 : 400, { error: e.message }); return; }
       console.error('outlook:', e);
@@ -509,7 +510,10 @@ module.exports = function createOutlook(ctx) {
     sendJson(res, 405, { error: 'Method not allowed' });
   }
 
-  return { handlePublic, handleConnection, health, logScanned };
+  /* the Hub page's snapshot of a project's register contacts, for the filing (signed in; see filing.js) */
+  const handleContacts = (req, res, url, user) => filing.handleContacts(req, res, url, user);
+
+  return { handlePublic, handleConnection, handleContacts, health, logScanned };
 };
 module.exports.threadKeyOf = threadKeyOf;
 module.exports.guessProject = guessProject;

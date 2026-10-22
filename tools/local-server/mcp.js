@@ -1623,6 +1623,12 @@ document.querySelectorAll('input[type=file]').forEach(function(inp){inp.onchange
       return true;
     });
   }
+  /* A project's document, read only, when this person can open the project (the filing reads its registerProjectId). */
+  function projectDoc(email, name, projectId) {
+    const reg = readJson(REGISTRY);
+    const p = findProject(identify({ email, name }, reg), reg, projectId);
+    return readJson(p.file) || {};
+  }
   /* A file saved by the server (saveAttachment) added to one task, as the person — the add-in's way
      of attaching an email or its files. */
   function attachToTask(email, name, projectId, taskId, saved, fileName) {
@@ -1751,5 +1757,5 @@ document.querySelectorAll('input[type=file]').forEach(function(inp){inp.onchange
     try { authorize(req, res, url, user); } catch (e) { console.error('authorize', e); if (!res.headersSent) sendJson(res, 500, { error: 'server_error' }); }
   }
 
-  return { handlePublic, handleAuthorize, handleConnection, whoAmI, mailContext, runToolAs, mailLog, mailLogEdit, taskLog, attachToTask, execInfo, attachToExec, ToolError, _test: { identify, projectsFor, projList, stagesOf, findStage, officeData, handleRpc } };
+  return { handlePublic, handleAuthorize, handleConnection, whoAmI, mailContext, runToolAs, mailLog, mailLogEdit, taskLog, projectDoc, attachToTask, execInfo, attachToExec, ToolError, _test: { identify, projectsFor, projList, stagesOf, findStage, officeData, handleRpc } };
 };
