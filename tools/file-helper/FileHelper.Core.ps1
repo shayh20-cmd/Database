@@ -125,15 +125,6 @@ function Invoke-FilingPlan([string]$Root, $Plan, [string]$SourceDir) {
 }
 
 # ── where things are on this PC ──
-function Find-ProjectsRoot([string]$ProjectsJson = $script:FmProjects) {
-  # the folder most of Folder Manager's projects sit in, when this PC can reach it
-  if (-not (Test-Path -LiteralPath $ProjectsJson)) { return $null }
-  try { $d = Get-Content -Raw -Encoding UTF8 -LiteralPath $ProjectsJson | ConvertFrom-Json } catch { return $null }
-  $parents = @(@($d.projects) | Where-Object { $_.path } | ForEach-Object { Split-Path (($_.path -replace '/', '\').TrimEnd('\')) -Parent })
-  $best = $parents | Group-Object | Sort-Object Count -Descending | Select-Object -First 1
-  if ($best -and (Test-Path -LiteralPath $best.Name)) { return $best.Name }
-  return $null
-}
 function Find-ProjectFolder([string]$ProjectsRoot, [string]$Code, [string]$Name, [string]$ProjectsJson = $script:FmProjects) {
   # folder names under the projects folder that are probably this project: Folder Manager's project with this
   # code first, then folders whose name holds the code or the project's name
@@ -180,8 +171,19 @@ function Get-HelperConfig([string]$Path = $script:ConfigPath) {
   if (Test-Path -LiteralPath $Path) { try { $c = Get-Content -Raw -Encoding UTF8 -LiteralPath $Path | ConvertFrom-Json } catch {} }
   return [pscustomobject]@{
     hub = $(if ($c -and $c.hub) { [string]$c.hub } else { 'https://kkarc-hub.azurewebsites.net' })
+    # the single projects folder of the first version: still where a project stored without a root is looked for first
     projectsRoot = $(if ($c -and $c.projectsRoot) { [string]$c.projectsRoot } else { '' })
+    # roots picked outside every "@* projects" folder found on the drives: name → full path
+    roots = (Get-ConfigRoots $c)
   }
+}
+function Get-ConfigRoots($Config) {
+  # the config's saved roots as an ordered map, names without case (from JSON, a hashtable, or nothing)
+  $out = New-Object System.Collections.Specialized.OrderedDictionary ([StringComparer]::OrdinalIgnoreCase)
+  $r = if ($Config -is [System.Collections.IDictionary]) { $Config['roots'] } elseif ($Config -and $Config.PSObject.Properties['roots']) { $Config.roots } else { $null }
+  if ($r -is [System.Collections.IDictionary]) { foreach ($k in $r.Keys) { if ($k -and $r[$k]) { $out[[string]$k] = [string]$r[$k] } } }
+  elseif ($r) { foreach ($p in $r.PSObject.Properties) { if ($p.Name -and $p.Value) { $out[$p.Name] = [string]$p.Value } } }
+  return ,$out
 }
 function Save-HelperConfig($Config, [string]$Path = $script:ConfigPath) {
   New-Item -ItemType Directory -Force -Path (Split-Path $Path -Parent) | Out-Null
@@ -190,8 +192,82 @@ function Save-HelperConfig($Config, [string]$Path = $script:ConfigPath) {
 
 # ── the tasks the server hands this PC (Run-Task.ps1 does the network and the window) ──
 function Test-TaskKind([string]$Kind) { return $Kind -in @('pick', 'tree', 'open', 'file') }
+# ── the project roots: the office keeps projects on many computers, each sharing a drive whose top holds a folder
+#    named "@<Name> Projects" (any case). Drive letters differ between PCs; the root's folder name is what the server
+#    keeps with each project's folder. ──
+# What each drive / saved root answered in this process (one task): key "path|name" → { ps, h, lines, done, timedOut }.
+# A drive that did not answer in time is never waited for again; its runspace keeps going, and a later call takes its
+# answer if it has come by then.
+$script:Scans = @{}
+$script:ScanPool = $null
+$script:RootsIncomplete = $false
+$script:ShareMap = $null   # mapped network drives: "K:" → "\\Kappa\k"
+# in each runspace: "name|path" lines (no folder name or path holds "|"); a saved root's own path when it exists
+$script:ReadRoot = {
+  param([string]$Path, [string]$Name)
+  try {
+    if ($Name) { if ([IO.Directory]::Exists($Path)) { $Name + '|' + $Path.TrimEnd('\') } }
+    else { foreach ($x in [IO.Directory]::GetDirectories($Path)) { $leaf = [IO.Path]::GetFileName($x); if ($leaf -like '@* projects') { $leaf + '|' + $x } } }
+  } catch { }
+}
+function Reset-ProjectRoots { $script:Scans = @{}; $script:RootsIncomplete = $false }
+function Get-DriveRoots {
+  # this PC's file system drives, as "D:\" (mapped network drives included, reachable or not)
+  return @(Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue | ForEach-Object { [string]$_.Root } | Where-Object { $_ })
+}
+function Get-ProjectRoots($Config, [string[]]$Drives = $null, [string]$Want = '', [int]$TimeoutMs = 4000) {
+  # name → full path, names without case: every "@* projects" folder at the top of a drive ($Drives, default this PC's
+  # drives), then the roots saved in the config, then the legacy projectsRoot — each when reachable. A drive whose
+  # computer is off takes seconds to fail, so every drive is read at once (one runspace each), and whatever has not
+  # answered within $TimeoutMs is left out (and $script:RootsIncomplete is set). With $Want, it returns as soon as that
+  # root is known. Answers are kept for the process, so a second call reads nothing again.
+  if ($null -eq $Drives) { $Drives = Get-DriveRoots }
+  $jobs = New-Object System.Collections.Generic.List[object]
+  foreach ($d in $Drives) { if ($d) { $jobs.Add([pscustomobject]@{ path = [string]$d; name = '' }) } }
+  $saved = Get-ConfigRoots $Config
+  foreach ($k in $saved.Keys) { $jobs.Add([pscustomobject]@{ path = [string]$saved[$k]; name = [string]$k }) }
+  $legacy = if ($Config -and $Config.projectsRoot) { ([string]$Config.projectsRoot).TrimEnd('\') } else { '' }
+  if ($legacy) { $leaf = [IO.Path]::GetFileName($legacy); if ($leaf) { $jobs.Add([pscustomobject]@{ path = $legacy; name = $leaf }) } }
+  $scans = foreach ($j in $jobs) {
+    $key = $j.path + '|' + $j.name
+    if (-not $script:Scans.ContainsKey($key)) {
+      if (-not $script:ScanPool) { $script:ScanPool = [runspacefactory]::CreateRunspacePool(1, 16); $script:ScanPool.Open() }
+      $ps = [powershell]::Create(); $ps.RunspacePool = $script:ScanPool
+      [void]$ps.AddScript($script:ReadRoot).AddArgument($j.path).AddArgument($j.name)
+      $script:Scans[$key] = [pscustomobject]@{ ps = $ps; h = $ps.BeginInvoke(); lines = @(); done = $false; timedOut = $false }
+    }
+    $script:Scans[$key]
+  }
+  $scans = @($scans)
+  $deadline = [DateTime]::UtcNow.AddMilliseconds($TimeoutMs)
+  while ($true) {
+    $pending = 0; $found = $false
+    foreach ($s in $scans) {
+      if (-not $s.done -and $s.h.IsCompleted) {
+        $s.lines = @(try { $s.ps.EndInvoke($s.h) | ForEach-Object { [string]$_ } } catch { })
+        $s.ps.Dispose(); $s.done = $true
+      }
+      if ($s.done) { if ($Want -and @($s.lines | Where-Object { $_.Split('|')[0] -ieq $Want }).Count) { $found = $true } }
+      elseif (-not $s.timedOut) { $pending++ }
+    }
+    if ($found -or $pending -eq 0) { break }
+    if ([DateTime]::UtcNow -ge $deadline) { foreach ($s in $scans) { if (-not $s.done) { $s.timedOut = $true } }; break }
+    Start-Sleep -Milliseconds 15
+  }
+  $script:RootsIncomplete = @($scans | Where-Object { -not $_.done }).Count -gt 0
+  $out = New-Object System.Collections.Specialized.OrderedDictionary ([StringComparer]::OrdinalIgnoreCase)
+  foreach ($s in $scans) {
+    foreach ($line in @($s.lines)) {
+      if (-not $line) { continue }
+      $cut = $line.IndexOf('|')
+      $n = $line.Substring(0, $cut)
+      if (-not $out.Contains($n)) { $out[$n] = $line.Substring($cut + 1) }
+    }
+  }
+  return ,$out
+}
 function Get-ProjectDir([string]$ProjectsRoot, [string]$Folder) {
-  # the project's folder on this PC, or $null when it is not here (or the name is not a single folder name)
+  # the project's folder in one root, or $null when it is not there (or the name is not a single folder name)
   if (-not $ProjectsRoot -or -not $Folder) { return $null }
   $f = ConvertTo-RelPath $Folder
   if (-not $f -or $f.Contains('/')) { return $null }
@@ -199,55 +275,129 @@ function Get-ProjectDir([string]$ProjectsRoot, [string]$Folder) {
   if (Test-Path -LiteralPath $full -PathType Container) { return $full }
   return $null
 }
-function Resolve-ProjectsRoot($Config, [string]$ProjectsJson = $script:FmProjects, [string]$ConfigPath = $script:ConfigPath) {
-  # where "@Omicron Projects" is on this PC: as kept, else from Folder Manager's list (then kept), else $null
-  if ($Config.projectsRoot -and (Test-Path -LiteralPath $Config.projectsRoot -PathType Container)) { return [string]$Config.projectsRoot }
-  $found = Find-ProjectsRoot $ProjectsJson
-  if ($found) { $Config.projectsRoot = $found; Save-HelperConfig $Config $ConfigPath }
-  return $found
+function Resolve-ProjectDir($Config, [string]$Root, [string]$Folder, [string[]]$Drives = $null) {
+  # the project's folder on this PC, or $null: in the root of that name; a project stored before roots (no root) in the
+  # legacy projectsRoot, else in the one root that has a folder of that name — only when every drive answered (a drive
+  # that did not could hold another one); none, two, or not sure: $null
+  $f = ConvertTo-RelPath $Folder
+  if (-not $f -or $f.Contains('/')) { return $null }
+  if ($Root) {
+    $roots = Get-ProjectRoots $Config $Drives -Want $Root
+    if (-not $roots.Contains($Root)) { return $null }
+    return (Get-ProjectDir $roots[$Root] $f)
+  }
+  $legacy = if ($Config -and $Config.projectsRoot) { [string]$Config.projectsRoot } else { '' }
+  $dir = Get-ProjectDir $legacy $f
+  if ($dir) { return $dir }
+  $roots = Get-ProjectRoots $Config $Drives
+  if ($script:RootsIncomplete) { return $null }
+  $hits = @(foreach ($k in $roots.Keys) { $d = Get-ProjectDir $roots[$k] $f; if ($d) { $d } })
+  if ($hits.Count -eq 1) { return $hits[0] }
+  return $null
 }
-function Invoke-PickTask($Config, $Task, [scriptblock]$Picker, [string]$ProjectsJson = $script:FmProjects, [string]$ConfigPath = $script:ConfigPath) {
-  # The picker gets where to start (the projects folder, or '' when this PC has none yet) and the folder to preselect
-  # (the project's folder, else the best guess, else $null), and returns the chosen folder's full path or $null.
-  # A folder below the projects folder stands for the project it is in (the first folder under the projects folder);
-  # the projects folder itself is no project, and is refused as a cancel (the pick task has no error answer, and the
-  # person can pick again). Only a folder outside the projects folder (or the first pick on this PC) makes its parent
-  # this PC's projects folder.
-  $root = Resolve-ProjectsRoot $Config $ProjectsJson $ConfigPath
-  $suggested = $null
-  if ($root) {
-    $suggested = Get-ProjectDir $root $Task.folder
-    if (-not $suggested) {
-      $cands = Find-ProjectFolder $root $Task.project.code $Task.project.name $ProjectsJson
-      $guess = @($cands | Where-Object { Get-ProjectDir $root $_ })
-      if ($guess.Count) { $suggested = Join-Path $root $guess[0] }
+function ConvertTo-SharePath([string]$Path) {
+  # a path on a mapped network drive as the share's own path ("K:\x" → "\\Kappa\k\x"), to tell whether two paths are
+  # the same folder; anything else as it is, without a trailing "\"
+  $p = $Path.TrimEnd('\')
+  if ($null -eq $script:ShareMap) {
+    $script:ShareMap = @(Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue | Where-Object { $_.DisplayRoot -and ([string]$_.DisplayRoot).StartsWith('\\') } |
+      ForEach-Object { [pscustomobject]@{ drive = ([string]$_.Root).TrimEnd('\'); share = ([string]$_.DisplayRoot).TrimEnd('\') } })
+  }
+  foreach ($d in $script:ShareMap) {
+    if ($d.drive -and ($p -ieq $d.drive -or $p.StartsWith($d.drive + '\', [StringComparison]::OrdinalIgnoreCase))) { return $d.share + $p.Substring($d.drive.Length) }
+  }
+  return $p
+}
+function Test-SameFolder([string]$A, [string]$B) {
+  try { return (ConvertTo-SharePath ([IO.Path]::GetFullPath($A))) -ieq (ConvertTo-SharePath ([IO.Path]::GetFullPath($B))) } catch { return $false }
+}
+function Find-RootOf($Config, [string]$Full, [string[]]$Drives = $null) {
+  # the root a folder is in (or is): { name, path } or $null. The nearest of: a saved root (by path), or an
+  # "@* projects" folder at the top of a drive (or of a network share); only then the legacy projectsRoot — which an old
+  # pick may have set to a project's own folder inside such a root. No drive is read.
+  $saved = Get-ConfigRoots $Config
+  $tops = @((@(if ($null -eq $Drives) { Get-DriveRoots } else { $Drives })) | ForEach-Object { ([string]$_).TrimEnd('\') })
+  $p = $Full.TrimEnd('\')
+  while ($p) {
+    foreach ($k in $saved.Keys) { if (Test-SameFolder $saved[$k] $p) { return [pscustomobject]@{ name = [string]$k; path = $p } } }
+    $parent = [IO.Path]::GetDirectoryName($p)
+    if (-not $parent) { break }
+    $up = $parent.TrimEnd('\')
+    $leaf = [IO.Path]::GetFileName($p)
+    if ($leaf -like '@* projects' -and ($up -ieq ([IO.Path]::GetPathRoot($p)).TrimEnd('\') -or $tops -icontains $up)) { return [pscustomobject]@{ name = $leaf; path = $p } }
+    $p = $up
+  }
+  if ($Config -and $Config.projectsRoot) {
+    $l = ([string]$Config.projectsRoot).TrimEnd('\'); $n = [IO.Path]::GetFileName($l)
+    $p = $Full.TrimEnd('\')
+    while ($n -and $p) {
+      if (Test-SameFolder $l $p) { return [pscustomobject]@{ name = $n; path = $p } }
+      $p = [IO.Path]::GetDirectoryName($p); if ($p) { $p = $p.TrimEnd('\') }
     }
   }
-  $full = & $Picker $(if ($root) { $root } else { '' }) $suggested
+  return $null
+}
+function Invoke-PickTask($Config, $Task, [scriptblock]$Picker, [string]$ProjectsJson = $script:FmProjects, [string]$ConfigPath = $script:ConfigPath, [string[]]$Drives = $null) {
+  # The picker gets where to start (the project's root, else the legacy root, else the first root found, else '') and
+  # the folder to preselect (the project's folder, else the best guess, else $null), and returns the chosen folder's
+  # full path or $null. A folder in a root stands for the project it is in (the first folder under the root) →
+  # { picked, root = the root's folder name }. A root itself is no project, and is refused as a cancel (the pick task
+  # has no error answer, and the person can pick again). A folder outside every root makes its parent a root.
+  # A root this PC would not find again by its name (a network share without a drive letter, a parent folder) is saved
+  # in the config. Every project folder must resolve to the folder picked: when the name already stands for another
+  # folder on this PC (a found root or a saved one), the pick is refused as a cancel, with a line in the log.
+  $start = ''
+  if ($Task.root) { $rs = Get-ProjectRoots $Config $Drives -Want $Task.root; if ($rs.Contains($Task.root)) { $start = $rs[$Task.root] } }
+  if (-not $start -and $Config.projectsRoot -and (Test-Path -LiteralPath $Config.projectsRoot -PathType Container)) { $start = [string]$Config.projectsRoot }
+  if (-not $start) { $rs = Get-ProjectRoots $Config $Drives; foreach ($k in $rs.Keys) { $start = $rs[$k]; break } }
+  $suggested = Resolve-ProjectDir $Config ([string]$Task.root) ([string]$Task.folder) $Drives
+  if (-not $suggested -and $start) {
+    $cands = Find-ProjectFolder $start $Task.project.code $Task.project.name $ProjectsJson
+    $guess = @($cands | Where-Object { Get-ProjectDir $start $_ })
+    if ($guess.Count) { $suggested = Join-Path $start $guess[0] }
+  }
+  $full = & $Picker $start $suggested
   if (-not $full) { return @{ cancelled = $true } }
   $full = [IO.Path]::GetFullPath([string]$full).TrimEnd('\')
-  if ($root) {
-    $rootFull = [IO.Path]::GetFullPath($root).TrimEnd('\')
-    if ($full -ieq $rootFull) { return @{ cancelled = $true } }
-    if ($full.StartsWith($rootFull + '\', [StringComparison]::OrdinalIgnoreCase)) {
-      return @{ picked = $full.Substring($rootFull.Length + 1).Split('\')[0] }
-    }
+  $r = Find-RootOf $Config $full $Drives
+  if ($r) {
+    if ($full -ieq $r.path) { return @{ cancelled = $true } }
+    $name = $r.name; $rootPath = $r.path
+    $picked = $full.Substring($r.path.Length + 1).Split('\')[0]
+  } else {
+    $parent = [IO.Path]::GetDirectoryName($full)
+    if (-not $parent -or $parent -ieq [IO.Path]::GetPathRoot($full)) { throw "Not a project folder: $full" }
+    $rootPath = $parent.TrimEnd('\')
+    $name = [IO.Path]::GetFileName($rootPath)
+    if (-not $name) { throw "Not a project folder: $full" }
+    $picked = [IO.Path]::GetFileName($full)
   }
-  $parent = Split-Path $full -Parent
-  if (-not $parent) { throw "Not a project folder: $full" }
-  $Config.projectsRoot = $parent; Save-HelperConfig $Config $ConfigPath
-  return @{ picked = (Split-Path $full -Leaf) }
+  # what the name stands for on this PC now: a saved root, else a found one (the legacy root last)
+  $saved = Get-ConfigRoots $Config
+  $now = if ($saved.Contains($name)) { $saved[$name] } else { $rs = Get-ProjectRoots $Config $Drives -Want $name; if ($rs.Contains($name)) { $rs[$name] } else { $null } }
+  if ($now) {
+    if (-not (Test-SameFolder $now $rootPath)) {
+      Write-HelperLog ("pick refused: '{0}' is already {1} on this PC, not {2}" -f $name, $now, $rootPath)
+      return @{ cancelled = $true }
+    }
+  } else {
+    $saved[$name] = $rootPath
+    if ($Config -is [System.Collections.IDictionary]) { $Config['roots'] = $saved }
+    elseif ($Config.PSObject.Properties['roots']) { $Config.roots = $saved }
+    else { $Config | Add-Member -NotePropertyName roots -NotePropertyValue $saved }
+    Save-HelperConfig $Config $ConfigPath
+  }
+  return @{ picked = $picked; root = $name }
 }
-function Get-TreeResult([string]$ProjectsRoot, [string]$Folder) {
-  $dir = Get-ProjectDir $ProjectsRoot $Folder
-  if (-not $dir) { return @{ missing = $true } }
-  return @{ tree = (Get-FolderTree $dir) }
+function Get-TreeResult([string]$Dir) {
+  # $Dir: the project's folder (Resolve-ProjectDir), $null when it is not on this PC
+  if (-not $Dir) { return @{ missing = $true } }
+  return @{ tree = (Get-FolderTree $Dir) }
 }
-function Get-OpenTarget([string]$ProjectsRoot, [string]$Folder, [string]$Rel) {
+function Get-OpenTarget([string]$Dir, [string]$Rel) {
   # the folder to open, or $null when it is not on this PC; a path that leaves the project throws
-  $dir = Get-ProjectDir $ProjectsRoot $Folder
-  if (-not $dir) { return $null }
-  $full = Resolve-InProject $dir $Rel
+  if (-not $Dir) { return $null }
+  $full = Resolve-InProject $Dir $Rel
   if (Test-Path -LiteralPath $full -PathType Container) { return $full }
   return $null
 }
@@ -310,10 +460,10 @@ function Test-MailMatch($Item, $Mail, [int]$Minutes = 2) {
   return $true
 }
 
-function Invoke-FileTask([string]$ProjectsRoot, $Task, [string]$SourceDir) {
-  # the confirmed plan, carried out; the files are in $SourceDir as "<n>". A bad path stops it before anything is done.
-  $dir = Get-ProjectDir $ProjectsRoot $Task.folder
-  if (-not $dir) { return @{ missing = $true } }
-  try { $r = Invoke-FilingPlan $dir $Task.plan $SourceDir } catch { return @{ files = @(); error = $_.Exception.Message } }
+function Invoke-FileTask([string]$Dir, $Task, [string]$SourceDir) {
+  # the confirmed plan, carried out in the project's folder $Dir (Resolve-ProjectDir; $null when it is not on this PC);
+  # the files are in $SourceDir as "<n>". A bad path stops it before anything is done.
+  if (-not $Dir) { return @{ missing = $true } }
+  try { $r = Invoke-FilingPlan $Dir $Task.plan $SourceDir } catch { return @{ files = @(); error = $_.Exception.Message } }
   return @{ files = @($r.files); error = $r.error }
 }

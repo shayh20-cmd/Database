@@ -13,9 +13,11 @@
    (result { needUpload: [n…] }), uploaded by the pane (filing-file?n=) and downloaded by the agent ('upload'). What
    goes up is what the server will send the agent, and Azure's free plan allows 165 MB a day out: uploads stop for
    the (UTC) day at FILING_DAILY_BYTES (filing.json budget), 429 daily_budget.
-   What each Hub project knows — its folder's name under "@Omicron Projects", its filing guide, the filings
-   so far — and the register contacts the Hub page last sent are kept in filing.json. Tasks and filings live in
-   memory: a restart only loses work nobody finished.
+   What each Hub project knows — its folder's name and the name of the root folder it is in (the office keeps
+   projects on many computers, each sharing a drive topped by an "@<Name> Projects" folder; drive letters differ between
+   PCs, so the PC finds the root by its name; a folder stored before roots has none, and the PC looks in its legacy
+   root), its filing guide, the filings so far — and the register contacts the Hub page last sent are kept in
+   filing.json. Tasks and filings live in memory: a restart only loses work nobody finished.
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md */
 const fs = require('fs');
 const path = require('path');
@@ -38,7 +40,7 @@ const WRITERS = ['editor', 'admin', 'superadmin'];
 const BLOCKED = /\.(exe|com|bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|msi|msp|scr|lnk|hta|cpl|reg|dll)$/i;
 const sha = s => crypto.createHash('sha256').update(String(s)).digest('hex');
 const safeName = n => String(n == null ? '' : n).replace(/[\u0000-\u001f\\/:*?"<>|]/g, '').replace(/^[. ]+|[. ]+$/g, '').slice(0, 150);
-// the project's folder under "@Omicron Projects": one folder name, never a path
+// the project's folder, and the root folder it is in ("@Kappa projects"): each one folder name, never a path
 const folderName = v => { const s = String(v == null ? '' : v).trim(); return s && s.length <= 200 && !/[\\/:*?"<>|\u0000-\u001f]/.test(s) && !/^\.+$/.test(s) && !/[. ]$/.test(s) ? s : null; };
 const clip = (v, n) => String(v == null ? '' : v).slice(0, n);
 const oneLine = (v, n) => clip(String(v == null ? '' : v).replace(/[\r\n]+/g, ' '), n); // for the prompt and the log
@@ -79,8 +81,8 @@ module.exports = function createFiling(ctx) {
     d.budget = { day: today(), bytes: usedToday(d) + n };
     writeJsonAtomic(STORE, d);
   }
-  const known = id => load().projects[id] || { folder: '', guide: '', log: [] };
-  const projectOf = (d, id) => d.projects[id] || (d.projects[id] = { folder: '', guide: '', log: [] });
+  const known = id => load().projects[id] || { folder: '', root: '', guide: '', log: [] };
+  const projectOf = (d, id) => d.projects[id] || (d.projects[id] = { folder: '', root: '', guide: '', log: [] });
   const writer = person => WRITERS.includes(mcp.whoAmI(person.email, person.name).role);
   const nextFor = who => { for (const t of tasks.values()) if (t.who === who && !t.handed && !t.closed && t.exp > Date.now()) return t; return null; };
   const wake = who => { for (const f of [...(waiting.get(who) || [])]) f(); };
@@ -120,7 +122,7 @@ module.exports = function createFiling(ctx) {
     const token = crypto.randomBytes(32).toString('base64url');
     const t = {
       id: newId(), kind, who: x.who, person: x.person, base: x.base, by: mcp.whoAmI(x.person.email, x.person.name).name,
-      projectId: x.project.id, project: x.project, folder: x.folder || '', lang: x.lang === 'en' ? 'en' : 'he', token,
+      projectId: x.project.id, project: x.project, folder: x.folder || '', root: x.root || '', lang: x.lang === 'en' ? 'en' : 'he', token,
       exp: Date.now() + (kind === 'file' ? TTL : QUICK), handed: null, opened: false, result: null, closed: false, cancelled: false,
       waiters: new Set(), ...(x.extra || {})
     };
@@ -196,7 +198,7 @@ module.exports = function createFiling(ctx) {
     if (route === 'filing-project') {
       const g = getProject(url.searchParams.get('project'));
       const pr = known(g.project.id);
-      sendJson(res, 200, { folder: pr.folder || '', guide: pr.guide || '', defaultGuide: DEFAULT_GUIDE, contacts: contactsOf(p, g.project.id).length, canWrite: writer(p) });
+      sendJson(res, 200, { folder: pr.folder || '', root: pr.root || '', guide: pr.guide || '', defaultGuide: DEFAULT_GUIDE, contacts: contactsOf(p, g.project.id).length, canWrite: writer(p) });
       return;
     }
     if (route === 'filing-pick' || route === 'filing-open' || route === 'filing-guide' || route === 'filing-guide-add' || route === 'filing') {
@@ -205,7 +207,7 @@ module.exports = function createFiling(ctx) {
       const g = getProject(body.projectId);
       const project = projectRef(g);
       const pr = known(project.id);
-      const x = { who, person: p, base, project, folder: pr.folder || '', lang: body.lang };
+      const x = { who, person: p, base, project, folder: pr.folder || '', root: pr.root || '', lang: body.lang };
       if (route === 'filing-pick') { sendJson(res, 200, { taskId: makeTask('pick', x).id }); return; }
       if (route === 'filing-open') {
         const rel = ai.relPath(body.rel);
@@ -327,7 +329,7 @@ module.exports = function createFiling(ctx) {
           // ask the agent for the tree: the task already open for this filing, or a new one
           let t = f.treeTask && tasks.get(f.treeTask);
           if (!t || t.closed) {
-            t = makeTask('tree', { who, person: f.person, base: f.base, project: f.project, folder: pr.folder, lang: f.lang, extra: { filingId: f.id } });
+            t = makeTask('tree', { who, person: f.person, base: f.base, project: f.project, folder: pr.folder, root: pr.root || '', lang: f.lang, extra: { filingId: f.id } });
             f.treeTask = t.id;
           }
           // the pane may give up while the tree is awaited (closed, reloaded): its next request is not "busy"
@@ -369,7 +371,7 @@ module.exports = function createFiling(ctx) {
       const pr = known(f.projectId);
       if (!pr.folder) { sendJson(res, 409, { error: 'no_folder' }); return; }
       f.exp = Date.now() + TTL; // the filing lives as long as its file task
-      const t = makeTask('file', { who, person: p, base, project: f.project, folder: pr.folder, lang: f.lang, extra: { filingId: f.id, plan: f.plan } });
+      const t = makeTask('file', { who, person: p, base, project: f.project, folder: pr.folder, root: pr.root || '', lang: f.lang, extra: { filingId: f.id, plan: f.plan } });
       f.taskId = t.id;
       sendJson(res, 200, { taskId: t.id });
       return;
@@ -403,7 +405,7 @@ module.exports = function createFiling(ctx) {
       // the folder picker is open on the PC from now on: the person's choice may take a while
       if (t.kind === 'pick') t.exp = Math.max(t.exp, Date.now() + PICK);
       sendJson(res, 200, {
-        kind: t.kind, lang: t.lang, project: t.project, folder: t.folder,
+        kind: t.kind, lang: t.lang, project: t.project, folder: t.folder, root: t.root,
         ...(t.kind === 'open' && t.rel ? { rel: t.rel } : {}),
         ...(t.kind === 'file' ? {
           files: f.files.map((x, i) => ({ n: i, name: x.name, size: x.size, source: x.source })), plan: t.plan,
@@ -447,12 +449,15 @@ module.exports = function createFiling(ctx) {
       else {
         const folder = folderName(body.picked);
         if (!folder) { sendJson(res, 400, { error: 'folder' }); return; }
+        // the root's name; an agent of the first version sends none (its folder is in its single projects folder)
+        const root = body.root == null || body.root === '' ? '' : folderName(body.root);
+        if (root == null) { sendJson(res, 400, { error: 'root' }); return; }
         if (!writer(t.person)) { sendJson(res, 403, { error: 'viewer' }); return; }
         mcp.runToolAs(t.person.email, t.person.name, t.base, 'get_project', { project: t.projectId }); // still open to this person
         const d = load();
-        Object.assign(projectOf(d, t.projectId), { folder, updatedBy: t.by, updatedAt: new Date().toISOString() });
+        Object.assign(projectOf(d, t.projectId), { folder, root, updatedBy: t.by, updatedAt: new Date().toISOString() });
         writeJsonAtomic(STORE, d);
-        t.result = { picked: folder };
+        t.result = { picked: folder, root };
       }
     } else if (t.kind === 'tree') {
       if (!Array.isArray(body.tree)) { sendJson(res, 400, { error: 'tree' }); return; }

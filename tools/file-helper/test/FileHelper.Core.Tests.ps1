@@ -14,6 +14,7 @@ Check 'rel: empty is the project folder' ((ConvertTo-RelPath '') -eq '')
 foreach ($bad in '../x', 'a/../b', '/abs', 'C:/x', 'a//b', 'a/b?', 'a/b.') { Check "rel: $bad" ($null -eq (ConvertTo-RelPath $bad)) }
 
 $root = New-TempDir
+$script:LogPath = Join-Path $root 'file-helper.log'   # never the real log
 try {
   # the project's folders
   foreach ($d in 'CONS\S\plans\S-plans-v01', 'CONS\S\plans\S-plans-v02', 'CONS\S\plans\S-plans-@ver', 'CONS\S\plans\S-updated-PDF', 'CONS\S\docs', 'יועצים') { New-Item -ItemType Directory -Force -Path (Join-Path $root $d) | Out-Null }
@@ -60,12 +61,10 @@ try {
   Check 'run: stops on a clash' ($r2.error -and @($r2.steps).Count -eq 1)
   Remove-Item -LiteralPath $src -Recurse -Force
 
-  # where the projects folder is, from Folder Manager's list
+  # the project's folder, guessed from Folder Manager's list
   $fm = Join-Path $root 'projects.json'
   $p1 = Join-Path $root 'CONS'
   [IO.File]::WriteAllText($fm, (@{ projects = @(@{ alpha = 'TASC'; path = (Join-Path $p1 'S') }, @{ alpha = 'RLSC'; path = ((Join-Path $p1 'docs') -replace '\\', '/') }) } | ConvertTo-Json -Depth 4), (New-Object Text.UTF8Encoding $false))
-  Check 'root: most projects sit there' ((Find-ProjectsRoot $fm) -eq $p1)
-  Check 'root: no list' ($null -eq (Find-ProjectsRoot (Join-Path $root 'none.json')))
   $cands = Find-ProjectFolder $p1 'TASC' 'Tel Aviv School' $fm
   Check 'project folder: from Folder Manager by code' ($cands[0] -eq 'S')
 
@@ -86,89 +85,179 @@ try {
   # config
   $cfgPath = Join-Path $root 'cfg\file-helper.json'
   $c = Get-HelperConfig $cfgPath
-  Check 'config: default hub' ($c.hub -eq 'https://kkarc-hub.azurewebsites.net' -and $c.projectsRoot -eq '')
-  $c.projectsRoot = 'P:\@Omicron Projects'; Save-HelperConfig $c $cfgPath
-  Check 'config: saved' ((Get-HelperConfig $cfgPath).projectsRoot -eq 'P:\@Omicron Projects')
+  Check 'config: default hub' ($c.hub -eq 'https://kkarc-hub.azurewebsites.net' -and $c.projectsRoot -eq '' -and $c.roots.Count -eq 0)
+  $c.projectsRoot = 'P:\@Omicron Projects'; $c.roots['@Nu Projects'] = '\\Nu\n\@Nu Projects'; Save-HelperConfig $c $cfgPath
+  $c2 = Get-HelperConfig $cfgPath
+  Check 'config: saved' ($c2.projectsRoot -eq 'P:\@Omicron Projects' -and $c2.roots['@nu projects'] -eq '\\Nu\n\@Nu Projects')
+
+  # ── the project roots: "@<Name> Projects" at the top of every drive (temp folders stand in for the drives) ──
+  $drvA = Join-Path $root 'drvA'; $drvB = Join-Path $root 'drvB'; $share = Join-Path $root 'share'
+  $alpha = Join-Path $drvA '@Alpha Projects'; $kappa = Join-Path $drvA '@Kappa projects'; $omicron = Join-Path $drvB '@Omicron Projects'
+  $nu = Join-Path $share 'Nu Archive'
+  $school = '2026-05-20-26 - Tel Aviv School'
+  foreach ($d in "$school\CONS\S", '2026-01-01-01 - Other', 'Elsewhere\2030-01-01 - Far', 'Same Name') { New-Item -ItemType Directory -Force -Path (Join-Path $omicron $d) | Out-Null }
+  foreach ($d in 'K-100 - Kappa One', 'Same Name') { New-Item -ItemType Directory -Force -Path (Join-Path $kappa $d) | Out-Null }
+  foreach ($d in 'A-1 - Alpha One') { New-Item -ItemType Directory -Force -Path (Join-Path $alpha $d) | Out-Null }
+  foreach ($d in 'N-1 - Nu One') { New-Item -ItemType Directory -Force -Path (Join-Path $nu $d) | Out-Null }
+  New-Item -ItemType Directory -Force -Path (Join-Path $drvA 'not a root'), (Join-Path $drvA '@Alpha Projects backup') | Out-Null
+  $drives = @($drvA, $drvB, (Join-Path $root 'no-such-drive'))
+  $rcfg = [pscustomobject]@{ hub = 'https://x'; projectsRoot = ''; roots = @{} }
+  $roots = Get-ProjectRoots $rcfg -Drives $drives
+  Check 'roots: every "@* projects" at a drive top, any case' ((@($roots.Keys) -join ',') -eq '@Alpha Projects,@Kappa projects,@Omicron Projects')
+  Check 'roots: name to full path' ($roots['@kappa PROJECTS'] -eq $kappa -and $roots['@Omicron Projects'] -eq $omicron)
+  $rcfg = [pscustomobject]@{ hub = 'https://x'; projectsRoot = (Join-Path $root 'Legacy Projects'); roots = @{ 'Nu Archive' = $nu; 'Gone' = (Join-Path $root 'gone') } }
+  New-Item -ItemType Directory -Force -Path $rcfg.projectsRoot | Out-Null
+  $roots = Get-ProjectRoots $rcfg -Drives $drives
+  Check 'roots: plus the saved ones and the legacy one, when reachable' ((@($roots.Keys) -join ',') -eq '@Alpha Projects,@Kappa projects,@Omicron Projects,Nu Archive,Legacy Projects')
+  Check 'roots: one wanted' ((Get-ProjectRoots $rcfg -Drives $drives -Want '@kappa projects')['@Kappa projects'] -eq $kappa)
+
+  # resolving a project's folder: by its root's name, else (stored before roots) the legacy root, else a single match
+  $lcfg = [pscustomobject]@{ hub = 'https://x'; projectsRoot = $omicron; roots = @{ 'Nu Archive' = $nu } }
+  Check 'resolve: by root name' ((Resolve-ProjectDir $lcfg '@Kappa projects' 'K-100 - Kappa One' $drives) -eq (Join-Path $kappa 'K-100 - Kappa One'))
+  Check 'resolve: root name without case' ((Resolve-ProjectDir $lcfg '@KAPPA PROJECTS' 'K-100 - Kappa One' $drives) -eq (Join-Path $kappa 'K-100 - Kappa One'))
+  Check 'resolve: a saved root' ((Resolve-ProjectDir $lcfg 'Nu Archive' 'N-1 - Nu One' $drives) -eq (Join-Path $nu 'N-1 - Nu One'))
+  Check 'resolve: not in that root' ($null -eq (Resolve-ProjectDir $lcfg '@Alpha Projects' 'K-100 - Kappa One' $drives))
+  Check 'resolve: a root this PC does not have' ($null -eq (Resolve-ProjectDir $lcfg '@Tau Projects' 'K-100 - Kappa One' $drives))
+  Check 'resolve: no root, the legacy root' ((Resolve-ProjectDir $lcfg '' $school $drives) -eq (Join-Path $omicron $school))
+  Check 'resolve: no root, the legacy root first' ((Resolve-ProjectDir $lcfg '' 'Same Name' $drives) -eq (Join-Path $omicron 'Same Name'))
+  $kcfg = [pscustomobject]@{ hub = 'https://x'; projectsRoot = $kappa; roots = @{} }
+  Check 'resolve: no root, found in the one root that has it' ((Resolve-ProjectDir $kcfg '' $school $drives) -eq (Join-Path $omicron $school))
+  $ncfg = [pscustomobject]@{ hub = 'https://x'; projectsRoot = ''; roots = @{} }
+  Check 'resolve: no root, in two roots: missing' ($null -eq (Resolve-ProjectDir $ncfg '' 'Same Name' $drives))
+  Check 'resolve: a path is no folder name' ($null -eq (Resolve-ProjectDir $lcfg '@Omicron Projects' "$school/CONS" $drives) -and $null -eq (Resolve-ProjectDir $lcfg '@Omicron Projects' '..' $drives))
+  Check 'resolve: nothing' ($null -eq (Resolve-ProjectDir $lcfg '@Omicron Projects' '' $drives))
 
   # ── the tasks ──
-  # a projects folder with two projects, and another one elsewhere
-  $projects = Join-Path $root 'Projects'
-  foreach ($d in '2026-05-20-26 - Tel Aviv School\CONS\S', '2026-01-01-01 - Other', 'Elsewhere\2030-01-01 - Far') { New-Item -ItemType Directory -Force -Path (Join-Path $projects $d) | Out-Null }
-  $school = '2026-05-20-26 - Tel Aviv School'
   $noFm = Join-Path $root 'no-fm.json'
   $tcfgPath = Join-Path $root 'cfg\task.json'
-  $task = [pscustomobject]@{ kind = 'pick'; lang = 'he'; project = [pscustomobject]@{ id = 'p1'; code = 'TASC'; name = 'Tel Aviv School' }; folder = '' }
+  $task = [pscustomobject]@{ kind = 'pick'; lang = 'he'; project = [pscustomobject]@{ id = 'p1'; code = 'TASC'; name = 'Tel Aviv School' }; folder = ''; root = '' }
 
-  # pick: the picker starts in the projects folder with the best guess, and the leaf comes back
+  # pick: no root yet, the picker starts in the legacy root with the best guess; the folder and its root come back
   $seen = @{}
-  $tcfg = [pscustomobject]@{ hub = 'https://x'; projectsRoot = $projects }
-  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) $seen.start = $Start; $seen.suggested = $Suggested; return (Join-Path $projects $school) } $noFm $tcfgPath
-  Check 'pick: starts in the projects folder' ($seen.start -eq $projects)
-  Check 'pick: suggests the project by name' ($seen.suggested -eq (Join-Path $projects $school))
-  Check 'pick: the folder name' ($res.picked -eq $school -and -not $res.cancelled)
-  Check 'pick: inside the projects folder, nothing saved' (-not (Test-Path -LiteralPath $tcfgPath) -and $tcfg.projectsRoot -eq $projects)
-  # the folder the project already has is the suggestion
-  $task2 = [pscustomobject]@{ kind = 'pick'; lang = 'he'; project = [pscustomobject]@{ id = 'p1'; code = 'ZZZ'; name = 'Nothing' }; folder = '2026-01-01-01 - Other' }
-  [void](Invoke-PickTask $tcfg $task2 { param($Start, $Suggested) $seen.suggested2 = $Suggested; return $null } $noFm $tcfgPath)
-  Check 'pick: the current folder is suggested' ($seen.suggested2 -eq (Join-Path $projects '2026-01-01-01 - Other'))
-  # a folder inside a project: the project's folder is the first folder under the projects folder, which stays
-  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return (Join-Path $projects "$school\CONS\S") } $noFm $tcfgPath
-  Check 'pick: below a project, the project folder' ($res.picked -eq $school -and -not $res.cancelled)
-  Check 'pick: below a project, projectsRoot stays' ($tcfg.projectsRoot -eq $projects -and -not (Test-Path -LiteralPath $tcfgPath))
-  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return ((Join-Path $projects 'ELSEWHERE\2030-01-01 - Far') + '\') } $noFm $tcfgPath
-  Check 'pick: two levels down, the first folder (any case)' ($res.picked -eq 'ELSEWHERE' -and $tcfg.projectsRoot -eq $projects)
-  # the projects folder itself is no project: refused as cancelled, nothing changes
-  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return $projects } $noFm $tcfgPath
-  Check 'pick: the projects folder itself is refused' ($res.cancelled -eq $true -and -not $res.picked -and $tcfg.projectsRoot -eq $projects -and -not (Test-Path -LiteralPath $tcfgPath))
-  # picked outside the projects folder: the projects folder of this PC moves to the pick's parent, and is saved
-  $other = Join-Path $root 'Other Projects'
-  New-Item -ItemType Directory -Force -Path (Join-Path $other '2030-01-01 - Far') | Out-Null
-  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return (Join-Path $other '2030-01-01 - Far') } $noFm $tcfgPath
-  Check 'pick: outside, the folder name' ($res.picked -eq '2030-01-01 - Far')
-  Check 'pick: outside, projectsRoot moves' ($tcfg.projectsRoot -eq $other -and (Get-HelperConfig $tcfgPath).projectsRoot -eq $other)
+  $tcfg = [pscustomobject]@{ hub = 'https://x'; projectsRoot = $omicron; roots = @{} }
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) $seen.start = $Start; $seen.suggested = $Suggested; return (Join-Path $omicron $school) } $noFm $tcfgPath $drives
+  Check 'pick: starts in the legacy root' ($seen.start -eq $omicron)
+  Check 'pick: suggests the project by name' ($seen.suggested -eq (Join-Path $omicron $school))
+  Check 'pick: the folder name and its root' ($res.picked -eq $school -and $res.root -eq '@Omicron Projects' -and -not $res.cancelled)
+  Check 'pick: inside a root, nothing saved' (-not (Test-Path -LiteralPath $tcfgPath) -and $tcfg.projectsRoot -eq $omicron)
+  # the project's own root and folder: the picker starts there, with the folder suggested
+  $task2 = [pscustomobject]@{ kind = 'pick'; lang = 'he'; project = [pscustomobject]@{ id = 'p1'; code = 'ZZZ'; name = 'Nothing' }; folder = 'K-100 - Kappa One'; root = '@kappa projects' }
+  [void](Invoke-PickTask $tcfg $task2 { param($Start, $Suggested) $seen.start2 = $Start; $seen.suggested2 = $Suggested; return $null } $noFm $tcfgPath $drives)
+  Check 'pick: starts in the project''s root' ($seen.start2 -eq $kappa)
+  Check 'pick: the current folder is suggested' ($seen.suggested2 -eq (Join-Path $kappa 'K-100 - Kappa One'))
+  # under another root than the legacy one: that root, and the legacy root stays
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return (Join-Path $kappa 'K-100 - Kappa One\sub') } $noFm $tcfgPath $drives
+  Check 'pick: under root K while legacy is O' ($res.picked -eq 'K-100 - Kappa One' -and $res.root -eq '@Kappa projects')
+  Check 'pick: ...the legacy root stays, nothing saved' ($tcfg.projectsRoot -eq $omicron -and -not (Test-Path -LiteralPath $tcfgPath))
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return (Join-Path $omicron "$school\CONS\S") } $noFm $tcfgPath $drives
+  Check 'pick: below a project, the project folder' ($res.picked -eq $school -and $res.root -eq '@Omicron Projects')
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return ((Join-Path $omicron 'ELSEWHERE\2030-01-01 - Far') + '\') } $noFm $tcfgPath $drives
+  Check 'pick: two levels down, the first folder (any case)' ($res.picked -eq 'ELSEWHERE' -and $res.root -eq '@Omicron Projects')
+  # a root itself is no project: refused as cancelled, nothing changes
+  foreach ($r in $omicron, $alpha) {
+    $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return $r } $noFm $tcfgPath $drives
+    Check "pick: a root itself is refused ($r)" ($res.cancelled -eq $true -and -not $res.picked -and -not (Test-Path -LiteralPath $tcfgPath))
+  }
+  # outside every root: the parent becomes a saved root by its name; the legacy root and the other roots stay
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return (Join-Path $nu 'N-1 - Nu One') } $noFm $tcfgPath $drives
+  Check 'pick: outside, the folder and the parent''s name' ($res.picked -eq 'N-1 - Nu One' -and $res.root -eq 'Nu Archive')
+  $saved = Get-HelperConfig $tcfgPath
+  Check 'pick: outside, the parent is saved as a root' ($saved.roots['Nu Archive'] -eq $nu -and $tcfg.roots['Nu Archive'] -eq $nu)
+  Check 'pick: outside, the legacy root stays' ($tcfg.projectsRoot -eq $omicron -and $saved.projectsRoot -eq $omicron)
+  Check 'pick: outside, then resolved by that root' ((Resolve-ProjectDir $tcfg 'Nu Archive' 'N-1 - Nu One' $drives) -eq (Join-Path $nu 'N-1 - Nu One'))
+  # once saved, a pick under it is inside that root; the saved root itself is refused
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return (Join-Path $nu 'N-1 - Nu One\docs') } $noFm $tcfgPath $drives
+  Check 'pick: under a saved root' ($res.picked -eq 'N-1 - Nu One' -and $res.root -eq 'Nu Archive')
+  Check 'pick: a saved root itself is refused' ((Invoke-PickTask $tcfg $task { param($Start, $Suggested) return $nu } $noFm $tcfgPath $drives).cancelled -eq $true)
   # cancelled
-  $tcfg = [pscustomobject]@{ hub = 'https://x'; projectsRoot = $projects }
-  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return $null } $noFm $tcfgPath
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return $null } $noFm $tcfgPath $drives
   Check 'pick: cancelled' ($res.cancelled -eq $true -and -not $res.picked)
-  # no projects folder known yet: no start, and the first pick sets it
-  Remove-Item -LiteralPath $tcfgPath -ErrorAction SilentlyContinue
-  $tcfg = [pscustomobject]@{ hub = 'https://x'; projectsRoot = '' }
-  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) $seen.start3 = $Start; $seen.suggested3 = $Suggested; return (Join-Path $projects $school) } $noFm $tcfgPath
-  Check 'pick: no projects folder yet, no start' (-not $seen.start3 -and -not $seen.suggested3)
-  Check 'pick: no projects folder yet, the first pick sets it' ($res.picked -eq $school -and (Get-HelperConfig $tcfgPath).projectsRoot -eq $projects)
-  # a drive's root is no project folder
-  Check 'pick: a drive root throws' (Throws { Invoke-PickTask $tcfg $task { param($Start, $Suggested) return 'C:\' } $noFm $tcfgPath })
+  # no legacy root and no project root: the first root found
+  $ecfg = [pscustomobject]@{ hub = 'https://x'; projectsRoot = '' }
+  [void](Invoke-PickTask $ecfg $task { param($Start, $Suggested) $seen.start3 = $Start; return $null } $noFm $tcfgPath $drives)
+  Check 'pick: no root known, starts in the first one found' ($seen.start3 -eq $alpha)
+  [void](Invoke-PickTask $ecfg $task { param($Start, $Suggested) $seen.start4 = $Start; return $null } $noFm $tcfgPath @())
+  Check 'pick: no roots at all, no start' ($seen.start4 -eq '')
+  # a drive's root (or a folder right on it) is no project folder
+  Check 'pick: a drive root throws' (Throws { Invoke-PickTask $ecfg $task { param($Start, $Suggested) return 'C:\' } $noFm $tcfgPath $drives })
+  Check 'pick: a folder on a drive root throws' (Throws { Invoke-PickTask $ecfg $task { param($Start, $Suggested) return 'C:\Windows' } $noFm $tcfgPath $drives })
 
-  # tree
-  $res = Get-TreeResult $projects $school
+  # a root found by its name but not among the roots read so far (a share without a drive letter; here: made after the
+  # drive was read): saved, so the next task finds it
+  $late = Join-Path $drvA '@Late projects'
+  New-Item -ItemType Directory -Force -Path (Join-Path $late 'L-1 - Late One') | Out-Null
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return (Join-Path $late 'L-1 - Late One\docs') } $noFm $tcfgPath $drives
+  Check 'pick: a root not read before' ($res.picked -eq 'L-1 - Late One' -and $res.root -eq '@Late projects')
+  Check 'pick: ...is saved' ((Get-HelperConfig $tcfgPath).roots['@Late projects'] -eq $late)
+  Check 'pick: ...and resolves' ((Resolve-ProjectDir $tcfg '@Late projects' 'L-1 - Late One' $drives) -eq (Join-Path $late 'L-1 - Late One'))
+  # a name that already stands for another folder on this PC: refused, nothing saved, a line in the log
+  $before = (Get-Content -Raw -LiteralPath $tcfgPath)
+  $copy = Join-Path $root 'Backup\@Kappa projects'
+  New-Item -ItemType Directory -Force -Path (Join-Path $copy 'K-100 - Kappa One') | Out-Null
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return (Join-Path $copy 'K-100 - Kappa One') } $noFm $tcfgPath $drives
+  Check 'pick: the name of a found root, elsewhere: refused' ($res.cancelled -eq $true -and -not $res.picked)
+  $copy2 = Join-Path $root 'Other\Nu Archive'
+  New-Item -ItemType Directory -Force -Path (Join-Path $copy2 'N-1 - Nu One') | Out-Null
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return (Join-Path $copy2 'N-1 - Nu One') } $noFm $tcfgPath $drives
+  Check 'pick: the name of a saved root, elsewhere: refused' ($res.cancelled -eq $true -and -not $res.picked)
+  Check 'pick: ...nothing saved, nothing overwritten' ((Get-Content -Raw -LiteralPath $tcfgPath) -eq $before -and $tcfg.roots['Nu Archive'] -eq $nu)
+  Check 'pick: ...and said in the log' ((Get-Content -Raw -LiteralPath $script:LogPath) -match 'pick refused')
+  Check 'pick: ...the project still resolves to its own folder' ((Resolve-ProjectDir $tcfg '@Kappa projects' 'K-100 - Kappa One' $drives) -eq (Join-Path $kappa 'K-100 - Kappa One'))
+  # a legacy projectsRoot that an old pick set to a project's own folder inside a root: the root wins
+  $pcfg = [pscustomobject]@{ hub = 'https://x'; projectsRoot = (Join-Path $kappa 'K-100 - Kappa One'); roots = @{} }
+  New-Item -ItemType Directory -Force -Path (Join-Path $kappa 'K-100 - Kappa One\sub') | Out-Null
+  $res = Invoke-PickTask $pcfg $task { param($Start, $Suggested) return (Join-Path $kappa 'K-100 - Kappa One\sub') } $noFm $tcfgPath $drives
+  Check 'pick: a legacy root inside a root is no root' ($res.picked -eq 'K-100 - Kappa One' -and $res.root -eq '@Kappa projects')
+  # a config as a hashtable
+  Check 'config: roots of a hashtable' ((Get-ConfigRoots @{ roots = @{ 'A Projects' = 'X:\A Projects' } })['a projects'] -eq 'X:\A Projects')
+
+  # a drive that does not answer: left out after the timeout, never waited for again in this process, and the no-root
+  # search does not guess while it is missing
+  $keep = $script:ReadRoot
+  $script:ReadRoot = [scriptblock]::Create('param([string]$Path, [string]$Name) if ($Path -like ''*slow*'') { Start-Sleep -Seconds 5 }; ' + $keep.ToString())
+  Reset-ProjectRoots
+  $slowDrives = @($drvA, (Join-Path $root 'slow-drive'))
+  $ocfg = [pscustomobject]@{ hub = 'https://x'; projectsRoot = ''; roots = @{} }
+  $sw = [Diagnostics.Stopwatch]::StartNew()
+  $roots = Get-ProjectRoots $ocfg -Drives $slowDrives -TimeoutMs 400
+  $first = $sw.ElapsedMilliseconds
+  Check 'timeout: the drives that answered' ($roots.Contains('@Kappa projects') -and $script:RootsIncomplete -and $first -ge 350 -and $first -lt 3000)
+  $sw.Restart()
+  [void](Get-ProjectRoots $ocfg -Drives $slowDrives -TimeoutMs 400)
+  [void](Get-ProjectRoots $ocfg -Drives $slowDrives -Want '@Nothing projects' -TimeoutMs 400)
+  Check 'timeout: never waited for again' ($sw.ElapsedMilliseconds -lt 300)
+  Check 'timeout: no root, a single match is not trusted' ($null -eq (Resolve-ProjectDir $ocfg '' 'A-1 - Alpha One' $slowDrives))
+  Check 'timeout: by root name still works' ((Resolve-ProjectDir $ocfg '@Alpha Projects' 'A-1 - Alpha One' $slowDrives) -eq (Join-Path $alpha 'A-1 - Alpha One'))
+  Check 'no timeout: no root, the single match' ((Resolve-ProjectDir $ocfg '' 'A-1 - Alpha One' @($drvA)) -eq (Join-Path $alpha 'A-1 - Alpha One'))
+  $script:ReadRoot = $keep
+  Reset-ProjectRoots
+
+  # tree (the folder resolved by Resolve-ProjectDir; $null when it is not on this PC)
+  $sdir = Join-Path $omicron $school
+  $res = Get-TreeResult $sdir
   Check 'tree task: the folders' ((@($res.tree) -contains 'CONS/S') -and -not $res.missing)
-  Check 'tree task: missing folder' ((Get-TreeResult $projects 'No Such').missing -eq $true)
-  Check 'tree task: no projects folder' ((Get-TreeResult '' $school).missing -eq $true)
-  Check 'tree task: no project folder' ((Get-TreeResult $projects '').missing -eq $true)
-  Check 'tree task: a path is no folder name' ((Get-TreeResult $projects '..').missing -eq $true -and (Get-TreeResult $projects "$school/CONS").missing -eq $true)
+  Check 'tree task: missing' ((Get-TreeResult $null).missing -eq $true -and (Get-TreeResult '').missing -eq $true)
 
   # open
-  Check 'open: the project folder' ((Get-OpenTarget $projects $school '') -eq (Join-Path $projects $school))
-  Check 'open: a folder inside' ((Get-OpenTarget $projects $school 'CONS/S') -eq (Join-Path $projects "$school\CONS\S"))
-  Check 'open: missing project' ($null -eq (Get-OpenTarget $projects 'No Such' ''))
-  Check 'open: missing folder inside' ($null -eq (Get-OpenTarget $projects $school 'CONS/none'))
-  Check 'open: outside is refused' (Throws { Get-OpenTarget $projects $school '../2026-01-01-01 - Other' })
+  Check 'open: the project folder' ((Get-OpenTarget $sdir '') -eq $sdir)
+  Check 'open: a folder inside' ((Get-OpenTarget $sdir 'CONS/S') -eq (Join-Path $sdir 'CONS\S'))
+  Check 'open: missing project' ($null -eq (Get-OpenTarget $null ''))
+  Check 'open: missing folder inside' ($null -eq (Get-OpenTarget $sdir 'CONS/none'))
+  Check 'open: outside is refused' (Throws { Get-OpenTarget $sdir '../2026-01-01-01 - Other' })
 
   # file
   $src = New-TempDir
   Set-Content -Path (Join-Path $src '0') -Value 'K'
-  $ftask = [pscustomobject]@{ kind = 'file'; folder = $school; files = @([pscustomobject]@{ n = 0; name = 'K.pdf'; size = 2 })
+  $ftask = [pscustomobject]@{ kind = 'file'; folder = $school; root = '@Omicron Projects'; files = @([pscustomobject]@{ n = 0; name = 'K.pdf'; size = 2 })
     plan = [pscustomobject]@{ files = @([pscustomobject]@{ n = 0; name = 'K.pdf'; dest = 'CONS/S/v01' }); steps = @([pscustomobject]@{ op = 'mkdir'; path = 'CONS/S/v01'; from = ''; to = '' }); mode = 'new-version' } }
-  $res = Invoke-FileTask $projects $ftask $src
-  Check 'file: filed' ((Test-Path (Join-Path $projects "$school\CONS\S\v01\K.pdf")) -and -not $res.error -and -not $res.missing)
+  $res = Invoke-FileTask $sdir $ftask $src
+  Check 'file: filed' ((Test-Path (Join-Path $sdir 'CONS\S\v01\K.pdf')) -and -not $res.error -and -not $res.missing)
   Check 'file: reports the files' (@($res.files).Count -eq 1 -and @($res.files)[0].dest -eq 'CONS/S/v01' -and @($res.files)[0].savedAs -eq 'K.pdf')
-  $ftask.folder = 'No Such'
-  Check 'file: missing folder' ((Invoke-FileTask $projects $ftask $src).missing -eq $true)
-  $ftask.folder = $school
+  Check 'file: missing folder' ((Invoke-FileTask $null $ftask $src).missing -eq $true)
   $ftask.plan = [pscustomobject]@{ files = @([pscustomobject]@{ n = 0; name = 'K.pdf'; dest = 'CONS/new' }); steps = @([pscustomobject]@{ op = 'mkdir'; path = 'CONS/made'; from = ''; to = '' }, [pscustomobject]@{ op = 'mkdir'; path = '../out'; from = ''; to = '' }); mode = 'existing' }
-  $res = Invoke-FileTask $projects $ftask $src
+  $res = Invoke-FileTask $sdir $ftask $src
   Check 'file: a bad path is an error' ($res.error -and @($res.files).Count -eq 0 -and -not $res.missing)
-  Check 'file: ...and nothing was done' (-not (Test-Path (Join-Path $projects "$school\CONS\made")) -and -not (Test-Path (Join-Path $projects "$school\CONS\new")))
+  Check 'file: ...and nothing was done' (-not (Test-Path (Join-Path $sdir 'CONS\made')) -and -not (Test-Path (Join-Path $sdir 'CONS\new')))
   Remove-Item -LiteralPath $src -Recurse -Force
 
   # the files of a file task: from Outlook on this PC, or from the server

@@ -929,7 +929,7 @@ function openFiling() {
   $('fileForm').hidden = false;
   api('/api/outlook/filing-project?project=' + encodeURIComponent(pid)).then(function (p) {
     if (gen !== fGen) return;
-    fProj = { pid: pid, folder: p.folder || '', canWrite: !!p.canWrite };
+    fProj = { pid: pid, folder: p.folder || '', root: p.root || '', canWrite: !!p.canWrite };
     $('fGuide').value = p.guide || '';
     $('fGuide').placeholder = p.defaultGuide || '';
     if (!p.canWrite) fState(tx('אין לך הרשאת כתיבה בפרויקט הזה.'));
@@ -938,7 +938,8 @@ function openFiling() {
 }
 function renderFolder() {
   var p = fProj, has = !!(p && p.folder), w = !!(p && p.canWrite);
-  $('fFolder').textContent = !p ? '…' : has ? p.folder : tx('לא הוגדרה עדיין');
+  // the root folder the project's folder is in ("@Kappa projects"), then the folder: data, never translated
+  $('fFolder').textContent = !p ? '…' : has ? (p.root ? iso(iso(p.root) + ' \\ ' + iso(p.folder)) : p.folder) : tx('לא הוגדרה עדיין');
   $('fOpen').hidden = !has;
   $('fPick').textContent = tx(has ? 'שנה' : 'בחר תיקייה');
   $('fPick').disabled = !w;
@@ -949,7 +950,7 @@ function renderFolder() {
 }
 function setFBusy(on) { fBusy = on; renderFolder(); }
 function needFolder() {
-  if (fProj) fProj.folder = '';
+  if (fProj) { fProj.folder = ''; fProj.root = ''; }
   renderFolder();
   $('fFolderRow').classList.add('need');
   fHint(tx('בחר את תיקיית הפרויקט כדי שאפשר יהיה לתייק.'));
@@ -991,7 +992,7 @@ function pickFolder() {
       limit: 12 * 60 * 1000, say: fHint,
       handed: function (pc) { fHint(tx('בורר התיקיות נפתח ב-{pc}…', { pc: pc })); },
       done: function (r) {
-        if (r && r.picked) { fProj.folder = r.picked; fHint(''); }
+        if (r && r.picked) { fProj.folder = r.picked; fProj.root = r.root || ''; fHint(''); }
         else if (r && r.missing) folderMissing();
         else if (r) fHint('');
         renderFolder();

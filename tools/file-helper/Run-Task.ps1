@@ -1,6 +1,7 @@
 ﻿<# Project Hub — filing helper: one task from the pane, run on this PC. Started by the background agent
    (FileHelper-Agent.ps1) with the task's one-time token, which is its only permission: it reads the task, does the disk
-   work (pick the project folder / read its tree / open it / file), posts the result and ends. The pane shows the result;
+   work (pick the project folder / read its tree / open it / file; the folder is found by its root's name,
+   Resolve-ProjectDir), posts the result and ends. The pane shows the result;
    the only window here is the folder picker of a "pick" task. On any failure the task is cancelled (best effort), so
    the pane does not wait for it, and the error goes to the log. The logic is in FileHelper.Core.ps1.
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md
@@ -187,15 +188,15 @@ try {
       $desc = T 'בחר את התיקייה הראשית של הפרויקט {p}' @{ p = $label }
       $res = Invoke-PickTask $cfg $task { param($Start, $Suggested) Show-FolderPicker $Start $Suggested $desc }
     }
-    'tree' { $res = Get-TreeResult (Resolve-ProjectsRoot $cfg) $task.folder }
+    'tree' { $res = Get-TreeResult (Resolve-ProjectDir $cfg ([string]$task.root) ([string]$task.folder)) }
     'open' {
-      $target = Get-OpenTarget (Resolve-ProjectsRoot $cfg) $task.folder ([string]$task.rel)
+      $target = Get-OpenTarget (Resolve-ProjectDir $cfg ([string]$task.root) ([string]$task.folder)) ([string]$task.rel)
       if ($target) { Show-FolderInFront $target; $res = @{ opened = $true } }
       else { $res = @{ missing = $true } }
     }
     'file' {
-      $root = Resolve-ProjectsRoot $cfg
-      if (-not (Get-ProjectDir $root $task.folder)) { $res = @{ missing = $true } }
+      $dir = Resolve-ProjectDir $cfg ([string]$task.root) ([string]$task.folder)
+      if (-not $dir) { $res = @{ missing = $true } }
       else {
         # only the files the plan files, each as "<n>": from Outlook on this PC first; what it cannot give is asked of
         # the pane (needUpload: nothing is filed now, the pane uploads them and confirms again); the rest is downloaded
@@ -208,7 +209,7 @@ try {
         if ($ask.Count) { $res = @{ needUpload = [int[]]$ask } }
         else {
           foreach ($x in @($needed | Where-Object { $_.source -ne 'outlook' })) { Invoke-WebRequest -UseBasicParsing -TimeoutSec 300 -Uri ($base + '/file/' + $x.n) -OutFile (Join-Path $tmp ([string]$x.n)) }
-          $res = Invoke-FileTask $root $task $tmp
+          $res = Invoke-FileTask $dir $task $tmp
         }
       }
     }
