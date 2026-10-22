@@ -58,6 +58,16 @@ try {
   Check 'mode new: next number' ($nv.files[0].dest -eq 'CONS/S/plans/S-plans-v03')
   Check 'mode new: mkdir' (((@($nv.steps) | ForEach-Object { $_.op + ' ' + $_.path }) -join ',') -eq 'mkdir CONS/S/plans/S-plans-v03')
 
+  # "existing" where there is no version folder yet: the file keeps Claude's folder, and it is still made
+  $first = [pscustomobject]@{
+    files = @([pscustomobject]@{ n = 0; name = 'D.pdf'; dest = 'CONS/S/docs/D-v01' })
+    steps = @([pscustomobject]@{ op = 'mkdir'; path = 'CONS/S/docs/D-v01'; from = ''; to = '' })
+    mode = 'new-version'; why = ''
+  }
+  $ex = Set-PlanMode $root $first 'existing'
+  Check 'mode existing, no versions yet: same folder' ($ex.files[0].dest -eq 'CONS/S/docs/D-v01')
+  Check 'mode existing, no versions yet: still made' (((@($ex.steps) | ForEach-Object { $_.op + ' ' + $_.path }) -join ',') -eq 'mkdir CONS/S/docs/D-v01')
+
   # what the window lists
   $lines = Get-PlanLines $claude
   Check 'lines: steps then copies' ($lines.Count -eq 3 -and $lines[2] -like '*K.pdf*CONS\S\plans\S-plans-v03*')

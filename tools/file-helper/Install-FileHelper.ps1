@@ -6,6 +6,7 @@
    Saved as UTF-8 with BOM. #>
 param([string]$Hub = 'https://kkarc-hub.azurewebsites.net')
 $ErrorActionPreference = 'Stop'
+function Say([string]$He, [string]$En) { Write-Host $He; Write-Host $En }
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $dir = Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper'
@@ -23,16 +24,22 @@ Save-HelperConfig $cfg
 
 # the key: checked with the hub before it is kept
 while ($true) {
-  Write-Host 'הדבק את המפתח האישי של תוסף ה-Outlook (אותו מפתח שמודבק בחלונית של התוסף) ולחץ Enter:'
+  Say 'הדבק את המפתח האישי של תוסף ה-Outlook (אותו מפתח שמודבק בחלונית של התוסף) ולחץ Enter:' 'Paste your personal Outlook add-in key (the one pasted in the add-in''s pane) and press Enter:'
   $sec = Read-Host -AsSecureString
   if ($sec.Length -eq 0) { continue }
   $key = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
   try {
     $me = Invoke-RestMethod -UseBasicParsing -Uri ($cfg.hub + '/api/outlook/me') -Headers @{ Authorization = "Bearer $key" }
     Save-HelperKey $key
-    Write-Host "המפתח תקין ($($me.email))."
+    Say "המפתח תקין ($($me.email))." "The key is valid ($($me.email))."
     break
-  } catch { Write-Host 'המפתח לא התקבל בשרת. נסה שוב.' }
+  } catch {
+    $code = try { [int]$_.Exception.Response.StatusCode } catch { 0 }
+    if ($code -eq 401) { Say 'המפתח לא התקבל בשרת. נסה שוב.' 'The server did not accept the key. Try again.'; continue }
+    Say "אין חיבור לשרת $($cfg.hub): $($_.Exception.Message)" "Can't reach the server $($cfg.hub): $($_.Exception.Message)"
+    Say 'בדוק את החיבור לרשת ואת הכתובת (-Hub), והרץ שוב.' 'Check the network and the address (-Hub), and run this again.'
+    exit 1
+  }
 }
 
 # at every sign-in, and now
@@ -44,6 +51,6 @@ $lnk.Arguments = "//B //Nologo `"$dir\run-file-helper-agent.vbs`""
 $lnk.Save()
 Start-Process wscript.exe -ArgumentList '//B', '//Nologo', "`"$dir\run-file-helper-agent.vbs`""
 
-Write-Host 'הותקן. עוזר התיוק פועל ברקע, ויופעל מחדש בכל כניסה ל-Windows.'
-if ($cfg.projectsRoot) { Write-Host "תיקיית הפרויקטים במחשב הזה: $($cfg.projectsRoot)" }
-else { Write-Host 'תיקיית הפרויקטים לא זוהתה. בתיוק הראשון תתבקש לבחור אותה.' }
+Say 'הותקן. עוזר התיוק פועל ברקע, ויופעל מחדש בכל כניסה ל-Windows.' 'Installed. The filing helper runs in the background and starts again at every Windows sign-in.'
+if ($cfg.projectsRoot) { Say "תיקיית הפרויקטים במחשב הזה: $($cfg.projectsRoot)" "The projects folder on this computer: $($cfg.projectsRoot)" }
+else { Say 'תיקיית הפרויקטים לא זוהתה. בתיוק הראשון תתבקש לבחור אותה.' 'The projects folder was not found. You will be asked to choose it the first time you file.' }

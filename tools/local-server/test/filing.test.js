@@ -43,6 +43,14 @@ test('filing-ai: only what exists, or what an earlier step creates, survives', (
   assert.deepStrictEqual(ai.sanitizePlan(null, tree, []), { files: [], steps: [], mode: 'existing', why: '' });
 });
 
+test('filing-ai: dest "" is the project folder itself, and keeps the steps', () => {
+  const tree = ['A'];
+  const raw = { files: [{ name: 'a.pdf', dest: '' }, { name: 'b.pdf' }, { name: 'c.pdf', dest: null }], steps: [{ op: 'mkdir', path: 'B', from: '', to: '' }], mode: 'existing', why: '' };
+  const p = ai.sanitizePlan(raw, tree, ['a.pdf', 'b.pdf', 'c.pdf', 'd.pdf']);
+  assert.deepStrictEqual(p.files.map(f => f.dest), ['', null, null, null]);
+  assert.strictEqual(p.steps.length, 1);
+});
+
 test('filing-ai: two files with the same name each get their own folder', () => {
   const tree = ['A', 'B'];
   const raw = { files: [{ name: 'scan.pdf', dest: 'A' }, { name: 'other.pdf', dest: 'A' }, { name: 'scan.pdf', dest: 'B' }], steps: [], mode: 'existing', why: '' };

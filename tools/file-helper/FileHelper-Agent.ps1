@@ -32,7 +32,9 @@ while ($true) {
     $j = [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray()) | ConvertFrom-Json
     if ($j.job -and (Test-HelperToken $j.job.token)) {
       Log "job $($j.job.id)"
-      Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @('-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', "`"$window`"", '-Token', $j.job.token)
+      # -WindowStyle Hidden on Start-Process would hide the filing window too (it inherits the hidden show state);
+      # as powershell.exe's own argument it hides only its console, which may flash for a moment
+      Start-Process powershell.exe -ArgumentList @('-NoProfile', '-STA', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', "`"$window`"", '-Token', $j.job.token)
     }
   } catch {
     $code = try { [int]$_.Exception.Response.StatusCode } catch { 0 }

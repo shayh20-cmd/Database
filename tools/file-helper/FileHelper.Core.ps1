@@ -34,7 +34,6 @@ $script:EN = @{
   'תיקיית גרסה חדשה' = 'New version folder'
   'הוסף לתיקייה הקיימת' = 'Add to the existing folder'
   '(לא נבחרה תיקייה)' = '(no folder chosen)'
-  'בחר קובץ ברשימה ואז תיקייה בעץ.' = 'Pick a file in the list, then a folder in the tree.'
   'אין הצעה — בחר תיקייה בעץ.' = 'No suggestion — choose a folder in the tree.'
   'Claude לא זמין כרגע — בחר תיקייה בעץ.' = 'Claude is not available right now — choose a folder in the tree.'
   'תיקייה חדשה: {p}' = 'New folder: {p}'
@@ -48,7 +47,7 @@ $script:EN = @{
   'הפעולה נעצרה: {e}' = 'Stopped: {e}'
   'מה שבוצע עד אז:' = 'Done until then:'
   'הקבצים תויקו, אבל הרישום ב-Project Hub נכשל: {e}' = 'The files were filed, but recording it in Project Hub failed: {e}'
-  'מוריד את הקבצים…' = 'Downloading the files…'
+  'התכנית לא תקינה ולא בוצע דבר: {e}' = 'The plan is not valid, and nothing was done: {e}'
 }
 function T([string]$He, [hashtable]$Slots) {
   $s = if ($script:Lang -eq 'en' -and $script:EN.ContainsKey($He)) { $script:EN[$He] } else { $He }
@@ -125,11 +124,12 @@ function Copy-Plan($Plan) { return ($Plan | ConvertTo-Json -Depth 8 | ConvertFro
 function Set-PlanMode([string]$Root, $Original, [string]$Mode) {
   # Claude's plan in its own mode is kept as it is. The other mode is worked out from the folders: "existing" puts
   # files bound for a version folder (…-vNN) in the highest one there; "new-version" makes the next one first.
-  # Only Claude's refresh steps (move-contents) are kept.
+  # Claude's refresh steps (move-contents) are kept, and so are its new folders that files still go to (a file bound
+  # for a version folder where there is none yet keeps its folder, and the folder is still made).
   $p = Copy-Plan $Original
   if ($Original.mode -eq $Mode) { return $p }
-  $steps = @(@($p.steps) | Where-Object { $_ -and $_.op -eq 'move-contents' })
   $made = @{}
+  $first = @()
   foreach ($f in @($p.files)) {
     if (-not $f.dest) { continue }
     $parent, $leaf = Split-Rel $f.dest
@@ -143,9 +143,17 @@ function Set-PlanMode([string]$Root, $Original, [string]$Mode) {
     $n = if ($high) { [int]$high.Substring($v.Prefix.Length) + 1 } else { 1 }
     $new = Join-Rel @($parent, ($v.Prefix + $n.ToString('D' + [Math]::Max(2, $v.Digits))))
     $f.dest = $new
-    if (-not $made[$new]) { $made[$new] = $true; $steps = @([pscustomobject]@{ op = 'mkdir'; path = $new; from = ''; to = '' }) + $steps }
+    if (-not $made[$new]) { $made[$new] = $true; $first += [pscustomobject]@{ op = 'mkdir'; path = $new; from = ''; to = '' } }
   }
-  $p.steps = $steps
+  $dests = @(@($p.files) | Where-Object { $_.dest } | ForEach-Object { $_.dest + '/' })
+  $steps = @(foreach ($s in @($p.steps)) {
+    if (-not $s) { continue }
+    if ($s.op -eq 'move-contents') { $s; continue }
+    if ($s.op -ne 'mkdir' -or $made[$s.path]) { continue }
+    $under = $s.path + '/'
+    if (@($dests | Where-Object { $_.StartsWith($under, [StringComparison]::OrdinalIgnoreCase) }).Count) { $s }
+  })
+  $p.steps = @($first) + $steps
   $p.mode = $Mode
   return $p
 }

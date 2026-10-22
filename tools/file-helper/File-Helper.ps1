@@ -15,9 +15,20 @@ Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 $cfg = Get-HelperConfig
 $token = if (Test-HelperToken $Token) { $Token } else { $null }
 
+# The background agent starts this window, so Windows may keep it behind Outlook (the foreground lock). Every message
+# and dialog is owned by a hidden, always-on-top window; every form is on top too and activates itself when shown.
+$script:Owner = $null
+function Get-Owner {
+  if (-not $script:Owner -or $script:Owner.IsDisposed) {
+    $script:Owner = New-Object Windows.Forms.Form -Property @{ TopMost = $true; ShowInTaskbar = $false; FormBorderStyle = 'None'; StartPosition = 'Manual'; Size = (New-Object Drawing.Size(1, 1)); Location = (New-Object Drawing.Point(-32000, -32000)) }
+    $script:Owner.Show()
+  }
+  $script:Owner.Activate()
+  return $script:Owner
+}
 function Say([string]$Text, [string]$Icon = 'Information', [string]$Buttons = 'OK') {
   $opt = if ($script:Lang -eq 'en') { [Windows.Forms.MessageBoxOptions]0 } else { [Windows.Forms.MessageBoxOptions]'RightAlign, RtlReading' }
-  return [Windows.Forms.MessageBox]::Show($Text, (T 'תיוק בתיקיית הפרויקט'), $Buttons, $Icon, 'Button1', $opt)
+  return [Windows.Forms.MessageBox]::Show((Get-Owner), $Text, (T 'תיוק בתיקיית הפרויקט'), $Buttons, $Icon, 'Button1', $opt)
 }
 function Api([string]$Method, [string]$Sub, $Body) {
   $p = @{ Method = $Method; Uri = ($cfg.hub.TrimEnd('/') + '/api/filing/' + $token + $Sub); UseBasicParsing = $true }
@@ -27,11 +38,14 @@ function Api([string]$Method, [string]$Sub, $Body) {
   return ([Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray()) | ConvertFrom-Json)
 }
 function StatusOf($Err) { try { return [int]$Err.Exception.Response.StatusCode } catch { return 0 } }
+# best effort: the pane then says the filing was cancelled; a failure here changes nothing for the person
+function Cancel-Job { try { [void](Api 'POST' '/cancel' @{}) } catch {} }
 function New-Form([string]$Title, [int]$W, [int]$H) {
   $f = New-Object Windows.Forms.Form
   $f.Text = $Title; $f.Size = New-Object Drawing.Size($W, $H); $f.StartPosition = 'CenterScreen'
   $f.Font = New-Object Drawing.Font('Segoe UI', 10); $f.TopMost = $true; $f.MinimizeBox = $false
   if ($script:Lang -ne 'en') { $f.RightToLeft = 'Yes'; $f.RightToLeftLayout = $true }
+  $f.Add_Shown({ $this.Activate() })
   return $f
 }
 function New-Rows($Form, [string[]]$Styles) {
@@ -71,7 +85,7 @@ function Show-LinkDialog($Job, [string]$ProjectsRoot) {
   $browse.Add_Click({
     $d = New-Object Windows.Forms.FolderBrowserDialog
     $d.SelectedPath = $state.root
-    if ($d.ShowDialog() -ne 'OK') { return }
+    if ($d.ShowDialog($f) -ne 'OK') { return }
     $parent = Split-Path $d.SelectedPath -Parent
     if ($parent -and $parent -ne $state.root) { $state.root = $parent; $rootLbl.Text = T 'תיקיית הפרויקטים: {r}' @{ r = $state.root } }
     $combo.Text = Split-Path $d.SelectedPath -Leaf
@@ -90,7 +104,7 @@ function Show-LinkDialog($Job, [string]$ProjectsRoot) {
   })
   $t.Controls.Add((New-Buttons @($ok, $cancel)))
   $f.CancelButton = $cancel
-  if ($f.ShowDialog() -ne 'OK') { return $null }
+  if ($f.ShowDialog((Get-Owner)) -ne 'OK') { return $null }
   return @{ folder = $combo.Text.Trim(); guide = $guide.Text; projectsRoot = $state.root }
 }
 
@@ -153,9 +167,12 @@ function Show-PlanDialog($Job, [string]$Root, [string[]]$Tree, $Plan) {
     }
     $state.quiet = $false
   }
-  # a folder picked in the tree: for the selected files (all when none is selected); Claude's steps no longer apply
-  $tv.Add_AfterSelect({
-    if ($state.quiet) { return }
+  # A folder clicked in the tree: for the selected files (all when none is selected); Claude's steps no longer apply.
+  # Only a click counts, also on the folder already selected. Selection alone is no choice: the render selects the
+  # proposed folder, and WinForms selects it again when it creates the window, which must not replace Claude's plan.
+  $tv.Add_NodeMouseClick({
+    if ($state.quiet -or $_.Button -ne 'Left' -or -not $_.Node) { return }
+    if ($tv.HitTest($_.Location).Location -eq 'PlusMinus') { return }
     $rel = [string]$_.Node.Tag
     $sel = @($list.SelectedItems | ForEach-Object { $_.Tag })
     $p = Copy-Plan $state.plan
@@ -172,36 +189,34 @@ function Show-PlanDialog($Job, [string]$Root, [string[]]$Tree, $Plan) {
   }
   $rbNew.Add_CheckedChanged($onMode); $rbOld.Add_CheckedChanged($onMode)
   & $render
-  $r = $f.ShowDialog()
+  $r = $f.ShowDialog((Get-Owner))
   if ($r -eq 'OK') { return $state.plan }
   if ($r -eq 'Retry') { return 'relink' }
   return $null
 }
 
-# ── the run ──
+# ── the run ── (all of it inside try: whatever fails ends in a message, never in silence)
 if (-not $token) { [void](Say (T 'הבקשה לא תקינה.') 'Warning'); exit 1 }
-try { $job = Api 'GET' '' $null } catch {
-  [void](Say $(if ((StatusOf $_) -eq 410) { T 'הבקשה פגה. לחץ שוב בחלונית של Outlook.' } else { T 'השרת לא זמין: {e}' @{ e = $_.Exception.Message } }) 'Warning')
-  exit 1
-}
-$script:Lang = if ($job.lang -eq 'en') { 'en' } else { 'he' }
-
-# where "@Omicron Projects" is on this PC
-$projectsRoot = $cfg.projectsRoot
-if (-not $projectsRoot -or -not (Test-Path -LiteralPath $projectsRoot)) {
-  $projectsRoot = Find-ProjectsRoot
-  if (-not $projectsRoot) {
-    $d = New-Object Windows.Forms.FolderBrowserDialog
-    $d.Description = T 'איפה תיקיית הפרויקטים של המשרד ("@Omicron Projects") במחשב הזה?'
-    if ($d.ShowDialog() -ne 'OK') { [void](Api 'POST' '/cancel' @{}); exit 0 }
-    $projectsRoot = $d.SelectedPath
-  }
-  $cfg.projectsRoot = $projectsRoot; Save-HelperConfig $cfg
-}
-
-$tmp = Join-Path ([IO.Path]::GetTempPath()) ('ProjectHub-filing-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
-New-Item -ItemType Directory -Path $tmp | Out-Null
+$tmp = $null
 try {
+  $job = Api 'GET' '' $null
+  $script:Lang = if ($job.lang -eq 'en') { 'en' } else { 'he' }
+
+  # where "@Omicron Projects" is on this PC
+  $projectsRoot = $cfg.projectsRoot
+  if (-not $projectsRoot -or -not (Test-Path -LiteralPath $projectsRoot)) {
+    $projectsRoot = Find-ProjectsRoot
+    if (-not $projectsRoot) {
+      $d = New-Object Windows.Forms.FolderBrowserDialog
+      $d.Description = T 'איפה תיקיית הפרויקטים של המשרד ("@Omicron Projects") במחשב הזה?'
+      if ($d.ShowDialog((Get-Owner)) -ne 'OK') { Cancel-Job; exit 0 }
+      $projectsRoot = $d.SelectedPath
+    }
+    $cfg.projectsRoot = $projectsRoot; Save-HelperConfig $cfg
+  }
+
+  $tmp = Join-Path ([IO.Path]::GetTempPath()) ('ProjectHub-filing-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+  New-Item -ItemType Directory -Path $tmp | Out-Null
   foreach ($x in @($job.files)) { Invoke-WebRequest -UseBasicParsing -Uri ($cfg.hub.TrimEnd('/') + '/api/filing/' + $token + '/file/' + $x.n) -OutFile (Join-Path $tmp ([string]$x.n)) }
   $relink = $false
   while ($true) {
@@ -209,7 +224,7 @@ try {
     if ($relink -or -not $job.folder -or -not (Test-Path -LiteralPath (Join-Path $projectsRoot $job.folder))) {
       if ($job.folder -and -not $relink) { [void](Say (T 'לא מוצאת את תיקיית הפרויקט: {p}' @{ p = (Join-Path $projectsRoot $job.folder) }) 'Warning') }
       $link = Show-LinkDialog $job $projectsRoot
-      if (-not $link) { [void](Api 'POST' '/cancel' @{}); exit 0 }
+      if (-not $link) { Cancel-Job; exit 0 }
       if ($link.projectsRoot -ne $projectsRoot) { $projectsRoot = $link.projectsRoot; $cfg.projectsRoot = $projectsRoot; Save-HelperConfig $cfg }
       $saved = Api 'PUT' '/project' @{ folder = $link.folder; guide = $link.guide }
       $job.folder = $saved.folder; $job.guide = $saved.guide
@@ -230,9 +245,15 @@ try {
     if ($choice -eq 'relink') { $relink = $true; continue }
     break
   }
-  if (-not $choice) { [void](Api 'POST' '/cancel' @{}); exit 0 }
+  if (-not $choice) { Cancel-Job; exit 0 }
 
-  $res = Invoke-FilingPlan $root $choice $tmp
+  # every path is checked before anything is done: a bad one throws here, and then nothing at all was done
+  try { $res = Invoke-FilingPlan $root $choice $tmp } catch {
+    $e = $_.Exception.Message
+    Cancel-Job
+    [void](Say (T 'התכנית לא תקינה ולא בוצע דבר: {e}' @{ e = $e }) 'Warning')
+    exit 1
+  }
   $note = ''
   try { $done = Api 'POST' '/done' @{ files = @($res.files); mode = $choice.mode } } catch { $done = $null; $note = T 'הקבצים תויקו, אבל הרישום ב-Project Hub נכשל: {e}' @{ e = $_.Exception.Message } }
   $n = @($res.files).Count
@@ -245,10 +266,15 @@ try {
     [void](Say ($lines -join "`r`n") 'Warning')
   } elseif ($n -gt 0) {
     $lines += ''; $lines += T 'לפתוח את התיקייה?'
-    if ((Say ($lines -join "`r`n") 'Information' 'YesNo') -eq 'Yes') { Start-Process explorer.exe (Resolve-InProject $root @($res.files)[0].dest) }
+    if ((Say ($lines -join "`r`n") 'Information' 'YesNo') -eq 'Yes') { try { Start-Process explorer.exe (Resolve-InProject $root @($res.files)[0].dest) } catch {} }
   }
 } catch {
-  [void](Say (T 'השרת לא זמין: {e}' @{ e = $_.Exception.Message }) 'Error')
+  # an expired job is gone already; anything else is cancelled, so the pane does not wait for it
+  $expired = (StatusOf $_) -eq 410
+  $msg = if ($expired) { T 'הבקשה פגה. לחץ שוב בחלונית של Outlook.' } else { T 'השרת לא זמין: {e}' @{ e = $_.Exception.Message } }
+  if (-not $expired) { Cancel-Job }
+  [void](Say $msg 'Warning')
+  exit 1
 } finally {
-  Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue
+  if ($tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
 }
