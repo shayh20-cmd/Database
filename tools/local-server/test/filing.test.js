@@ -695,6 +695,7 @@ test('filing hub: the folder map in Project Hub — sign-in, writers, mapping wi
   assert.strictEqual(p1.status, 200);
   assert.deepStrictEqual(p1.body.questions, ['Is DESIGN yours?', 'Where are the Revit exports?']);
   assert.strictEqual(p1.body.message, 'Mapped. Two questions.');
+  assert.deepStrictEqual(p1.body.tree, MAP_TREE, 'the tree read, for choosing a folder by hand (without what is outside)');
   assert.deepStrictEqual(Object.keys(p1.body.areas), ['publish', 'consultants', 'receive', 'permit', 'export', 'design', 'docs']);
   assert.deepStrictEqual(p1.body.areas.consultants, { paths: ['CONS'], note: 'a folder per consultant' });
   assert.match(fake.last, /Language: English/);

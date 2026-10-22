@@ -590,7 +590,8 @@ module.exports = function createFiling(ctx) {
         }
         m.turns.push(turn, { role: 'assistant', text: out.message, questions: out.questions });
         m.areas = out.areas;
-        sendJson(res, 200, out);
+        // the tree too: the page offers it for correcting an area by hand
+        sendJson(res, 200, { ...out, tree: m.tree });
       } finally {
         release();
       }
