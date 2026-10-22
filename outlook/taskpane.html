@@ -172,6 +172,7 @@
     <button type="button" id="mUpdate" data-t="עדכון">עדכון</button>
     <button type="button" id="linkOpen" data-t="קשר את השרשור למשימה">קשר את השרשור למשימה</button>
     <button type="button" id="mAttach" data-t="צירוף">צירוף</button>
+    <button type="button" id="mFile" data-t="תייק בתיקיית הפרויקט">תייק בתיקיית הפרויקט</button>
     <button type="button" id="mExec" hidden data-t="פריט ביצוע">פריט ביצוע</button>
   </div>
 
@@ -185,6 +186,18 @@
     <div class="row" style="margin-block-start:8px">
       <button class="primary" type="button" id="aOk" data-t="צרף">צרף</button>
       <button type="button" id="aCancel" data-t="ביטול">ביטול</button>
+    </div>
+  </div>
+
+  <!-- the email's files into the project's folder on the office network, through the helper on this PC (tools/file-helper) -->
+  <div class="card" id="fileForm" hidden>
+    <h2 data-t="תיוק בתיקיית הפרויקט">תיוק בתיקיית הפרויקט</h2>
+    <div class="hint" data-t="הקבצים יישמרו בתיקיית הפרויקט ברשת המשרד, דרך חלון שייפתח במחשב שלך.">הקבצים יישמרו בתיקיית הפרויקט ברשת המשרד, דרך חלון שייפתח במחשב שלך.</div>
+    <div id="fileList" style="display:flex;flex-direction:column;gap:4px;margin-block-start:8px"></div>
+    <div class="hint" id="fileState"></div>
+    <div class="row" style="margin-block-start:8px">
+      <button class="primary" type="button" id="fOk" data-t="תייק">תייק</button>
+      <button type="button" id="fCancel" data-t="ביטול">ביטול</button>
     </div>
   </div>
 
@@ -390,6 +403,18 @@ var HE_EN = {
   // status names that ship with the hub (as in i18n-dict.js)
   'חסר': 'Missing', 'בעבודה': 'In work', 'נשלח': 'Sent', 'יש הערות': 'Has comments', 'עדכון': 'Update', 'מאושר': 'Approved',
   'תקוע': 'Stuck', 'בוצע': 'Done', 'לא התחיל': 'Not started', 'התייחסות': 'Response', 'עבודה': 'Work',
+  'תייק בתיקיית הפרויקט': 'File in the project folder',
+  'תיוק בתיקיית הפרויקט': 'Filing in the project folder',
+  'הקבצים יישמרו בתיקיית הפרויקט ברשת המשרד, דרך חלון שייפתח במחשב שלך.': 'The files are saved in the project folder on the office network, through a window that opens on your computer.',
+  'תייק': 'File',
+  'מעלה {i} מתוך {n}…': 'Uploading {i} of {n}…',
+  'חלון התיוק ייפתח במחשב שלך בעוד רגע…': 'The filing window will open on your computer in a moment…',
+  'חלון התיוק נפתח ב-{pc}. ממתין לאישור שלך שם…': 'The filing window opened on {pc}. Waiting for your confirmation there…',
+  'הבקשה פגה. אפשר לנסות שוב.': 'The request has expired. You can try again.',
+  'עוזר התיוק לא פועל במחשב הזה. התקנה: tools\\file-helper\\Install-FileHelper.ps1': 'The filing helper is not running on this computer. To install: tools\\file-helper\\Install-FileHelper.ps1',
+  'תויק קובץ אחד בתיקיית הפרויקט.': 'One file filed in the project folder.',
+  'תויקו {n} קבצים בתיקיית הפרויקט.': '{n} files filed in the project folder.',
+  'נרשם ביומן המשימה המקושרת.': 'Logged on the linked task.',
   'English': 'English',
   'עברית': 'עברית'
 };
@@ -570,7 +595,7 @@ function projectOptions(pid) {
 
 /* ── the free-text box ── */
 var lastText = '', asking = false, undoTimer = null;
-function clearResult() { $('result').hidden = true; $('result').innerHTML = ''; $('updForm').hidden = true; $('newForm').hidden = true; $('attForm').hidden = true; $('execForm').hidden = true; clearInterval(undoTimer); }
+function clearResult() { $('result').hidden = true; $('result').innerHTML = ''; $('updForm').hidden = true; $('newForm').hidden = true; $('attForm').hidden = true; $('fileForm').hidden = true; clearInterval(filePoll); $('execForm').hidden = true; clearInterval(undoTimer); }
 function resultCard(nodes) {
   clearResult();
   var r = $('result');
@@ -689,7 +714,7 @@ function canSaveEml() {
 }
 function safeName(s) { return String(s || 'mail').replace(/[\u0000-\u001f\\/:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'mail'; }
 /* the email and its files as checkboxes; want = { mail, attachments } picks the ticked ones (all when absent) */
-function fileChoices(list, want, withMail) {
+function fileChoices(list, want, withMail, check) {
   list.innerHTML = '';
   var add = function (key, label, ok, why, checked) {
     var row = el('label'); row.style.display = 'flex'; row.style.gap = '6px'; row.style.alignItems = 'center'; row.style.fontSize = '13px'; row.style.color = 'var(--fg)';
@@ -702,12 +727,15 @@ function fileChoices(list, want, withMail) {
   };
   if (withMail && canSaveEml()) add('mail', tx('המייל עצמו (‎.eml)'), true, '', want ? want.mail : true);
   (currentMail.attachments || []).filter(function (a) { return !a.isInline; }).forEach(function (a) {
-    var cloud = a.type === 'cloud';
-    var ok = !cloud && SUPPORTED.test(a.name) && !(a.size > MAX_FILE);
-    var why = cloud ? 'קובץ בענן — לא ניתן לצרף מכאן' : !SUPPORTED.test(a.name) ? 'סוג קובץ לא נתמך' : a.size > MAX_FILE ? 'גדול מדי' : '';
-    add('att:' + a.id, a.name, ok, why, want ? (want.attachments || []).indexOf(a.name) >= 0 : true);
+    var why = (check || attachWhy)(a);
+    add('att:' + a.id, a.name, !why, why, want ? (want.attachments || []).indexOf(a.name) >= 0 : true);
   });
 }
+// why a file cannot go to a task ('' when it can), and why it cannot be filed in the project's folder
+function attachWhy(a) { return a.type === 'cloud' ? 'קובץ בענן — לא ניתן לצרף מכאן' : !SUPPORTED.test(a.name) ? 'סוג קובץ לא נתמך' : a.size > MAX_FILE ? 'גדול מדי' : ''; }
+// anything an email brings, except programs and scripts (filing.js BLOCKED)
+var BLOCKED = /\.(exe|com|bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|msi|msp|scr|lnk|hta|cpl|reg|dll)$/i;
+function fileWhy(a) { return a.type === 'cloud' ? 'קובץ בענן — לא ניתן לצרף מכאן' : BLOCKED.test(a.name) ? 'סוג קובץ לא נתמך' : a.size > MAX_FILE ? 'גדול מדי' : ''; }
 function openAttach(pid, target, proposal) {
   clearResult();
   attTarget = { pid: pid, id: target.id };
@@ -781,6 +809,71 @@ function saveAttach() {
     if (failed.length) { var f = el('div', tx('לא צורפו: {f}', { f: failed.join('; ') })); f.className = 'err'; nodes.push(f); }
     resultCard(nodes);
   }).catch(function (e) { $('aOk').disabled = false; fail(e); });
+}
+
+/* ── filing into the project's folder on the office network: the files wait on the server; the helper running on
+   the person's PC (tools/file-helper) picks the job up, shows Claude's plan and files them; the pane only watches ── */
+var fileJob = null, filePoll = null;
+function openFiling() {
+  var pid = $('project').value;
+  if (!pid) { showErr('appErr', tx('בחר קודם פרויקט')); return; }
+  clearResult();
+  fileJob = null;
+  $('fileState').textContent = '';
+  $('fOk').disabled = false;
+  fileChoices($('fileList'), { mail: false, attachments: (currentMail.attachments || []).map(function (a) { return a.name; }) }, true, fileWhy);
+  $('fileForm').hidden = false;
+}
+function saveFiling() {
+  var pid = $('project').value;
+  var keys = [].slice.call($('fileList').querySelectorAll('input:checked')).map(function (cb) { return cb.value; });
+  if (!keys.length) { $('fileState').textContent = tx('סמן לפחות קובץ אחד'); return; }
+  $('fOk').disabled = true;
+  api('/api/outlook/filing', { mail: mailRef(currentMail), projectId: pid, lang: lang }).then(function (j) {
+    fileJob = j;
+    // one at a time: each file is its own request, within the server's size limit
+    var next = function (i) {
+      if (i >= keys.length) return Promise.resolve();
+      $('fileState').textContent = tx('מעלה {i} מתוך {n}…', { i: i + 1, n: keys.length });
+      return contentOf(keys[i]).then(function (f) {
+        return fetch('/api/outlook/filing-file?id=' + encodeURIComponent(j.id) + '&name=' + encodeURIComponent(f.name), { method: 'POST', headers: { Authorization: 'Bearer ' + getSetting('key'), 'Content-Type': 'application/octet-stream' }, body: f.body })
+          .then(function (r) {
+            if (r.status === 401) { var e = new Error('invalid_key'); e.code = 401; throw e; }
+            if (!r.ok) return r.json().then(function (x) { throw new Error(x.error || r.status); });
+          });
+      }).then(function () { return next(i + 1); });
+    };
+    return next(0);
+  }).then(function () {
+    return api('/api/outlook/filing-ready?id=' + encodeURIComponent(fileJob.id), {});
+  }).then(function () {
+    $('fileState').textContent = tx('חלון התיוק ייפתח במחשב שלך בעוד רגע…');
+    watchFiling();
+  }).catch(function (e) { $('fOk').disabled = false; fail(e); });
+}
+function watchFiling() {
+  clearInterval(filePoll);
+  var started = Date.now();
+  filePoll = setInterval(function () {
+    if (!fileJob) { clearInterval(filePoll); return; }
+    api('/api/outlook/filing-status?id=' + encodeURIComponent(fileJob.id)).then(function (s) {
+      if (s.done) { clearInterval(filePoll); showFiled(s.done); return; }
+      if (s.expired) { clearInterval(filePoll); $('fOk').disabled = false; $('fileState').textContent = tx('הבקשה פגה. אפשר לנסות שוב.'); return; }
+      if (s.handed) $('fileState').textContent = tx('חלון התיוק נפתח ב-{pc}. ממתין לאישור שלך שם…', { pc: s.handed.pc || '?' });
+      else if (Date.now() - started > 15000) $('fileState').textContent = tx('עוזר התיוק לא פועל במחשב הזה. התקנה: tools\\file-helper\\Install-FileHelper.ps1');
+    }).catch(function () {});
+  }, 2000);
+}
+function showFiled(done) {
+  var n = (done.files || []).length;
+  var nodes = [el('div', n === 1 ? tx('תויק קובץ אחד בתיקיית הפרויקט.') : tx('תויקו {n} קבצים בתיקיית הפרויקט.', { n: n }))];
+  (done.files || []).forEach(function (f) {
+    var row = el('div', (f.savedAs || f.name) + ' → ' + (f.dest ? f.dest.replace(/\//g, '\\') : '\\'));
+    row.className = 'meta'; row.setAttribute('data-i18n-skip', '');
+    nodes.push(row);
+  });
+  if (done.taskLogged) nodes.push(el('div', tx('נרשם ביומן המשימה המקושרת.')));
+  resultCard(nodes);
 }
 
 /* ── an execution item: proposed by Claude or opened by hand, written only on "פתח פריט" ── */
@@ -962,6 +1055,9 @@ function init() {
     else openPicker('attach');
   };
   $('aOk').onclick = saveAttach;
+  $('mFile').onclick = openFiling;
+  $('fOk').onclick = saveFiling;
+  $('fCancel').onclick = clearResult;
   $('mExec').onclick = function () { openExec($('project').value, null); };
   $('eOk').onclick = saveExec;
   $('eCancel').onclick = clearResult;
