@@ -1,7 +1,7 @@
 ﻿<# Project Hub — filing helper: the background agent. Started hidden at Windows sign-in (Startup shortcut,
    run-file-helper-agent.vbs). It keeps one request open to the hub (/api/outlook/filing-next, up to 25 seconds,
-   with the person's Outlook add-in key) and, when the person clicks "תייק בתיקיית הפרויקט" in Outlook, receives
-   that job's one-time token and opens the filing window (File-Helper.ps1) with it.
+   with the person's Outlook add-in key) and receives the person's next task from the Outlook pane — pick the project
+   folder, read its tree, open it, or file — with its one-time token, and runs it in Run-Task.ps1.
    One agent per Windows session. Log: %LOCALAPPDATA%\ProjectHub\file-helper.log.
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md
    Saved as UTF-8 with BOM. #>
@@ -13,14 +13,8 @@ $ProgressPreference = 'SilentlyContinue'
 $mutex = New-Object Threading.Mutex($false, 'Local\ProjectHubFileHelperAgent')
 if (-not $mutex.WaitOne(0)) { exit 0 }
 
-$log = Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper.log'
-function Log([string]$Text) {
-  try {
-    if ((Test-Path -LiteralPath $log) -and (Get-Item -LiteralPath $log).Length -gt 200KB) { Remove-Item -LiteralPath $log }
-    Add-Content -LiteralPath $log -Value ('{0:s} {1}' -f (Get-Date), $Text) -Encoding UTF8
-  } catch {}
-}
-$window = Join-Path $PSScriptRoot 'File-Helper.ps1'
+$runner = Join-Path $PSScriptRoot 'Run-Task.ps1'
+function Log([string]$Text) { Write-HelperLog $Text }
 Log 'started'
 while ($true) {
   $cfg = Get-HelperConfig
@@ -30,11 +24,12 @@ while ($true) {
     $uri = $cfg.hub.TrimEnd('/') + '/api/outlook/filing-next?pc=' + [uri]::EscapeDataString($env:COMPUTERNAME)
     $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Headers @{ Authorization = "Bearer $key" } -Uri $uri
     $j = [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray()) | ConvertFrom-Json
-    if ($j.job -and (Test-HelperToken $j.job.token)) {
-      Log "job $($j.job.id)"
-      # -WindowStyle Hidden on Start-Process would hide the filing window too (it inherits the hidden show state);
+    $t = $j.task
+    if ($t -and (Test-TaskKind $t.kind) -and (Test-HelperToken $t.token)) {
+      Log "task $($t.id) $($t.kind)"
+      # -WindowStyle Hidden on Start-Process would hide the folder picker too (it inherits the hidden show state);
       # as powershell.exe's own argument it hides only its console, which may flash for a moment
-      Start-Process powershell.exe -ArgumentList @('-NoProfile', '-STA', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', "`"$window`"", '-Token', $j.job.token)
+      Start-Process powershell.exe -ArgumentList @('-NoProfile', '-STA', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', "`"$runner`"", '-Token', $t.token)
     }
   } catch {
     $code = try { [int]$_.Exception.Response.StatusCode } catch { 0 }

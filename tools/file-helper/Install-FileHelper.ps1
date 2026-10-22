@@ -14,7 +14,9 @@ New-Item -ItemType Directory -Force -Path $dir | Out-Null
 
 # an agent of an earlier install is stopped first, so the new files are the ones that run
 Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -match 'FileHelper-Agent\.ps1' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
-foreach ($f in 'File-Helper.ps1', 'FileHelper.Core.ps1', 'FileHelper-Agent.ps1', 'run-file-helper-agent.vbs') { Copy-Item -LiteralPath (Join-Path $here $f) -Destination $dir -Force }
+foreach ($f in 'Run-Task.ps1', 'FileHelper.Core.ps1', 'FileHelper-Agent.ps1', 'run-file-helper-agent.vbs') { Copy-Item -LiteralPath (Join-Path $here $f) -Destination $dir -Force }
+# the filing window of the first version is gone: everything is in the Outlook pane now
+Remove-Item -LiteralPath (Join-Path $dir 'File-Helper.ps1') -Force -ErrorAction SilentlyContinue
 . (Join-Path $dir 'FileHelper.Core.ps1')
 
 $cfg = Get-HelperConfig
@@ -53,4 +55,4 @@ Start-Process wscript.exe -ArgumentList '//B', '//Nologo', "`"$dir\run-file-help
 
 Say 'הותקן. עוזר התיוק פועל ברקע, ויופעל מחדש בכל כניסה ל-Windows.' 'Installed. The filing helper runs in the background and starts again at every Windows sign-in.'
 if ($cfg.projectsRoot) { Say "תיקיית הפרויקטים במחשב הזה: $($cfg.projectsRoot)" "The projects folder on this computer: $($cfg.projectsRoot)" }
-else { Say 'תיקיית הפרויקטים לא זוהתה. בתיוק הראשון תתבקש לבחור אותה.' 'The projects folder was not found. You will be asked to choose it the first time you file.' }
+else { Say 'תיקיית הפרויקטים לא זוהתה. היא תיקבע בפעם הראשונה שתבחר תיקיית פרויקט מהחלונית של Outlook.' 'The projects folder was not found. It is set the first time you choose a project folder from the Outlook pane.' }

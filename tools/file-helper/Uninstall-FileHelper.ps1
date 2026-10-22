@@ -1,7 +1,7 @@
 ﻿<# Project Hub — filing helper: remove for the current Windows user. Saved as UTF-8 with BOM. #>
 $ErrorActionPreference = 'SilentlyContinue'
-# the background agent, and a filing window that is open
-Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -match 'FileHelper-Agent\.ps1|File-Helper\.ps1' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+# the background agent, and a task that is running (or a filing window of the first version)
+Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -match 'FileHelper-Agent\.ps1|file-helper\\Run-Task\.ps1|File-Helper\.ps1' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 Remove-Item -LiteralPath (Join-Path ([Environment]::GetFolderPath('Startup')) 'Project Hub filing helper.lnk') -Force
 Remove-Item -LiteralPath (Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper') -Recurse -Force
 foreach ($f in 'file-helper.json', 'file-helper.key', 'file-helper.log') { Remove-Item -LiteralPath (Join-Path $env:LOCALAPPDATA "ProjectHub\$f") -Force }

@@ -1,4 +1,5 @@
-﻿<# Project Hub — filing helper: the logic, without windows. Dot-sourced by File-Helper.ps1 and by the tests.
+﻿<# Project Hub — filing helper: the logic, without windows or network. Dot-sourced by the agent, by Run-Task.ps1 and by
+   the tests. The pane asks, the server makes a task (pick / tree / open / file), the agent runs it here.
    Paths inside the project are relative, with "/" between folder names, as the server keeps them; every one is
    checked to stay inside the project folder before anything is done. Nothing here deletes or overwrites.
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md
@@ -7,52 +8,25 @@
 $script:ConfigPath = Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper.json'
 $script:FmProjects = Join-Path $env:LOCALAPPDATA 'FolderManager\projects.json'
 $script:KeyPath = Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper.key'
+$script:LogPath = Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper.log'
 
-# ── texts: Hebrew is the source; English when the pane that opened the job runs in English ──
+# ── texts: Hebrew is the source; English when the pane that made the task runs in English. The helper shows only
+#    the folder picker; everything else is said in the pane. ──
 $script:Lang = 'he'
 $script:EN = @{
-  'תיוק בתיקיית הפרויקט' = 'File in the project folder'
-  'קישור הפרויקט לתיקייה' = 'Link the project to its folder'
-  'הבקשה לא תקינה.' = 'The request is not valid.'
-  'הבקשה פגה. לחץ שוב בחלונית של Outlook.' = 'The request has expired. Click again in the Outlook pane.'
-  'השרת לא זמין: {e}' = 'The server is not available: {e}'
-  'איפה תיקיית הפרויקטים של המשרד ("@Omicron Projects") במחשב הזה?' = 'Where is the office''s projects folder ("@Omicron Projects") on this computer?'
-  'לא מוצאת את תיקיית הפרויקט: {p}' = 'Can''t find the project folder: {p}'
-  'פעם ראשונה בפרויקט {p}: בחר את התיקייה הראשית שלו, וכתוב איך מתייקים בו. זה נשמר בפרויקט ב-Project Hub, לכל המשרד.' = 'First time in project {p}: choose its main folder and write how files are filed in it. This is saved on the project in Project Hub, for the whole office.'
-  'תיקיית הפרויקטים: {r}' = 'Projects folder: {r}'
-  'תיקיית הפרויקט:' = 'Project folder:'
-  'עיון…' = 'Browse…'
-  'הנחיית התיוק של הפרויקט (Claude פועל לפיה):' = 'The project''s filing guide (Claude follows it):'
-  'בחר תיקייה שקיימת בתוך {r}' = 'Choose a folder that exists in {r}'
-  'שמור' = 'Save'
-  'ביטול' = 'Cancel'
-  'תייק' = 'File'
-  'שנה תיקייה / הנחיה' = 'Change folder / guide'
-  'קובץ' = 'File'
-  'תיקייה' = 'Folder'
-  'מאת: {from} · נשלח לתיוק על ידי {by}' = 'From: {from} · sent for filing by {by}'
-  'תיקיית גרסה חדשה' = 'New version folder'
-  'הוסף לתיקייה הקיימת' = 'Add to the existing folder'
-  '(לא נבחרה תיקייה)' = '(no folder chosen)'
-  'אין הצעה — בחר תיקייה בעץ.' = 'No suggestion — choose a folder in the tree.'
-  'Claude לא זמין כרגע — בחר תיקייה בעץ.' = 'Claude is not available right now — choose a folder in the tree.'
-  'תיקייה חדשה: {p}' = 'New folder: {p}'
-  'העברת {a} אל {b}' = 'Move {a} to {b}'
-  'העברת הקבצים מ-{a} אל {b}' = 'Move the files in {a} to {b}'
-  'העתקת {f} אל {d}' = 'Copy {f} to {d}'
-  'תויקו {n} קבצים.' = '{n} files filed.'
-  'תויק קובץ אחד.' = 'One file filed.'
-  'נרשם גם ביומן המשימה המקושרת.' = 'Also logged on the linked task.'
-  'לפתוח את התיקייה?' = 'Open the folder?'
-  'הפעולה נעצרה: {e}' = 'Stopped: {e}'
-  'מה שבוצע עד אז:' = 'Done until then:'
-  'הקבצים תויקו, אבל הרישום ב-Project Hub נכשל: {e}' = 'The files were filed, but recording it in Project Hub failed: {e}'
-  'התכנית לא תקינה ולא בוצע דבר: {e}' = 'The plan is not valid, and nothing was done: {e}'
+  'בחר את התיקייה הראשית של הפרויקט {p}' = 'Choose the main folder of project {p}'
 }
 function T([string]$He, [hashtable]$Slots) {
   $s = if ($script:Lang -eq 'en' -and $script:EN.ContainsKey($He)) { $script:EN[$He] } else { $He }
   if ($Slots) { foreach ($k in $Slots.Keys) { $s = $s.Replace('{' + $k + '}', [string]$Slots[$k]) } }
   return $s
+}
+function Write-HelperLog([string]$Text, [string]$Path = $script:LogPath) {
+  # one line per event, kept under 200 KB; a failure to log never stops anything
+  try {
+    if ((Test-Path -LiteralPath $Path) -and (Get-Item -LiteralPath $Path).Length -gt 200KB) { Remove-Item -LiteralPath $Path }
+    Add-Content -LiteralPath $Path -Value ('{0:s} {1}' -f (Get-Date), $Text) -Encoding UTF8
+  } catch {}
 }
 
 # ── paths inside the project ──
@@ -76,13 +50,6 @@ function Resolve-InProject([string]$Root, [string]$Rel) {
   if (-not $full.StartsWith($rootFull + '\', [StringComparison]::OrdinalIgnoreCase)) { throw "Not inside the project: $Rel" }
   return $full
 }
-function Join-Rel([string[]]$Parts) { return (@($Parts | Where-Object { $_ }) -join '/') }
-function Split-Rel([string]$Rel) {
-  $i = $Rel.LastIndexOf('/')
-  if ($i -lt 0) { return @('', $Rel) }
-  return @($Rel.Substring(0, $i), $Rel.Substring($i + 1))
-}
-
 # ── the project's folders: names only, breadth first (parents before children) ──
 function Get-FolderTree([string]$Root, [int]$MaxDepth = 5, [int]$Max = 3000) {
   $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd('\')
@@ -102,17 +69,7 @@ function Get-FolderTree([string]$Root, [int]$MaxDepth = 5, [int]$Max = 3000) {
   return ,$out.ToArray()
 }
 
-# ── version folders (…-vNN) ──
-function Get-VersionInfo([string]$Name) {
-  if ($Name -match '^(.*[-_ ]v)(\d{1,3})$') { return @{ Prefix = $Matches[1]; Number = [int]$Matches[2]; Digits = $Matches[2].Length } }
-  return $null
-}
-function Get-VersionSiblings([string]$ParentFull, [string]$Prefix) {
-  # the version folders with this prefix in a folder, lowest first
-  return @([IO.Directory]::GetDirectories($ParentFull) | ForEach-Object { Split-Path $_ -Leaf } |
-    Where-Object { $_.StartsWith($Prefix, [StringComparison]::OrdinalIgnoreCase) -and $_.Substring($Prefix.Length) -match '^\d{1,3}$' } |
-    Sort-Object { [int]$_.Substring($Prefix.Length) })
-}
+# ── a file name that is free in a folder: "a.pdf", else "a (2).pdf", "a (3).pdf"… ──
 function Get-FreeName([string]$Dir, [string]$Name) {
   if (-not (Test-Path -LiteralPath (Join-Path $Dir $Name))) { return $Name }
   $base = [IO.Path]::GetFileNameWithoutExtension($Name); $ext = [IO.Path]::GetExtension($Name)
@@ -120,58 +77,6 @@ function Get-FreeName([string]$Dir, [string]$Name) {
 }
 
 # ── the plan ──
-function Copy-Plan($Plan) { return ($Plan | ConvertTo-Json -Depth 8 | ConvertFrom-Json) }
-function Set-PlanMode([string]$Root, $Original, [string]$Mode) {
-  # Claude's plan in its own mode is kept as it is. The other mode is worked out from the folders: "existing" puts
-  # files bound for a version folder (…-vNN) in the highest one there; "new-version" makes the next one first.
-  # Claude's refresh steps (move-contents) are kept, and so are its new folders that files still go to (a file bound
-  # for a version folder where there is none yet keeps its folder, and the folder is still made).
-  $p = Copy-Plan $Original
-  if ($Original.mode -eq $Mode) { return $p }
-  $made = @{}
-  $first = @()
-  foreach ($f in @($p.files)) {
-    if (-not $f.dest) { continue }
-    $parent, $leaf = Split-Rel $f.dest
-    $v = Get-VersionInfo $leaf
-    if (-not $v) { continue }
-    $parentFull = Resolve-InProject $Root $parent
-    if (-not (Test-Path -LiteralPath $parentFull)) { continue }
-    $sibs = @(Get-VersionSiblings $parentFull $v.Prefix)
-    $high = if ($sibs.Count) { $sibs[-1] } else { $null }
-    if ($Mode -eq 'existing') { if ($high) { $f.dest = Join-Rel @($parent, $high) }; continue }
-    $n = if ($high) { [int]$high.Substring($v.Prefix.Length) + 1 } else { 1 }
-    $new = Join-Rel @($parent, ($v.Prefix + $n.ToString('D' + [Math]::Max(2, $v.Digits))))
-    $f.dest = $new
-    if (-not $made[$new]) { $made[$new] = $true; $first += [pscustomobject]@{ op = 'mkdir'; path = $new; from = ''; to = '' } }
-  }
-  $dests = @(@($p.files) | Where-Object { $_.dest } | ForEach-Object { $_.dest + '/' })
-  $steps = @(foreach ($s in @($p.steps)) {
-    if (-not $s) { continue }
-    if ($s.op -eq 'move-contents') { $s; continue }
-    if ($s.op -ne 'mkdir' -or $made[$s.path]) { continue }
-    $under = $s.path + '/'
-    if (@($dests | Where-Object { $_.StartsWith($under, [StringComparison]::OrdinalIgnoreCase) }).Count) { $s }
-  })
-  $p.steps = @($first) + $steps
-  $p.mode = $Mode
-  return $p
-}
-function Get-PlanLines($Plan) {
-  # the plan in words, for the window: the steps, then the copies
-  $w = { param($r) if ($r -eq '') { '\' } else { $r -replace '/', '\' } }
-  $out = @()
-  foreach ($s in @($Plan.steps)) {
-    if (-not $s) { continue }
-    switch ($s.op) {
-      'mkdir' { $out += T 'תיקייה חדשה: {p}' @{ p = (& $w $s.path) } }
-      'move' { $out += T 'העברת {a} אל {b}' @{ a = (& $w $s.from); b = (& $w $s.to) } }
-      'move-contents' { $out += T 'העברת הקבצים מ-{a} אל {b}' @{ a = (& $w $s.from); b = (& $w $s.to) } }
-    }
-  }
-  foreach ($f in @($Plan.files)) { if ($null -ne $f.dest) { $out += T 'העתקת {f} אל {d}' @{ f = $f.name; d = (& $w $f.dest) } } }
-  return ,$out
-}
 function Invoke-FilingPlan([string]$Root, $Plan, [string]$SourceDir) {
   # Every path is checked first (a bad one throws before anything is done); then the steps in order, then the
   # copies. Nothing is deleted or overwritten. Returns what was done, and the error when it stopped part way.
@@ -279,4 +184,67 @@ function Get-HelperConfig([string]$Path = $script:ConfigPath) {
 function Save-HelperConfig($Config, [string]$Path = $script:ConfigPath) {
   New-Item -ItemType Directory -Force -Path (Split-Path $Path -Parent) | Out-Null
   [IO.File]::WriteAllText($Path, ($Config | ConvertTo-Json), (New-Object Text.UTF8Encoding $false))
+}
+
+# ── the tasks the server hands this PC (Run-Task.ps1 does the network and the window) ──
+function Test-TaskKind([string]$Kind) { return $Kind -in @('pick', 'tree', 'open', 'file') }
+function Get-ProjectDir([string]$ProjectsRoot, [string]$Folder) {
+  # the project's folder on this PC, or $null when it is not here (or the name is not a single folder name)
+  if (-not $ProjectsRoot -or -not $Folder) { return $null }
+  $f = ConvertTo-RelPath $Folder
+  if (-not $f -or $f.Contains('/')) { return $null }
+  $full = Join-Path $ProjectsRoot $f
+  if (Test-Path -LiteralPath $full -PathType Container) { return $full }
+  return $null
+}
+function Resolve-ProjectsRoot($Config, [string]$ProjectsJson = $script:FmProjects, [string]$ConfigPath = $script:ConfigPath) {
+  # where "@Omicron Projects" is on this PC: as kept, else from Folder Manager's list (then kept), else $null
+  if ($Config.projectsRoot -and (Test-Path -LiteralPath $Config.projectsRoot -PathType Container)) { return [string]$Config.projectsRoot }
+  $found = Find-ProjectsRoot $ProjectsJson
+  if ($found) { $Config.projectsRoot = $found; Save-HelperConfig $Config $ConfigPath }
+  return $found
+}
+function Invoke-PickTask($Config, $Task, [scriptblock]$Picker, [string]$ProjectsJson = $script:FmProjects, [string]$ConfigPath = $script:ConfigPath) {
+  # The picker gets where to start (the projects folder, or '' when this PC has none yet) and the folder to preselect
+  # (the project's folder, else the best guess, else $null), and returns the chosen folder's full path or $null.
+  # A folder that is not directly in the projects folder makes its parent this PC's projects folder.
+  $root = Resolve-ProjectsRoot $Config $ProjectsJson $ConfigPath
+  $suggested = $null
+  if ($root) {
+    $suggested = Get-ProjectDir $root $Task.folder
+    if (-not $suggested) {
+      $cands = Find-ProjectFolder $root $Task.project.code $Task.project.name $ProjectsJson
+      $guess = @($cands | Where-Object { Get-ProjectDir $root $_ })
+      if ($guess.Count) { $suggested = Join-Path $root $guess[0] }
+    }
+  }
+  $full = & $Picker $(if ($root) { $root } else { '' }) $suggested
+  if (-not $full) { return @{ cancelled = $true } }
+  $full = [IO.Path]::GetFullPath([string]$full).TrimEnd('\')
+  $parent = Split-Path $full -Parent
+  if (-not $parent) { throw "Not a project folder: $full" }
+  $leaf = Split-Path $full -Leaf
+  $same = $root -and ([IO.Path]::GetFullPath($root).TrimEnd('\') -ieq $parent.TrimEnd('\'))
+  if (-not $same) { $Config.projectsRoot = $parent; Save-HelperConfig $Config $ConfigPath }
+  return @{ picked = $leaf }
+}
+function Get-TreeResult([string]$ProjectsRoot, [string]$Folder) {
+  $dir = Get-ProjectDir $ProjectsRoot $Folder
+  if (-not $dir) { return @{ missing = $true } }
+  return @{ tree = (Get-FolderTree $dir) }
+}
+function Get-OpenTarget([string]$ProjectsRoot, [string]$Folder, [string]$Rel) {
+  # the folder to open, or $null when it is not on this PC; a path that leaves the project throws
+  $dir = Get-ProjectDir $ProjectsRoot $Folder
+  if (-not $dir) { return $null }
+  $full = Resolve-InProject $dir $Rel
+  if (Test-Path -LiteralPath $full -PathType Container) { return $full }
+  return $null
+}
+function Invoke-FileTask([string]$ProjectsRoot, $Task, [string]$SourceDir) {
+  # the confirmed plan, carried out; the files are in $SourceDir as "<n>". A bad path stops it before anything is done.
+  $dir = Get-ProjectDir $ProjectsRoot $Task.folder
+  if (-not $dir) { return @{ missing = $true } }
+  try { $r = Invoke-FilingPlan $dir $Task.plan $SourceDir } catch { return @{ files = @(); error = $_.Exception.Message } }
+  return @{ files = @($r.files); error = $r.error }
 }

@@ -30,55 +30,19 @@ try {
   Check 'tree: depth limit' (-not ((Get-FolderTree $root 2) -contains 'CONS/S/plans'))
   Check 'tree: count limit' ((Get-FolderTree $root 5 3).Count -eq 3)
 
-  # versions
-  $v = Get-VersionInfo 'S-plans-v02'
-  Check 'version: prefix and number' ($v.Prefix -eq 'S-plans-v' -and $v.Number -eq 2)
-  Check 'version: not one' ($null -eq (Get-VersionInfo 'S-plans-@ver'))
-  Check 'version: siblings in order' (((@(Get-VersionSiblings (Join-Path $root 'CONS\S\plans') 'S-plans-v')) -join ',') -eq 'S-plans-v01,S-plans-v02')
-
   # free names
   Check 'free name: as is' ((Get-FreeName (Join-Path $root 'CONS\S\docs') 'b.pdf') -eq 'b.pdf')
   Check 'free name: (2)' ((Get-FreeName (Join-Path $root 'CONS\S\docs') 'a.pdf') -eq 'a (2).pdf')
 
-  # modes: Claude said a new version; "existing" is the highest there; back restores Claude's plan
-  $claude = [pscustomobject]@{
-    files = @([pscustomobject]@{ n = 0; name = 'K.pdf'; dest = 'CONS/S/plans/S-plans-v03' })
-    steps = @([pscustomobject]@{ op = 'mkdir'; path = 'CONS/S/plans/S-plans-v03'; from = ''; to = '' },
-              [pscustomobject]@{ op = 'move-contents'; path = ''; from = 'CONS/S/plans/S-updated-PDF'; to = 'CONS/S/plans/S-plans-@ver' })
-    mode = 'new-version'; why = ''
-  }
-  $old = Set-PlanMode $root $claude 'existing'
-  Check 'mode existing: highest folder' ($old.files[0].dest -eq 'CONS/S/plans/S-plans-v02')
-  Check 'mode existing: only the refresh step stays' (((@($old.steps) | ForEach-Object { $_.op }) -join ',') -eq 'move-contents')
-  $back = Set-PlanMode $root $claude 'new-version'
-  Check 'mode back: Claude''s plan' ($back.files[0].dest -eq 'CONS/S/plans/S-plans-v03' -and @($back.steps).Count -eq 2)
-  # Claude said existing; "new-version" is the next number, made first
-  $claude2 = [pscustomobject]@{ files = @([pscustomobject]@{ n = 0; name = 'K.pdf'; dest = 'CONS/S/plans/S-plans-v02' }); steps = @(); mode = 'existing'; why = '' }
-  $nv = Set-PlanMode $root $claude2 'new-version'
-  Check 'mode new: next number' ($nv.files[0].dest -eq 'CONS/S/plans/S-plans-v03')
-  Check 'mode new: mkdir' (((@($nv.steps) | ForEach-Object { $_.op + ' ' + $_.path }) -join ',') -eq 'mkdir CONS/S/plans/S-plans-v03')
-
-  # "existing" where there is no version folder yet: the file keeps Claude's folder, and it is still made
-  $first = [pscustomobject]@{
-    files = @([pscustomobject]@{ n = 0; name = 'D.pdf'; dest = 'CONS/S/docs/D-v01' })
-    steps = @([pscustomobject]@{ op = 'mkdir'; path = 'CONS/S/docs/D-v01'; from = ''; to = '' })
-    mode = 'new-version'; why = ''
-  }
-  $ex = Set-PlanMode $root $first 'existing'
-  Check 'mode existing, no versions yet: same folder' ($ex.files[0].dest -eq 'CONS/S/docs/D-v01')
-  Check 'mode existing, no versions yet: still made' (((@($ex.steps) | ForEach-Object { $_.op + ' ' + $_.path }) -join ',') -eq 'mkdir CONS/S/docs/D-v01')
-
-  # what the window lists
-  $lines = Get-PlanLines $claude
-  Check 'lines: steps then copies' ($lines.Count -eq 3 -and $lines[2] -like '*K.pdf*CONS\S\plans\S-plans-v03*')
-
   # carrying out a plan
+  $refresh = @([pscustomobject]@{ op = 'mkdir'; path = 'CONS/S/plans/S-plans-v03'; from = ''; to = '' },
+               [pscustomobject]@{ op = 'move-contents'; path = ''; from = 'CONS/S/plans/S-updated-PDF'; to = 'CONS/S/plans/S-plans-@ver' })
   $src = New-TempDir
   Set-Content -Path (Join-Path $src '0') -Value 'new K'
   Set-Content -Path (Join-Path $src '1') -Value 'new a'
   $plan = [pscustomobject]@{
     files = @([pscustomobject]@{ n = 0; name = 'K.pdf'; dest = 'CONS/S/plans/S-plans-v03' }, [pscustomobject]@{ n = 1; name = 'a.pdf'; dest = 'CONS/S/docs' }, [pscustomobject]@{ n = 2; name = 'skip.pdf'; dest = $null })
-    steps = $claude.steps; mode = 'new-version'; why = ''
+    steps = $refresh; mode = 'new-version'
   }
   $r = Invoke-FilingPlan $root $plan $src
   Check 'run: no error' ($null -eq $r.error)
@@ -87,11 +51,11 @@ try {
   Check 'run: refresh moved the old files' ((Test-Path (Join-Path $root 'CONS\S\plans\S-plans-@ver\old.pdf')) -and -not (Test-Path (Join-Path $root 'CONS\S\plans\S-updated-PDF\old.pdf')))
   Check 'run: reports what it did' (((@($r.files) | ForEach-Object { $_.savedAs }) -join ',') -eq 'K.pdf,a (2).pdf')
   # a bad path anywhere: nothing at all is done
-  $bad = [pscustomobject]@{ files = @([pscustomobject]@{ n = 0; name = 'K.pdf'; dest = 'CONS/new' }); steps = @([pscustomobject]@{ op = 'mkdir'; path = 'CONS/made'; from = ''; to = '' }, [pscustomobject]@{ op = 'mkdir'; path = '../out'; from = ''; to = '' }); mode = 'existing'; why = '' }
+  $bad = [pscustomobject]@{ files = @([pscustomobject]@{ n = 0; name = 'K.pdf'; dest = 'CONS/new' }); steps = @([pscustomobject]@{ op = 'mkdir'; path = 'CONS/made'; from = ''; to = '' }, [pscustomobject]@{ op = 'mkdir'; path = '../out'; from = ''; to = '' }); mode = 'existing' }
   Check 'run: a bad path throws' (Throws { Invoke-FilingPlan $root $bad $src })
   Check 'run: ...before anything' (-not (Test-Path (Join-Path $root 'CONS\made')))
   # a move onto a folder that is there: stops, says what was done
-  $clash = [pscustomobject]@{ files = @(); steps = @([pscustomobject]@{ op = 'mkdir'; path = 'CONS/x1'; from = ''; to = '' }, [pscustomobject]@{ op = 'move'; path = ''; from = 'CONS/S/docs'; to = 'יועצים' }); mode = 'existing'; why = '' }
+  $clash = [pscustomobject]@{ files = @(); steps = @([pscustomobject]@{ op = 'mkdir'; path = 'CONS/x1'; from = ''; to = '' }, [pscustomobject]@{ op = 'move'; path = ''; from = 'CONS/S/docs'; to = 'יועצים' }); mode = 'existing' }
   $r2 = Invoke-FilingPlan $root $clash $src
   Check 'run: stops on a clash' ($r2.error -and @($r2.steps).Count -eq 1)
   Remove-Item -LiteralPath $src -Recurse -Force
@@ -105,10 +69,12 @@ try {
   $cands = Find-ProjectFolder $p1 'TASC' 'Tel Aviv School' $fm
   Check 'project folder: from Folder Manager by code' ($cands[0] -eq 'S')
 
-  # the job's token, as the agent passes it on a command line
+  # the task's token, as the agent passes it on a command line
   Check 'token: plain' (Test-HelperToken ('a' * 43))
   Check 'token: refuses anything else' (-not (Test-HelperToken 'abc" & calc'))
   Check 'token: refuses empty' (-not (Test-HelperToken ''))
+  Check 'kind: known' ((Test-TaskKind 'pick') -and (Test-TaskKind 'tree') -and (Test-TaskKind 'open') -and (Test-TaskKind 'file'))
+  Check 'kind: anything else' (-not (Test-TaskKind 'job') -and -not (Test-TaskKind ''))
 
   # the personal key, kept with DPAPI
   $keyPath = Join-Path $root 'cfg\file-helper.key'
@@ -124,12 +90,81 @@ try {
   $c.projectsRoot = 'P:\@Omicron Projects'; Save-HelperConfig $c $cfgPath
   Check 'config: saved' ((Get-HelperConfig $cfgPath).projectsRoot -eq 'P:\@Omicron Projects')
 
+  # ── the tasks ──
+  # a projects folder with two projects, and another one elsewhere
+  $projects = Join-Path $root 'Projects'
+  foreach ($d in '2026-05-20-26 - Tel Aviv School\CONS\S', '2026-01-01-01 - Other', 'Elsewhere\2030-01-01 - Far') { New-Item -ItemType Directory -Force -Path (Join-Path $projects $d) | Out-Null }
+  $school = '2026-05-20-26 - Tel Aviv School'
+  $noFm = Join-Path $root 'no-fm.json'
+  $tcfgPath = Join-Path $root 'cfg\task.json'
+  $task = [pscustomobject]@{ kind = 'pick'; lang = 'he'; project = [pscustomobject]@{ id = 'p1'; code = 'TASC'; name = 'Tel Aviv School' }; folder = '' }
+
+  # pick: the picker starts in the projects folder with the best guess, and the leaf comes back
+  $seen = @{}
+  $tcfg = [pscustomobject]@{ hub = 'https://x'; projectsRoot = $projects }
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) $seen.start = $Start; $seen.suggested = $Suggested; return (Join-Path $projects $school) } $noFm $tcfgPath
+  Check 'pick: starts in the projects folder' ($seen.start -eq $projects)
+  Check 'pick: suggests the project by name' ($seen.suggested -eq (Join-Path $projects $school))
+  Check 'pick: the folder name' ($res.picked -eq $school -and -not $res.cancelled)
+  Check 'pick: inside the projects folder, nothing saved' (-not (Test-Path -LiteralPath $tcfgPath) -and $tcfg.projectsRoot -eq $projects)
+  # the folder the project already has is the suggestion
+  $task2 = [pscustomobject]@{ kind = 'pick'; lang = 'he'; project = [pscustomobject]@{ id = 'p1'; code = 'ZZZ'; name = 'Nothing' }; folder = '2026-01-01-01 - Other' }
+  [void](Invoke-PickTask $tcfg $task2 { param($Start, $Suggested) $seen.suggested2 = $Suggested; return $null } $noFm $tcfgPath)
+  Check 'pick: the current folder is suggested' ($seen.suggested2 -eq (Join-Path $projects '2026-01-01-01 - Other'))
+  # picked elsewhere: the projects folder of this PC moves to the pick's parent, and is saved
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return (Join-Path $projects 'Elsewhere\2030-01-01 - Far') } $noFm $tcfgPath
+  Check 'pick: outside, the folder name' ($res.picked -eq '2030-01-01 - Far')
+  Check 'pick: outside, projectsRoot moves' ($tcfg.projectsRoot -eq (Join-Path $projects 'Elsewhere') -and (Get-HelperConfig $tcfgPath).projectsRoot -eq (Join-Path $projects 'Elsewhere'))
+  # cancelled
+  $tcfg = [pscustomobject]@{ hub = 'https://x'; projectsRoot = $projects }
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return $null } $noFm $tcfgPath
+  Check 'pick: cancelled' ($res.cancelled -eq $true -and -not $res.picked)
+  # no projects folder known yet: no start, and the first pick sets it
+  Remove-Item -LiteralPath $tcfgPath -ErrorAction SilentlyContinue
+  $tcfg = [pscustomobject]@{ hub = 'https://x'; projectsRoot = '' }
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) $seen.start3 = $Start; $seen.suggested3 = $Suggested; return (Join-Path $projects $school) } $noFm $tcfgPath
+  Check 'pick: no projects folder yet, no start' (-not $seen.start3 -and -not $seen.suggested3)
+  Check 'pick: no projects folder yet, the first pick sets it' ($res.picked -eq $school -and (Get-HelperConfig $tcfgPath).projectsRoot -eq $projects)
+  # a drive's root is no project folder
+  Check 'pick: a drive root throws' (Throws { Invoke-PickTask $tcfg $task { param($Start, $Suggested) return 'C:\' } $noFm $tcfgPath })
+
+  # tree
+  $res = Get-TreeResult $projects $school
+  Check 'tree task: the folders' ((@($res.tree) -contains 'CONS/S') -and -not $res.missing)
+  Check 'tree task: missing folder' ((Get-TreeResult $projects 'No Such').missing -eq $true)
+  Check 'tree task: no projects folder' ((Get-TreeResult '' $school).missing -eq $true)
+  Check 'tree task: no project folder' ((Get-TreeResult $projects '').missing -eq $true)
+  Check 'tree task: a path is no folder name' ((Get-TreeResult $projects '..').missing -eq $true -and (Get-TreeResult $projects "$school/CONS").missing -eq $true)
+
+  # open
+  Check 'open: the project folder' ((Get-OpenTarget $projects $school '') -eq (Join-Path $projects $school))
+  Check 'open: a folder inside' ((Get-OpenTarget $projects $school 'CONS/S') -eq (Join-Path $projects "$school\CONS\S"))
+  Check 'open: missing project' ($null -eq (Get-OpenTarget $projects 'No Such' ''))
+  Check 'open: missing folder inside' ($null -eq (Get-OpenTarget $projects $school 'CONS/none'))
+  Check 'open: outside is refused' (Throws { Get-OpenTarget $projects $school '../2026-01-01-01 - Other' })
+
+  # file
+  $src = New-TempDir
+  Set-Content -Path (Join-Path $src '0') -Value 'K'
+  $ftask = [pscustomobject]@{ kind = 'file'; folder = $school; files = @([pscustomobject]@{ n = 0; name = 'K.pdf'; size = 2 })
+    plan = [pscustomobject]@{ files = @([pscustomobject]@{ n = 0; name = 'K.pdf'; dest = 'CONS/S/v01' }); steps = @([pscustomobject]@{ op = 'mkdir'; path = 'CONS/S/v01'; from = ''; to = '' }); mode = 'new-version' } }
+  $res = Invoke-FileTask $projects $ftask $src
+  Check 'file: filed' ((Test-Path (Join-Path $projects "$school\CONS\S\v01\K.pdf")) -and -not $res.error -and -not $res.missing)
+  Check 'file: reports the files' (@($res.files).Count -eq 1 -and @($res.files)[0].dest -eq 'CONS/S/v01' -and @($res.files)[0].savedAs -eq 'K.pdf')
+  $ftask.folder = 'No Such'
+  Check 'file: missing folder' ((Invoke-FileTask $projects $ftask $src).missing -eq $true)
+  $ftask.folder = $school
+  $ftask.plan = [pscustomobject]@{ files = @([pscustomobject]@{ n = 0; name = 'K.pdf'; dest = 'CONS/new' }); steps = @([pscustomobject]@{ op = 'mkdir'; path = 'CONS/made'; from = ''; to = '' }, [pscustomobject]@{ op = 'mkdir'; path = '../out'; from = ''; to = '' }); mode = 'existing' }
+  $res = Invoke-FileTask $projects $ftask $src
+  Check 'file: a bad path is an error' ($res.error -and @($res.files).Count -eq 0 -and -not $res.missing)
+  Check 'file: ...and nothing was done' (-not (Test-Path (Join-Path $projects "$school\CONS\made")) -and -not (Test-Path (Join-Path $projects "$school\CONS\new")))
+  Remove-Item -LiteralPath $src -Recurse -Force
+
   # texts
   $script:Lang = 'en'
-  Check 'text: English' ((T 'ביטול') -eq 'Cancel')
-  Check 'text: slots' ((T 'העתקת {f} אל {d}' @{ f = 'K.pdf'; d = 'X' }) -eq 'Copy K.pdf to X')
+  Check 'text: English' ((T 'בחר את התיקייה הראשית של הפרויקט {p}' @{ p = 'TASC' }) -eq 'Choose the main folder of project TASC')
   $script:Lang = 'he'
-  Check 'text: Hebrew' ((T 'ביטול') -eq 'ביטול')
+  Check 'text: Hebrew' ((T 'בחר את התיקייה הראשית של הפרויקט {p}' @{ p = 'TASC' }) -eq 'בחר את התיקייה הראשית של הפרויקט TASC')
 } finally { Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue }
 
 Write-Host "$script:pass passed, $script:fail failed"
