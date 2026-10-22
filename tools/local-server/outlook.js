@@ -513,7 +513,17 @@ module.exports = function createOutlook(ctx) {
   /* the Hub page's snapshot of a project's register contacts, for the filing (signed in; see filing.js) */
   const handleContacts = (req, res, url, user) => filing.handleContacts(req, res, url, user);
 
-  return { handlePublic, handleConnection, handleContacts, health, logScanned };
+  /* the project's folder, its map and its guide, on the Hub page's project settings (signed in; see filing.js) */
+  function handleHub(req, res, url, user) {
+    filing.handleHub(req, res, url, user, baseOf(req)).catch(e => {
+      if (e instanceof mcp.ToolError) { sendJson(res, /viewer/.test(e.message) ? 403 : 400, { error: e.message }); return; }
+      if (e instanceof SyntaxError) { sendJson(res, 400, { error: 'Invalid JSON' }); return; }
+      console.error('filing hub:', e);
+      sendJson(res, 500, { error: e.message });
+    });
+  }
+
+  return { handlePublic, handleConnection, handleContacts, handleHub, health, logScanned };
 };
 module.exports.threadKeyOf = threadKeyOf;
 module.exports.guessProject = guessProject;

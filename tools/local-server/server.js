@@ -498,6 +498,8 @@ function handleRequest(req, res) {
     outlook.handleContacts(req, res, url, user).catch(e => sendJson(res, e instanceof SyntaxError ? 400 : 500, { error: e.message }));
     return;
   }
+  // the project's folder on the office network and its folder map, on the project settings (filing.js)
+  if (url.pathname.startsWith('/api/filing-hub/')) { outlook.handleHub(req, res, url, user); return; }
   if (url.pathname === '/api/snip' && SITE_MODE === 'local') { handleSnip(req, res); return; }
   if (url.pathname === '/api/projects' && req.method === 'GET') {
     handleProjectList(res);
