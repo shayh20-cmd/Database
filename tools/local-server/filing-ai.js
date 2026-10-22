@@ -114,7 +114,10 @@ function sanitizePlan(raw, tree, fileNames) {
    contacts [{name, role, firm, emails[]}], mail {from, subject, body}, files [{name}],
    turns [{role: 'user'|'assistant', text}] (the conversation so far, the person's latest turn last), lang } */
 function userContent(x) {
-  const t = v => String(v == null ? '' : v).replace(/<\/?(email|guide|contacts)>/gi, '');
+  // a data tag goes from every field, however it is spelled (spaces, capitals, a line break, attributes)
+  const t = v => String(v == null ? '' : v).replace(/<\s*\/?\s*(email|guide|contacts)\b[^>]*>/gi, '');
+  // fields that are one line in the prompt: a line break in them cannot start a line of its own
+  const line = v => t(v).replace(/[\r\n]+/g, ' ');
   const contacts = (x.contacts || []).map(c => `- ${t(c.name)} | ${t(c.role)} | ${t(c.firm)} | ${(c.emails || []).map(t).join(', ')}`);
   const turns = (x.turns || []).map(u => u.role === 'assistant' ? 'You: ' + t(u.text) : 'Person: ' + (t(u.text).trim() ? t(u.text) : '(propose a filing)'));
   const last = (x.turns || []).slice(-1)[0];
@@ -127,12 +130,12 @@ function userContent(x) {
     'Folders (relative to the project folder):',
     ...(x.tree.length ? x.tree.map(p => '- ' + t(p)) : ['(none)']),
     'Past filings in this project, newest first (sender | file | folder | mode):',
-    ...(x.log.length ? x.log.map(l => `- ${t(l.from)} | ${t(l.file)} | ${t(l.dest)} | ${t(l.mode)}`) : ['(none)']),
+    ...(x.log.length ? x.log.map(l => `- ${line(l.from)} | ${line(l.file)} | ${line(l.dest)} | ${line(l.mode)}`) : ['(none)']),
     '<contacts>', ...(contacts.length ? contacts : ['(none)']), '</contacts>',
     '',
     '<email>',
-    'From: ' + t(mail.from),
-    'Subject: ' + t(mail.subject),
+    'From: ' + line(mail.from),
+    'Subject: ' + line(mail.subject),
     'Body:', t(String(mail.body == null ? '' : mail.body).slice(0, 1500)),
     'Files: ' + x.files.map(f => t(f.name)).join(', '),
     '</email>',

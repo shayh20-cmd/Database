@@ -977,7 +977,8 @@ function pickFolder() {
   fHint(tx('בורר התיקיות ייפתח במחשב שלך בעוד רגע…'));
   api('/api/outlook/filing-pick', { projectId: fProj.pid, lang: lang }).then(function (j) {
     watchTask(j.taskId, {
-      limit: 120000, say: fHint,
+      // the server gives the person 10 minutes from when the picker opens on the PC (up to 2 minutes after the request)
+      limit: 12 * 60 * 1000, say: fHint,
       handed: function (pc) { fHint(tx('בורר התיקיות נפתח ב-{pc}…', { pc: pc })); },
       done: function (r) {
         if (r && r.picked) { fProj.folder = r.picked; fHint(''); }
@@ -1050,6 +1051,8 @@ function proposeFiling(fromFix) {
   }).then(function (r) {
     if (!r || gen !== fGen) return;
     setFBusy(false); fState('');
+    // a correction that brought no new proposal: the server dropped the previous plan, so it cannot be confirmed
+    if (text && fJob && fJob.proposed && !r.plan) { fPlan = null; renderConv(); }
     if (r.needsFolder) { needFolder(); return; }
     if (r.agent === 'none') { fState(tx(HELPER_OFF)); return; }
     if (r.agent === 'slow') { fState(tx('עוזר התיוק לא הספיק לקרוא את התיקיות. נסה שוב.')); return; }
@@ -1068,6 +1071,7 @@ function proposeFiling(fromFix) {
     setFBusy(false); fState('');
     if (e.message === 'busy') { fState(tx('בקשה קודמת עדיין בטיפול. רגע…')); return; }
     if (/^(expired|confirmed|started|no_filing)$/.test(e.message)) { fJob = null; renderConv(); fState(tx('הבקשה פגה. אפשר לנסות שוב.')); return; }
+    if (text && fPlan) { fPlan = null; renderConv(); } // the correction may have reached the server, which then dropped the plan
     fail(e);
   });
 }

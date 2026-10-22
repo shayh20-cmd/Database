@@ -207,7 +207,10 @@ function Resolve-ProjectsRoot($Config, [string]$ProjectsJson = $script:FmProject
 function Invoke-PickTask($Config, $Task, [scriptblock]$Picker, [string]$ProjectsJson = $script:FmProjects, [string]$ConfigPath = $script:ConfigPath) {
   # The picker gets where to start (the projects folder, or '' when this PC has none yet) and the folder to preselect
   # (the project's folder, else the best guess, else $null), and returns the chosen folder's full path or $null.
-  # A folder that is not directly in the projects folder makes its parent this PC's projects folder.
+  # A folder below the projects folder stands for the project it is in (the first folder under the projects folder);
+  # the projects folder itself is no project, and is refused as a cancel (the pick task has no error answer, and the
+  # person can pick again). Only a folder outside the projects folder (or the first pick on this PC) makes its parent
+  # this PC's projects folder.
   $root = Resolve-ProjectsRoot $Config $ProjectsJson $ConfigPath
   $suggested = $null
   if ($root) {
@@ -221,12 +224,17 @@ function Invoke-PickTask($Config, $Task, [scriptblock]$Picker, [string]$Projects
   $full = & $Picker $(if ($root) { $root } else { '' }) $suggested
   if (-not $full) { return @{ cancelled = $true } }
   $full = [IO.Path]::GetFullPath([string]$full).TrimEnd('\')
+  if ($root) {
+    $rootFull = [IO.Path]::GetFullPath($root).TrimEnd('\')
+    if ($full -ieq $rootFull) { return @{ cancelled = $true } }
+    if ($full.StartsWith($rootFull + '\', [StringComparison]::OrdinalIgnoreCase)) {
+      return @{ picked = $full.Substring($rootFull.Length + 1).Split('\')[0] }
+    }
+  }
   $parent = Split-Path $full -Parent
   if (-not $parent) { throw "Not a project folder: $full" }
-  $leaf = Split-Path $full -Leaf
-  $same = $root -and ([IO.Path]::GetFullPath($root).TrimEnd('\') -ieq $parent.TrimEnd('\'))
-  if (-not $same) { $Config.projectsRoot = $parent; Save-HelperConfig $Config $ConfigPath }
-  return @{ picked = $leaf }
+  $Config.projectsRoot = $parent; Save-HelperConfig $Config $ConfigPath
+  return @{ picked = (Split-Path $full -Leaf) }
 }
 function Get-TreeResult([string]$ProjectsRoot, [string]$Folder) {
   $dir = Get-ProjectDir $ProjectsRoot $Folder

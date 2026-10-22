@@ -27,11 +27,14 @@ function Api([string]$Method, [string]$Sub, $Body) {
 function StatusOf($Err) { try { return [int]$Err.Exception.Response.StatusCode } catch { return 0 } }
 
 # The agent runs in the background, so Windows may keep a new window behind Outlook (the foreground lock): the picker is
-# owned by a hidden, always-on-top window that activates itself when shown.
+# owned by an invisible, always-on-top window that activates itself when shown. The owner sits at the centre of the
+# primary screen (the dialog opens near its owner, so an owner off-screen would take the dialog with it).
 function Show-FolderPicker([string]$Start, [string]$Suggested, [string]$Description) {
   Add-Type -AssemblyName System.Windows.Forms, System.Drawing
   [Windows.Forms.Application]::EnableVisualStyles()
-  $owner = New-Object Windows.Forms.Form -Property @{ TopMost = $true; ShowInTaskbar = $false; FormBorderStyle = 'None'; StartPosition = 'Manual'; Size = (New-Object Drawing.Size(1, 1)); Location = (New-Object Drawing.Point(-32000, -32000)) }
+  $wa = [Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+  $at = New-Object Drawing.Point(([int]($wa.Left + $wa.Width / 2)), ([int]($wa.Top + $wa.Height / 2)))
+  $owner = New-Object Windows.Forms.Form -Property @{ TopMost = $true; ShowInTaskbar = $false; FormBorderStyle = 'None'; Opacity = 0; StartPosition = 'Manual'; MinimumSize = (New-Object Drawing.Size(1, 1)); Size = (New-Object Drawing.Size(1, 1)); Location = $at }
   $owner.Add_Shown({ $this.Activate() })
   $owner.Show()
   $owner.Activate()

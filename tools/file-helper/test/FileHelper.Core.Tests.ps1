@@ -111,10 +111,21 @@ try {
   $task2 = [pscustomobject]@{ kind = 'pick'; lang = 'he'; project = [pscustomobject]@{ id = 'p1'; code = 'ZZZ'; name = 'Nothing' }; folder = '2026-01-01-01 - Other' }
   [void](Invoke-PickTask $tcfg $task2 { param($Start, $Suggested) $seen.suggested2 = $Suggested; return $null } $noFm $tcfgPath)
   Check 'pick: the current folder is suggested' ($seen.suggested2 -eq (Join-Path $projects '2026-01-01-01 - Other'))
-  # picked elsewhere: the projects folder of this PC moves to the pick's parent, and is saved
-  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return (Join-Path $projects 'Elsewhere\2030-01-01 - Far') } $noFm $tcfgPath
+  # a folder inside a project: the project's folder is the first folder under the projects folder, which stays
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return (Join-Path $projects "$school\CONS\S") } $noFm $tcfgPath
+  Check 'pick: below a project, the project folder' ($res.picked -eq $school -and -not $res.cancelled)
+  Check 'pick: below a project, projectsRoot stays' ($tcfg.projectsRoot -eq $projects -and -not (Test-Path -LiteralPath $tcfgPath))
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return ((Join-Path $projects 'ELSEWHERE\2030-01-01 - Far') + '\') } $noFm $tcfgPath
+  Check 'pick: two levels down, the first folder (any case)' ($res.picked -eq 'ELSEWHERE' -and $tcfg.projectsRoot -eq $projects)
+  # the projects folder itself is no project: refused as cancelled, nothing changes
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return $projects } $noFm $tcfgPath
+  Check 'pick: the projects folder itself is refused' ($res.cancelled -eq $true -and -not $res.picked -and $tcfg.projectsRoot -eq $projects -and -not (Test-Path -LiteralPath $tcfgPath))
+  # picked outside the projects folder: the projects folder of this PC moves to the pick's parent, and is saved
+  $other = Join-Path $root 'Other Projects'
+  New-Item -ItemType Directory -Force -Path (Join-Path $other '2030-01-01 - Far') | Out-Null
+  $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return (Join-Path $other '2030-01-01 - Far') } $noFm $tcfgPath
   Check 'pick: outside, the folder name' ($res.picked -eq '2030-01-01 - Far')
-  Check 'pick: outside, projectsRoot moves' ($tcfg.projectsRoot -eq (Join-Path $projects 'Elsewhere') -and (Get-HelperConfig $tcfgPath).projectsRoot -eq (Join-Path $projects 'Elsewhere'))
+  Check 'pick: outside, projectsRoot moves' ($tcfg.projectsRoot -eq $other -and (Get-HelperConfig $tcfgPath).projectsRoot -eq $other)
   # cancelled
   $tcfg = [pscustomobject]@{ hub = 'https://x'; projectsRoot = $projects }
   $res = Invoke-PickTask $tcfg $task { param($Start, $Suggested) return $null } $noFm $tcfgPath

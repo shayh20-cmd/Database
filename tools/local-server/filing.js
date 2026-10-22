@@ -19,6 +19,7 @@ const ai = require('./filing-ai');
 
 const TTL = Number(process.env.FILING_TTL_MS) || 15 * 60 * 1000;            // a filing's (and its file task's) life
 const QUICK = Number(process.env.FILING_QUICK_TTL_MS) || 2 * 60 * 1000;     // a pick, tree or open task's life
+const PICK = Number(process.env.FILING_PICK_TTL_MS) || 10 * 60 * 1000;      // … a pick's, from when the agent opens it (a person is choosing)
 const POLL = Number(process.env.FILING_POLL_MS) || 25 * 1000;               // how long the agent's request waits for a task
 const TREE_WAIT = Number(process.env.FILING_TREE_WAIT_MS) || 20 * 1000;     // how long a proposal waits for the tree
 const AGENT_WAIT = Number(process.env.FILING_AGENT_WAIT_MS) || 15 * 1000;   // … and for an agent to take the tree task
@@ -34,6 +35,7 @@ const safeName = n => String(n == null ? '' : n).replace(/[\u0000-\u001f\\/:*?"<
 // the project's folder under "@Omicron Projects": one folder name, never a path
 const folderName = v => { const s = String(v == null ? '' : v).trim(); return s && s.length <= 200 && !/[\\/:*?"<>|\u0000-\u001f]/.test(s) && !/^\.+$/.test(s) && !/[. ]$/.test(s) ? s : null; };
 const clip = (v, n) => String(v == null ? '' : v).slice(0, n);
+const oneLine = (v, n) => clip(String(v == null ? '' : v).replace(/[\r\n]+/g, ' '), n); // for the prompt and the log
 const REGISTER_ID = /^[A-Za-z0-9_-]{1,80}$/;
 
 /* The first draft of a project's filing guide: Folder Manager's receive rules, in words. Claude goes by it
@@ -214,8 +216,8 @@ module.exports = function createFiling(ctx) {
       const f = {
         id: newId(), who, person: p, base, projectId: project.id, project, files: [],
         mail: {
-          subject: clip(m.subject, 300),
-          from: [from.name, from.email ? '<' + from.email + '>' : ''].filter(Boolean).join(' ').slice(0, 300),
+          subject: oneLine(m.subject, 300),
+          from: oneLine([from.name, from.email ? '<' + from.email + '>' : ''].filter(Boolean).join(' '), 300),
           conversationId: clip(m.conversationId, 400),
           body: clip(m.body, 1500)
         },
@@ -261,7 +263,11 @@ module.exports = function createFiling(ctx) {
     if (route === 'filing-propose') {
       if (f.busy) { sendJson(res, 409, { error: 'busy' }); return; }
       const text = clip(body.text, 1000).trim();
-      f.busy = true;
+      const mine = {}; // this request's hold on the filing: a later request's hold is never released by this one
+      f.busy = mine;
+      const release = () => { if (f.busy === mine) f.busy = false; };
+      // a correction that does not end in a new proposal leaves no plan to confirm: the previous one was refused
+      if (text) f.plan = null;
       try {
         const pr = known(f.projectId);
         if (!pr.folder) { sendJson(res, 200, { needsFolder: true }); return; }
@@ -272,7 +278,10 @@ module.exports = function createFiling(ctx) {
             t = makeTask('tree', { who, person: f.person, base: f.base, project: f.project, folder: pr.folder, lang: f.lang, extra: { filingId: f.id } });
             f.treeTask = t.id;
           }
+          // the pane may give up while the tree is awaited (closed, reloaded): its next request is not "busy"
+          res.on('close', release);
           const how = await awaitTask(t);
+          res.off('close', release);
           if (res.destroyed) return;
           if (how === 'none' || how === 'slow') { sendJson(res, 200, { agent: how }); return; }
           if (t.result && t.result.missing) { sendJson(res, 200, { missing: true }); return; }
@@ -296,7 +305,7 @@ module.exports = function createFiling(ctx) {
         f.plan = out.plan;
         sendJson(res, 200, { message: out.message, plan: out.plan, guideAdd: out.guideAdd });
       } finally {
-        f.busy = false;
+        release();
       }
       return;
     }
@@ -339,6 +348,8 @@ module.exports = function createFiling(ctx) {
 
     if (!what) {
       t.opened = true;
+      // the folder picker is open on the PC from now on: the person's choice may take a while
+      if (t.kind === 'pick') t.exp = Math.max(t.exp, Date.now() + PICK);
       sendJson(res, 200, {
         kind: t.kind, lang: t.lang, project: t.project, folder: t.folder,
         ...(t.kind === 'open' && t.rel ? { rel: t.rel } : {}),

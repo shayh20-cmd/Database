@@ -133,16 +133,19 @@
 
   /* The project's contacts are kept on the hub's server too, for filing email attachments from Outlook: the
      server cannot read the register itself. Once per page session per register project, and again only when
-     they change; fire and forget (a viewer's copy is refused, which is fine). */
-  const contactsSent = {};
+     they change. A copy counts as sent once the server kept it (or refused a viewer's, which is fine); one that
+     failed is sent again on the next render. */
+  const contactsSent = {}, contactsSending = {};
   function keepContacts(id, rows) {
     if (location.protocol === 'file:' || !/^[A-Za-z0-9_-]{1,80}$/.test(id)) return;
     const list = [];
     rows.forEach(r => r.contacts.forEach(c => { if (c.name) list.push({ name: c.name, role: r.discipline, firm: r.firm, emails: [c.email].filter(Boolean) }); }));
     const body = JSON.stringify(list.slice(0, 200));
-    if (contactsSent[id] === body) return;
-    contactsSent[id] = body;
-    fetch('/api/register-contacts/' + id, { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body }).catch(() => {});
+    if (contactsSent[id] === body || contactsSending[id] === body) return;
+    contactsSending[id] = body;
+    fetch('/api/register-contacts/' + id, { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body })
+      .then(r => { if (r.ok || r.status === 403) contactsSent[id] = body; }, () => {})
+      .then(() => { if (contactsSending[id] === body) delete contactsSending[id]; });
   }
 
   function useConsultantRows(data, hubDisciplines) {
