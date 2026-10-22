@@ -411,6 +411,7 @@ var HE_EN = {
   'חלון התיוק ייפתח במחשב שלך בעוד רגע…': 'The filing window will open on your computer in a moment…',
   'חלון התיוק נפתח ב-{pc}. ממתין לאישור שלך שם…': 'The filing window opened on {pc}. Waiting for your confirmation there…',
   'הבקשה פגה. אפשר לנסות שוב.': 'The request has expired. You can try again.',
+  'התיוק בוטל בחלון במחשב.': 'Filing was cancelled in the window on your computer.',
   'עוזר התיוק לא פועל במחשב הזה. התקנה: tools\\file-helper\\Install-FileHelper.ps1': 'The filing helper is not running on this computer. To install: tools\\file-helper\\Install-FileHelper.ps1',
   'תויק קובץ אחד בתיקיית הפרויקט.': 'One file filed in the project folder.',
   'תויקו {n} קבצים בתיקיית הפרויקט.': '{n} files filed in the project folder.',
@@ -859,6 +860,7 @@ function watchFiling() {
     api('/api/outlook/filing-status?id=' + encodeURIComponent(fileJob.id)).then(function (s) {
       if (s.done) { clearInterval(filePoll); showFiled(s.done); return; }
       if (s.expired) { clearInterval(filePoll); $('fOk').disabled = false; $('fileState').textContent = tx('הבקשה פגה. אפשר לנסות שוב.'); return; }
+      if (s.cancelled) { clearInterval(filePoll); $('fOk').disabled = false; $('fileState').textContent = tx('התיוק בוטל בחלון במחשב.'); return; }
       if (s.handed) $('fileState').textContent = tx('חלון התיוק נפתח ב-{pc}. ממתין לאישור שלך שם…', { pc: s.handed.pc || '?' });
       else if (Date.now() - started > 15000) $('fileState').textContent = tx('עוזר התיוק לא פועל במחשב הזה. התקנה: tools\\file-helper\\Install-FileHelper.ps1');
     }).catch(function () {});
