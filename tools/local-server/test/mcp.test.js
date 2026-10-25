@@ -212,6 +212,56 @@ test('connector: delete_task removes a task by id and keeps a copy on the server
   assert.deepStrictEqual([copy.task.id, copy.sheetId, copy.deletedBy], ['t1', 'home', 'דנה (Claude)']);
 });
 
+test('connector: personal tasks go to the person\'s own /api/personal list', async (t) => {
+  const port = 3972;
+  const base = 'http://127.0.0.1:' + port;
+  const { root, data } = makeSite();
+  const proc = spawn('node', [SERVER, root, '--port', String(port)], { stdio: 'ignore', env: { ...process.env, SITE_MODE: 'cloud', WEBSITE_AUTH_ENABLED: 'true', DATA_DIR: data } });
+  t.after(() => proc.kill());
+  for (let i = 0; i < 50; i++) { try { await fetch(base + '/health'); break; } catch { await wait(100); } }
+  const personal = async email => {
+    const r = await fetch(base + '/api/personal', { headers: { 'x-ms-client-principal': principal(email) } });
+    return { etag: r.headers.get('etag'), doc: await r.json() };
+  };
+  const session = { 'x-ms-client-principal': principal('dana@kkarc.com'), 'Content-Type': 'application/json' };
+  // the page already keeps a task and preferences there
+  await fetch(base + '/api/personal', { method: 'POST', headers: session, body: JSON.stringify({ tasks: [{ id: 'old', title: 'קיימת', statusId: 'N', dueDate: '2030-01-01' }], prefs: { colLayout: { mytasks: { a: 1 } } } }) });
+  const before = await personal('dana@kkarc.com');
+
+  const dana = await signIn(base, 'dana@kkarc.com');
+  let r = await dana('create_personal_tasks', { tasks: [{ title: 'להתקשר לרואה החשבון', priority: 'דחוף', note: 'לפני יום חמישי' }, { title: 'לחדש דרכון', start_date: '2030-02-01' }] });
+  assert.ifError(r.error);
+  assert.deepStrictEqual(r.out.created.map(x => x.priority), ['דחוף', 'בינונית']);
+  assert.match(r.out.created[0].link, /\/project_hub_01\?go=mytasks$/);
+
+  const after = await personal('dana@kkarc.com');
+  assert.notStrictEqual(after.etag, before.etag, 'an open page sees a new version');
+  assert.deepStrictEqual(after.doc.prefs, { colLayout: { mytasks: { a: 1 } } });
+  const [old, call, pass] = after.doc.tasks;
+  assert.strictEqual(old.id, 'old');
+  assert.strictEqual(call.title, 'להתקשר לרואה החשבון');
+  assert.deepStrictEqual([call.priority, call.statusId, call.comment, call.done], ['urgent', 'N', 'לפני יום חמישי', false]);
+  assert.strictEqual(call.dueDate, new Date(Date.parse(call.startDate) + 14 * 864e5).toISOString().slice(0, 10), 'due in 14 days');
+  assert.deepStrictEqual([pass.priority, pass.startDate, pass.dueDate], ['medium', '2030-02-01', '2030-02-15']);
+  assert.match(call.activityLog[0].user, /דנה \(Claude\)/);
+
+  // nobody else's list changes; a viewer may still keep their own
+  assert.deepStrictEqual((await personal('ruth@kkarc.com')).doc, {});
+  const yoav = await signIn(base, 'yoav@kkarc.com');
+  assert.ifError((await yoav('create_personal_tasks', { tasks: [{ title: 'שלי' }] })).error);
+  assert.deepStrictEqual((await personal('yoav@kkarc.com')).doc.tasks.map(x => x.title), ['שלי']);
+  assert.strictEqual((await personal('dana@kkarc.com')).doc.tasks.length, 3);
+
+  assert.match((await dana('create_personal_tasks', { tasks: [{ title: 'x', due_date: '1.5.2030' }] })).error, /YYYY-MM-DD/);
+  assert.match((await dana('create_personal_tasks', { tasks: [{ title: 'x', priority: 'מיידי' }] })).error, /Unknown priority/);
+
+  r = await dana('list_personal_tasks', {});
+  assert.ifError(r.error);
+  assert.deepStrictEqual(r.out.tasks.map(x => x.title), ['להתקשר לרואה החשבון', 'קיימת', 'לחדש דרכון'], 'soonest due first');
+  assert.strictEqual(r.out.tasks[0].status, 'לא התחיל');
+  assert.deepStrictEqual((await dana('list_personal_tasks', { query: 'דרכון' })).out.tasks.map(x => x.title), ['לחדש דרכון']);
+});
+
 test('connector: a person sees their own connection and can disconnect it', async (t) => {
   const port = 3998;
   const base = 'http://127.0.0.1:' + port;
