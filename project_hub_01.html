@@ -1718,8 +1718,10 @@ html[data-appearance="dark"] .plan-rolled{background:rgba(245,158,11,.18);color:
 .fm-head>span:first-child{flex:1;}
 .fm-dirty{color:#B45309;text-transform:none;letter-spacing:0;font-weight:600;}
 .fm-when{text-transform:none;letter-spacing:0;font-weight:400;}
-.fm-area{display:grid;grid-template-columns:92px minmax(0,1fr);gap:2px 8px;padding:6px 16px;border-bottom:1px solid var(--border);}
-.fm-name{font-size:12px;font-weight:600;color:var(--text);padding-top:2px;}
+.fm-area{display:grid;grid-template-columns:minmax(104px,34%) minmax(0,1fr);gap:2px 10px;padding:6px 16px;border-bottom:1px solid var(--border);}
+.fm-head-cell{min-width:0;padding-top:2px;}
+.fm-name{font-size:12px;font-weight:600;color:var(--text);text-align:start;}
+.fm-desc{font-size:10.5px;line-height:1.35;color:var(--text-3);margin-top:1px;}
 .fm-body{display:flex;flex-direction:column;gap:3px;min-width:0;}
 .fm-prow{display:flex;align-items:center;gap:2px;min-width:0;}
 .fm-prow .fm-path,.fm-folder .fm-path{flex:0 1 auto;}
@@ -15946,27 +15948,35 @@ function SettingsRulesView({
    what is unclear; the person answers in free text, corrects by hand and saves. The server is
    tools/local-server/filing.js (handleHub, /api/filing-hub/*); the Outlook pane's filing card works the same way.
    Folder names, notes, Claude's words and the person's answers are data (data-i18n-skip). */
+// the areas of the folder map (as filing-ai.js AREAS): a title in English in both languages, a description under it
 const FOLDER_AREAS = [{
   key: 'publish',
-  name: 'PUBLISH'
+  name: 'PUBLISH',
+  desc: 'כל מסמך שאנחנו מוציאים ושולחים (כולל תיקיית הייצוא מ-Revit/CAD)'
+}, {
+  key: 'work',
+  name: 'Work',
+  desc: 'מסמכי עבודה שאנחנו יוצרים, בעיקר DWG ו-RVT'
 }, {
   key: 'consultants',
-  name: 'תיקיות יועצים'
+  name: 'Consultants',
+  desc: 'כל מסמך שהתקבל מהיועצים'
 }, {
   key: 'receive',
-  name: 'מסמכים נכנסים'
+  name: 'Receive',
+  desc: 'כל מסמך שהתקבל ואינו מיועץ או מרשות'
 }, {
   key: 'permit',
-  name: 'הגשות לרשויות'
-}, {
-  key: 'export',
-  name: 'קבצי ייצוא'
-}, {
-  key: 'design',
-  name: 'תיקיות תכנון'
+  name: 'Permit',
+  desc: 'הגשות ומסמכי רשויות, בחלוקה לפי רשות'
 }, {
   key: 'docs',
-  name: 'מסמכי פרויקט'
+  name: 'Docs',
+  desc: 'מסמכים כלליים'
+}, {
+  key: 'exec',
+  name: 'Exec',
+  desc: 'מסמכי שלב הביצוע'
 }];
 const FM_HELPER_OFF = 'עוזר התיוק לא פועל במחשב הזה. התקנה: tools\\file-helper\\Install-FileHelper.ps1';
 const FM_NOT_HERE = 'לא מוצאת את תיקיית הפרויקט במחשב הזה';
@@ -16346,8 +16356,14 @@ function SettingsFoldersView({
       key: a.key,
       className: "fm-area"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "fm-name"
+      className: "fm-head-cell"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "fm-name",
+      dir: "ltr",
+      "data-i18n-skip": ""
     }, a.name), /*#__PURE__*/React.createElement("div", {
+      className: "fm-desc"
+    }, a.desc)), /*#__PURE__*/React.createElement("div", {
       className: "fm-body"
     }, x.paths.length ? x.paths.map(p => /*#__PURE__*/React.createElement("div", {
       key: p,

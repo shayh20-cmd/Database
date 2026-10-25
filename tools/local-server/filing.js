@@ -230,7 +230,7 @@ module.exports = function createFiling(ctx) {
     if (route === 'filing-project') {
       const g = getProject(url.searchParams.get('project'));
       const pr = known(g.project.id);
-      sendJson(res, 200, { folder: pr.folder || '', root: pr.root || '', guide: pr.guide || '', defaultGuide: DEFAULT_GUIDE, contacts: contactsOf(p, g.project.id).length, map: pr.map || null, canWrite: writer(p) });
+      sendJson(res, 200, { folder: pr.folder || '', root: pr.root || '', guide: pr.guide || '', defaultGuide: DEFAULT_GUIDE, contacts: contactsOf(p, g.project.id).length, map: ai.normalizeMap(pr.map), canWrite: writer(p) });
       return;
     }
     if (route === 'filing-pick' || route === 'filing-open' || route === 'filing-guide' || route === 'filing-guide-add' || route === 'filing') {
@@ -363,7 +363,7 @@ module.exports = function createFiling(ctx) {
         let out;
         try {
           out = await ai.propose(client, model, {
-            project: f.project, map: pr.map || null, guide: String(pr.guide || '').trim() || DEFAULT_GUIDE, tree: f.tree, log: (pr.log || []).slice(-30).reverse(),
+            project: f.project, map: ai.normalizeMap(pr.map), guide: String(pr.guide || '').trim() || DEFAULT_GUIDE, tree: f.tree, log: (pr.log || []).slice(-30).reverse(),
             contacts: contactsOf(f.person, f.projectId), mail: f.mail, files: f.files, turns: [...f.turns, turn], lang: f.lang
           });
         } catch (e) {
@@ -549,7 +549,7 @@ module.exports = function createFiling(ctx) {
     if (route === 'project') {
       const g = getProject(url.searchParams.get('project'));
       const pr = known(g.project.id);
-      sendJson(res, 200, { folder: pr.folder || '', root: pr.root || '', map: pr.map || null, guide: pr.guide || '', defaultGuide: DEFAULT_GUIDE, canWrite: writer(p) });
+      sendJson(res, 200, { folder: pr.folder || '', root: pr.root || '', map: ai.normalizeMap(pr.map), guide: pr.guide || '', defaultGuide: DEFAULT_GUIDE, canWrite: writer(p) });
       return;
     }
     if (route === 'task') {
@@ -586,7 +586,7 @@ module.exports = function createFiling(ctx) {
         try {
           out = await ai.mapProposal(client, model, {
             project: m.project, guide: String(pr.guide || '').trim() || DEFAULT_GUIDE, tree: m.tree,
-            map: m.areas ? { areas: m.areas } : pr.map || null, turns: [...m.turns, turn], lang: m.lang
+            map: m.areas ? { areas: m.areas } : ai.normalizeMap(pr.map), turns: [...m.turns, turn], lang: m.lang
           });
         } catch (e) {
           console.error('filing map failed:', e.message);

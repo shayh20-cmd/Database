@@ -589,17 +589,43 @@ test('filing-ai: a map proposal keeps the seven areas, only folders of the tree,
   };
   const client = { messages: { create: async params => { sent = params; return { content: [{ type: 'text', text: JSON.stringify(raw) }], stop_reason: 'end_turn' }; } } };
   const r = await ai.mapProposal(client, 'test-model', { project: { code: 'LDPB', name: 'מגרש 4021' }, guide: 'g', tree: MAP_TREE, map: null, turns: [], lang: 'en' });
-  assert.deepStrictEqual(Object.keys(r.areas), ['publish', 'consultants', 'receive', 'permit', 'export', 'design', 'docs']);
+  assert.deepStrictEqual(Object.keys(r.areas), ['publish', 'work', 'consultants', 'receive', 'permit', 'docs', 'exec']);
   assert.deepStrictEqual(r.areas.publish.paths, ['PUBLISH'], 'the tree\'s own spelling, once; nothing outside the project');
   assert.ok(r.areas.publish.note.length <= 300);
   assert.deepStrictEqual(r.areas.consultants, { paths: ['CONS/LDPB-structural'], note: 'a folder per consultant' });
-  assert.deepStrictEqual(r.areas.export, { paths: [], note: '' });
+  assert.deepStrictEqual(r.areas.exec, { paths: [], note: '' });
   assert.deepStrictEqual(r.questions, ['Where do exports go?', 'q3', 'q4', 'q5']);
   assert.strictEqual(r.message, 'I mapped what I could.');
   assert.strictEqual(sent.model, 'test-model');
   assert.deepStrictEqual(sent.output_config.format.schema.required.sort(), ['areas', 'message', 'questions']);
   assert.match(sent.messages[0].content, /Language: English/);
   await assert.rejects(ai.mapProposal({ messages: { create: async () => ({ content: [], stop_reason: 'refusal' }) } }, 'test-model', { project: {}, tree: [], turns: [] }));
+});
+
+test('filing-ai: a map saved before the areas were redefined — design is work, export joins publish', () => {
+  const old = {
+    publish: { paths: ['PUBLISH'], note: 'a folder per date' },
+    export: { paths: ['PUBLISH', 'EXPORT/REVIT', '../x'], note: 'Revit exports' },
+    design: { paths: ['DESIGN'], note: 'ours' },
+    consultants: { paths: ['CONS'], note: '' }
+  };
+  const m = ai.normalizeMap({ areas: old, updatedBy: 'דנה', updatedAt: 'T' });
+  assert.deepStrictEqual(Object.keys(m.areas), ai.AREAS);
+  assert.deepStrictEqual(m.areas.publish, { paths: ['PUBLISH', 'EXPORT/REVIT'], note: 'a folder per date · Revit exports' });
+  assert.deepStrictEqual(m.areas.work, { paths: ['DESIGN'], note: 'ours' });
+  assert.deepStrictEqual(m.areas.consultants.paths, ['CONS']);
+  assert.deepStrictEqual([m.updatedBy, m.updatedAt], ['דנה', 'T']);
+  assert.strictEqual(ai.normalizeMap(null), null);
+  // at most ten folders after the merge; today's keys pass as they are
+  const many = ai.normalizeMap({ areas: { publish: { paths: ['P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'] }, export: { paths: ['E1', 'E2', 'E3'] } } });
+  assert.deepStrictEqual(many.areas.publish.paths, ['P0', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'E1', 'E2']);
+  const now = { publish: { paths: ['PUBLISH'], note: '' }, work: { paths: ['WORK'], note: '' } };
+  assert.strictEqual(ai.migrateAreas(now), now);
+  // the filing prompt reads an old map the same way
+  assert.match(ai.userContent(X({ map: { areas: old } })), /- publish \([^)]*\): PUBLISH, EXPORT\/REVIT \| a folder per date · Revit exports\n- work \([^)]*\): DESIGN \| ours\n/);
+  assert.match(ai.MAP_SYSTEM, /not uniform/);
+  assert.match(ai.SYSTEM, /work = working files/);
+  assert.match(ai.SYSTEM, /not uniform/);
 });
 
 test('filing-ai: the mapping prompt — the tree, the current map and the guide are data, the person\'s turns lead', () => {
@@ -696,7 +722,7 @@ test('filing hub: the folder map in Project Hub — sign-in, writers, mapping wi
   assert.deepStrictEqual(p1.body.questions, ['Is DESIGN yours?', 'Where are the Revit exports?']);
   assert.strictEqual(p1.body.message, 'Mapped. Two questions.');
   assert.deepStrictEqual(p1.body.tree, MAP_TREE, 'the tree read, for choosing a folder by hand (without what is outside)');
-  assert.deepStrictEqual(Object.keys(p1.body.areas), ['publish', 'consultants', 'receive', 'permit', 'export', 'design', 'docs']);
+  assert.deepStrictEqual(Object.keys(p1.body.areas), ['publish', 'work', 'consultants', 'receive', 'permit', 'docs', 'exec']);
   assert.deepStrictEqual(p1.body.areas.consultants, { paths: ['CONS'], note: 'a folder per consultant' });
   assert.match(fake.last, /Language: English/);
   assert.match(fake.last, /- GARM\/LDPB-garm-iriya\n/);
@@ -704,9 +730,9 @@ test('filing hub: the folder map in Project Hub — sign-in, writers, mapping wi
   assert.match(fake.last, /Person: \(map the folders\)$/);
 
   // an answer: the tree is kept, Claude gets the conversation and its own last map
-  fake.answer = { message: 'Updated.', questions: [], areas: { ...fake.answer.areas, design: { paths: ['DESIGN'], note: 'ours' } } };
+  fake.answer = { message: 'Updated.', questions: [], areas: { ...fake.answer.areas, work: { paths: ['DESIGN'], note: 'ours' } } };
   const p2 = await hub('dana@kkarc.com', 'map-propose?id=' + s1, { text: 'כן, DESIGN שלנו; אין ייצוא' });
-  assert.deepStrictEqual([p2.body.areas.design.paths, p2.body.questions], [['DESIGN'], []]);
+  assert.deepStrictEqual([p2.body.areas.work.paths, p2.body.questions], [['DESIGN'], []]);
   assert.ok(fake.last.endsWith('Conversation:\nPerson: (map the folders)\nYou: Mapped. Two questions.\n1. Is DESIGN yours?\n2. Where are the Revit exports?\nPerson: כן, DESIGN שלנו; אין ייצוא'), fake.last.slice(-300));
   assert.match(fake.last, /<map>\n- publish \([^)]*\): PUBLISH \| a folder per date\n- consultants \([^)]*\): CONS \| a folder per consultant\n<\/map>/);
 
@@ -718,7 +744,7 @@ test('filing hub: the folder map in Project Hub — sign-in, writers, mapping wi
   const sent3 = fake.last.slice(fake.last.indexOf('<map>'), fake.last.indexOf('</map>'));
   assert.ok(!/- publish /.test(sent3), sent3);
   assert.match(sent3, /- docs \([^)]*\): DOCS \| by hand$/m);
-  assert.match(sent3, /- design \([^)]*\): DESIGN \| ours/);
+  assert.match(sent3, /- work \([^)]*\): DESIGN \| ours/);
   assert.ok(!sent3.includes('NOT-THERE') && !sent3.includes('../x'), sent3);
 
   // saving the map: paths inside the project only; read back by the Hub page and by the pane
@@ -727,7 +753,7 @@ test('filing hub: the folder map in Project Hub — sign-in, writers, mapping wi
   const saved = await hub('dana@kkarc.com', 'map', { projectId: 'pabc123', areas: { ...p2.body.areas, consultants: { paths: ['CONS\\LDPB-structural', 'CONS\\LDPB-structural'], note: 'יועץ לכל תיקייה' + 'x'.repeat(400) }, nope: { paths: ['x'], note: '' } } }, 'PUT');
   assert.strictEqual(saved.status, 200);
   const map = saved.body.map;
-  assert.deepStrictEqual(Object.keys(map.areas), ['publish', 'consultants', 'receive', 'permit', 'export', 'design', 'docs']);
+  assert.deepStrictEqual(Object.keys(map.areas), ['publish', 'work', 'consultants', 'receive', 'permit', 'docs', 'exec']);
   assert.deepStrictEqual(map.areas.consultants.paths, ['CONS/LDPB-structural']);
   assert.strictEqual(map.areas.consultants.note.length, 300);
   assert.deepStrictEqual([map.updatedBy, typeof map.updatedAt], ['דנה', 'string']);
@@ -745,7 +771,7 @@ test('filing hub: the folder map in Project Hub — sign-in, writers, mapping wi
   const filing = call(dana, '/api/outlook/filing-propose?id=' + job.id, {});
   await (await agent(dana)).result({ tree: TREE });
   assert.strictEqual((await filing).status, 200);
-  assert.match(fake.last, /<map>\n- publish \([^)]*\): PUBLISH \| a folder per date\n- consultants \([^)]*\): CONS\/LDPB-structural \| יועץ לכל תיקייה/);
+  assert.match(fake.last, /<map>\n- publish \([^)]*\): PUBLISH \| a folder per date\n- work \([^)]*\): DESIGN \| ours\n- consultants \([^)]*\): CONS\/LDPB-structural \| יועץ לכל תיקייה/);
   assert.match(fake.last, /<\/map>\n<guide>\nתכניות מיועץ → CONS\n<\/guide>/);
 });
 
@@ -768,6 +794,16 @@ test('filing hub: mapping without an agent, or without Claude', async (t) => {
   const third = hub('map-propose?id=' + id, {});
   await (await agent(dana)).result({ tree: ['CONS'] });
   assert.deepStrictEqual((await third).body, { ai: 'unavailable' });
+
+  // a map saved before the areas were redefined reads as today's, on the Hub page and in the pane
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, guide: '', log: [], map: {
+    areas: { design: { paths: ['DESIGN'], note: 'ours' }, export: { paths: ['EXP'], note: '' }, publish: { paths: ['PUBLISH'], note: '' } }, updatedBy: 'דנה', updatedAt: 'T'
+  } } } }));
+  const read = await (await fetch(base + '/api/filing-hub/project?project=pabc123', { headers: { 'x-ms-client-principal': principal('dana@kkarc.com') } })).json();
+  assert.deepStrictEqual(Object.keys(read.map.areas), ['publish', 'work', 'consultants', 'receive', 'permit', 'docs', 'exec']);
+  assert.deepStrictEqual([read.map.areas.work.paths, read.map.areas.publish.paths], [['DESIGN'], ['PUBLISH', 'EXP']]);
+  const pane = await (await fetch(base + '/api/outlook/filing-project?project=pabc123', { headers: { Authorization: 'Bearer ' + dana } })).json();
+  assert.deepStrictEqual(pane.map, read.map);
 });
 
 test('filing hub: on the local server the tasks go to the agent holding the local key', async (t) => {

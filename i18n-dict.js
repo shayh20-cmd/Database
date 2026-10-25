@@ -2996,12 +2996,6 @@ Object.assign(HE_EN, {
 "נרשם מהמייל: {s}": "Logged from the email: {s}",
 "התקנה (פעם אחת): ב-Outlook בדפדפן פותחים את aka.ms/olksideload ← התוספים שלי ← הוסף תוסף מותאם אישית ← מקובץ, ובוחרים את הקובץ. אחר כך, במייל: אפליקציות ← Project Hub, ומדביקים את המפתח. התוסף מופיע גם ב-Outlook החדש וב-Outlook הקלאסי באותו חשבון.": "Installing (once): in Outlook on the web open aka.ms/olksideload → My add-ins → Add a custom add-in → From file, and pick the file. Then, in an email: Apps → Project Hub, and paste the key. The add-in also appears in the new Outlook and in classic Outlook on the same account.",
 "תיקיות הפרויקט": "Project folders",
-"מסמכים נכנסים": "Incoming",
-"הגשות לרשויות": "Authorities",
-"תיקיות יועצים": "Consultants",
-"קבצי ייצוא": "Exports",
-"תיקיות תכנון": "Design",
-"מסמכי פרויקט": "Project documents",
 "עוזר התיוק לא פועל במחשב הזה. התקנה: tools\\file-helper\\Install-FileHelper.ps1": "The filing helper is not running on this computer. To install: tools\\file-helper\\Install-FileHelper.ps1",
 "לא מוצאת את תיקיית הפרויקט במחשב הזה": "Can't find the project's folder on this computer",
 "משהו השתבש ({code}). נסה שוב.": "Something went wrong ({code}). Try again.",
@@ -3041,7 +3035,14 @@ Object.assign(HE_EN, {
 "רק מנהל הפרויקט או Super Admin יכולים לערוך את פרטי הפרויקט": "Only the project manager or a Super Admin can edit the project details",
 "מנהלי הפרויקט: {names}": "Project managers: {names}",
 "נקבע ביצירת הפרויקט": "Set when the project was created",
-"השינויים נשמרו": "Changes saved"
+"השינויים נשמרו": "Changes saved",
+"כל מסמך שאנחנו מוציאים ושולחים (כולל תיקיית הייצוא מ-Revit/CAD)": "Everything we issue and send (including the Revit/CAD export folder)",
+"מסמכי עבודה שאנחנו יוצרים, בעיקר DWG ו-RVT": "Working files we create, mainly DWG and RVT",
+"כל מסמך שהתקבל מהיועצים": "Everything received from the consultants",
+"כל מסמך שהתקבל ואינו מיועץ או מרשות": "Everything received that is not from a consultant or an authority",
+"הגשות ומסמכי רשויות, בחלוקה לפי רשות": "Submissions and authority documents, by authority",
+"מסמכים כלליים": "General documents",
+"מסמכי שלב הביצוע": "Construction-stage documents"
 });
 
 window.I18N_HE_EN = HE_EN;
