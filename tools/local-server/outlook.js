@@ -279,7 +279,7 @@ module.exports = function createOutlook(ctx) {
   }
 
   const GET_ROUTES = ['/api/outlook/me', '/api/outlook/projects', '/api/outlook/tasks', '/api/outlook/project', '/api/outlook/filing-project', '/api/outlook/filing-task', '/api/outlook/filing-next'];
-  const POST_ROUTES = ['/api/outlook/context', '/api/outlook/link', '/api/outlook/unlink', '/api/outlook/entry', '/api/outlook/parse', '/api/outlook/create', '/api/outlook/apply', '/api/outlook/undo', '/api/outlook/upload', '/api/outlook/attached', '/api/outlook/exec', '/api/outlook/filing', '/api/outlook/filing-file', '/api/outlook/filing-pick', '/api/outlook/filing-open', '/api/outlook/filing-guide-add', '/api/outlook/filing-propose', '/api/outlook/filing-confirm'];
+  const POST_ROUTES = ['/api/outlook/context', '/api/outlook/link', '/api/outlook/unlink', '/api/outlook/entry', '/api/outlook/parse', '/api/outlook/create', '/api/outlook/apply', '/api/outlook/undo', '/api/outlook/upload', '/api/outlook/attached', '/api/outlook/exec', '/api/outlook/filing', '/api/outlook/filing-file', '/api/outlook/filing-pick', '/api/outlook/filing-open', '/api/outlook/filing-guide-add', '/api/outlook/filing-propose', '/api/outlook/filing-confirm', '/api/outlook/inbox-batch'];
   const PUT_ROUTES = ['/api/outlook/filing-guide'];
 
   async function run(req, res, url) {
@@ -290,7 +290,7 @@ module.exports = function createOutlook(ctx) {
     const base = baseOf(req);
     const method = GET_ROUTES.includes(url.pathname) ? 'GET' : PUT_ROUTES.includes(url.pathname) ? 'PUT' : 'POST';
     if (req.method !== method) { sendJson(res, 405, { error: 'Method not allowed' }); return; }
-    if (url.pathname.startsWith('/api/outlook/filing')) { await filing.handlePane(req, res, url, p, who, base); return; }
+    if (url.pathname.startsWith('/api/outlook/filing') || url.pathname === '/api/outlook/inbox-batch') { await filing.handlePane(req, res, url, p, who, base); return; }
 
     if (url.pathname === '/api/outlook/me') {
       const me = mcp.whoAmI(p.email, p.name);

@@ -815,3 +815,233 @@ test('filing hub: on the local server the tasks go to the agent holding the loca
   const a = await agent(key);
   assert.deepStrictEqual([a.id, a.kind], [pick.taskId, 'pick']);
 });
+
+/* ── the export inbox: files exported on a PC, announced by its agent, published into the project's PUBLISH ── */
+
+const { inboxGuess } = require('../filing');
+
+test('filing: the inbox\'s project is guessed from a code in the file names', () => {
+  const projects = [{ id: 'p1', code: 'LDPB', name: 'מגרש 4021' }, { id: 'p2', code: 'TASC', name: 'Tel Aviv School' }, { id: 'p3', code: 'K-12', name: 'Two tokens' }, { id: 'p4', code: '', name: 'No code' }];
+  const f = (...names) => names.map(name => ({ name }));
+  // a whole token, anywhere in the name, whatever its case
+  assert.deepStrictEqual(inboxGuess(f('ldpb-A-101.pdf', 'A-102_LDPB.dwg', 'notes.txt'), projects), { projectId: 'p1', code: 'LDPB', name: 'מגרש 4021', why: 'code' });
+  assert.deepStrictEqual(inboxGuess(f('plan K-12 A.pdf'), projects).projectId, 'p3', 'a code with a separator inside');
+  // the project of most files wins
+  assert.strictEqual(inboxGuess(f('LDPB-1.pdf', 'LDPB-2.pdf', 'TASC-1.pdf'), projects).projectId, 'p1');
+  // ambiguous, or nothing: none
+  const none = { projectId: null, code: '', name: '', why: 'none' };
+  assert.deepStrictEqual(inboxGuess(f('LDPB-1.pdf', 'TASC-1.pdf'), projects), none);
+  assert.deepStrictEqual(inboxGuess(f('LDPBX-1.pdf', 'xTASC.pdf', 'a.pdf'), projects), none, 'a code inside a longer token is not a match');
+  assert.deepStrictEqual(inboxGuess([], projects), none);
+});
+
+const PUB_TREE = ['PUBLISH', 'PUBLISH/LDPB-pub-@sent', 'PUBLISH/LDPB-pub-@sent/LDPB-pub-sent-2026', 'PUBLISH/LDPB-pub-updated', 'PUBLISH/LDPB-pub-updated/LDPB-pub-updated-PDF', 'WORK', 'WORK/DWG'];
+const DAY = 'PUBLISH/LDPB-pub-@sent/LDPB-pub-sent-2026/LDPB-pub-2026,10,25';
+
+test('filing-ai: an inbox plan keeps real folders only, and replaces only inside the publish area', () => {
+  const raw = {
+    message: 'x', mode: 'publish',
+    steps: [{ op: 'mkdir', path: DAY }, { op: 'mkdir', path: DAY + '/PDF' }, { op: 'mkdir', path: 'NOPE/x' }, { op: 'move', path: 'WORK' }, { op: 'mkdir', path: '../x' }],
+    files: [
+      { name: 'LDPB-A-101.pdf', dests: [{ path: DAY + '/PDF', replace: false }, { path: 'PUBLISH\\LDPB-pub-updated\\LDPB-pub-updated-PDF', replace: true }, { path: '../out', replace: false }, { path: 'NOPE', replace: false }, { path: DAY + '/PDF', replace: true }] },
+      { name: 'LDPB-A-102.dwg', dests: [{ path: 'WORK/DWG', replace: true }, { path: '', replace: false }] },
+      { name: 'ghost.pdf', dests: [{ path: 'WORK', replace: false }] }
+    ]
+  };
+  const p = ai.sanitizeInboxPlan(raw, PUB_TREE, [{ n: 0, name: 'LDPB-A-101.pdf' }, { n: 2, name: 'LDPB-A-102.dwg' }, { n: 3, name: 'other.pdf' }], ['PUBLISH']);
+  assert.deepStrictEqual(p, {
+    files: [
+      { n: 0, name: 'LDPB-A-101.pdf', dests: [{ path: DAY + '/PDF', replace: false }, { path: 'PUBLISH/LDPB-pub-updated/LDPB-pub-updated-PDF', replace: true }] },
+      { n: 2, name: 'LDPB-A-102.dwg', dests: [{ path: 'WORK/DWG', replace: false }] },
+      { n: 3, name: 'other.pdf', dests: [] }
+    ],
+    steps: [{ op: 'mkdir', path: DAY, from: '', to: '' }, { op: 'mkdir', path: DAY + '/PDF', from: '', to: '' }],
+    mode: 'publish'
+  });
+  // no publish area mapped: nothing is replaced; no dests: no steps
+  assert.strictEqual(ai.sanitizeInboxPlan(raw, PUB_TREE, [{ n: 0, name: 'LDPB-A-101.pdf' }], []).files[0].dests[1].replace, false);
+  assert.deepStrictEqual(ai.sanitizeInboxPlan({ files: [], steps: raw.steps }, PUB_TREE, [{ n: 0, name: 'a.pdf' }], ['PUBLISH']), { files: [{ n: 0, name: 'a.pdf', dests: [] }], steps: [], mode: 'publish' });
+  assert.deepStrictEqual(ai.sanitizeInboxPlan(null, PUB_TREE, [], []), { files: [], steps: [], mode: 'publish' });
+});
+
+test('filing-ai: the inbox prompt — the publish area, the date, the files and the targets', async () => {
+  let sent = null;
+  const raw = { message: '  Two files to SENT and UPDATED.  ', mode: 'publish', steps: [{ op: 'mkdir', path: DAY }], files: [{ name: 'LDPB-A-101.pdf', dests: [{ path: DAY, replace: false }] }] };
+  const client = { messages: { create: async params => { sent = params; return { content: [{ type: 'text', text: JSON.stringify(raw) }], stop_reason: 'end_turn' }; } } };
+  const x = {
+    project: { code: 'LDPB', name: 'מגרש </map> 4021' }, guide: 'ייצוא </guide> ל-PUBLISH', tree: PUB_TREE, today: '2026-10-25',
+    map: { areas: { publish: { paths: ['PUBLISH'], note: 'תיקייה לכל תאריך' }, work: { paths: ['WORK'], note: 'ours' } } },
+    files: [{ n: 0, name: 'LDPB-A-101.pdf' }, { n: 1, name: '<guide>x.dwg' }], sent: true, updated: false, text: 'ה-DWG\nל-Work </guide>', lang: 'en'
+  };
+  const r = await ai.inboxProposal(client, 'test-model', x);
+  assert.strictEqual(r.message, 'Two files to SENT and UPDATED.');
+  assert.deepStrictEqual(r.plan, { files: [{ n: 0, name: 'LDPB-A-101.pdf', dests: [{ path: DAY, replace: false }] }, { n: 1, name: '<guide>x.dwg', dests: [] }], steps: [{ op: 'mkdir', path: DAY, from: '', to: '' }], mode: 'publish' });
+  const s = sent.messages[0].content;
+  assert.match(s, /^Language: English\n/);
+  assert.match(s, /\nToday: 2026-10-25\n/);
+  assert.match(s, /<map>\n- publish \([^)]*\): PUBLISH \| תיקייה לכל תאריך\n<\/map>/);
+  assert.ok(!s.includes('- work ('), 'only the publish area');
+  assert.match(s, /<guide>\nייצוא  ל-PUBLISH\n<\/guide>/);
+  assert.match(s, /\n- PUBLISH\/LDPB-pub-updated\n/);
+  assert.match(s, /\nFiles: LDPB-A-101\.pdf, x\.dwg\n/);
+  assert.match(s, /\nTargets: SENT yes, UPDATED no\n/);
+  assert.match(s, /\nInstruction: ה-DWG ל-Work $/);
+  for (const tag of ['</guide>', '</map>']) assert.strictEqual(s.split(tag).length - 1, 1, tag);
+  assert.match(ai.inboxContent({ ...x, text: '', lang: 'he' }), /^Language: Hebrew\n[\s\S]*\nInstruction: \(none\)$/);
+  assert.match(ai.INBOX_SYSTEM, /CODE-pub-@sent\/CODE-pub-sent-YYYY\/CODE-pub-YYYY,MM,DD\/TYPE/);
+  assert.match(ai.INBOX_SYSTEM, /CODE-pub-updated\/CODE-pub-updated-TYPE/);
+  assert.match(ai.INBOX_SYSTEM, /not uniform/);
+  assert.deepStrictEqual(sent.output_config.format.schema.required.sort(), ['files', 'message', 'mode', 'steps']);
+  await assert.rejects(ai.inboxProposal({ messages: { create: async () => ({ content: [], stop_reason: 'refusal' }) } }, 'test-model', x));
+});
+
+test('filing inbox: the agent announces a batch, the Hub window proposes, confirms and the agent publishes', async (t) => {
+  const fake = await fakeClaude(4032);
+  t.after(() => fake.close());
+  const { base, data, keyOf, call, agent } = await start(t, 4031, { ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: 'http://127.0.0.1:4032' });
+  const hub = async (email, route, body, method) => {
+    const r = await fetch(base + '/api/filing-hub/' + route, { method: method || (body ? 'POST' : 'GET'), headers: { ...(email ? { 'x-ms-client-principal': principal(email) } : {}), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  const map = { areas: { publish: { paths: ['PUBLISH'], note: 'a folder per date' }, work: { paths: ['WORK'], note: '' } }, updatedBy: 'דנה', updatedAt: 'T' };
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, root: ROOT, guide: 'ייצוא ל-PUBLISH', log: [], map } } }));
+  const dana = await keyOf('dana@kkarc.com'), ron = await keyOf('ron@kkarc.com');
+  const FILES = [{ name: 'LDPB-A-101.pdf', size: 1000, mtime: '2026-10-25T08:00:00.000Z' }, { name: 'LDPB-A-102.dwg', size: 2000, mtime: 1761379200000 }, { name: 'notes.txt', size: 5, mtime: 'x' }];
+
+  // the agent announces what is in the inbox: programs and nameless entries are left out
+  assert.strictEqual((await call(null, '/api/outlook/inbox-batch', { pc: 'PC1', files: FILES })).status, 401);
+  assert.strictEqual((await call(dana, '/api/outlook/inbox-batch', { pc: 'PC1', files: [] })).status, 400);
+  assert.strictEqual((await call(dana, '/api/outlook/inbox-batch')).status, 405);
+  const b0 = await call(dana, '/api/outlook/inbox-batch', { pc: 'PC1', files: FILES.slice(0, 1) });
+  assert.strictEqual(b0.status, 200);
+  const b1 = await call(dana, '/api/outlook/inbox-batch', { pc: 'PC1', files: [...FILES, { name: 'run.exe', size: 2 }, { name: '', size: 1 }] });
+  assert.deepStrictEqual(Object.keys(b1.body).sort(), ['id', 'url']);
+  const id = b1.body.id;
+  assert.strictEqual(b1.body.url, 'https://127.0.0.1:4031/project_hub_01?quick=inbox&id=' + id);
+  // a new batch from the same PC replaces the previous one; another PC's stays
+  assert.strictEqual((await hub('dana@kkarc.com', 'inbox?id=' + b0.body.id)).status, 404);
+  const other = (await call(dana, '/api/outlook/inbox-batch', { pc: 'PC2', files: FILES.slice(2) })).body.id;
+  assert.strictEqual((await hub('dana@kkarc.com', 'inbox?id=' + other)).status, 200);
+
+  // the Hub window: the files, the project guessed from the code, the person's projects
+  assert.strictEqual((await hub(null, 'inbox?id=' + id)).status, 401);
+  assert.strictEqual((await hub('ron@kkarc.com', 'inbox?id=' + id)).status, 404, 'only the person whose agent announced it');
+  const info = await hub('dana@kkarc.com', 'inbox?id=' + id);
+  assert.strictEqual(info.status, 200);
+  assert.deepStrictEqual(info.body, {
+    id, pc: 'PC1', status: 'new',
+    files: [{ n: 0, name: 'LDPB-A-101.pdf', size: 1000, mtime: '2026-10-25T08:00:00.000Z' }, { n: 1, name: 'LDPB-A-102.dwg', size: 2000, mtime: '2025-10-25T08:00:00.000Z' }, { n: 2, name: 'notes.txt', size: 5, mtime: '' }],
+    guess: { projectId: 'pabc123', code: 'LDPB', name: 'מגרש 4021', why: 'code' },
+    projects: [{ id: 'ph01', code: 'PH01', name: 'אולם ספורט לוד' }, { id: 'pabc123', code: 'LDPB', name: 'מגרש 4021' }]
+  });
+
+  // a viewer may not publish
+  const rb = (await call(ron, '/api/outlook/inbox-batch', { pc: 'PC5', files: FILES })).body.id;
+  assert.deepStrictEqual(await hub('ron@kkarc.com', 'inbox-propose', { id: rb, projectId: 'pabc123', files: [0], sent: true }), { status: 403, body: { error: 'viewer' } });
+  assert.strictEqual((await hub('ron@kkarc.com', 'inbox-confirm', { id: rb })).status, 403);
+  assert.strictEqual((await hub('dana@kkarc.com', 'inbox-propose', { id, projectId: 'pabc123', files: [7], sent: true })).status, 400);
+  assert.strictEqual((await hub('dana@kkarc.com', 'inbox-confirm', { id })).status, 409, 'nothing proposed yet');
+
+  // propose: the tree is asked of the agent on the PC that announced the batch; Claude gets the selected files
+  fake.answer = {
+    message: 'LDPB-A-101.pdf goes to today\'s SENT folder and replaces the one in UPDATED.', mode: 'publish',
+    steps: [{ op: 'mkdir', path: DAY }, { op: 'mkdir', path: DAY + '/PDF' }],
+    files: [
+      { name: 'LDPB-A-101.pdf', dests: [{ path: DAY + '/PDF', replace: false }, { path: 'PUBLISH/LDPB-pub-updated/LDPB-pub-updated-PDF', replace: true }, { path: '../evil', replace: false }] },
+      { name: 'LDPB-A-102.dwg', dests: [{ path: 'WORK/DWG', replace: true }, { path: 'NOT/THERE', replace: false }] }
+    ]
+  };
+  const proposing = hub('dana@kkarc.com', 'inbox-propose', { id, projectId: 'pabc123', files: [0, 1], sent: true, updated: true, text: 'ה-DWG ל-Work', lang: 'en' });
+  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-next?pc=PC9')).body, { task: null }, 'not to another PC');
+  const a1 = await agent(dana);
+  assert.deepStrictEqual([a1.got.kind, a1.got.folder, a1.got.root, a1.got.lang], ['tree', FOLDER, ROOT, 'en']);
+  assert.strictEqual((await a1.result({ tree: [...PUB_TREE, '../evil'] })).status, 200);
+  const p1 = await proposing;
+  assert.strictEqual(p1.status, 200);
+  const PLAN = {
+    files: [
+      { n: 0, name: 'LDPB-A-101.pdf', dests: [{ path: DAY + '/PDF', replace: false }, { path: 'PUBLISH/LDPB-pub-updated/LDPB-pub-updated-PDF', replace: true }] },
+      { n: 1, name: 'LDPB-A-102.dwg', dests: [{ path: 'WORK/DWG', replace: false }] }
+    ],
+    steps: [{ op: 'mkdir', path: DAY, from: '', to: '' }, { op: 'mkdir', path: DAY + '/PDF', from: '', to: '' }],
+    mode: 'publish'
+  };
+  assert.deepStrictEqual(p1.body, { message: fake.answer.message, plan: PLAN });
+  const israel = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
+  assert.ok(fake.last.includes('\nToday: ' + israel + '\n'), fake.last);
+  assert.match(fake.last, /\nFiles: LDPB-A-101\.pdf, LDPB-A-102\.dwg\n/);
+  assert.ok(!fake.last.includes('notes.txt') && !fake.last.includes('../evil'));
+  assert.match(fake.last, /\nTargets: SENT yes, UPDATED yes\n/);
+  assert.match(fake.last, /<map>\n- publish \([^)]*\): PUBLISH \| a folder per date\n<\/map>\n<guide>\nייצוא ל-PUBLISH\n<\/guide>/);
+  assert.match(fake.last, /\nInstruction: ה-DWG ל-Work$/);
+  // another proposal for the same project: the tree is kept
+  const p2 = await hub('dana@kkarc.com', 'inbox-propose', { id, projectId: 'pabc123', files: [0, 1], sent: true, updated: true, lang: 'en' });
+  assert.deepStrictEqual(p2.body.plan, PLAN);
+  assert.match(fake.last, /\nInstruction: \(none\)$/);
+
+  // confirm: the stored plan, never one from the page; the task goes to the PC that announced the batch
+  const conf = await hub('dana@kkarc.com', 'inbox-confirm', { id, plan: { files: [{ n: 0, name: 'x', dests: [{ path: '../evil', replace: true }] }] } });
+  assert.deepStrictEqual(Object.keys(conf.body), ['taskId']);
+  assert.strictEqual((await hub('dana@kkarc.com', 'inbox-confirm', { id })).status, 409, 'once');
+  assert.strictEqual((await hub('dana@kkarc.com', 'inbox-propose', { id, projectId: 'pabc123', files: [0], sent: true })).status, 409);
+  assert.strictEqual((await hub('dana@kkarc.com', 'inbox-dismiss', { id })).status, 409, 'not while it is being published');
+  assert.strictEqual((await call(dana, '/api/outlook/inbox-batch', { pc: 'PC1', files: FILES.slice(2) })).status, 200);
+  assert.strictEqual((await hub('dana@kkarc.com', 'inbox?id=' + id)).status, 200, 'a batch being published is not replaced');
+  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-next?pc=PC9')).body, { task: null });
+  const a2 = await agent(dana);
+  assert.strictEqual(a2.id, conf.body.taskId);
+  assert.deepStrictEqual(a2.got, { kind: 'inbox', lang: 'en', project: { id: 'pabc123', code: 'LDPB', name: 'מגרש 4021' }, folder: FOLDER, root: ROOT, files: [{ n: 0, name: 'LDPB-A-101.pdf' }, { n: 1, name: 'LDPB-A-102.dwg' }], plan: PLAN, by: 'דנה' });
+  // what the agent did: the file names it saved in each dest, in the plan's order
+  const did = await a2.result({ files: [{ name: 'LDPB-A-101.pdf', dests: ['LDPB-A-101.pdf', 'LDPB-A-101.pdf'] }, { name: 'LDPB-A-102.dwg', dests: ['LDPB-A-102 (2).dwg', 'extra.dwg'] }, { name: 'ghost.pdf', dests: ['ghost.pdf'] }], error: null });
+  assert.strictEqual(did.status, 200);
+  const st = (await hub('dana@kkarc.com', 'task?id=' + a2.id)).body;
+  assert.deepStrictEqual([st.kind, st.result], ['inbox', { files: [{ name: 'LDPB-A-101.pdf', dests: ['LDPB-A-101.pdf', 'LDPB-A-101.pdf'] }, { name: 'LDPB-A-102.dwg', dests: ['LDPB-A-102 (2).dwg'] }], error: null }]);
+  const log = JSON.parse(fs.readFileSync(path.join(data, 'filing.json'), 'utf8')).projects.pabc123.log;
+  assert.deepStrictEqual(log.map(l => [l.file, l.dest, l.mode, l.by]), [
+    ['LDPB-A-101.pdf', DAY + '/PDF', 'publish', 'דנה'],
+    ['LDPB-A-101.pdf', 'PUBLISH/LDPB-pub-updated/LDPB-pub-updated-PDF', 'publish', 'דנה'],
+    ['LDPB-A-102 (2).dwg', 'WORK/DWG', 'publish', 'דנה']
+  ]);
+  assert.strictEqual((await hub('dana@kkarc.com', 'inbox?id=' + id)).body.status, 'published');
+  assert.strictEqual((await hub('dana@kkarc.com', 'inbox-propose', { id, projectId: 'pabc123', files: [0], sent: true })).status, 409);
+
+  // dismiss: the batch ends, the files stay in the inbox
+  assert.strictEqual((await hub('ron@kkarc.com', 'inbox-dismiss', { id: other })).status, 404);
+  assert.deepStrictEqual((await hub('dana@kkarc.com', 'inbox-dismiss', { id: other })).body, { ok: true });
+  assert.strictEqual((await hub('dana@kkarc.com', 'inbox?id=' + other)).body.status, 'dismissed');
+  assert.strictEqual((await hub('dana@kkarc.com', 'inbox-propose', { id: other, projectId: 'pabc123', files: [0], sent: true })).status, 409);
+});
+
+test('filing inbox: no folder, no agent, a failed publish can be confirmed again', async (t) => {
+  const fake = await fakeClaude(4034);
+  t.after(() => fake.close());
+  const { base, data, keyOf, call, agent } = await start(t, 4033, { ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: 'http://127.0.0.1:4034', FILING_AGENT_WAIT_MS: '300', FILING_TREE_WAIT_MS: '700' });
+  const hub = async (route, body) => {
+    const r = await fetch(base + '/api/filing-hub/' + route, { method: body ? 'POST' : 'GET', headers: { 'x-ms-client-principal': principal('dana@kkarc.com'), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  const dana = await keyOf('dana@kkarc.com');
+  const id = (await call(dana, '/api/outlook/inbox-batch', { pc: 'PC1', files: [{ name: 'A-101.pdf', size: 3, mtime: '' }] })).body.id;
+  assert.deepStrictEqual((await hub('inbox?id=' + id)).body.guess, { projectId: null, code: '', name: '', why: 'none' });
+  const ask = { id, projectId: 'pabc123', files: [0], sent: true, updated: false };
+  assert.deepStrictEqual((await hub('inbox-propose', ask)).body, { needsFolder: true });
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, guide: '', log: [] } } }));
+  assert.deepStrictEqual((await hub('inbox-propose', ask)).body, { agent: 'none' });
+  // the tree comes; no publish area mapped: nothing replaces
+  fake.answer = { message: 'ok', mode: 'publish', steps: [], files: [{ name: 'A-101.pdf', dests: [{ path: 'PUBLISH', replace: true }] }] };
+  const proposing = hub('inbox-propose', ask);
+  await (await agent(dana)).result({ tree: ['PUBLISH'] });
+  assert.deepStrictEqual((await proposing).body.plan.files[0].dests, [{ path: 'PUBLISH', replace: false }]);
+  // the PC could not publish: the batch is still new and can be confirmed again
+  const c1 = (await hub('inbox-confirm', { id })).body.taskId;
+  const a1 = await agent(dana);
+  assert.strictEqual(a1.id, c1);
+  assert.strictEqual((await a1.result({ files: [], error: 'A-101.pdf is not in the inbox' })).status, 200);
+  assert.deepStrictEqual((await hub('task?id=' + c1)).body.result, { files: [], error: 'A-101.pdf is not in the inbox' });
+  assert.strictEqual((await hub('inbox?id=' + id)).body.status, 'new');
+  const c2 = (await hub('inbox-confirm', { id })).body.taskId;
+  const a2 = await agent(dana);
+  assert.strictEqual((await a2.result({ missing: true })).status, 200);
+  assert.deepStrictEqual((await hub('task?id=' + c2)).body.result, { missing: true });
+  assert.strictEqual((await hub('inbox-confirm', { id })).status, 200, 'and again');
+});
