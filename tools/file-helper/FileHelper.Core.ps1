@@ -5,9 +5,11 @@
    A "file" task's attachments are saved from classic Outlook on this PC when it has the email (Get-NeededFiles,
    Get-AttachmentMatch, the filters); the server's copy is the fallback.
    The export inbox (Desktop\לתיוק): files exported there are noticed once they settle (Get-InboxState,
-   Select-InboxAnnouncement), announced with a notification whose link opens the hub's inbox window (Get-InboxLink,
-   Get-InboxOpenUrl), and published on request (Invoke-InboxTask) — the one place a file is deleted: the inbox's own
-   copy, after it was copied to every place the plan names.
+   Select-InboxAnnouncement), announced with a notification that opens the hub's inbox window (its https address,
+   Get-HubPageUrl, Get-InboxToastXml), and published on request (Invoke-InboxTask) — the one place a file is deleted:
+   the inbox's own copy, after it was copied to every place the plan names. A folder the person chooses in the quick
+   window's "תיוק" tab (pick-source: ConvertTo-SourceBatch, Save-HelperSource) is published the same way, but its
+   files are only copied (Get-InboxTaskSource).
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md
    Saved as UTF-8 with BOM (Windows PowerShell 5.1 reads Hebrew right only then). #>
 
@@ -16,6 +18,8 @@ $script:FmProjects = Join-Path $env:LOCALAPPDATA 'FolderManager\projects.json'
 $script:KeyPath = Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper.key'
 $script:LogPath = Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper.log'
 $script:InboxKnownPath = Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper-inbox.json'
+# folders the person chose to publish from (pick-source): id → path, kept here; the server only sees the id
+$script:SourcesPath = Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper-sources.json'
 
 # ── texts: Hebrew is the source; English when the pane that made the task runs in English. The helper shows only
 #    the folder picker; everything else is said in the pane. ──
@@ -25,6 +29,7 @@ $script:EN = @{
   '{n} קבצים חדשים בתיבת הייצוא' = '{n} new files in the export inbox'
   'קובץ חדש בתיבת הייצוא' = 'A new file in the export inbox'
   'פתח' = 'Open'
+  'בחר תיקייה עם קבצים לפרסום בפרויקט' = 'Choose a folder with files to publish to a project'
   'אחר כך' = 'Later'
 }
 function T([string]$He, [hashtable]$Slots) {
@@ -202,7 +207,7 @@ function Save-HelperConfig($Config, [string]$Path = $script:ConfigPath) {
 }
 
 # ── the tasks the server hands this PC (Run-Task.ps1 does the network and the window) ──
-function Test-TaskKind([string]$Kind) { return $Kind -in @('pick', 'tree', 'open', 'file', 'inbox') }
+function Test-TaskKind([string]$Kind) { return $Kind -in @('pick', 'tree', 'open', 'file', 'inbox', 'pick-source') }
 # ── the project roots: the office keeps projects on many computers, each sharing a drive whose top holds a folder
 #    named "@<Name> Projects" (any case). Drive letters differ between PCs; the root's folder name is what the server
 #    keeps with each project's folder. ──
@@ -485,20 +490,23 @@ function Test-FileLocked([string]$Path) {
   # while others may only read it. A program that only reads it (a viewer) is no lock, and this read blocks no one.
   try { $f = [IO.File]::Open($Path, 'Open', 'Read', 'Read'); $f.Close(); return $false } catch { return $true }
 }
+function Get-InboxFiles([string]$Dir) {
+  # the folder's files (no folders, hidden files, Office lock files "~$…", *.tmp, *.part or empty files), each with its
+  # size and time
+  if (-not $Dir -or -not [IO.Directory]::Exists($Dir)) { return @() }
+  return @(foreach ($f in ([IO.DirectoryInfo]$Dir).GetFiles()) {
+    if ($f.Attributes -band ([IO.FileAttributes]::Hidden -bor [IO.FileAttributes]::System)) { continue }
+    if ($f.Name -like '~$*' -or $f.Name -like '*.tmp' -or $f.Name -like '*.part' -or $f.Length -eq 0) { continue }
+    [pscustomobject]@{ name = $f.Name; size = [long]$f.Length; mtime = $f.LastWriteTimeUtc }
+  })
+}
 function Get-InboxKey($File) { return '{0}|{1}|{2}' -f $File.name, $File.size, $File.mtime.Ticks }
 function Get-InboxState([string]$Dir, $Prev, [datetime]$Now = [DateTime]::UtcNow, [scriptblock]$IsLocked = { param($p) Test-FileLocked $p }, [int]$SettleSec = 10, [string[]]$Known = @()) {
   # the inbox's files (no folders, hidden files, Office lock files "~$…", *.tmp, *.part or empty files), each with its
   # size and time; "settled" once the list, the sizes and the times have not changed for $SettleSec seconds (counted
   # from the state $Prev of the check before) and no file is held open by a program writing it. The lock test runs only
   # when something is to be announced (a file not in $Known, the inbox when it last settled): known files are not opened.
-  $files = @()
-  if ($Dir -and [IO.Directory]::Exists($Dir)) {
-    $files = @(foreach ($f in ([IO.DirectoryInfo]$Dir).GetFiles()) {
-      if ($f.Attributes -band ([IO.FileAttributes]::Hidden -bor [IO.FileAttributes]::System)) { continue }
-      if ($f.Name -like '~$*' -or $f.Name -like '*.tmp' -or $f.Name -like '*.part' -or $f.Length -eq 0) { continue }
-      [pscustomobject]@{ name = $f.Name; size = [long]$f.Length; mtime = $f.LastWriteTimeUtc }
-    })
-  }
+  $files = @(Get-InboxFiles $Dir)
   $keys = @($files | ForEach-Object { Get-InboxKey $_ } | Sort-Object)
   $sig = $keys -join "`n"
   $since = if ($Prev -and $Prev.sig -eq $sig) { $Prev.since } else { $Now }
@@ -536,6 +544,39 @@ function ConvertTo-InboxBatch($State, [string]$Pc) {
   # the body of POST /api/outlook/inbox-batch: the whole inbox as it is now (a new batch replaces the one before)
   return [pscustomobject]@{ pc = $Pc; files = @($State.files | ForEach-Object { [pscustomobject]@{ name = $_.name; size = $_.size; mtime = $_.mtime.ToString('yyyy-MM-ddTHH:mm:ss.fffZ', [Globalization.CultureInfo]::InvariantCulture) } }) }
 }
+function ConvertTo-SourceBatch([string]$Dir, [string]$Id) {
+  # the result of a pick-source task: the chosen folder's files (as the inbox's), the id the folder is kept under here
+  # and its name to show — never its path
+  $body = ConvertTo-InboxBatch ([pscustomobject]@{ files = @(Get-InboxFiles $Dir | Select-Object -First 100) }) ''  # the hub takes 100
+  return [pscustomobject]@{ source = $Id; folder = (Split-Path $Dir.TrimEnd('\') -Leaf); files = @($body.files) }
+}
+function Read-HelperSources([string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path)) { return @() }
+  try { $j = Get-Content -Raw -Encoding UTF8 -LiteralPath $Path | ConvertFrom-Json; return @($j | Where-Object { $_ -and $_.id -and $_.path }) } catch { return @() }
+}
+function Save-HelperSource([string]$Dir, [string]$Path = $script:SourcesPath) {
+  # keeps a folder the person chose to publish from under an id (the same folder keeps its id); the latest 20 only
+  $list = @(Read-HelperSources $Path)
+  $old = @($list | Where-Object { $_.path -eq $Dir }) | Select-Object -First 1
+  $id = if ($old) { [string]$old.id } else { 'src_' + [guid]::NewGuid().ToString('N').Substring(0, 12) }
+  $list = @(@($list | Where-Object { $_.path -ne $Dir }) + [pscustomobject]@{ id = $id; path = $Dir }) | Select-Object -Last 20
+  New-Item -ItemType Directory -Force -Path (Split-Path $Path -Parent) | Out-Null
+  [IO.File]::WriteAllText($Path, (ConvertTo-Json -InputObject @($list) -Compress), (New-Object Text.UTF8Encoding $false))
+  return $id
+}
+function Get-HelperSource([string]$Id, [string]$Path = $script:SourcesPath) {
+  # the folder kept under $Id, or $null
+  $hit = @(Read-HelperSources $Path | Where-Object { $_.id -eq $Id }) | Select-Object -First 1
+  if ($hit) { return [string]$hit.path }
+  return $null
+}
+function Get-InboxTaskSource($Cfg, $Task, [string]$Path = $script:SourcesPath) {
+  # where an inbox task's files are, and whether they leave it: the export inbox's files move into the project (a
+  # server that says nothing means the inbox); a folder the person chose (source) is only copied from, whatever the
+  # task says, and one not kept here is no folder at all (never the inbox)
+  if ($Task.source) { return [pscustomobject]@{ dir = (Get-HelperSource ([string]$Task.source) $Path); move = $false } }
+  return [pscustomobject]@{ dir = [string]$Cfg.inbox; move = ($Task.move -ne $false) }
+}
 function Read-InboxKnown([string]$Path = $script:InboxKnownPath) {
   # the inbox as it was when it last settled, kept across sign-ins so the same files are not announced again
   if (-not (Test-Path -LiteralPath $Path)) { return @() }
@@ -546,36 +587,30 @@ function Save-InboxKnown([string[]]$Known, [string]$Path = $script:InboxKnownPat
   New-Item -ItemType Directory -Force -Path (Split-Path $Path -Parent) | Out-Null
   [IO.File]::WriteAllText($Path, (ConvertTo-Json -InputObject @($Known | Where-Object { $_ }) -Compress), (New-Object Text.UTF8Encoding $false))
 }
-function Get-InboxLink([string]$Url) { return 'projecthub-inbox:' + [uri]::EscapeDataString($Url) }
-function Get-InboxOpenUrl([string]$Link, [string]$Hub) {
-  # the address a projecthub-inbox: link opens, or $null: it must be the hub's own address (same scheme, host and
-  # port, nothing before the host) followed by a path — anything else is never handed to the browser
-  if (-not $Hub -or $Link -notmatch '^projecthub-inbox:((?:[A-Za-z0-9._~-]|%[0-9A-Fa-f]{2})+)/?$') { return $null }
-  try { $url = [uri]::UnescapeDataString($Matches[1]) } catch { return $null }
+function Get-HubPageUrl([string]$Url, [string]$Hub) {
+  # $Url when it is a page of the hub itself (the config's "hub": same scheme, host and port, nothing before the host,
+  # a path after it, no spaces or quotes), else $null — anything else is never handed to Windows or a browser
+  if (-not $Hub -or -not $Url) { return $null }
   $base = $Hub.TrimEnd('/')
-  if ($url -match '[\x00-\x20"<>\\^`{|}]' -or -not $url.StartsWith($base + '/', [StringComparison]::OrdinalIgnoreCase)) { return $null }
+  if ($Url -match '[\x00-\x20"<>\\^`{|}]' -or -not $Url.StartsWith($base + '/', [StringComparison]::OrdinalIgnoreCase)) { return $null }
   $u = $null; $h = $null
-  if (-not [uri]::TryCreate($url, [UriKind]::Absolute, [ref]$u) -or -not [uri]::TryCreate($base, [UriKind]::Absolute, [ref]$h)) { return $null }
+  if (-not [uri]::TryCreate($Url, [UriKind]::Absolute, [ref]$u) -or -not [uri]::TryCreate($base, [UriKind]::Absolute, [ref]$h)) { return $null }
   if ($u.Scheme -notin @('https', 'http') -or $u.Scheme -ne $h.Scheme -or $u.Host -ne $h.Host -or $u.Port -ne $h.Port -or $u.UserInfo) { return $null }
-  return $url
+  return $Url
 }
-function Get-InboxToastXml([int]$Count, [string[]]$Names, [string]$Link) {
-  # the notification: "N new files", up to three names, "Open" (the link) and "Later"
+function Get-InboxToastXml([int]$Count, [string[]]$Names, [string]$Url) {
+  # the notification: "N new files", up to three names, "Open" and "Later". "Open" and a click on the notification
+  # launch the window's https address itself, which Windows opens in the default browser (a projecthub-inbox: link
+  # did not reach its handler from a notification: Windows offered the Store instead). $Url: checked by Get-HubPageUrl.
   $e = [Security.SecurityElement]
   $head = if ($Count -eq 1) { T 'קובץ חדש בתיבת הייצוא' } else { T '{n} קבצים חדשים בתיבת הייצוא' @{ n = $Count } }
   $line = (@($Names) | Select-Object -First 3) -join ', '
   if (@($Names).Count -gt 3) { $line += '…' }
-  $l = $e::Escape($Link)
+  $l = $e::Escape($Url)
   return '<toast activationType="protocol" launch="' + $l + '"><visual><binding template="ToastGeneric"><text>' + $e::Escape($head) + '</text><text>' + $e::Escape($line) + '</text></binding></visual>' +
     '<actions><action content="' + $e::Escape((T 'פתח')) + '" activationType="protocol" arguments="' + $l + '"/><action content="' + $e::Escape((T 'אחר כך')) + '" activationType="system" arguments="dismiss"/></actions></toast>'
 }
-function Find-AppBrowser([string[]]$Candidates = @("$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
-    "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe")) {
-  # Chrome first, else Edge (as the quick-access windows), for an --app window; $null when neither is here
-  foreach ($c in $Candidates) { if ($c -and (Test-Path -LiteralPath $c -PathType Leaf)) { return $c } }
-  return $null
-}
-function Invoke-InboxTask([string]$Dir, [string]$InboxDir, $Task) {
+function Invoke-InboxTask([string]$Dir, [string]$InboxDir, $Task, [bool]$Move = $true) {
   # Publishes files of the export inbox into the project's folder $Dir ($null when it is not on this PC) by the plan:
   # the mkdir steps, then each file to each of its dests. A dest with replace: an existing file of the same name in that
   # folder first moves into "@ver" inside the same folder (made when missing; a name already in @ver gets a free name,
@@ -583,12 +618,13 @@ function Invoke-InboxTask([string]$Dir, [string]$InboxDir, $Task) {
   # the project, every source a file of the batch, mkdir the only step) — a bad one: nothing is done. A source no longer
   # in the inbox (published from another window, deleted) is skipped and said (notInInbox); with none left nothing is
   # done. A file copied to all its dests (sizes checked) is deleted from the inbox; the first failure stops it, and a
-  # file not copied everywhere stays in the inbox.
+  # file not copied everywhere stays in the inbox. $Move = $false (a folder the person chose, not the export inbox): the
+  # files are only copied, nothing is deleted.
   # Result: { files: [{ name, dests: [the name it was saved as, per dest, in the plan's order] }], notInInbox, error }.
   if (-not $Dir) { return @{ missing = $true } }
   $result = @{ files = @(); notInInbox = @(); error = $null }
   try {
-    if (-not $InboxDir -or -not [IO.Directory]::Exists($InboxDir)) { throw "The export inbox is not on this PC: $InboxDir" }
+    if (-not $InboxDir -or -not [IO.Directory]::Exists($InboxDir)) { throw "The folder of the files is not on this PC: $InboxDir" }
     $byN = @{}; $byName = @{}
     foreach ($x in @($Task.files)) { if ($null -ne $x) { if ($null -ne $x.n) { $byN[[int]$x.n] = [string]$x.name }; $byName[[string]$x.name] = $true } }
     $steps = @(foreach ($s in @($Task.plan.steps)) {
@@ -625,7 +661,7 @@ function Invoke-InboxTask([string]$Dir, [string]$InboxDir, $Task) {
         if ((Get-Item -LiteralPath (Join-Path $d.full $as)).Length -ne (Get-Item -LiteralPath $j.src).Length) { throw "Copy incomplete: $($j.name)" }
         $done.dests += $as
       }
-      Remove-Item -LiteralPath $j.src -Force
+      if ($Move) { Remove-Item -LiteralPath $j.src -Force }
     }
   } catch { $result.error = $_.Exception.Message }
   return $result

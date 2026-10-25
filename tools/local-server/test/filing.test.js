@@ -938,7 +938,7 @@ test('filing inbox: the agent announces a batch, the Hub window proposes, confir
   const info = await hub('dana@kkarc.com', 'inbox?id=' + id);
   assert.strictEqual(info.status, 200);
   assert.deepStrictEqual(info.body, {
-    id, pc: 'PC1', status: 'new',
+    id, pc: 'PC1', status: 'new', source: false, folder: '', move: true,
     files: [{ n: 0, name: 'LDPB-A-101.pdf', size: 1000, mtime: '2026-10-25T08:00:00.000Z' }, { n: 1, name: 'LDPB-A-102.dwg', size: 2000, mtime: '2025-10-25T08:00:00.000Z' }, { n: 2, name: 'notes.txt', size: 5, mtime: '' }],
     guess: { projectId: 'pabc123', code: 'LDPB', name: 'מגרש 4021', why: 'code' },
     projects: [{ id: 'ph01', code: 'PH01', name: 'אולם ספורט לוד' }, { id: 'pabc123', code: 'LDPB', name: 'מגרש 4021' }]
@@ -1004,7 +1004,7 @@ test('filing inbox: the agent announces a batch, the Hub window proposes, confir
   assert.deepStrictEqual((await call(dana, '/api/outlook/filing-next?pc=PC9')).body, { task: null });
   const a2 = await agent(dana);
   assert.strictEqual(a2.id, conf.body.taskId);
-  assert.deepStrictEqual(a2.got, { kind: 'inbox', lang: 'en', project: { id: 'pabc123', code: 'LDPB', name: 'מגרש 4021' }, folder: FOLDER, root: ROOT, files: [{ n: 0, name: 'LDPB-A-101.pdf' }, { n: 1, name: 'LDPB-A-102.dwg' }], plan: PLAN, by: 'דנה' });
+  assert.deepStrictEqual(a2.got, { kind: 'inbox', lang: 'en', project: { id: 'pabc123', code: 'LDPB', name: 'מגרש 4021' }, folder: FOLDER, root: ROOT, files: [{ n: 0, name: 'LDPB-A-101.pdf' }, { n: 1, name: 'LDPB-A-102.dwg' }], plan: PLAN, source: '', move: true, by: 'דנה' });
   // what the agent did: the file names it saved in each dest, in the plan's order
   const did = await a2.result({ files: [{ name: 'LDPB-A-101.pdf', dests: ['LDPB-A-101.pdf', 'LDPB-A-101.pdf'] }, { name: 'LDPB-A-102.dwg', dests: ['LDPB-A-102 (2).dwg', 'extra.dwg'] }, { name: 'ghost.pdf', dests: ['ghost.pdf'] }], error: null });
   assert.strictEqual(did.status, 200);
@@ -1094,6 +1094,13 @@ test('filing inbox: an expired task frees the batch, a working PC is waited for,
   assert.deepStrictEqual((await hub('inbox-latest?pc=PC1')).body, { id: b.id });
   assert.deepStrictEqual((await hub('inbox-latest')).body, { id: b.id });
   assert.deepStrictEqual((await hub('inbox-latest?pc=PC2')).body, { id: null });
+  // the Hub's top bar: the person's open batches, of every PC (none of another person's)
+  const open = (await hub('inbox-open')).body;
+  assert.deepStrictEqual(open, [{ id: b.id, pc: 'PC1', files: 3, at: open[0].at }]);
+  assert.ok(!isNaN(Date.parse(open[0].at)));
+  const other = await fetch(base + '/api/filing-hub/inbox-open', { headers: { 'x-ms-client-principal': principal('yoav@kkarc.com') } });
+  assert.deepStrictEqual(await other.json(), []);
+  assert.strictEqual((await fetch(base + '/api/filing-hub/inbox-open', { method: 'POST', headers: { 'x-ms-client-principal': principal('dana@kkarc.com') } })).status, 405);
 
   const propose = async (ns, answer) => {
     fake.answer = answer;
@@ -1147,4 +1154,69 @@ test('filing inbox: an expired task frees the batch, a working PC is waited for,
   assert.strictEqual((await hub('inbox?id=' + b.id)).body.status, 'published');
   assert.deepStrictEqual((await call(dana, '/api/outlook/inbox-batch?pc=PC1')).body, { id: null }, 'no open batch: the agent announces again');
   assert.deepStrictEqual((await hub('inbox-latest?pc=PC1')).body, { id: null });
+  assert.deepStrictEqual((await hub('inbox-open')).body, [], 'nothing open: no indicator');
+});
+
+test('filing inbox: a folder chosen on the PC is offered like the inbox, and its files are copied, never moved', async (t) => {
+  const fake = await fakeClaude(4038);
+  t.after(() => fake.close());
+  const { base, data, keyOf, call, agent } = await start(t, 4037, { ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: 'http://127.0.0.1:4038' });
+  const hubAs = email => async (route, body) => {
+    const r = await fetch(base + '/api/filing-hub/' + route, { method: body ? 'POST' : 'GET', headers: { 'x-ms-client-principal': principal(email), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  const hub = hubAs('dana@kkarc.com');
+  const map = { areas: { publish: { paths: ['PUBLISH'], note: '' } }, updatedBy: 'דנה', updatedAt: 'T' };
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, root: ROOT, guide: '', log: [], map } } }));
+  const dana = await keyOf('dana@kkarc.com');
+  await keyOf('ron@kkarc.com');
+
+  // a viewer does not choose folders to publish from
+  assert.strictEqual((await hubAs('ron@kkarc.com')('pick-source', { lang: 'en' })).status, 403);
+  // the picker on the PC: a task without a project; the person cancels it
+  const t1 = (await hub('pick-source', { lang: 'en' })).body.taskId;
+  const a1 = await agent(dana);
+  assert.strictEqual(a1.id, t1);
+  assert.strictEqual(a1.got.kind, 'pick-source');
+  assert.strictEqual(a1.got.lang, 'en');
+  assert.strictEqual((await a1.result({ cancelled: true })).status, 200);
+  assert.deepStrictEqual((await hub('task?id=' + t1)).body.result, { cancelled: true });
+
+  // a folder was chosen: its files become a batch of that PC with the source the PC keeps (the server never sees the path)
+  const t2 = (await hub('pick-source', {})).body.taskId;
+  const a2 = await agent(dana);
+  assert.strictEqual((await a2.result({ source: 'bad id!', folder: 'x', files: [{ name: 'A.pdf', size: 1, mtime: '' }] })).status, 400);
+  const t3 = (await hub('pick-source', {})).body.taskId;
+  const a3 = await agent(dana);
+  assert.strictEqual(a3.id, t3);
+  const files = [{ name: 'LDPB-A-101.pdf', size: 3, mtime: '' }, { name: 'setup.exe', size: 3, mtime: '' }, { name: 'LDPB-A-102.dwg', size: 3, mtime: '' }];
+  assert.strictEqual((await a3.result({ source: 'src_0123456789ab', folder: 'C:/Users/dana/Exports', files })).status, 200);
+  const r3 = (await hub('task?id=' + t3)).body.result;
+  assert.deepStrictEqual(Object.keys(r3).sort(), ['files', 'folder', 'id']);
+  assert.deepStrictEqual([r3.files, r3.folder], [2, 'Exports']);
+  assert.strictEqual(t2 !== t3, true);
+  const b = (await hub('inbox?id=' + r3.id)).body;
+  assert.deepStrictEqual([b.pc, b.source, b.folder, b.move, b.files.map(f => f.name), b.guess.projectId], ['PC1', true, 'Exports', false, ['LDPB-A-101.pdf', 'LDPB-A-102.dwg'], 'pabc123']);
+  // a chosen folder is not the export inbox: no indicator, and the agent's inbox check does not see it
+  assert.deepStrictEqual((await hub('inbox-open')).body, []);
+  assert.deepStrictEqual((await call(dana, '/api/outlook/inbox-batch?pc=PC1')).body, { id: null });
+  // the export inbox's batch of the same PC does not replace it, nor it the inbox's
+  const ib = (await call(dana, '/api/outlook/inbox-batch', { pc: 'PC1', files: [{ name: 'Z.pdf', size: 3, mtime: '' }] })).body;
+  assert.strictEqual((await hub('inbox?id=' + r3.id)).status, 200);
+  assert.strictEqual((await hub('inbox?id=' + ib.id)).body.move, true);
+  assert.deepStrictEqual((await hub('inbox-open')).body.map(x => x.id), [ib.id]);
+
+  // proposing and confirming as for the inbox; the task tells the PC where the files are and that they are copied
+  fake.answer = { message: 'ok', mode: 'publish', steps: [], files: [{ name: 'LDPB-A-101.pdf', dests: [{ path: 'PUBLISH', replace: false }] }] };
+  const going = hub('inbox-propose', { id: r3.id, projectId: 'pabc123', files: [0], sent: true, updated: false });
+  await (await agent(dana)).result({ tree: ['PUBLISH'] });
+  assert.strictEqual((await going).body.plan.files.length, 1);
+  const c = (await hub('inbox-confirm', { id: r3.id })).body.taskId;
+  const a4 = await agent(dana);
+  assert.strictEqual(a4.id, c);
+  assert.deepStrictEqual([a4.got.kind, a4.got.source, a4.got.move], ['inbox', 'src_0123456789ab', false]);
+  assert.strictEqual(a4.got.files.length, 1);
+  await a4.result({ files: [{ name: 'LDPB-A-101.pdf', dests: ['LDPB-A-101.pdf'] }], notInInbox: [], error: null });
+  const left = (await hub('inbox?id=' + r3.id)).body;
+  assert.deepStrictEqual([left.status, left.files.map(f => f.name)], ['new', ['LDPB-A-102.dwg']]);
 });

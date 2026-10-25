@@ -2,9 +2,9 @@
    Asks for the person's Outlook add-in key (the one pasted in the add-in's pane), checks it with the hub and keeps
    it with DPAPI; copies the helper to %LOCALAPPDATA%\ProjectHub\file-helper; lists the project roots this PC
    reaches (the "@<Name> Projects" folders at the top of its drives); adds a Startup shortcut that runs the background agent
-   at every Windows sign-in, and starts it now; makes the export inbox (Desktop\לתיוק unless -Inbox says otherwise) and
-   registers projecthub-inbox: (HKCU), the link of the inbox notification's "Open". Run it again after an update or to
-   replace the key.
+   at every Windows sign-in, and starts it now; makes the export inbox (Desktop\לתיוק unless -Inbox says otherwise).
+   The inbox notification's "Open" is the hub's own https address (the default browser opens it); the quick-access
+   window's "תיוק" tab is the way back to it. Run it again after an update or to replace the key.
    Saved as UTF-8 with BOM. #>
 param([string]$Hub = 'https://kkarc-hub.azurewebsites.net', [string]$Inbox = '')
 $ErrorActionPreference = 'Stop'
@@ -16,9 +16,11 @@ New-Item -ItemType Directory -Force -Path $dir | Out-Null
 
 # an agent of an earlier install is stopped first, so the new files are the ones that run
 Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -match 'FileHelper-Agent\.ps1' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
-foreach ($f in 'Run-Task.ps1', 'FileHelper.Core.ps1', 'FileHelper-Agent.ps1', 'run-file-helper-agent.vbs', 'Open-Inbox.ps1', 'open-inbox.vbs') { Copy-Item -LiteralPath (Join-Path $here $f) -Destination $dir -Force }
-# the filing window of the first version is gone: everything is in the Outlook pane now
-Remove-Item -LiteralPath (Join-Path $dir 'File-Helper.ps1') -Force -ErrorAction SilentlyContinue
+foreach ($f in 'Run-Task.ps1', 'FileHelper.Core.ps1', 'FileHelper-Agent.ps1', 'run-file-helper-agent.vbs') { Copy-Item -LiteralPath (Join-Path $here $f) -Destination $dir -Force }
+# the filing window of the first version is gone: everything is in the Outlook pane now; and the projecthub-inbox: link
+# of an earlier notification (Windows did not hand it to its handler from a notification) with its two files
+foreach ($f in 'File-Helper.ps1', 'Open-Inbox.ps1', 'open-inbox.vbs') { Remove-Item -LiteralPath (Join-Path $dir $f) -Force -ErrorAction SilentlyContinue }
+Remove-Item 'HKCU:\Software\Classes\projecthub-inbox' -Recurse -ErrorAction SilentlyContinue
 . (Join-Path $dir 'FileHelper.Core.ps1')
 
 $cfg = Get-HelperConfig
@@ -47,13 +49,8 @@ while ($true) {
   }
 }
 
-# the export inbox, and its notification's link: projecthub-inbox:<the window's address> opens the hub's inbox window
+# the export inbox
 New-Item -ItemType Directory -Force -Path $cfg.inbox | Out-Null
-$proto = 'HKCU:\Software\Classes\projecthub-inbox'
-New-Item -Path "$proto\shell\open\command" -Force | Out-Null
-Set-ItemProperty -Path $proto -Name '(default)' -Value 'URL:Project Hub export inbox'
-Set-ItemProperty -Path $proto -Name 'URL Protocol' -Value ''
-Set-ItemProperty -Path "$proto\shell\open\command" -Name '(default)' -Value "wscript.exe //B //Nologo `"$dir\open-inbox.vbs`" `"%1`""
 
 # at every sign-in, and now
 $startup = [Environment]::GetFolderPath('Startup')

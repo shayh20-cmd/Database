@@ -5,7 +5,7 @@
    runs it in Run-Task.ps1.
    While that request is open it looks at the export inbox (config "inbox", Desktop\לתיוק) every 3 seconds: once new
    files there have settled (Get-InboxState), it tells the hub (/api/outlook/inbox-batch) and shows a notification
-   whose "Open" opens the hub's inbox window (projecthub-inbox:, Open-Inbox.ps1). When it starts, and every 5 minutes
+   whose "Open" opens the hub's inbox window (its https address, in the default browser). When it starts, and every 5 minutes
    while the inbox holds files, it asks the hub whether it still has an open batch of this PC, and announces the inbox
    again when not (a restart of the hub loses its batches).
    One agent per Windows session. Log: %LOCALAPPDATA%\ProjectHub\file-helper.log.
@@ -54,13 +54,13 @@ function Send-InboxBatch($Cfg, [string]$Key, [bool]$Toast) {
     throw
   }
   $j = [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray()) | ConvertFrom-Json
-  $link = Get-InboxLink ([string]$j.url)
+  $url = Get-HubPageUrl ([string]$j.url) $Cfg.hub
   $script:Lang = if ($j.lang -eq 'en') { 'en' } else { 'he' }
   $files = @($script:InboxState.files)
   Log ("inbox: batch {0}, {1} files{2}" -f $j.id, $files.Count, $(if ($Toast) { '' } else { ', again, without a notification' }))
   if (-not $Toast) { return }
-  # only an address of the hub itself goes into the notification (Open-Inbox.ps1 checks it again)
-  if (Get-InboxOpenUrl $link $Cfg.hub) { Show-InboxToast (Get-InboxToastXml $files.Count @($files | ForEach-Object { $_.name }) $link) }
+  # only an address of the hub itself goes into the notification: Windows opens it in the default browser
+  if ($url) { Show-InboxToast (Get-InboxToastXml $files.Count @($files | ForEach-Object { $_.name }) $url) }
   else { Log "inbox: the hub answered an address that is not its own: $($j.url)" }
 }
 function Test-HubHasBatch($Cfg, [string]$Key) {
