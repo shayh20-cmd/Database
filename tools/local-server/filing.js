@@ -98,6 +98,9 @@ module.exports = function createFiling(ctx) {
   const byToken = new Map(); // sha(token) → task id
   const waiting = new Map(); // who → Set of wake-ups of agents waiting for a task
   const batches = new Map(); // id → an export inbox batch, announced by the agent on a PC
+  // the language each person last used on the Hub page (requests that carry lang), for the agent's inbox toast; 'he' until then
+  const langs = new Map();
+  const noteLang = (who, lang) => { if (lang === 'he' || lang === 'en') langs.set(who, lang); };
 
   const load = () => {
     const d = readJson(STORE);
@@ -241,7 +244,7 @@ module.exports = function createFiling(ctx) {
         h: null, plan: null, taskId: null, busy: false
       };
       batches.set(b.id, b);
-      sendJson(res, 200, { id: b.id, url: `${base}/project_hub_01?quick=inbox&id=${encodeURIComponent(b.id)}` });
+      sendJson(res, 200, { id: b.id, url: `${base}/project_hub_01?quick=inbox&id=${encodeURIComponent(b.id)}`, lang: langs.get(who) || 'he' });
       return;
     }
 
@@ -661,6 +664,7 @@ module.exports = function createFiling(ctx) {
     /* ── the export inbox's quick window: one batch of the person's own agent ── */
     if (route.startsWith('inbox')) {
       const body = route === 'inbox' ? {} : await json(req);
+      noteLang(who, route === 'inbox' ? url.searchParams.get('lang') : body.lang);
       const b = batches.get(String((route === 'inbox' ? url.searchParams.get('id') : body.id) || url.searchParams.get('id') || ''));
       if (!b || b.who !== who) { sendJson(res, 404, { error: 'no_batch' }); return; }
       if (route === 'inbox') {
@@ -732,6 +736,7 @@ module.exports = function createFiling(ctx) {
       return;
     }
     const body = await json(req);
+    noteLang(who, body.lang);
 
     if (route === 'map-propose') {
       const m = maps.get(url.searchParams.get('id') || '');

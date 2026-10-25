@@ -915,7 +915,8 @@ test('filing inbox: the agent announces a batch, the Hub window proposes, confir
   const b0 = await call(dana, '/api/outlook/inbox-batch', { pc: 'PC1', files: FILES.slice(0, 1) });
   assert.strictEqual(b0.status, 200);
   const b1 = await call(dana, '/api/outlook/inbox-batch', { pc: 'PC1', files: [...FILES, { name: 'run.exe', size: 2 }, { name: '', size: 1 }] });
-  assert.deepStrictEqual(Object.keys(b1.body).sort(), ['id', 'url']);
+  assert.deepStrictEqual(Object.keys(b1.body).sort(), ['id', 'lang', 'url']);
+  assert.strictEqual(b1.body.lang, 'he', 'Hebrew until the person has used the Hub page in another language');
   const id = b1.body.id;
   assert.strictEqual(b1.body.url, 'https://127.0.0.1:4031/project_hub_01?quick=inbox&id=' + id);
   // a new batch from the same PC replaces the previous one; another PC's stays
@@ -978,6 +979,10 @@ test('filing inbox: the agent announces a batch, the Hub window proposes, confir
   const p2 = await hub('dana@kkarc.com', 'inbox-propose', { id, projectId: 'pabc123', files: [0, 1], sent: true, updated: true, lang: 'en' });
   assert.deepStrictEqual(p2.body.plan, PLAN);
   assert.match(fake.last, /\nInstruction: \(none\)$/);
+  // the agent's toast speaks the language the person last used on the Hub page
+  const b2 = (await call(dana, '/api/outlook/inbox-batch', { pc: 'PC3', files: [{ name: 'a.pdf', size: 1, mtime: '2026-10-25T08:00:00.123Z' }] })).body;
+  assert.strictEqual(b2.lang, 'en');
+  assert.strictEqual((await hub('dana@kkarc.com', 'inbox?id=' + b2.id)).body.files[0].mtime, '2026-10-25T08:00:00.123Z');
 
   // confirm: the stored plan, never one from the page; the task goes to the PC that announced the batch
   const conf = await hub('dana@kkarc.com', 'inbox-confirm', { id, plan: { files: [{ n: 0, name: 'x', dests: [{ path: '../evil', replace: true }] }] } });
