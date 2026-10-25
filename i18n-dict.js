@@ -3074,7 +3074,15 @@ Object.assign(HE_EN, {
 "לא פורסם אף קובץ: {error}": "No file was published: {error}",
 "לא פורסם אף קובץ. נסה שוב.": "No file was published. Try again.",
 "הבקשה בוטלה.": "The request was cancelled.",
-"הפרסום כבר נשלח לעוזר התיוק.": "The publishing has already been sent to the filing helper."
+"הפרסום כבר נשלח לעוזר התיוק.": "The publishing has already been sent to the filing helper.",
+"תיבת הייצוא — קובץ אחד": "Export inbox — 1 file",
+"פורסם קובץ אחד": "1 file published",
+"שים לב: לא תתבצע החלפה — קובץ באותו שם יישמר לידו בשם אחר.": "Note: nothing will be replaced — a file of the same name is saved next to it under another name.",
+"קובץ אחד כבר לא היה בתיבת הייצוא.": "One file was no longer in the export inbox.",
+"{n} קבצים כבר לא היו בתיבת הייצוא.": "{n} files were no longer in the export inbox.",
+"הקבצים כבר לא היו בתיבת הייצוא.": "The files were no longer in the export inbox.",
+"המשך עם הקובץ שנשאר": "Continue with the file left",
+"המשך עם {n} הקבצים שנשארו": "Continue with the {n} files left"
 });
 
 window.I18N_HE_EN = HE_EN;

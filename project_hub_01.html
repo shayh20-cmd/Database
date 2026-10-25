@@ -16020,10 +16020,18 @@ async function fmCall(route, body, method) {
    (Desktop\לתיוק). The files, the project guessed from their code (החלף to choose another), SENT / UPDATED, and
    Claude's plan for them, asked again (debounced) on every change — the server keeps no instruction, so the
    instruction goes with every proposal. "אשר ופרסם" makes an inbox task for the helper on that PC (the server's
-   stored plan, never one from the page); "ביטול" dismisses the batch (the files stay in the inbox). Server:
+   stored plan, never one from the page); "ביטול" dismisses the batch (the files stay in the inbox). What was published
+   leaves the batch on the server, and the window offers the files left. A batch that is gone (replaced, or lost in a
+   restart of the server) is looked for again (inbox-latest: the PC's helper announces its inbox again). Server:
    tools/local-server/filing.js (inbox, inbox-propose, inbox-confirm, inbox-dismiss, task, open). File names,
    project names, paths and Claude's words are data (data-i18n-skip). */
 const IB_NO_REPLACE = 'אין לפרויקט מפת PUBLISH — החלפה ב-updated לא תתבצע; אפשר למפות בהגדרות הפרויקט';
+// a replace Claude planned that the server dropped (no PUBLISH map: IB_NO_REPLACE; outside the publish area: this one),
+// said under Claude's words, which are shown as Claude wrote them
+const IB_STRIPPED = 'שים לב: לא תתבצע החלפה — קובץ באותו שם יישמר לידו בשם אחר.';
+const ibCount = n => n === 1 ? tx('תיבת הייצוא — קובץ אחד') : tx('תיבת הייצוא — {n} קבצים', {
+  n
+});
 // a project code inside a file name, as the server's guess reads it: a whole token between - _ . or a space
 const ibCodeRe = code => code ? new RegExp('(^|[-_. ])(' + String(code).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')(?=$|[-_. ])', 'i') : null;
 const ibName = (name, code) => {
@@ -16064,6 +16072,8 @@ function QuickInbox() {
     retried: false
   });
   const wish = useRef(null); // what the next proposal asks for
+  const lostTries = useRef(0);
+  const [ask, setAsk] = useState(0); // a new proposal for the same choices (the batch changed under the plan)
   const say = (s, v) => s ? {
     s,
     v
@@ -16071,6 +16081,29 @@ function QuickInbox() {
   const failMsg = e => e.code === 401 ? say('צריך להתחבר מחדש.') : e.code === 403 ? say('אין לך הרשאת כתיבה בפרויקט הזה.') : say('משהו השתבש ({code}). נסה שוב.', {
     code: e.code || e.message
   });
+  /* the batch is gone (a newer one of the PC replaced it, or the server restarted and the PC's helper announces its
+     inbox again within minutes): the newest open batch of the same PC, else "replaced", looked for again for a while */
+  const lost = () => {
+    if (!live.current) return;
+    const q = new URLSearchParams(location.search);
+    const pc = q.get('pc') || '';
+    fmCall('inbox-latest?pc=' + encodeURIComponent(pc)).then(j => {
+      if (!live.current) return;
+      if (j.id && j.id !== id) {
+        q.set('id', j.id);
+        location.replace(location.pathname + '?' + q.toString());
+        return;
+      }
+      setInfo({
+        error: 404
+      });
+      if (++lostTries.current < 30) timers.current.push(setTimeout(lost, 20000));
+    }, e => {
+      if (live.current) setInfo({
+        error: e.code === 401 ? 401 : 404
+      });
+    });
+  };
   useEffect(() => {
     live.current = true;
     const onLang = () => setLangTick(t => t + 1);
@@ -16085,7 +16118,8 @@ function QuickInbox() {
       } else setChoosing(true);
       if (b.status !== 'new') setPhase('closed');
     }).catch(e => {
-      if (live.current) setInfo({
+      if (!live.current) return;
+      if (e.code === 404) lost();else setInfo({
         error: e.code || e.message
       });
     });
@@ -16138,7 +16172,8 @@ function QuickInbox() {
           plan: x.plan || {
             files: [],
             steps: []
-          }
+          },
+          stripped: x.replaceStripped || ''
         });
         setMsg(null);
       }
@@ -16155,15 +16190,13 @@ function QuickInbox() {
       }
       r.retried = false;
       setProp(null);
-      if (e.code === 404) setInfo({
-        error: 404
-      });else if (['published', 'dismissed', 'confirmed'].includes(e.message)) {
+      if (e.code === 404) lost();else if (['published', 'dismissed'].includes(e.message)) {
         setInfo(b => ({
           ...b,
-          status: e.message === 'confirmed' ? 'published' : e.message
+          status: e.message
         }));
         setPhase('closed');
-      } else setMsg(e.message === 'changed' ? null : failMsg(e));
+      } else if (e.message === 'confirmed') setMsg(say('הפרסום כבר נשלח לעוזר התיוק.'));else setMsg(e.message === 'changed' ? null : failMsg(e));
       end();
     });
   };
@@ -16199,7 +16232,7 @@ function QuickInbox() {
     const t = setTimeout(propose, 600);
     timers.current.push(t);
     return () => clearTimeout(t);
-  }, [info && info.id, projectId, sel.join(','), sent, updated, instr]); // inputs are locked outside edit
+  }, [info && info.id, projectId, sel.join(','), sent, updated, instr, ask]); // inputs are locked outside edit
 
   /* the inbox task on the PC, polled every 1.5 s (up to 15 minutes); no helper took it within 15 s → the install hint */
   const watch = (taskId, o) => {
@@ -16241,6 +16274,16 @@ function QuickInbox() {
     };
     timers.current.push(setTimeout(tick, 1500));
   };
+  /* the batch again after a publish: the files that left the inbox are no longer in it (null when it cannot be read) */
+  const refresh = () => fmCall('inbox?id=' + encodeURIComponent(id) + '&lang=' + fmLang()).then(b => {
+    if (!live.current) return null;
+    setInfo(b);
+    setSel(s => {
+      const left = s.filter(n => b.files.some(f => f.n === n));
+      return left.length ? left : b.files.map(f => f.n);
+    });
+    return b;
+  }, () => null);
   const plan = prop && prop.plan;
   const canPublish = phase === 'edit' && !busy && !!plan && plan.files.some(f => f.dests && f.dests.length);
   const publish = () => {
@@ -16251,7 +16294,8 @@ function QuickInbox() {
       id,
       lang: fmLang()
     }).then(j => watch(j.taskId, {
-      limit: 15 * 60 * 1000,
+      limit: 65 * 60 * 1000, // the server waits up to an hour for a PC that took the task
+
       handed: pc => setMsg(say('מפרסם ב-{pc}…', {
         pc: asTyped(pc)
       })),
@@ -16272,44 +16316,63 @@ function QuickInbox() {
           return;
         }
         const files = Array.isArray(r.files) ? r.files : [];
-        // nothing published: the batch stays open and may be confirmed again
+        const gone = Array.isArray(r.notInInbox) ? r.notInInbox.length : 0;
+        // files left the batch (published everywhere, or no longer in the inbox): the plan went with them
+        const changed = gone > 0 || files.some(f => f.all);
+        if (changed) setProp(null);
+        // nothing published: the batch stays open (without the files that were no longer in the inbox)
         if (!files.length) {
           setMsg(r.error ? say('לא פורסם אף קובץ: {error}', {
             error: asTyped(String(r.error))
-          }) : say('לא פורסם אף קובץ. נסה שוב.'));
-          setPhase('edit');
+          }) : gone ? say('הקבצים כבר לא היו בתיבת הייצוא.') : say('לא פורסם אף קובץ. נסה שוב.'));
+          if (!changed) {
+            setPhase('edit');
+            return;
+          }
+          refresh().then(b => {
+            if (!live.current) return;
+            if (b && b.status !== 'new') return setPhase('closed');
+            setPhase('edit');
+            setAsk(a => a + 1);
+          });
           return;
         }
-        // 📂 opens the folder of the first published file's first saved copy
+        // 📂 opens the folder of the first saved copy (the server's dests are aligned with their paths, null: not saved)
         let rel = '';
         for (const f of files) {
-          const pf = plan.files.find(x => x.name === f.name);
           const i = (f.dests || []).findIndex(Boolean);
-          if (pf && i >= 0 && pf.dests[i]) {
-            rel = pf.dests[i].path;
+          if (i >= 0 && f.paths && f.paths[i] != null) {
+            rel = f.paths[i];
             break;
           }
         }
         setDone({
-          count: files.length,
+          count: files.filter(f => f.all).length,
           rel,
-          error: r.error ? String(r.error) : ''
+          error: r.error ? String(r.error) : '',
+          gone,
+          left: 0
         });
         setMsg(null);
         setPhase('done');
+        // what is left in the batch (not chosen, or not published everywhere) can be published next
+        refresh().then(b => {
+          if (b && b.status === 'new' && b.files.length && live.current) setDone(d => d && {
+            ...d,
+            left: b.files.length
+          });
+        });
       }
     })).catch(e => {
       if (!live.current) return;
       setPhase('edit');
-      if (e.code === 404) setInfo({
-        error: 404
-      });else if (e.message === 'no_folder') setMsg(say('לפרויקט עוד לא נבחרה תיקייה. בוחרים אותה בהגדרות הפרויקט ← תיקיות הפרויקט.'));else if (e.message === 'no_plan') {
+      if (e.code === 404) lost();else if (e.message === 'no_folder') setMsg(say('לפרויקט עוד לא נבחרה תיקייה. בוחרים אותה בהגדרות הפרויקט ← תיקיות הפרויקט.'));else if (e.message === 'no_plan') {
         setMsg(null);
         propose(); // the plan went (the server restarted): ask again
-      } else if (e.message === 'confirmed') setMsg(say('הפרסום כבר נשלח לעוזר התיוק.'));else if (['published', 'dismissed', 'status'].includes(e.message)) {
+      } else if (e.message === 'confirmed') setMsg(say('הפרסום כבר נשלח לעוזר התיוק.'));else if (['published', 'dismissed'].includes(e.message)) {
         setInfo(b => ({
           ...b,
-          status: e.message === 'status' ? 'published' : e.message
+          status: e.message
         }));
         setPhase('closed');
       } else setMsg(e.message === 'busy' ? say('בקשה קודמת עדיין בטיפול. רגע…') : failMsg(e));
@@ -16382,9 +16445,7 @@ function QuickInbox() {
   const title = h("div", {
     className: "ib-title",
     "data-i18n-skip": ""
-  }, tx('תיבת הייצוא — {n} קבצים', {
-    n: info.files.length
-  }), info.pc ? h("span", {
+  }, ibCount(info.files.length), info.pc ? h("span", {
     className: "ib-pc",
     dir: "auto"
   }, info.pc) : null);
@@ -16408,15 +16469,33 @@ function QuickInbox() {
   }, "✓"), h("div", {
     className: "qk-done-msg",
     "data-i18n-skip": ""
-  }, tx('פורסמו {n} קבצים', {
+  }, done.count === 1 ? tx('פורסם קובץ אחד') : tx('פורסמו {n} קבצים', {
     n: done.count
   })), done.error ? h("div", {
     className: "ib-msg",
     dir: "auto",
     "data-i18n-skip": ""
-  }, done.error) : null, line(msg), h("div", {
+  }, done.error) : null, done.gone ? h("div", {
+    className: "ib-msg",
+    "data-i18n-skip": ""
+  }, done.gone === 1 ? tx('קובץ אחד כבר לא היה בתיבת הייצוא.') : tx('{n} קבצים כבר לא היו בתיבת הייצוא.', {
+    n: done.gone
+  })) : null, line(msg), h("div", {
     className: "ib-actions"
-  }, h("button", {
+  }, done.left ? h("button", {
+    type: "button",
+    className: "np-btn primary",
+    "data-i18n-skip": "",
+    onClick: () => {
+      setDone(null);
+      setMsg(null);
+      setProp(null);
+      setPhase('edit');
+      setAsk(a => a + 1);
+    }
+  }, done.left === 1 ? tx('המשך עם הקובץ שנשאר') : tx('המשך עם {n} הקבצים שנשארו', {
+    n: done.left
+  })) : null, h("button", {
     type: "button",
     className: "np-btn",
     disabled: opening,
@@ -16429,7 +16508,6 @@ function QuickInbox() {
   }, "סגור"))));
   const locked = phase !== 'edit';
   const toggle = n => setSel(s => s.includes(n) ? s.filter(x => x !== n) : [...s, n]);
-  const hasReplace = !!plan && plan.files.some(f => (f.dests || []).some(d => d.replace));
   const mk = plan ? (plan.steps || []).filter(s => s.op === 'mkdir') : [];
   return h("div", {
     className: "qk-shell"
@@ -16494,15 +16572,15 @@ function QuickInbox() {
     onChange: e => setUpdated(e.target.checked)
   }), h("span", null, "PUBLISH-UPDATED (כולל החלפה של קבצים באותו שם)")), updated ? h("div", {
     className: "ib-hint"
-  }, "קובץ ישן באותו שם עובר ל-@ver ולא נמחק") : null, updated && plan && !hasReplace ? h("div", {
-    className: "ib-hint ib-warn"
-  }, IB_NO_REPLACE) : null, line(msg), plan ? h("div", {
+  }, "קובץ ישן באותו שם עובר ל-@ver ולא נמחק") : null, line(msg), plan ? h("div", {
     className: "ib-plan"
   }, prop.message ? h("div", {
     className: "ib-ai",
     dir: "auto",
     "data-i18n-skip": ""
-  }, prop.message) : null, mk.length ? h("div", {
+  }, prop.message) : null, prop.stripped ? h("div", {
+    className: "ib-hint ib-warn"
+  }, prop.stripped === 'no_map' ? IB_NO_REPLACE : IB_STRIPPED) : null, mk.length ? h("div", {
     className: "ib-sub"
   }, h("div", {
     className: "ib-sub-lbl"
