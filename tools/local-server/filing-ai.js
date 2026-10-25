@@ -341,8 +341,9 @@ const DESTS_MAX = 4;
 /* Keep only what is safe and real: mkdir steps under folders that are in the tree (or made by an earlier step); for
    each of the batch's files ({n, name}; Claude's entries matched by name, in order), its dests that are folders of
    the project (never the project folder itself), each once, at most DESTS_MAX; replace only on a dest inside one of
-   the publish area's folders (publish: paths); no steps when no file has a dest. */
-function sanitizeInboxPlan(raw, tree, files, publish) {
+   the publish area's folders (publish: paths); no steps when no file has a dest. notes (optional, an object) gets
+   replaceStripped when a replace Claude asked for was dropped: 'no_map' (no publish area mapped) or 'outside'. */
+function sanitizeInboxPlan(raw, tree, files, publish, notes) {
   const r = raw && typeof raw === 'object' ? raw : {};
   const known = new Set((tree || []).map(t => t.toLowerCase()));
   const has = p => p === '' || known.has(p.toLowerCase());
@@ -371,7 +372,9 @@ function sanitizeInboxPlan(raw, tree, files, publish) {
       if (!d || typeof d !== 'object' || typeof d.path !== 'string') continue;
       const p = relPath(d.path);
       if (!p || !has(p) || dests.some(x => x.path.toLowerCase() === p.toLowerCase())) continue;
-      dests.push({ path: p, replace: d.replace === true && inPublish(p) });
+      const replace = d.replace === true && inPublish(p);
+      if (d.replace === true && !replace && notes) notes.replaceStripped = pubs.length ? 'outside' : 'no_map';
+      dests.push({ path: p, replace });
     }
     return { n, name, dests: dests.slice(0, DESTS_MAX) };
   });
@@ -401,7 +404,8 @@ function inboxContent(x) {
   ].join('\n');
 }
 
-/* Claude's publishing plan: { message, plan: { files [{n, name, dests [{path, replace}]}], steps (mkdir), mode } }. */
+/* Claude's publishing plan: { message, plan: { files [{n, name, dests [{path, replace}]}], steps (mkdir), mode },
+   replaceStripped? ('no_map' | 'outside': a replace was dropped, and the message may still speak of it) }. */
 async function inboxProposal(client, model, x) {
   const raw = await ask(client, {
     model,
@@ -413,7 +417,9 @@ async function inboxProposal(client, model, x) {
   const areas = (normalizeMap(x.map) || {}).areas || {};
   const publish = areas.publish ? areas.publish.paths : [];
   const message = String(raw && raw.message != null ? raw.message : '').trim().slice(0, 600).trim();
-  return { message, plan: sanitizeInboxPlan(raw, x.tree, x.files, publish) };
+  const notes = {};
+  const plan = sanitizeInboxPlan(raw, x.tree, x.files, publish, notes);
+  return { message, plan, ...(notes.replaceStripped ? { replaceStripped: notes.replaceStripped } : {}) };
 }
 
 module.exports = { SYSTEM, SCHEMA, MAP_SYSTEM, MAP_SCHEMA, INBOX_SYSTEM, INBOX_SCHEMA, AREAS, migrateAreas, normalizeMap, relPath, sanitizePlan, userContent, propose, cleanAreas, mapContent, mapProposal, sanitizeInboxPlan, inboxContent, inboxProposal };

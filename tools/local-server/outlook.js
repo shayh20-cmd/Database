@@ -289,7 +289,9 @@ module.exports = function createOutlook(ctx) {
     const p = personOfKey(who);
     const base = baseOf(req);
     const method = GET_ROUTES.includes(url.pathname) ? 'GET' : PUT_ROUTES.includes(url.pathname) ? 'PUT' : 'POST';
-    if (req.method !== method) { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+    // inbox-batch: POST announces the inbox, GET asks whether the server still has an open batch of the PC
+    const getToo = url.pathname === '/api/outlook/inbox-batch' && req.method === 'GET';
+    if (req.method !== method && !getToo) { sendJson(res, 405, { error: 'Method not allowed' }); return; }
     if (url.pathname.startsWith('/api/outlook/filing') || url.pathname === '/api/outlook/inbox-batch') { await filing.handlePane(req, res, url, p, who, base); return; }
 
     if (url.pathname === '/api/outlook/me') {

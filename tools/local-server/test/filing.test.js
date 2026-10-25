@@ -858,8 +858,16 @@ test('filing-ai: an inbox plan keeps real folders only, and replaces only inside
     steps: [{ op: 'mkdir', path: DAY, from: '', to: '' }, { op: 'mkdir', path: DAY + '/PDF', from: '', to: '' }],
     mode: 'publish'
   });
-  // no publish area mapped: nothing is replaced; no dests: no steps
-  assert.strictEqual(ai.sanitizeInboxPlan(raw, PUB_TREE, [{ n: 0, name: 'LDPB-A-101.pdf' }], []).files[0].dests[1].replace, false);
+  // no publish area mapped: nothing is replaced; no dests: no steps. A replace dropped is noted, and why
+  const notes = {};
+  assert.strictEqual(ai.sanitizeInboxPlan(raw, PUB_TREE, [{ n: 0, name: 'LDPB-A-101.pdf' }], [], notes).files[0].dests[1].replace, false);
+  assert.deepStrictEqual(notes, { replaceStripped: 'no_map' });
+  const notes2 = {};
+  ai.sanitizeInboxPlan(raw, PUB_TREE, [{ n: 0, name: 'LDPB-A-101.pdf' }, { n: 2, name: 'LDPB-A-102.dwg' }], ['PUBLISH'], notes2);
+  assert.deepStrictEqual(notes2, { replaceStripped: 'outside' }, 'the DWG to WORK');
+  const notes3 = {};
+  ai.sanitizeInboxPlan(raw, PUB_TREE, [{ n: 0, name: 'LDPB-A-101.pdf' }], ['PUBLISH'], notes3);
+  assert.deepStrictEqual(notes3, {}, 'replaces kept, or on a path that was dropped anyway');
   assert.deepStrictEqual(ai.sanitizeInboxPlan({ files: [], steps: raw.steps }, PUB_TREE, [{ n: 0, name: 'a.pdf' }], ['PUBLISH']), { files: [{ n: 0, name: 'a.pdf', dests: [] }], steps: [], mode: 'publish' });
   assert.deepStrictEqual(ai.sanitizeInboxPlan(null, PUB_TREE, [], []), { files: [], steps: [], mode: 'publish' });
 });
@@ -911,14 +919,14 @@ test('filing inbox: the agent announces a batch, the Hub window proposes, confir
   // the agent announces what is in the inbox: programs and nameless entries are left out
   assert.strictEqual((await call(null, '/api/outlook/inbox-batch', { pc: 'PC1', files: FILES })).status, 401);
   assert.strictEqual((await call(dana, '/api/outlook/inbox-batch', { pc: 'PC1', files: [] })).status, 400);
-  assert.strictEqual((await call(dana, '/api/outlook/inbox-batch')).status, 405);
+  assert.strictEqual((await call(dana, '/api/outlook/inbox-batch', null, 'PUT')).status, 405);
   const b0 = await call(dana, '/api/outlook/inbox-batch', { pc: 'PC1', files: FILES.slice(0, 1) });
   assert.strictEqual(b0.status, 200);
   const b1 = await call(dana, '/api/outlook/inbox-batch', { pc: 'PC1', files: [...FILES, { name: 'run.exe', size: 2 }, { name: '', size: 1 }] });
   assert.deepStrictEqual(Object.keys(b1.body).sort(), ['id', 'lang', 'url']);
   assert.strictEqual(b1.body.lang, 'he', 'Hebrew until the person has used the Hub page in another language');
   const id = b1.body.id;
-  assert.strictEqual(b1.body.url, 'https://127.0.0.1:4031/project_hub_01?quick=inbox&id=' + id);
+  assert.strictEqual(b1.body.url, 'https://127.0.0.1:4031/project_hub_01?quick=inbox&id=' + id + '&pc=PC1');
   // a new batch from the same PC replaces the previous one; another PC's stays
   assert.strictEqual((await hub('dana@kkarc.com', 'inbox?id=' + b0.body.id)).status, 404);
   const other = (await call(dana, '/api/outlook/inbox-batch', { pc: 'PC2', files: FILES.slice(2) })).body.id;
@@ -967,7 +975,8 @@ test('filing inbox: the agent announces a batch, the Hub window proposes, confir
     steps: [{ op: 'mkdir', path: DAY, from: '', to: '' }, { op: 'mkdir', path: DAY + '/PDF', from: '', to: '' }],
     mode: 'publish'
   };
-  assert.deepStrictEqual(p1.body, { message: fake.answer.message, plan: PLAN });
+  // the DWG's replace was dropped (WORK is not in the publish area): the window is told, Claude's words are not changed
+  assert.deepStrictEqual(p1.body, { message: fake.answer.message, plan: PLAN, replaceStripped: 'outside' });
   const israel = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
   assert.ok(fake.last.includes('\nToday: ' + israel + '\n'), fake.last);
   assert.match(fake.last, /\nFiles: LDPB-A-101\.pdf, LDPB-A-102\.dwg\n/);
@@ -1000,15 +1009,21 @@ test('filing inbox: the agent announces a batch, the Hub window proposes, confir
   const did = await a2.result({ files: [{ name: 'LDPB-A-101.pdf', dests: ['LDPB-A-101.pdf', 'LDPB-A-101.pdf'] }, { name: 'LDPB-A-102.dwg', dests: ['LDPB-A-102 (2).dwg', 'extra.dwg'] }, { name: 'ghost.pdf', dests: ['ghost.pdf'] }], error: null });
   assert.strictEqual(did.status, 200);
   const st = (await hub('dana@kkarc.com', 'task?id=' + a2.id)).body;
-  assert.deepStrictEqual([st.kind, st.result], ['inbox', { files: [{ name: 'LDPB-A-101.pdf', dests: ['LDPB-A-101.pdf', 'LDPB-A-101.pdf'] }, { name: 'LDPB-A-102.dwg', dests: ['LDPB-A-102 (2).dwg'] }], error: null }]);
+  assert.deepStrictEqual([st.kind, st.result], ['inbox', { files: [
+    { n: 0, name: 'LDPB-A-101.pdf', dests: ['LDPB-A-101.pdf', 'LDPB-A-101.pdf'], paths: [DAY + '/PDF', 'PUBLISH/LDPB-pub-updated/LDPB-pub-updated-PDF'], all: true },
+    { n: 1, name: 'LDPB-A-102.dwg', dests: ['LDPB-A-102 (2).dwg'], paths: ['WORK/DWG'], all: true }
+  ], notInInbox: [], error: null }]);
   const log = JSON.parse(fs.readFileSync(path.join(data, 'filing.json'), 'utf8')).projects.pabc123.log;
   assert.deepStrictEqual(log.map(l => [l.file, l.dest, l.mode, l.by]), [
     ['LDPB-A-101.pdf', DAY + '/PDF', 'publish', 'דנה'],
     ['LDPB-A-101.pdf', 'PUBLISH/LDPB-pub-updated/LDPB-pub-updated-PDF', 'publish', 'דנה'],
     ['LDPB-A-102 (2).dwg', 'WORK/DWG', 'publish', 'דנה']
   ]);
-  assert.strictEqual((await hub('dana@kkarc.com', 'inbox?id=' + id)).body.status, 'published');
-  assert.strictEqual((await hub('dana@kkarc.com', 'inbox-propose', { id, projectId: 'pabc123', files: [0], sent: true })).status, 409);
+  // what was published leaves the batch; the file not chosen stays, and the batch stays open for it
+  const after = (await hub('dana@kkarc.com', 'inbox?id=' + id)).body;
+  assert.deepStrictEqual([after.status, after.files.map(f => [f.n, f.name])], ['new', [[2, 'notes.txt']]]);
+  assert.strictEqual((await hub('dana@kkarc.com', 'inbox-propose', { id, projectId: 'pabc123', files: [0], sent: true })).status, 400, 'a published file is not in the batch any more');
+  assert.deepStrictEqual((await hub('dana@kkarc.com', 'inbox-confirm', { id })).body, { error: 'no_plan' }, 'the plan was for the files that went');
 
   // dismiss: the batch ends, the files stay in the inbox
   assert.strictEqual((await hub('ron@kkarc.com', 'inbox-dismiss', { id: other })).status, 404);
@@ -1036,17 +1051,100 @@ test('filing inbox: no folder, no agent, a failed publish can be confirmed again
   fake.answer = { message: 'ok', mode: 'publish', steps: [], files: [{ name: 'A-101.pdf', dests: [{ path: 'PUBLISH', replace: true }] }] };
   const proposing = hub('inbox-propose', ask);
   await (await agent(dana)).result({ tree: ['PUBLISH'] });
-  assert.deepStrictEqual((await proposing).body.plan.files[0].dests, [{ path: 'PUBLISH', replace: false }]);
+  const p0 = (await proposing).body;
+  assert.deepStrictEqual([p0.plan.files[0].dests, p0.replaceStripped], [[{ path: 'PUBLISH', replace: false }], 'no_map']);
   // the PC could not publish: the batch is still new and can be confirmed again
   const c1 = (await hub('inbox-confirm', { id })).body.taskId;
   const a1 = await agent(dana);
   assert.strictEqual(a1.id, c1);
   assert.strictEqual((await a1.result({ files: [], error: 'A-101.pdf is not in the inbox' })).status, 200);
-  assert.deepStrictEqual((await hub('task?id=' + c1)).body.result, { files: [], error: 'A-101.pdf is not in the inbox' });
+  assert.deepStrictEqual((await hub('task?id=' + c1)).body.result, { files: [], notInInbox: [], error: 'A-101.pdf is not in the inbox' });
   assert.strictEqual((await hub('inbox?id=' + id)).body.status, 'new');
   const c2 = (await hub('inbox-confirm', { id })).body.taskId;
   const a2 = await agent(dana);
   assert.strictEqual((await a2.result({ missing: true })).status, 200);
   assert.deepStrictEqual((await hub('task?id=' + c2)).body.result, { missing: true });
   assert.strictEqual((await hub('inbox-confirm', { id })).status, 200, 'and again');
+});
+
+test('filing inbox: an expired task frees the batch, a working PC is waited for, what is left stays open, restarts are found again', async (t) => {
+  const fake = await fakeClaude(4036);
+  t.after(() => fake.close());
+  const { base, data, keyOf, call, agent } = await start(t, 4035, { ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: 'http://127.0.0.1:4036', FILING_TTL_MS: '600', FILING_INBOX_TTL_MS: '1500' });
+  const hub = async (route, body) => {
+    const r = await fetch(base + '/api/filing-hub/' + route, { method: body ? 'POST' : 'GET', headers: { 'x-ms-client-principal': principal('dana@kkarc.com'), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  const map = { areas: { publish: { paths: ['PUBLISH'], note: '' } }, updatedBy: 'דנה', updatedAt: 'T' };
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, root: ROOT, guide: '', log: [], map } } }));
+  const dana = await keyOf('dana@kkarc.com');
+  const UPD = 'PUBLISH/LDPB-pub-updated/LDPB-pub-updated-PDF';
+
+  // no open batch from this PC yet: the agent asks before announcing again (after a restart of either side)
+  assert.deepStrictEqual((await call(dana, '/api/outlook/inbox-batch?pc=PC1')).body, { id: null });
+  assert.deepStrictEqual((await hub('inbox-latest?pc=PC1')).body, { id: null });
+  // a name the server would have to change (too long for it) is left out of the batch: the PC could never match it
+  const long = 'L'.repeat(160) + '.pdf';
+  const files = ['A.pdf', 'B.pdf', 'C.pdf', long].map(name => ({ name, size: 3, mtime: '' }));
+  const b = (await call(dana, '/api/outlook/inbox-batch', { pc: 'PC1', files })).body;
+  assert.deepStrictEqual((await hub('inbox?id=' + b.id)).body.files.map(f => f.name), ['A.pdf', 'B.pdf', 'C.pdf']);
+  assert.deepStrictEqual((await call(dana, '/api/outlook/inbox-batch?pc=pc1')).body, { id: b.id });
+  assert.deepStrictEqual((await call(dana, '/api/outlook/inbox-batch?pc=PC2')).body, { id: null });
+  // the window whose batch went (replaced, or the server restarted) finds the newest one of that PC, or of any PC
+  assert.deepStrictEqual((await hub('inbox-latest?pc=PC1')).body, { id: b.id });
+  assert.deepStrictEqual((await hub('inbox-latest')).body, { id: b.id });
+  assert.deepStrictEqual((await hub('inbox-latest?pc=PC2')).body, { id: null });
+
+  const propose = async (ns, answer) => {
+    fake.answer = answer;
+    const going = hub('inbox-propose', { id: b.id, projectId: 'pabc123', files: ns, sent: true, updated: true });
+    const a = await agent(dana);
+    if (a) await a.result({ tree: ['PUBLISH', 'PUBLISH/S', UPD] });
+    return (await going).body;
+  };
+  const ALL = { message: 'ok', mode: 'publish', steps: [], files: ['A.pdf', 'B.pdf', 'C.pdf'].map(name => ({ name, dests: [{ path: 'PUBLISH/S', replace: false }, { path: UPD, replace: true }] })) };
+  const p1 = await propose([0, 1, 2], ALL);
+  assert.strictEqual(p1.plan.files.length, 3);
+  assert.strictEqual(p1.replaceStripped, undefined);
+
+  // 1. nobody took the task: it expires, and the batch can be confirmed again
+  const c1 = (await hub('inbox-confirm', { id: b.id })).body.taskId;
+  await wait(800);
+  assert.strictEqual((await hub('task?id=' + c1)).body.expired, true);
+  const c2 = (await hub('inbox-confirm', { id: b.id })).body.taskId;
+  assert.ok(c2 && c2 !== c1, 'confirmed again after the expiry');
+  // 2. the PC took it: it is waited for longer than an unopened task (FILING_INBOX_TTL_MS from when it was opened)
+  const a2 = await agent(dana);
+  assert.strictEqual(a2.id, c2);
+  await wait(900);
+  assert.strictEqual((await hub('task?id=' + c2)).body.expired, false, 'still working on the PC');
+  assert.strictEqual((await hub('inbox-confirm', { id: b.id })).status, 409);
+  await wait(900);
+  assert.strictEqual((await hub('task?id=' + c2)).body.expired, true);
+  // … and its result, coming after all, still counts: history, and the batch loses what was published.
+  // A: both dests; B: only the first (it stays in the inbox, and in the batch); C: no longer in the inbox
+  const late = await a2.result({ files: [{ name: 'A.pdf', dests: ['A.pdf', 'A.pdf'] }, { name: 'B.pdf', dests: ['B (2).pdf', null] }], notInInbox: ['C.pdf', 'ghost.pdf'], error: 'Copy incomplete: B.pdf' });
+  assert.strictEqual(late.status, 200);
+  assert.strictEqual((await a2.result({ files: [] })).status, 410, 'once');
+  const st = (await hub('task?id=' + c2)).body;
+  assert.deepStrictEqual(st.result, { files: [
+    { n: 0, name: 'A.pdf', dests: ['A.pdf', 'A.pdf'], paths: ['PUBLISH/S', UPD], all: true },
+    { n: 1, name: 'B.pdf', dests: ['B (2).pdf', null], paths: ['PUBLISH/S', UPD], all: false }
+  ], notInInbox: ['C.pdf'], error: 'Copy incomplete: B.pdf' });
+  const log = JSON.parse(fs.readFileSync(path.join(data, 'filing.json'), 'utf8')).projects.pabc123.log;
+  assert.deepStrictEqual(log.map(l => [l.file, l.dest]), [['A.pdf', 'PUBLISH/S'], ['A.pdf', UPD], ['B (2).pdf', 'PUBLISH/S']]);
+  const left = (await hub('inbox?id=' + b.id)).body;
+  assert.deepStrictEqual([left.status, left.files.map(f => [f.n, f.name])], ['new', [[1, 'B.pdf']]]);
+
+  // 3. the rest, published wholly: nothing is left, the batch is published
+  const p3 = await propose([1], { ...ALL, files: [ALL.files[1]] });
+  assert.deepStrictEqual(p3.plan.files.map(f => [f.n, f.name]), [[1, 'B.pdf']]);
+  const c3 = (await hub('inbox-confirm', { id: b.id })).body.taskId;
+  const a3 = await agent(dana);
+  assert.strictEqual(a3.id, c3);
+  assert.deepStrictEqual(a3.got.files, [{ n: 1, name: 'B.pdf' }]);
+  await a3.result({ files: [{ name: 'B.pdf', dests: ['B.pdf', 'B.pdf'] }], notInInbox: [], error: null });
+  assert.strictEqual((await hub('inbox?id=' + b.id)).body.status, 'published');
+  assert.deepStrictEqual((await call(dana, '/api/outlook/inbox-batch?pc=PC1')).body, { id: null }, 'no open batch: the agent announces again');
+  assert.deepStrictEqual((await hub('inbox-latest?pc=PC1')).body, { id: null });
 });
