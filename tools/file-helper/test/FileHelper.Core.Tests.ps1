@@ -336,6 +336,19 @@ try {
   Check 'inbox: real lock test' (-not (Test-FileLocked (Join-Path $ib 'קומה.dwg')))
   $fs = [IO.File]::Open((Join-Path $ib 'קומה.dwg'), 'Open', 'Read', 'None')
   try { Check 'inbox: real lock test, locked' (Test-FileLocked (Join-Path $ib 'קומה.dwg')) } finally { $fs.Close() }
+  # only a writer counts: a program that only reads the file (a viewer, an exporter reading it back) is no lock
+  $fs = [IO.File]::Open((Join-Path $ib 'קומה.dwg'), 'Open', 'Read', 'ReadWrite')
+  try { Check 'inbox: a reader is no lock' (-not (Test-FileLocked (Join-Path $ib 'קומה.dwg'))) } finally { $fs.Close() }
+  $fs = [IO.File]::Open((Join-Path $ib 'קומה.dwg'), 'Open', 'ReadWrite', 'ReadWrite')
+  try { Check 'inbox: a writer is a lock' (Test-FileLocked (Join-Path $ib 'קומה.dwg')) } finally { $fs.Close() }
+  # the lock test runs only when there is something to announce (a file not known): known files are never opened
+  $script:opened = 0
+  $count = { param($p) $script:opened++; $true }
+  $k1 = Get-InboxState $ib $null $t0 $never
+  $k3 = Get-InboxState $ib $k1 $t0.AddSeconds(10) $count 10 $k1.keys
+  Check 'inbox: all known, no lock test' ($k3.settled -and $script:opened -eq 0)
+  $k3 = Get-InboxState $ib $k1 $t0.AddSeconds(10) $count 10 @($k1.keys | Select-Object -First 1)
+  Check 'inbox: one unknown, the lock test' (-not $k3.settled -and $script:opened -eq 1)
 
   # announcing: once per new arrival, never while it is still being written, never for removals alone
   $s5 = Get-InboxState $ib $s4 $t0.AddSeconds(30) $never
@@ -356,6 +369,16 @@ try {
   Check 'announce: the batch is the whole inbox' (((@((ConvertTo-InboxBatch $s7 'PC1').files) | ForEach-Object { $_.name } | Sort-Object) -join ',') -eq 'A-101.pdf,B.pdf')
   $batch = ConvertTo-InboxBatch $s7 'PC1'
   Check 'batch: pc, size, ISO time' ($batch.pc -eq 'PC1' -and @($batch.files)[0].size -gt 0 -and @($batch.files)[0].mtime -match '^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$')
+  # asking the hub whether it still has this PC's batch: when the inbox settled with files in it, and the time came
+  Check 'recheck: due' (Test-InboxRecheck $s7 $t0.AddSeconds(60) $t0)
+  Check 'recheck: not yet' (-not (Test-InboxRecheck $s7 $t0.AddSeconds(60) $t0.AddMinutes(5)))
+  Check 'recheck: not while it changes' (-not (Test-InboxRecheck $s4 $t0.AddSeconds(60) $t0))
+  Check 'recheck: not for an empty inbox' (-not (Test-InboxRecheck (Get-InboxState (Join-Path $root 'no-inbox') $null $t0 $never 0) $t0 $t0))
+  Check 'recheck: no state' (-not (Test-InboxRecheck $null $t0 $t0))
+  # the status of a refused request (Invoke-WebRequest's WebException, or one inside another)
+  Check 'status: of a response' ((Get-ErrorStatus ([pscustomobject]@{ Response = [pscustomobject]@{ StatusCode = 400 } })) -eq 400)
+  Check 'status: inner' ((Get-ErrorStatus ([pscustomobject]@{ Response = $null; InnerException = [pscustomobject]@{ Response = [pscustomobject]@{ StatusCode = 404 } } })) -eq 404)
+  Check 'status: none' ((Get-ErrorStatus (New-Object Exception 'x')) -eq 0)
   $knownPath = Join-Path $root 'cfg\inbox-known.json'
   Check 'known: none yet' (@(Read-InboxKnown $knownPath).Count -eq 0)
   Save-InboxKnown $a5.known $knownPath
@@ -377,6 +400,7 @@ try {
     Check "open: refused $bad" ($null -eq (Get-InboxOpenUrl ('projecthub-inbox:' + [uri]::EscapeDataString($bad)) $hub))
   }
   Check 'open: refused, not encoded' ($null -eq (Get-InboxOpenUrl "projecthub-inbox:$url" $hub))
+  Check 'open: refused, a % without two hex digits' ($null -eq (Get-InboxOpenUrl ($link + '%2') $hub) -and $null -eq (Get-InboxOpenUrl ($link.Replace('%2F', '%ZZ')) $hub))
   Check 'open: refused, no hub' ($null -eq (Get-InboxOpenUrl $link ''))
   $script:Lang = 'he'
   $x = [xml](Get-InboxToastXml 3 @('A-101.pdf', 'B & C.pdf') $link)
@@ -420,7 +444,6 @@ try {
   foreach ($case in @(
       @{ what = 'a dest outside'; dests = @([pscustomobject]@{ path = '../out'; replace = $false }); steps = @(); name = 'A-101.pdf' },
       @{ what = 'a move step'; dests = @([pscustomobject]@{ path = 'NEW'; replace = $false }); steps = @([pscustomobject]@{ op = 'move'; path = ''; from = 'PUBLISH'; to = 'X' }); name = 'A-101.pdf' },
-      @{ what = 'a source not in the inbox'; dests = @([pscustomobject]@{ path = 'NEW'; replace = $false }); steps = @(); name = 'none.pdf' },
       @{ what = 'a source path'; dests = @([pscustomobject]@{ path = 'NEW'; replace = $false }); steps = @(); name = '..\A-101.pdf' })) {
     $in3 = New-Inbox
     $t3 = [pscustomobject]@{ kind = 'inbox'; files = @([pscustomobject]@{ n = 0; name = $case.name })
@@ -430,6 +453,24 @@ try {
     Check "publish: $($case.what), nothing done" (-not (Test-Path (Join-Path $proj 'MADE')) -and -not (Test-Path (Join-Path $proj 'NEW')) -and (Test-Path (Join-Path $in3 'A-101.pdf')))
     Remove-Item -LiteralPath $in3 -Recurse -Force
   }
+  # a source no longer in the inbox (published from another window, deleted): skipped and said; the rest goes on
+  $in6 = New-Inbox
+  $t6 = [pscustomobject]@{ kind = 'inbox'; files = @([pscustomobject]@{ n = 0; name = 'none.pdf' }, [pscustomobject]@{ n = 1; name = 'B.pdf' })
+    plan = [pscustomobject]@{ steps = @([pscustomobject]@{ op = 'mkdir'; path = 'MADE6'; from = ''; to = '' })
+      files = @([pscustomobject]@{ n = 0; name = 'none.pdf'; dests = @([pscustomobject]@{ path = 'MADE6'; replace = $false }) },
+                [pscustomobject]@{ n = 1; name = 'B.pdf'; dests = @([pscustomobject]@{ path = 'MADE6'; replace = $false }) }) } }
+  $res = Invoke-InboxTask $proj $in6 $t6
+  Check 'stale: no error' ($null -eq $res.error)
+  Check 'stale: the missing one said' ((@($res.notInInbox) -join ',') -eq 'none.pdf')
+  Check 'stale: the rest published' ((@($res.files | ForEach-Object { $_.name + '=' + (@($_.dests) -join '|') }) -join ',') -eq 'B.pdf=B.pdf' -and (Test-Path (Join-Path $proj 'MADE6\B.pdf')) -and -not (Test-Path (Join-Path $in6 'B.pdf')))
+  # every source gone: nothing done at all, not even the folders
+  $t7 = [pscustomobject]@{ kind = 'inbox'; files = @([pscustomobject]@{ n = 0; name = 'none.pdf' })
+    plan = [pscustomobject]@{ steps = @([pscustomobject]@{ op = 'mkdir'; path = 'MADE7'; from = ''; to = '' })
+      files = @([pscustomobject]@{ n = 0; name = 'none.pdf'; dests = @([pscustomobject]@{ path = 'MADE7'; replace = $false }) }) } }
+  $res = Invoke-InboxTask $proj $in6 $t7
+  Check 'stale: all gone, no error' ($null -eq $res.error -and @($res.files).Count -eq 0 -and (@($res.notInInbox) -join ',') -eq 'none.pdf')
+  Check 'stale: all gone, nothing made' (-not (Test-Path (Join-Path $proj 'MADE7')))
+  Remove-Item -LiteralPath $in6 -Recurse -Force
   # a failure part way: what was copied is said, and a file not wholly published stays in the inbox
   $in4 = New-Inbox
   Set-Content -Path (Join-Path $proj 'BLOCK') -Value 'a file where a folder should be'

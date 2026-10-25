@@ -5,7 +5,9 @@
    runs it in Run-Task.ps1.
    While that request is open it looks at the export inbox (config "inbox", Desktop\לתיוק) every 3 seconds: once new
    files there have settled (Get-InboxState), it tells the hub (/api/outlook/inbox-batch) and shows a notification
-   whose "Open" opens the hub's inbox window (projecthub-inbox:, Open-Inbox.ps1).
+   whose "Open" opens the hub's inbox window (projecthub-inbox:, Open-Inbox.ps1). When it starts, and every 5 minutes
+   while the inbox holds files, it asks the hub whether it still has an open batch of this PC, and announces the inbox
+   again when not (a restart of the hub loses its batches).
    One agent per Windows session. Log: %LOCALAPPDATA%\ProjectHub\file-helper.log.
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md
    Saved as UTF-8 with BOM. #>
@@ -25,6 +27,10 @@ function Log([string]$Text) { Write-HelperLog $Text }
 $script:InboxState = $null
 $script:InboxKnown = @(Read-InboxKnown)
 $script:InboxRetryAt = [DateTime]::MinValue
+# when to ask the hub whether it still has this PC's batch: at once after a start, then every 5 minutes while the inbox
+# holds files; the first time after a start, files the hub has no batch of are announced with a notification
+$script:InboxCheckAt = [DateTime]::MinValue
+$script:InboxFirstCheck = $true
 function Show-InboxToast([string]$Xml) {
   # a Windows notification, as the mail scanner shows them (under Windows PowerShell's name); a failure is only logged
   try {
@@ -36,30 +42,56 @@ function Show-InboxToast([string]$Xml) {
     [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId).Show([Windows.UI.Notifications.ToastNotification]::new($doc))
   } catch { Log "inbox: notification failed: $($_.Exception.Message)" }
 }
+function Send-InboxBatch($Cfg, [string]$Key, [bool]$Toast) {
+  # tells the hub what is in the inbox now (the whole inbox: a new batch replaces the one before), then, when $Toast,
+  # the notification. A 400 (no file the hub would take: programs only, names it cannot keep) counts as announced.
+  $body = ConvertTo-InboxBatch $script:InboxState $env:COMPUTERNAME
+  try {
+    $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 30 -Method POST -Headers @{ Authorization = "Bearer $Key" } -Uri ($Cfg.hub.TrimEnd('/') + '/api/outlook/inbox-batch') `
+      -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes(($body | ConvertTo-Json -Depth 5 -Compress)))
+  } catch {
+    if ((Get-ErrorStatus $_.Exception) -eq 400) { Log 'inbox: the hub took none of the files (400)'; return }
+    throw
+  }
+  $j = [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray()) | ConvertFrom-Json
+  $link = Get-InboxLink ([string]$j.url)
+  $script:Lang = if ($j.lang -eq 'en') { 'en' } else { 'he' }
+  $files = @($script:InboxState.files)
+  Log ("inbox: batch {0}, {1} files{2}" -f $j.id, $files.Count, $(if ($Toast) { '' } else { ', again, without a notification' }))
+  if (-not $Toast) { return }
+  # only an address of the hub itself goes into the notification (Open-Inbox.ps1 checks it again)
+  if (Get-InboxOpenUrl $link $Cfg.hub) { Show-InboxToast (Get-InboxToastXml $files.Count @($files | ForEach-Object { $_.name }) $link) }
+  else { Log "inbox: the hub answered an address that is not its own: $($j.url)" }
+}
+function Test-HubHasBatch($Cfg, [string]$Key) {
+  # GET /api/outlook/inbox-batch?pc=: whether the hub still has an open batch of this PC
+  $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 30 -Headers @{ Authorization = "Bearer $Key" } -Uri ($Cfg.hub.TrimEnd('/') + '/api/outlook/inbox-batch?pc=' + [uri]::EscapeDataString($env:COMPUTERNAME))
+  $j = [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray()) | ConvertFrom-Json
+  return [bool]$j.id
+}
 function Step-Inbox($Cfg, [string]$Key) {
-  # one look at the inbox; when new files have settled: the hub is told (the whole inbox), then the notification.
+  # one look at the inbox; when new files have settled: the hub is told (the whole inbox), then the notification. Now
+  # and then (Test-InboxRecheck) the hub is asked whether it still has this PC's batch — none (it restarted, the batch
+  # ended after a day, it was dismissed): the inbox is announced again, quietly except for the first time after a start.
   # A failure to reach the hub is tried again after a minute; the files count as announced only once it answered.
   try {
     $now = [DateTime]::UtcNow
-    $script:InboxState = Get-InboxState $Cfg.inbox $script:InboxState $now
+    $script:InboxState = Get-InboxState $Cfg.inbox $script:InboxState $now -Known $script:InboxKnown
     if ($now -lt $script:InboxRetryAt) { return }
     $pick = Select-InboxAnnouncement $script:InboxState $script:InboxKnown
-    if (-not $pick.changed) { return }
     if ($pick.announce) {
-      $body = ConvertTo-InboxBatch $script:InboxState $env:COMPUTERNAME
-      $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 30 -Method POST -Headers @{ Authorization = "Bearer $Key" } -Uri ($Cfg.hub.TrimEnd('/') + '/api/outlook/inbox-batch') `
-        -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes(($body | ConvertTo-Json -Depth 5 -Compress)))
-      $j = [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray()) | ConvertFrom-Json
-      $link = Get-InboxLink ([string]$j.url)
-      $script:Lang = if ($j.lang -eq 'en') { 'en' } else { 'he' }
-      $files = @($script:InboxState.files)
-      Log ("inbox: batch {0}, {1} files" -f $j.id, $files.Count)
-      # only an address of the hub itself goes into the notification (Open-Inbox.ps1 checks it again)
-      if (Get-InboxOpenUrl $link $Cfg.hub) { Show-InboxToast (Get-InboxToastXml $files.Count @($files | ForEach-Object { $_.name }) $link) }
-      else { Log "inbox: the hub answered an address that is not its own: $($j.url)" }
+      Send-InboxBatch $Cfg $Key $true
+      $script:InboxCheckAt = $now.AddMinutes(5)
+      $script:InboxFirstCheck = $false
+    } elseif (Test-InboxRecheck $script:InboxState $now $script:InboxCheckAt) {
+      if (-not (Test-HubHasBatch $Cfg $Key)) { Send-InboxBatch $Cfg $Key $script:InboxFirstCheck }
+      $script:InboxCheckAt = $now.AddMinutes(5)
+      $script:InboxFirstCheck = $false
     }
-    $script:InboxKnown = @($pick.known)
-    Save-InboxKnown $script:InboxKnown
+    if ($pick.changed) {
+      $script:InboxKnown = @($pick.known)
+      Save-InboxKnown $script:InboxKnown
+    }
   } catch {
     Log "inbox: $($_.Exception.Message)"
     $script:InboxRetryAt = [DateTime]::UtcNow.AddMinutes(1)

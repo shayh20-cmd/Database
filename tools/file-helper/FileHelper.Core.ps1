@@ -481,14 +481,16 @@ function Invoke-FileTask([string]$Dir, $Task, [string]$SourceDir) {
 
 # ── the export inbox ──
 function Test-FileLocked([string]$Path) {
-  # still being written (or held open by the program that exports it): it cannot be opened alone
-  try { $f = [IO.File]::Open($Path, 'Open', 'Read', 'None'); $f.Close(); return $false } catch { return $true }
+  # still being written (or held open for writing by the program that exports it): it cannot be opened for reading
+  # while others may only read it. A program that only reads it (a viewer) is no lock, and this read blocks no one.
+  try { $f = [IO.File]::Open($Path, 'Open', 'Read', 'Read'); $f.Close(); return $false } catch { return $true }
 }
 function Get-InboxKey($File) { return '{0}|{1}|{2}' -f $File.name, $File.size, $File.mtime.Ticks }
-function Get-InboxState([string]$Dir, $Prev, [datetime]$Now = [DateTime]::UtcNow, [scriptblock]$IsLocked = { param($p) Test-FileLocked $p }, [int]$SettleSec = 10) {
+function Get-InboxState([string]$Dir, $Prev, [datetime]$Now = [DateTime]::UtcNow, [scriptblock]$IsLocked = { param($p) Test-FileLocked $p }, [int]$SettleSec = 10, [string[]]$Known = @()) {
   # the inbox's files (no folders, hidden files, Office lock files "~$…", *.tmp, *.part or empty files), each with its
   # size and time; "settled" once the list, the sizes and the times have not changed for $SettleSec seconds (counted
-  # from the state $Prev of the check before) and no file is held open by another program
+  # from the state $Prev of the check before) and no file is held open by a program writing it. The lock test runs only
+  # when something is to be announced (a file not in $Known, the inbox when it last settled): known files are not opened.
   $files = @()
   if ($Dir -and [IO.Directory]::Exists($Dir)) {
     $files = @(foreach ($f in ([IO.DirectoryInfo]$Dir).GetFiles()) {
@@ -501,7 +503,10 @@ function Get-InboxState([string]$Dir, $Prev, [datetime]$Now = [DateTime]::UtcNow
   $sig = $keys -join "`n"
   $since = if ($Prev -and $Prev.sig -eq $sig) { $Prev.since } else { $Now }
   $settled = ($Now - $since).TotalSeconds -ge $SettleSec
-  if ($settled) { foreach ($f in $files) { if (& $IsLocked (Join-Path $Dir $f.name)) { $settled = $false; break } } }
+  $known = @($Known | Where-Object { $_ })
+  if ($settled -and @($keys | Where-Object { $known -notcontains $_ }).Count) {
+    foreach ($f in $files) { if (& $IsLocked (Join-Path $Dir $f.name)) { $settled = $false; break } }
+  }
   return [pscustomobject]@{ files = $files; keys = $keys; sig = $sig; since = $since; settled = $settled }
 }
 function Select-InboxAnnouncement($State, [string[]]$Known) {
@@ -513,6 +518,19 @@ function Select-InboxAnnouncement($State, [string[]]$Known) {
   $new = @($now | Where-Object { $known -notcontains $_ })
   $changed = $new.Count -gt 0 -or @($known | Where-Object { $now -notcontains $_ }).Count -gt 0
   return [pscustomobject]@{ announce = ($new.Count -gt 0); changed = $changed; known = $now }
+}
+function Test-InboxRecheck($State, [datetime]$Now, [datetime]$Due) {
+  # time to ask the hub whether it still has an open batch of this PC (GET /api/outlook/inbox-batch?pc=): the inbox has
+  # settled, it holds files, and the time came (at once when the agent starts, then every few minutes). A restart of the
+  # server loses its batches and a batch ends after a day: with none, the agent announces the inbox again.
+  return [bool]($State -and $State.settled -and @($State.files).Count -gt 0 -and $Now -ge $Due)
+}
+function Get-ErrorStatus($Exception) {
+  # the HTTP status of a refused request (Invoke-WebRequest's WebException, or one inside another); 0 when there is none
+  for ($e = $Exception; $e; $e = $e.InnerException) {
+    try { if ($e.Response -and $e.Response.StatusCode) { return [int]$e.Response.StatusCode } } catch { }
+  }
+  return 0
 }
 function ConvertTo-InboxBatch($State, [string]$Pc) {
   # the body of POST /api/outlook/inbox-batch: the whole inbox as it is now (a new batch replaces the one before)
@@ -532,7 +550,7 @@ function Get-InboxLink([string]$Url) { return 'projecthub-inbox:' + [uri]::Escap
 function Get-InboxOpenUrl([string]$Link, [string]$Hub) {
   # the address a projecthub-inbox: link opens, or $null: it must be the hub's own address (same scheme, host and
   # port, nothing before the host) followed by a path — anything else is never handed to the browser
-  if (-not $Hub -or $Link -notmatch '^projecthub-inbox:([A-Za-z0-9%._~-]+)/?$') { return $null }
+  if (-not $Hub -or $Link -notmatch '^projecthub-inbox:((?:[A-Za-z0-9._~-]|%[0-9A-Fa-f]{2})+)/?$') { return $null }
   try { $url = [uri]::UnescapeDataString($Matches[1]) } catch { return $null }
   $base = $Hub.TrimEnd('/')
   if ($url -match '[\x00-\x20"<>\\^`{|}]' -or -not $url.StartsWith($base + '/', [StringComparison]::OrdinalIgnoreCase)) { return $null }
@@ -562,11 +580,13 @@ function Invoke-InboxTask([string]$Dir, [string]$InboxDir, $Task) {
   # the mkdir steps, then each file to each of its dests. A dest with replace: an existing file of the same name in that
   # folder first moves into "@ver" inside the same folder (made when missing; a name already in @ver gets a free name,
   # nothing is overwritten); without replace the copy gets a free name. Everything is checked first (every path inside
-  # the project, every source a file of the batch in the inbox, mkdir the only step) — a bad one: nothing is done. A
-  # file copied to all its dests (sizes checked) is deleted from the inbox; the first failure stops it, and a file not
-  # copied everywhere stays in the inbox. Result: { files: [{ name, dests: [the name it was saved as, per dest] }], error }.
+  # the project, every source a file of the batch, mkdir the only step) — a bad one: nothing is done. A source no longer
+  # in the inbox (published from another window, deleted) is skipped and said (notInInbox); with none left nothing is
+  # done. A file copied to all its dests (sizes checked) is deleted from the inbox; the first failure stops it, and a
+  # file not copied everywhere stays in the inbox.
+  # Result: { files: [{ name, dests: [the name it was saved as, per dest, in the plan's order] }], notInInbox, error }.
   if (-not $Dir) { return @{ missing = $true } }
-  $result = @{ files = @(); error = $null }
+  $result = @{ files = @(); notInInbox = @(); error = $null }
   try {
     if (-not $InboxDir -or -not [IO.Directory]::Exists($InboxDir)) { throw "The export inbox is not on this PC: $InboxDir" }
     $byN = @{}; $byName = @{}
@@ -582,10 +602,12 @@ function Invoke-InboxTask([string]$Dir, [string]$InboxDir, $Task) {
       if ($byName.Count -and -not $byName.ContainsKey($name)) { throw "Not a file of this batch: $name" }
       if (-not $name -or $name -ne [IO.Path]::GetFileName($name) -or $null -eq (ConvertTo-RelPath $name)) { throw "Not a file name: $name" }
       $src = Join-Path $InboxDir $name
-      if (-not (Test-Path -LiteralPath $src -PathType Leaf)) { throw "Not in the export inbox: $name" }
       $dests = @(foreach ($d in @($f.dests)) { if ($d) { [pscustomobject]@{ full = (Resolve-InProject $Dir $d.path); replace = [bool]$d.replace } } })
-      if ($dests.Count) { [pscustomobject]@{ name = $name; src = $src; dests = $dests } }
+      if (-not $dests.Count) { continue }
+      if (-not (Test-Path -LiteralPath $src -PathType Leaf)) { $result.notInInbox += $name; continue }
+      [pscustomobject]@{ name = $name; src = $src; dests = $dests }
     })
+    if (-not $jobs.Count) { return $result }
     foreach ($s in $steps) { [void][IO.Directory]::CreateDirectory($s) }
     foreach ($j in $jobs) {
       $done = [pscustomobject]@{ name = $j.name; dests = @() }
