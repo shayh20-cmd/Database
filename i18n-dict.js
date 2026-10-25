@@ -3082,7 +3082,27 @@ Object.assign(HE_EN, {
 "{n} קבצים כבר לא היו בתיבת הייצוא.": "{n} files were no longer in the export inbox.",
 "הקבצים כבר לא היו בתיבת הייצוא.": "The files were no longer in the export inbox.",
 "המשך עם הקובץ שנשאר": "Continue with the file left",
-"המשך עם {n} הקבצים שנשארו": "Continue with the {n} files left"
+"המשך עם {n} הקבצים שנשארו": "Continue with the {n} files left",
+"תיוק קבצים": "Filing",
+"בחר תיקייה אחרת": "Choose another folder",
+"אין כרגע קבצים שמחכים בתיבת הייצוא": "No files are waiting in the export inbox",
+"הקבצים יעברו מתיבת הייצוא לפרויקט.": "The files will move from the export inbox to the project.",
+"הקבצים יועתקו; המקור נשאר.": "The files will be copied; the originals stay.",
+"תיקייה — קובץ אחד": "Folder — 1 file",
+"תיקייה — {n} קבצים": "Folder — {n} files",
+"התיקייה שנבחרה": "The chosen folder",
+"רשימת קבצים": "File list",
+"תיבת הייצוא · {pc} · {n} קבצים": "Export inbox · {pc} · {n} files",
+"בחלון שנפתח במחשב, בחר את התיקייה עם הקבצים…": "In the window that opened on your computer, choose the folder with the files…",
+"בתיקייה שנבחרה אין קבצים שאפשר לפרסם.": "The chosen folder has no files that can be published.",
+"אין לך הרשאת כתיבה בפרויקטים.": "You don't have write access to projects.",
+"הקבצים כבר לא היו בתיקייה.": "The files were no longer in the folder.",
+"קובץ אחד כבר לא היה בתיקייה.": "One file was no longer in the folder.",
+"{n} קבצים כבר לא היו בתיקייה.": "{n} files were no longer in the folder.",
+"הרשימה נסגרה בלי פרסום. הקבצים נשארו בתיקייה.": "The list was closed without publishing. The files stayed in the folder.",
+"תיבת הייצוא ({n})": "Export inbox ({n})",
+"קובץ אחד מחכה לפרסום": "1 file is waiting to be published",
+"{n} קבצים מחכים לפרסום": "{n} files are waiting to be published"
 });
 
 window.I18N_HE_EN = HE_EN;

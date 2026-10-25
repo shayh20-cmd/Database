@@ -386,33 +386,31 @@ try {
   Save-InboxKnown @() $knownPath
   Check 'known: empty' (@(Read-InboxKnown $knownPath).Count -eq 0)
 
-  # the notification and its link
+  # the notification: an address of the hub itself, opened by Windows in the default browser
   $hub = 'https://kkarc-hub.azurewebsites.net'
-  $url = "$hub/project_hub_01?quick=inbox&id=b_12"
-  $link = Get-InboxLink $url
-  Check 'link: projecthub-inbox: + encoded' ($link -eq ('projecthub-inbox:' + [uri]::EscapeDataString($url)) -and $link -match '^projecthub-inbox:[A-Za-z0-9%._~-]+$')
-  Check 'open: the hub''s page' ((Get-InboxOpenUrl $link $hub) -eq $url)
-  Check 'open: a trailing / added by Windows' ((Get-InboxOpenUrl ($link + '/') "$hub/") -eq $url)
-  Check 'open: case of the scheme' ((Get-InboxOpenUrl ('PROJECTHUB-INBOX:' + [uri]::EscapeDataString($url)) $hub) -eq $url)
+  $url = "$hub/project_hub_01?quick=inbox&id=b_12&pc=PC-7"
+  Check 'hub url: the hub''s page' ((Get-HubPageUrl $url $hub) -eq $url)
+  Check 'hub url: the hub with a trailing /' ((Get-HubPageUrl $url "$hub/") -eq $url)
+  Check 'hub url: case of the host' ((Get-HubPageUrl 'https://KKARC-HUB.azurewebsites.net/project_hub_01?quick=inbox' $hub) -eq 'https://KKARC-HUB.azurewebsites.net/project_hub_01?quick=inbox')
   foreach ($bad in 'https://evil.example/x', 'https://kkarc-hub.azurewebsites.net.evil.example/x', 'http://kkarc-hub.azurewebsites.net/x',
                    'https://kkarc-hub.azurewebsites.net@evil.example/x', 'https://kkarc-hub.azurewebsites.net:444/x', 'file:///C:/Windows/system32/calc.exe',
-                   'https://kkarc-hub.azurewebsites.net/x" --x', 'https://kkarc-hub.azurewebsites.net', 'javascript:alert(1)') {
-    Check "open: refused $bad" ($null -eq (Get-InboxOpenUrl ('projecthub-inbox:' + [uri]::EscapeDataString($bad)) $hub))
+                   'https://kkarc-hub.azurewebsites.net/x" --x', 'https://kkarc-hub.azurewebsites.net/x y', 'https://kkarc-hub.azurewebsites.net', 'javascript:alert(1)', '') {
+    Check "hub url: refused $bad" ($null -eq (Get-HubPageUrl $bad $hub))
   }
-  Check 'open: refused, not encoded' ($null -eq (Get-InboxOpenUrl "projecthub-inbox:$url" $hub))
-  Check 'open: refused, a % without two hex digits' ($null -eq (Get-InboxOpenUrl ($link + '%2') $hub) -and $null -eq (Get-InboxOpenUrl ($link.Replace('%2F', '%ZZ')) $hub))
-  Check 'open: refused, no hub' ($null -eq (Get-InboxOpenUrl $link ''))
+  Check 'hub url: refused, no hub' ($null -eq (Get-HubPageUrl $url ''))
+  Check 'hub url: local hub' ((Get-HubPageUrl 'http://localhost:3000/project_hub_01?quick=inbox' 'http://localhost:3000') -eq 'http://localhost:3000/project_hub_01?quick=inbox')
   $script:Lang = 'he'
-  $x = [xml](Get-InboxToastXml 3 @('A-101.pdf', 'B & C.pdf') $link)
+  $x = [xml](Get-InboxToastXml 3 @('A-101.pdf', 'B & C.pdf') $url)
   Check 'toast: Hebrew' ($x.toast.visual.binding.text[0] -eq '3 קבצים חדשים בתיבת הייצוא' -and $x.toast.visual.binding.text[1] -eq 'A-101.pdf, B & C.pdf')
-  Check 'toast: opens the link' ($x.toast.launch -eq $link -and $x.toast.activationType -eq 'protocol' -and @($x.toast.actions.action)[0].arguments -eq $link -and @($x.toast.actions.action)[0].content -eq 'פתח')
+  # the hub's https address itself: Windows hands it to the default browser (a custom scheme did not reach its handler)
+  Check 'toast: opens the hub''s address' ($x.toast.launch -eq $url -and $x.toast.activationType -eq 'protocol' -and @($x.toast.actions.action)[0].arguments -eq $url -and @($x.toast.actions.action)[0].activationType -eq 'protocol' -and @($x.toast.actions.action)[0].content -eq 'פתח')
+  Check 'toast: no projecthub-inbox: link' (-not ((Get-InboxToastXml 1 @('a') $url) -match 'projecthub-inbox'))
   $script:Lang = 'en'
-  $x = [xml](Get-InboxToastXml 1 @('A-101.pdf') $link)
+  $x = [xml](Get-InboxToastXml 1 @('A-101.pdf') $url)
   Check 'toast: English, one file' ($x.toast.visual.binding.text[0] -eq 'A new file in the export inbox' -and @($x.toast.actions.action)[0].content -eq 'Open')
-  $x = [xml](Get-InboxToastXml 5 @('1', '2', '3', '4', '5') $link)
+  $x = [xml](Get-InboxToastXml 5 @('1', '2', '3', '4', '5') $url)
   Check 'toast: at most three names' ($x.toast.visual.binding.text[0] -eq '5 new files in the export inbox' -and $x.toast.visual.binding.text[1] -eq '1, 2, 3…')
   $script:Lang = 'he'
-  Check 'browser: the first that exists' ((Find-AppBrowser @((Join-Path $root 'none.exe'), $knownPath)) -eq $knownPath -and $null -eq (Find-AppBrowser @((Join-Path $root 'none.exe'))))
 
   # publishing from the inbox
   $proj = Join-Path $root 'P-1'
@@ -463,6 +461,40 @@ try {
   Check 'stale: no error' ($null -eq $res.error)
   Check 'stale: the missing one said' ((@($res.notInInbox) -join ',') -eq 'none.pdf')
   Check 'stale: the rest published' ((@($res.files | ForEach-Object { $_.name + '=' + (@($_.dests) -join '|') }) -join ',') -eq 'B.pdf=B.pdf' -and (Test-Path (Join-Path $proj 'MADE6\B.pdf')) -and -not (Test-Path (Join-Path $in6 'B.pdf')))
+  # a folder chosen on the PC (pick-source): its files are offered like the inbox's, and are copied, never moved
+  Check 'kind: pick-source' (Test-TaskKind 'pick-source')
+  $srcStore = Join-Path $root 'cfg\sources.json'
+  $src = New-Inbox
+  Set-Content -Path (Join-Path $src '~$lock.dwg') -Value 'x'
+  New-Item -ItemType Directory -Force -Path (Join-Path $src 'sub') | Out-Null
+  $body = ConvertTo-SourceBatch $src 'src_test12345678'
+  Check 'source batch: the folder''s files only, no lock files or folders' ((@($body.files | ForEach-Object { $_.name } | Sort-Object) -join ',') -eq 'A-101.pdf,B.pdf,C.dwg')
+  Check 'source batch: the id and the folder''s name, never its path' ($body.source -eq 'src_test12345678' -and $body.folder -eq (Split-Path $src -Leaf) -and -not ((ConvertTo-Json $body -Depth 5) -match [regex]::Escape((Split-Path $src -Parent).Replace('\', '\\'))))
+  Check 'source batch: times as the server reads them' (@($body.files)[0].mtime -match '^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$')
+  Check 'sources: none yet' ($null -eq (Get-HelperSource 'src_x' $srcStore))
+  $sid = Save-HelperSource $src $srcStore
+  Check 'sources: an id the server takes' ($sid -match '^src_[0-9a-f]{12}$')
+  Check 'sources: found again' ((Get-HelperSource $sid $srcStore) -eq $src)
+  Check 'sources: the same folder, the same id' ((Save-HelperSource $src $srcStore) -eq $sid)
+  foreach ($i in 1..25) { [void](Save-HelperSource (Join-Path $root "f$i") $srcStore) }
+  Check 'sources: only the latest are kept' ($null -eq (Get-HelperSource $sid $srcStore) -and (Get-HelperSource (Save-HelperSource (Join-Path $root 'f25') $srcStore) $srcStore) -eq (Join-Path $root 'f25'))
+  $sid = Save-HelperSource $src $srcStore
+  $cfgS = [pscustomobject]@{ inbox = 'D:\Inbox' }
+  $w = Get-InboxTaskSource $cfgS ([pscustomobject]@{ kind = 'inbox'; source = ''; move = $true }) $srcStore
+  Check 'task source: the export inbox moves' ($w.dir -eq 'D:\Inbox' -and $w.move -eq $true)
+  $w = Get-InboxTaskSource $cfgS ([pscustomobject]@{ kind = 'inbox' }) $srcStore
+  Check 'task source: a server without move: the inbox moves' ($w.dir -eq 'D:\Inbox' -and $w.move -eq $true)
+  $w = Get-InboxTaskSource $cfgS ([pscustomobject]@{ kind = 'inbox'; source = $sid; move = $true }) $srcStore
+  Check 'task source: a chosen folder is copied, whatever the task says' ($w.dir -eq $src -and $w.move -eq $false)
+  $w = Get-InboxTaskSource $cfgS ([pscustomobject]@{ kind = 'inbox'; source = 'src_000000000000'; move = $false }) $srcStore
+  Check 'task source: an unknown folder is no folder (never the inbox)' ($null -eq $w.dir -and $w.move -eq $false)
+  $res = Invoke-InboxTask $proj $src $t6 $false
+  Check 'copy: published' ($null -eq $res.error -and (Test-Path (Join-Path $proj 'MADE6\B (2).pdf')))
+  Check 'copy: the source stays' ((Get-Content (Join-Path $src 'B.pdf')) -eq 'new B')
+  $res = Invoke-InboxTask $proj $null $t6 $false
+  Check 'copy: no folder, an error' ($res.error -and @($res.files).Count -eq 0)
+  Remove-Item -LiteralPath $src -Recurse -Force
+
   # every source gone: nothing done at all, not even the folders
   $t7 = [pscustomobject]@{ kind = 'inbox'; files = @([pscustomobject]@{ n = 0; name = 'none.pdf' })
     plan = [pscustomobject]@{ steps = @([pscustomobject]@{ op = 'mkdir'; path = 'MADE7'; from = ''; to = '' })

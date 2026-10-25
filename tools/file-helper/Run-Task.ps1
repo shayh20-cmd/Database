@@ -1,8 +1,9 @@
 ﻿<# Project Hub — filing helper: one task from the pane, run on this PC. Started by the background agent
    (FileHelper-Agent.ps1) with the task's one-time token, which is its only permission: it reads the task, does the disk
-   work (pick the project folder / read its tree / open it / file / publish from the export inbox; the folder is found by its root's name,
+   work (pick the project folder / read its tree / open it / file / choose a folder to publish from / publish from the
+   export inbox or that folder; the project's folder is found by its root's name,
    Resolve-ProjectDir), posts the result and ends. The pane shows the result;
-   the only window here is the folder picker of a "pick" task. On any failure the task is cancelled (best effort), so
+   the only window here is the folder picker of a "pick" or "pick-source" task. On any failure the task is cancelled (best effort), so
    the pane does not wait for it, and the error goes to the log. The logic is in FileHelper.Core.ps1.
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md
    Saved as UTF-8 with BOM. #>
@@ -213,14 +214,23 @@ try {
         }
       }
     }
+    'pick-source' {
+      # a folder to publish from instead of the export inbox: its files go to the hub as a batch; its path stays here,
+      # under an id (Save-HelperSource), and the server sees only the id and the folder's name
+      $picked = Show-FolderPicker ([Environment]::GetFolderPath('Desktop')) '' (T 'בחר תיקייה עם קבצים לפרסום בפרויקט')
+      if (-not $picked) { $res = @{ cancelled = $true } }
+      else { $res = ConvertTo-SourceBatch $picked (Save-HelperSource $picked) }
+    }
     'inbox' {
-      # publishing from the export inbox: the files are on this PC already (the inbox is this PC's own folder, from the
-      # config); what was copied everywhere leaves the inbox
-      $res = Invoke-InboxTask (Resolve-ProjectDir $cfg ([string]$task.root) ([string]$task.folder)) $cfg.inbox $task
+      # publishing from the export inbox (this PC's own folder, from the config: what was copied everywhere leaves it) or
+      # from a folder the person chose (source: only copied, nothing leaves it)
+      $from = Get-InboxTaskSource $cfg $task
+      $res = Invoke-InboxTask (Resolve-ProjectDir $cfg ([string]$task.root) ([string]$task.folder)) $from.dir $task $from.move
     }
   }
   [void](Api 'POST' '/result' $res)
-  Write-HelperLog ("task {0}: {1}" -f $kind, (($res.Keys | Sort-Object) -join ','))
+  $keys = if ($res -is [hashtable]) { $res.Keys } else { $res.PSObject.Properties.Name }
+  Write-HelperLog ("task {0}: {1}" -f $kind, (($keys | Sort-Object) -join ','))
 } catch {
   # an expired task is gone already; anything else is cancelled, so the pane does not wait for it
   $code = StatusOf $_

@@ -65,3 +65,20 @@ Files: `project_hub_01.html`, `i18n-dict.js`.
 - `inbox-propose` adds `replaceStripped: 'no_map'|'outside'` when a replace was dropped; the window says so under
   Claude's words. Names the server would change are left out of a batch; a 400 to the agent counts as announced.
 - The lock test runs only when something is to be announced, and opens with `FileShare.Read`.
+
+## חזרה לחלון ולשונית תיוק (follow-up, 2026-10-25)
+
+- Toast: `launch` and "Open" carry the window's https address itself (`Get-HubPageUrl` checks it is the hub's); Windows
+  opens it in the default browser. `projecthub-inbox:`, `Open-Inbox.ps1`, `open-inbox.vbs` and `Find-AppBrowser` are
+  gone; the installer deletes the old files and the HKCU key, the uninstaller still deletes the key.
+- `GET /api/filing-hub/inbox-open` → `[{ id, pc, files: n, at }]`: the person's open export-inbox batches, newest first
+  (not chosen folders). The sidebar's "תיבת הייצוא (N)" (InboxNavBadge) asks on load, every 5 min and on focus (≤ 1/min).
+- The quick window's third tab "תיוק קבצים" (`?quick=file`): QuickInbox `inTab` → the newest open batch (a select when
+  more), or "אין כרגע קבצים שמחכים בתיבת הייצוא". `?quick=inbox` without `id` → the PC's newest (inbox-latest).
+  Replaces the planned Start-menu shortcut: the quick window is in the Start menu already (tools/quick-access).
+- `POST /api/filing-hub/pick-source` `{ lang }` → `{ taskId }` (writers only), a `pick-source` task for any agent of the
+  person: folder picker; result `{ source: <id the PC keeps the path under>, folder: <name>, files }` →
+  the server makes a batch `{ source, folder }` (task result `{ id, files, folder }`). `GET inbox` adds
+  `source: bool, folder, move`; the `inbox` task adds `source` and `move: !source`. The PC copies from a chosen
+  folder and never deletes there (Get-InboxTaskSource ignores `move` for a source); an unknown source is an error.
+  Batches of a chosen folder replace only the same PC's earlier chosen-folder batch, never the inbox's.

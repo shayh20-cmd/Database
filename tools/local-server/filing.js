@@ -124,12 +124,39 @@ module.exports = function createFiling(ctx) {
   const writer = person => WRITERS.includes(mcp.whoAmI(person.email, person.name).role);
   // a task with a pc goes only to the agent on that PC (an inbox's files are on the PC that announced them)
   const samePc = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
-  // the person's newest open batch of that PC (of any PC when pc is ''), or null
+  // the person's newest open batch of that PC's export inbox (of any PC when pc is ''), or null; a folder the person
+  // chose on the PC (a batch with a source) is not the inbox
   const latestBatch = (who, pc) => {
     let best = null;
-    for (const b of batches.values()) if (b.who === who && b.status === 'new' && (!pc || samePc(b.pc, pc)) && (!best || b.at >= best.at)) best = b;
+    for (const b of batches.values()) if (b.who === who && b.status === 'new' && !b.source && (!pc || samePc(b.pc, pc)) && (!best || b.at >= best.at)) best = b;
     return best;
   };
+  /* A batch's files from what the PC sent: programs are never published, and a name the server would change (too
+     long, a character it drops) could never be matched to the file on the PC. */
+  function batchFiles(list) {
+    const files = [];
+    for (const x of Array.isArray(list) ? list.slice(0, INBOX_MAX) : []) {
+      const raw = x && x.name != null ? String(x.name) : '';
+      const name = safeName(raw);
+      if (!name || BLOCKED.test(name)) continue;
+      if (name !== raw) { console.log('filing: a file left out of a batch, its name is not kept as is:', name.slice(0, 60)); continue; }
+      const ms = typeof x.mtime === 'number' ? x.mtime : Date.parse(x.mtime);
+      files.push({ n: files.length, name, size: Math.max(0, Math.floor(Number(x.size) || 0)), mtime: Number.isFinite(ms) ? iso(ms) : '' });
+    }
+    return files;
+  }
+  /* A new batch of a PC: the export inbox's (source '') or a folder the person chose there (source: the id the PC
+     keeps the folder's path under; folder: its name, to show). It replaces the person's open batch of the same kind
+     from the same PC unless that one is being published. */
+  function addBatch(who, p, base, pc, files, source = '', folder = '') {
+    for (const [id, b] of batches) if (b.who === who && samePc(b.pc, pc) && !b.source === !source && b.status === 'new' && !b.taskId) batches.delete(id);
+    const b = {
+      id: newId(), who, person: p, base, pc, files, source, folder, at: new Date().toISOString(), status: 'new', exp: Date.now() + BATCH_TTL,
+      h: null, plan: null, taskId: null, busy: false
+    };
+    batches.set(b.id, b);
+    return b;
+  }
   const nextFor = (who, pc) => { for (const t of tasks.values()) if (t.who === who && !t.handed && !t.closed && t.exp > Date.now() && (!t.pc || samePc(t.pc, pc))) return t; return null; };
   const wake = who => { for (const f of [...(waiting.get(who) || [])]) f(); };
   const newId = () => crypto.randomBytes(9).toString('hex');
@@ -255,23 +282,9 @@ module.exports = function createFiling(ctx) {
     if (route === 'inbox-batch') {
       const body = await json(req);
       const pc = clip(body.pc, 60).trim();
-      const files = [];
-      for (const x of Array.isArray(body.files) ? body.files.slice(0, INBOX_MAX) : []) {
-        const raw = x && x.name != null ? String(x.name) : '';
-        const name = safeName(raw);
-        if (!name || BLOCKED.test(name)) continue; // never published
-        // a name the server would change (too long, a character it drops) could never be matched to the file on the PC
-        if (name !== raw) { console.log('filing: an inbox file left out of the batch, its name is not kept as is:', name.slice(0, 60)); continue; }
-        const ms = typeof x.mtime === 'number' ? x.mtime : Date.parse(x.mtime);
-        files.push({ n: files.length, name, size: Math.max(0, Math.floor(Number(x.size) || 0)), mtime: Number.isFinite(ms) ? iso(ms) : '' });
-      }
+      const files = batchFiles(body.files);
       if (!files.length) { sendJson(res, 400, { error: 'files' }); return; }
-      for (const [id, b] of batches) if (b.who === who && samePc(b.pc, pc) && b.status === 'new' && !b.taskId) batches.delete(id);
-      const b = {
-        id: newId(), who, person: p, base, pc, files, at: new Date().toISOString(), status: 'new', exp: Date.now() + BATCH_TTL,
-        h: null, plan: null, taskId: null, busy: false
-      };
-      batches.set(b.id, b);
+      const b = addBatch(who, p, base, pc, files);
       sendJson(res, 200, { id: b.id, url: `${base}/project_hub_01?quick=inbox&id=${encodeURIComponent(b.id)}${pc ? '&pc=' + encodeURIComponent(pc) : ''}`, lang: langs.get(who) || 'he' });
       return;
     }
@@ -510,13 +523,14 @@ module.exports = function createFiling(ctx) {
     if (!what) {
       t.opened = true;
       // the folder picker is open on the PC from now on: the person's choice may take a while
-      if (t.kind === 'pick') t.exp = Math.max(t.exp, Date.now() + PICK);
+      if (t.kind === 'pick' || t.kind === 'pick-source') t.exp = Math.max(t.exp, Date.now() + PICK);
       if (t.kind === 'inbox') t.exp = Math.max(t.exp, Date.now() + INBOX_TTL);
       sendJson(res, 200, {
         kind: t.kind, lang: t.lang, project: t.project, folder: t.folder, root: t.root,
         ...(t.kind === 'open' && t.rel ? { rel: t.rel } : {}),
-        // the files to take from the PC's own inbox, and where each goes
-        ...(t.kind === 'inbox' ? { files: t.plan.files.filter(x => x.dests.length).map(x => ({ n: x.n, name: x.name })), plan: t.plan } : {}),
+        // the files to take from the PC's own inbox (or from the folder it keeps under source), and where each goes;
+        // move: only the export inbox's files leave it, a chosen folder's are copied
+        ...(t.kind === 'inbox' ? { files: t.plan.files.filter(x => x.dests.length).map(x => ({ n: x.n, name: x.name })), plan: t.plan, source: t.source || '', move: !t.source } : {}),
         ...(t.kind === 'file' ? {
           files: f.files.map((x, i) => ({ n: i, name: x.name, size: x.size, source: x.source })), plan: t.plan,
           // what classic Outlook on the PC finds the email by
@@ -570,6 +584,18 @@ module.exports = function createFiling(ctx) {
         Object.assign(projectOf(d, t.projectId), { folder, root, updatedBy: t.by, updatedAt: new Date().toISOString() });
         writeJsonAtomic(STORE, d);
         t.result = { picked: folder, root };
+      }
+    } else if (t.kind === 'pick-source') {
+      /* a folder the person chose on the PC to publish from: its files become a batch of that PC. source is the id the
+         PC keeps the folder's path under (the server never sees the path); folder: its name, to show */
+      if (body.cancelled === true) t.result = { cancelled: true };
+      else {
+        const source = typeof body.source === 'string' && /^[A-Za-z0-9_-]{6,64}$/.test(body.source) ? body.source : '';
+        if (!source) { sendJson(res, 400, { error: 'source' }); return; }
+        const folder = safeName(String(body.folder || '').split(/[\\/]/).filter(Boolean).pop() || '') || '';
+        const files = batchFiles(body.files);
+        const b = files.length ? addBatch(t.who, t.person, t.base, t.handed ? t.handed.pc : '', files, source, folder) : null;
+        t.result = { id: b ? b.id : null, files: files.length, folder };
       }
     } else if (t.kind === 'tree') {
       if (!Array.isArray(body.tree)) { sendJson(res, 400, { error: 'tree' }); return; }
@@ -683,7 +709,7 @@ module.exports = function createFiling(ctx) {
      key names its owner: the address in lower case, 'local' on the local server). base: the site, for the tools. */
   const HUB_METHOD = {
     project: 'GET', task: 'GET', pick: 'POST', open: 'POST', 'map-session': 'POST', 'map-propose': 'POST', map: 'PUT', guide: 'PUT',
-    inbox: 'GET', 'inbox-latest': 'GET', 'inbox-propose': 'POST', 'inbox-confirm': 'POST', 'inbox-dismiss': 'POST'
+    inbox: 'GET', 'inbox-latest': 'GET', 'inbox-open': 'GET', 'pick-source': 'POST', 'inbox-propose': 'POST', 'inbox-confirm': 'POST', 'inbox-dismiss': 'POST'
   };
   const israelToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
   async function handleHub(req, res, url, user, base) {
@@ -716,6 +742,22 @@ module.exports = function createFiling(ctx) {
       sendJson(res, 200, { id: b ? b.id : null });
       return;
     }
+    // the Hub's top bar ("תיבת הייצוא (N)"): the person's open batches, of every PC, the newest first
+    if (route === 'inbox-open') {
+      const open = [...batches.values()].filter(b => b.who === who && b.status === 'new' && !b.source).sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0));
+      sendJson(res, 200, open.map(b => ({ id: b.id, pc: b.pc, files: b.files.length, at: b.at })));
+      return;
+    }
+    // a folder of the person's PC to publish from instead of the export inbox: the PC's helper opens a folder picker
+    // (any PC of the person: the one the person sits at runs the helper) and announces the folder's files as a batch
+    if (route === 'pick-source') {
+      const body = await json(req);
+      noteLang(who, body.lang);
+      if (!writer(p)) { sendJson(res, 403, { error: 'viewer' }); return; }
+      const t = makeTask('pick-source', { who, person: p, base, project: { id: '', code: '', name: '' }, lang: body.lang });
+      sendJson(res, 200, { taskId: t.id });
+      return;
+    }
     if (route.startsWith('inbox')) {
       const body = route === 'inbox' ? {} : await json(req);
       noteLang(who, route === 'inbox' ? url.searchParams.get('lang') : body.lang);
@@ -723,7 +765,8 @@ module.exports = function createFiling(ctx) {
       if (!b || b.who !== who) { sendJson(res, 404, { error: 'no_batch' }); return; }
       if (route === 'inbox') {
         const projects = mcp.runToolAs(p.email, p.name, base, 'list_projects', {}).projects.map(x => ({ id: x.id, code: x.code || '', name: x.name }));
-        sendJson(res, 200, { id: b.id, pc: b.pc, status: b.status, files: b.files, guess: inboxGuess(b.files, projects), projects });
+        // source: files of a folder the person chose (copied), not of the export inbox (moved out of it)
+        sendJson(res, 200, { id: b.id, pc: b.pc, status: b.status, files: b.files, source: !!b.source, folder: b.folder || '', move: !b.source, guess: inboxGuess(b.files, projects), projects });
         return;
       }
       if (b.status !== 'new') { sendJson(res, 409, { error: b.status }); return; }
@@ -743,7 +786,7 @@ module.exports = function createFiling(ctx) {
         const pr = known(h.projectId);
         if (!pr.folder) { sendJson(res, 409, { error: 'no_folder' }); return; }
         // to the agent on the PC whose inbox has the files; any agent of the person when the batch named no PC
-        const t = makeTask('inbox', { who, person: p, base, project: h.project, folder: pr.folder, root: pr.root || '', lang: h.lang, extra: { inboxId: b.id, plan: b.plan, pc: b.pc } });
+        const t = makeTask('inbox', { who, person: p, base, project: h.project, folder: pr.folder, root: pr.root || '', lang: h.lang, extra: { inboxId: b.id, plan: b.plan, pc: b.pc, source: b.source || '' } });
         b.taskId = t.id;
         sendJson(res, 200, { taskId: t.id });
         return;
