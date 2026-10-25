@@ -1718,8 +1718,10 @@ html[data-appearance="dark"] .plan-rolled{background:rgba(245,158,11,.18);color:
 .fm-head>span:first-child{flex:1;}
 .fm-dirty{color:#B45309;text-transform:none;letter-spacing:0;font-weight:600;}
 .fm-when{text-transform:none;letter-spacing:0;font-weight:400;}
-.fm-area{display:grid;grid-template-columns:92px minmax(0,1fr);gap:2px 8px;padding:6px 16px;border-bottom:1px solid var(--border);}
-.fm-name{font-size:12px;font-weight:600;color:var(--text);padding-top:2px;}
+.fm-area{display:grid;grid-template-columns:minmax(104px,34%) minmax(0,1fr);gap:2px 10px;padding:6px 16px;border-bottom:1px solid var(--border);}
+.fm-head-cell{min-width:0;padding-top:2px;}
+.fm-name{font-size:12px;font-weight:600;color:var(--text);text-align:start;}
+.fm-desc{font-size:10.5px;line-height:1.35;color:var(--text-3);margin-top:1px;}
 .fm-body{display:flex;flex-direction:column;gap:3px;min-width:0;}
 .fm-prow{display:flex;align-items:center;gap:2px;min-width:0;}
 .fm-prow .fm-path,.fm-folder .fm-path{flex:0 1 auto;}
@@ -2195,6 +2197,13 @@ html[dir="ltr"] .tds-panel{box-shadow:4px 0 32px rgba(0,0,0,.18),1px 0 0 rgba(0,
 html[dir="ltr"] .sp-panel{box-shadow:-4px 0 28px rgba(0,0,0,.12);}
 html[dir="ltr"] .hw-resize{cursor:nwse-resize;background:linear-gradient(-45deg,transparent 45%,var(--border-strong) 45%,var(--border-strong) 55%,transparent 55%);}
 .pg-wrap{padding:24px;max-width:900px;margin:0 auto;display:flex;flex-direction:column;gap:16px;}
+/* הגדרות (project header tab): the details form and the folders card */
+.ps-wrap{flex:1;overflow-y:auto;width:100%;box-sizing:border-box;}
+.ps-fs{border:0;padding:0;margin:0;min-width:0;}
+.ps-ro{margin:-6px 0 12px;}
+.ps-foot{display:flex;align-items:center;gap:8px;margin-top:16px;flex-wrap:wrap;}
+.ps-folders{padding:18px 4px 8px;}
+.ps-folders .pg-h{padding-inline:16px;}
 .pg-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-sm);padding:18px 20px;}
 .pg-h{font-size:13px;font-weight:700;color:var(--text);margin:0 0 14px;display:flex;align-items:center;gap:6px;}
 .pg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px 18px;}
@@ -3504,6 +3513,10 @@ const PROJ_HEADER_NAV = [{
   id: 'notes',
   label: 'פנקס',
   icon: 'licensing'
+}, {
+  id: 'projsettings',
+  label: 'הגדרות',
+  icon: 'settings'
 }];
 const ProjectHeaderNav = ({
   track,
@@ -8267,6 +8280,209 @@ function ProjectGeneralTab({
   }), /*#__PURE__*/React.createElement(AddMemberPicker, {
     doc: data,
     onAdd: addMember
+  }))));
+}
+/* ══════════════════════════════════════
+   הגדרות — the project header's settings page: the project's details, the same
+   ones "פרויקט חדש" asks for, and its folders (SettingsFoldersView, also under
+   ⚙ התאמה אישית). The details save the way טמפלייט → כללי saves them: into the
+   project document, and name, code, color and sharing into the registry too
+   (syncProjectRegistry; PH01's overrides sit under reg.ph01). Only the project's
+   manager or a Super Admin edits (iManage); everyone else reads. The type is
+   shown, not edited: it decided the project's tracks when it was created.
+══════════════════════════════════════ */
+function ProjectSettingsPage({
+  data,
+  save
+}) {
+  const h = React.createElement;
+  const me = MY_PROJECTS.find(p => p.id === ACTIVE_PROJECT_ID) || {};
+  const meta = data.projectMeta || {};
+  const pi = data.projectInfo || {};
+  const team = data.team || [];
+  const canEdit = iManage(team);
+  const field = startDateField(data);
+  const src = {
+    name: data.projectName || me.name || '',
+    code: meta.code || me.code || '',
+    color: meta.color || me.color || PROJECT_COLORS[0],
+    visibility: meta.visibility || me.visibility || 'shared',
+    client: pi.client || '',
+    location: pi.location || '',
+    start: field && (pi.customFields || {})[field.id] || ''
+  };
+  const [draft, setDraft] = useState(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const v = draft || src;
+  const dirty = !!draft && Object.keys(src).some(k => draft[k] !== src[k]);
+  const set = (k, val) => {
+    setSaved(false);
+    setErr('');
+    setDraft({
+      ...(draft || src),
+      [k]: val
+    });
+  };
+  const managers = team.filter(m => memberAccess(m) === 'manager').map(m => nameForLang(m.name)).filter(Boolean);
+  const submit = async e => {
+    e.preventDefault();
+    if (!canEdit || !dirty || busy) return;
+    const name = v.name.trim(),
+      code = v.code.trim().toUpperCase();
+    if (!name) return setErr('יש לתת שם לפרויקט');
+    if (!code) return setErr('יש להזין קוד');
+    if (MY_PROJECTS.some(p => p.id !== ACTIVE_PROJECT_ID && p.code === code)) return setErr('הקוד כבר בשימוש בפרויקט אחר');
+    setBusy(true);
+    let next = {
+      ...data,
+      projectName: name,
+      projectMeta: {
+        ...meta,
+        code,
+        color: v.color,
+        visibility: v.visibility
+      },
+      projectInfo: {
+        ...pi,
+        client: v.client.trim(),
+        location: v.location.trim()
+      }
+    };
+    if (v.start !== src.start) next = withStartDate(next, v.start);
+    save(next);
+    // the registry is what the sidebar and the project list read
+    const reg = {};
+    [['name', name], ['code', code], ['color', v.color], ['visibility', v.visibility]].forEach(([k, x]) => {
+      if (me[k] !== x) reg[k] = x;
+    });
+    const failed = Object.keys(reg).length ? await syncProjectRegistry(reg).then(() => '', () => 'השינוי נשמר בפרויקט אך לא ברשימת הפרויקטים — בדוק שהשרת המקומי פועל') : '';
+    setBusy(false);
+    setDraft(null);
+    if (failed) setErr(failed);else setSaved(true);
+  };
+  const f = (label, input, wide, hint) => h("label", {
+    className: 'pg-f' + (wide ? ' pg-wide' : '')
+  }, h("span", {
+    className: "pg-lbl"
+  }, label), input, hint || null);
+  const text = (k, extra) => h("input", {
+    className: "af-input",
+    value: v[k],
+    onChange: e => set(k, e.target.value),
+    ...extra
+  });
+  return h("div", {
+    className: "ps-wrap"
+  }, h("div", {
+    className: "pg-wrap"
+  }, h("form", {
+    className: "pg-card",
+    onSubmit: submit,
+    noValidate: true
+  }, h("h3", {
+    className: "pg-h"
+  }, "פרטי הפרויקט"), !canEdit && h("div", {
+    className: "pg-hint ps-ro",
+    role: "note"
+  }, h("span", null, "רק מנהל הפרויקט או Super Admin יכולים לערוך את פרטי הפרויקט"), managers.length > 0 && h("span", {
+    "data-i18n-skip": ""
+  }, ' · ' + tx('מנהלי הפרויקט: {names}', {
+    names: asTyped(managers.join(', '))
+  }))), h("fieldset", {
+    className: "ps-fs",
+    disabled: !canEdit || busy
+  }, h("div", {
+    className: "pg-grid"
+  }, f("שם הפרויקט", text('name', {
+    dir: 'auto',
+    "data-i18n-skip": ""
+  }), true), f("קוד", text('code', {
+    className: "af-input np-code",
+    maxLength: 10,
+    onChange: e => set('code', e.target.value.replace(/\s/g, '').toUpperCase())
+  })), f("סוג פרויקט", h("span", {
+    className: "pg-ro"
+  }, isAdminProject(data) ? 'ניהול' : 'אדריכלות'), false, h("span", {
+    className: "pg-hint"
+  }, "נקבע ביצירת הפרויקט")), f("תאריך התחלה", h("input", {
+    type: "date",
+    className: "af-input",
+    value: v.start,
+    onChange: e => set('start', e.target.value)
+  })), f("לקוח", text('client', {
+    dir: 'auto',
+    "data-i18n-skip": ""
+  })), f("מיקום", text('location', {
+    dir: 'auto',
+    "data-i18n-skip": ""
+  })), h("div", {
+    className: "pg-f pg-wide"
+  }, h("span", {
+    className: "pg-lbl"
+  }, "צבע"), h("div", {
+    className: "np-colors"
+  }, PROJECT_COLORS.map(c => h("button", {
+    key: c,
+    type: "button",
+    className: 'np-swatch' + (c === v.color ? ' on' : ''),
+    style: {
+      background: c
+    },
+    "aria-label": c,
+    "aria-pressed": c === v.color,
+    onClick: () => set('color', c)
+  })))), h("div", {
+    className: "pg-f pg-wide"
+  }, h("span", {
+    className: "pg-lbl"
+  }, "שיתוף"), h("div", {
+    className: "np-vis",
+    role: "radiogroup"
+  }, VISIBILITY_OPTS.map(o => h("button", {
+    key: o.id,
+    type: "button",
+    role: "radio",
+    "aria-checked": v.visibility === o.id,
+    className: 'np-vis-opt' + (v.visibility === o.id ? ' on' : ''),
+    onClick: () => set('visibility', o.id)
+  }, h("span", {
+    className: "np-vis-ic"
+  }, h(o.Icon, {
+    size: 14
+  })), h("span", {
+    className: "np-vis-txt"
+  }, h("span", {
+    className: "np-vis-lbl"
+  }, o.label), h("span", {
+    className: "np-vis-desc"
+  }, o.desc)))))))), err && h("div", {
+    className: "np-err",
+    role: "alert"
+  }, err), canEdit && h("div", {
+    className: "ps-foot"
+  }, h("button", {
+    type: "submit",
+    className: "np-btn primary",
+    disabled: !dirty || busy
+  }, busy ? 'שומר…' : 'שמור'), h("button", {
+    type: "button",
+    className: "np-btn",
+    disabled: !dirty || busy,
+    onClick: () => {
+      setDraft(null);
+      setErr('');
+    }
+  }, "בטל שינויים"), saved && !dirty && h("span", {
+    className: "pg-hint",
+    role: "status"
+  }, "השינויים נשמרו"))), h("section", {
+    className: "pg-card ps-folders"
+  }, h("h3", {
+    className: "pg-h"
+  }, "📁 תיקיות הפרויקט"), h(SettingsFoldersView, {
+    projectId: ACTIVE_PROJECT_ID
   }))));
 }
 /* ══════════════════════════════════════
@@ -15732,27 +15948,35 @@ function SettingsRulesView({
    what is unclear; the person answers in free text, corrects by hand and saves. The server is
    tools/local-server/filing.js (handleHub, /api/filing-hub/*); the Outlook pane's filing card works the same way.
    Folder names, notes, Claude's words and the person's answers are data (data-i18n-skip). */
+// the areas of the folder map (as filing-ai.js AREAS): a title in English in both languages, a description under it
 const FOLDER_AREAS = [{
   key: 'publish',
-  name: 'PUBLISH'
+  name: 'PUBLISH',
+  desc: 'כל מסמך שאנחנו מוציאים ושולחים (כולל תיקיית הייצוא מ-Revit/CAD)'
+}, {
+  key: 'work',
+  name: 'Work',
+  desc: 'מסמכי עבודה שאנחנו יוצרים, בעיקר DWG ו-RVT'
 }, {
   key: 'consultants',
-  name: 'תיקיות יועצים'
+  name: 'Consultants',
+  desc: 'כל מסמך שהתקבל מהיועצים'
 }, {
   key: 'receive',
-  name: 'מסמכים נכנסים'
+  name: 'Receive',
+  desc: 'כל מסמך שהתקבל ואינו מיועץ או מרשות'
 }, {
   key: 'permit',
-  name: 'הגשות לרשויות'
-}, {
-  key: 'export',
-  name: 'קבצי ייצוא'
-}, {
-  key: 'design',
-  name: 'תיקיות תכנון'
+  name: 'Permit',
+  desc: 'הגשות ומסמכי רשויות, בחלוקה לפי רשות'
 }, {
   key: 'docs',
-  name: 'מסמכי פרויקט'
+  name: 'Docs',
+  desc: 'מסמכים כלליים'
+}, {
+  key: 'exec',
+  name: 'Exec',
+  desc: 'מסמכי שלב הביצוע'
 }];
 const FM_HELPER_OFF = 'עוזר התיוק לא פועל במחשב הזה. התקנה: tools\\file-helper\\Install-FileHelper.ps1';
 const FM_NOT_HERE = 'לא מוצאת את תיקיית הפרויקט במחשב הזה';
@@ -16132,8 +16356,14 @@ function SettingsFoldersView({
       key: a.key,
       className: "fm-area"
     }, /*#__PURE__*/React.createElement("div", {
-      className: "fm-name"
+      className: "fm-head-cell"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "fm-name",
+      dir: "ltr",
+      "data-i18n-skip": ""
     }, a.name), /*#__PURE__*/React.createElement("div", {
+      className: "fm-desc"
+    }, a.desc)), /*#__PURE__*/React.createElement("div", {
       className: "fm-body"
     }, x.paths.length ? x.paths.map(p => /*#__PURE__*/React.createElement("div", {
       key: p,
@@ -20648,7 +20878,7 @@ if(out!==d)setData(out);
 setSaveError(false);}catch{setSaveError(true);}finally{saving.current=false;}},[]);const openFileFallback=useCallback(async()=>{if(!window.showOpenFilePicker)return;try{const[handle]=await window.showOpenFilePicker({types:[{description:'JSON',accept:{'application/json':['.json']}}]});const file=await handle.getFile();const text=await file.text();const parsed=text?JSON.parse(text):{};const d=repairPrecondsSheet(migrateData(Object.keys(parsed).length?parsed:makeDefaultData()));fileHandleRef.current=handle;setLoadError(false);timeAutoRan.current=false;setData(d);}catch{}},[]);
 const save=useCallback(nd=>{if(myOfficeRole()==='viewer'){setReadOnlyNotice(Date.now());return;}const ad=runAutomations(data,nd);const d={...ad,_ts:Date.now(),_by:CURRENT_USER_LABEL};const label=detectActionLabel(data,nd);setPastStack(p=>[...p.slice(-(MAX_HIST-1)),{snapshot:{...data},label,at:Date.now()}]);setFutureStack([]);setData(d);persist(d);},[data,persist]);PROJECT_OPS.data=data;PROJECT_OPS.save=save;/* Every 30 seconds and on focus: if someone else saved, merge their version into the screen. Not while a save is in flight or a field has focus — the next check does it. Undo is cleared: it restores whole snapshots and would quietly remove a colleague's change. */React.useEffect(()=>{const check=async()=>{if(saving.current||!baseDoc.current||fileHandleRef.current)return;const ae=document.activeElement;if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT'||ae.isContentEditable))return;try{const r=await fetch(API_ENDPOINT,{headers:serverVersion?{'If-None-Match':serverVersion}:{}});if(r.status!==200)return;const theirs=await r.json();if(!theirs||!Object.keys(theirs).length||saving.current)return;serverVersion=r.headers.get('etag')||serverVersion;setData(cur=>{const merged=mergeDocs(baseDoc.current,cur,theirs);baseDoc.current=theirs;return merged;});setPastStack([]);setFutureStack([]);setExternalNotice(theirs._by||'משתמש אחר');setTimeout(()=>setExternalNotice(''),6000);}catch{}};window.addEventListener('focus',check);const iv=setInterval(check,30000);return()=>{window.removeEventListener('focus',check);clearInterval(iv);};},[]);
 const timeAutoRan=useRef(false);useLibViews();const seededViews=useRef(false);useEffect(()=>{if(seededViews.current||!LIB_VIEWS_READY)return;seededViews.current=true;seedOfficeViews().catch(()=>{});});/* "המשימות שלי בפרויקט" in ניהול תכנון: מסך תכנון with only this project shown */useEffect(()=>{const on=()=>{const others=MY_PROJECTS.filter(p=>p.real&&isMyProject(p)&&p.id!==ACTIVE_PROJECT_ID).map(p=>p.id);const hide=Object.fromEntries([...others,'__me'].map(id=>[id,true]));updatePersonal(d=>({...d,prefs:{...(d.prefs||{}),mtMode:'planner',mtHideProj:hide}})).catch(()=>{}).finally(()=>setTrack('mytasks'));};window.addEventListener('ph:open-my-planner',on);return()=>window.removeEventListener('ph:open-my-planner',on);},[]);/* a rule scoped to a library view waits for the library, or it would find no view and skip every task */const timeAutoWaitsLib=!LIB_VIEWS_READY&&!!data&&(data.automations||[]).some(r=>{const sc=autoNormScope(r.scope);return sc!=='all'&&sc.views.some(isLibViewId);});React.useEffect(()=>{if(!data||timeAutoRan.current||timeAutoWaitsLib)return;timeAutoRan.current=true;const res=runTimeBasedAutomations(data);if(res.changed){const d={...res.data,_ts:Date.now()};setData(d);persist(d);}},[data,persist,timeAutoWaitsLib]);const undoTo=useCallback(steps=>{const n=Math.min(steps,pastStack.length);if(!n)return;const newPast=pastStack.slice(0,pastStack.length-n);const displaced=pastStack.slice(pastStack.length-n);// oldest→newest
-/* redo order: the next action first; each entry holds the state right after its action */const futureEntries=displaced.map((p,j)=>({label:p.label,at:p.at,snapshot:j<displaced.length-1?displaced[j+1].snapshot:{...data}}));const restored={...displaced[0].snapshot,_ts:Date.now()};setPastStack(newPast);setFutureStack(fut=>[...futureEntries,...fut].slice(0,MAX_HIST));setData(restored);persist(restored);},[data,pastStack,persist]);const redoTo=useCallback(steps=>{const n=Math.min(steps,futureStack.length);if(!n)return;const displaced=futureStack.slice(0,n);const newFuture=futureStack.slice(n);const pastEntries=[{snapshot:{...data},label:displaced[0].label},...displaced.slice(1).map((f,i)=>({snapshot:displaced[i].snapshot,label:f.label}))];const restored={...displaced[n-1].snapshot,_ts:Date.now()};setPastStack(p=>[...p.slice(-(MAX_HIST-n)),...pastEntries]);setFutureStack(newFuture);setData(restored);persist(restored);},[data,futureStack,persist]);React.useEffect(()=>{/* Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z by physical key, so a Hebrew layout works; inside a text field they stay the field's own undo */const handler=e=>{if(!(e.ctrlKey||e.metaKey)||e.altKey)return;const t=e.target;if(t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))return;if(document.querySelector('.mt-table-page:not(.mt-proj-only)'))return;if(e.code==='KeyZ'&&!e.shiftKey){e.preventDefault();undoTo(1);}else if(e.code==='KeyY'||e.code==='KeyZ'&&e.shiftKey){e.preventDefault();redoTo(1);}};document.addEventListener('keydown',handler);return()=>document.removeEventListener('keydown',handler);},[undoTo,redoTo]);const commitName=()=>{if(nameDraft.trim()){save({...data,projectName:nameDraft.trim()});syncProjectRegistry({name:nameDraft.trim()}).catch(()=>{});}setEditName(false);};/* top-level track: 'overview' | 'tasks' | 'template' | one of data.tracks' ids */const[track,setTrack]=useState(()=>{try{const t=sessionStorage.getItem(PENDING_TRACK_KEY);sessionStorage.removeItem(PENDING_TRACK_KEY);return t||(new URLSearchParams(location.search).get('view')==='mail'?'mytasks':null)||screenGet('track')||'home';}catch{return'home';}});useEffect(()=>{screenSet('track',track);},[track]);const[autoNavReq,setAutoNavReq]=useState(null);const editAutomation=useCallback(ruleId=>{setAutoNavReq(ruleId?{ruleId}:{isNew:true});setTrack('template');},[]);const[taskNavReq,setTaskNavReq]=useState(null);const openTaskAt=useCallback((trackId,taskId,sheetId)=>{setTrack(trackId);setTaskNavReq({taskId,sheetId,n:Date.now()});},[]);const dataReady=!!data;useEffect(()=>{if(!dataReady)return;let req=null;try{req=JSON.parse(sessionStorage.getItem(PENDING_TASK_KEY)||'null');sessionStorage.removeItem(PENDING_TASK_KEY);}catch{}if(!req||req.projId!==ACTIVE_PROJECT_ID)return;const trackId=trackIdForSheet(data,req.sheetId);if(trackId)openTaskAt(trackId,req.taskId,req.sheetId);},[dataReady]);useEffect(()=>{if(!dataReady||!PH_OPEN_LANDING)return;PH_OPEN_LANDING=false;if(canSeeExec()&&(data.execItems||[]).some(e=>!execIsClosed(e))&&(data.tracks||[]).some(t=>t.id==='execution'))setTrack('execution');},[dataReady]);const[searchQ,setSearchQ]=useState('');useEffect(()=>{const s=e=>{setSearchQ(e.detail&&e.detail.q||'');setTrack('search');};const hub=()=>setTrack('tasks');const gx=()=>setTrack('execution');/* Ctrl+K opens the search page from anywhere (and selects its box when already there) */const k=e=>{if(!(e.ctrlKey||e.metaKey)||e.code!=='KeyK')return;e.preventDefault();setTrack('search');setTimeout(()=>{const q=document.querySelector('.sr-q');if(q){q.focus();q.select();}},0);};document.addEventListener('keydown',k);window.addEventListener('ph:search',s);window.addEventListener('ph:go-hub',hub);window.addEventListener('ph:go-exec',gx);const gs=()=>setTrack('settings');window.addEventListener('ph:go-settings',gs);return()=>{window.removeEventListener('ph:go-settings',gs);document.removeEventListener('keydown',k);window.removeEventListener('ph:search',s);window.removeEventListener('ph:go-hub',hub);window.removeEventListener('ph:go-exec',gx);};},[]);useEffect(()=>{if(!data)return;const o=e=>{const{sheetId,taskId}=e.detail||{};const tr=trackIdForSheet(data,sheetId);if(tr)openTaskAt(tr,taskId,sheetId);};window.addEventListener('ph:open-task',o);return()=>window.removeEventListener('ph:open-task',o);},[data]);const[projListKey,setProjListKey]=useState(null);useEffect(()=>{const o=e=>setProjListKey(e.detail&&e.detail.key||null);window.addEventListener('ph:proj-list',o);return()=>window.removeEventListener('ph:proj-list',o);},[]);const[holdUi,setHoldUi]=useState(null);useEffect(()=>{const h=e=>setHoldUi(e.detail||{});window.addEventListener('ph:hold',h);return()=>window.removeEventListener('ph:hold',h);},[]);/* a hold opened from המשימות שלי in another project arrives after the switch */useEffect(()=>{if(!dataReady)return;let req=null;try{req=JSON.parse(sessionStorage.getItem('pm_pending_hold')||'null');sessionStorage.removeItem('pm_pending_hold');}catch{}if(req&&req.projId===ACTIVE_PROJECT_ID)setHoldUi(req.action==='release'?{release:req.holdId}:{edit:req.holdId});},[dataReady]);if(!data){return/*#__PURE__*/React.createElement("div",{style:{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,padding:40}},loadError?/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{style:{fontSize:14,color:'var(--text-2)'}},"לא ניתן להתחבר לשרת השמירה המקומי"),window.showOpenFilePicker&&/*#__PURE__*/React.createElement("button",{onClick:openFileFallback,style:{background:'var(--accent)',color:'#fff',border:'none',borderRadius:6,padding:'8px 16px',fontSize:13,cursor:'pointer',fontFamily:'inherit'}},"פתח קובץ נתונים...")):/*#__PURE__*/React.createElement("div",{style:{fontSize:14,color:'var(--text-2)'}},"טוען..."));}/* quick access: only the compact window, no sidebar or pages */HOLD_INDEX=buildHoldIndex(data);if(QUICK_MODE)return/*#__PURE__*/React.createElement(QuickShell,{data:data,save:save});return/*#__PURE__*/React.createElement("div",{className:"shell"},/*#__PURE__*/React.createElement(ConfirmHost,null),projListKey&&React.createElement(ProjectListModal,{key:projListKey,data,save,listKey:projListKey,onClose:()=>setProjListKey(null)}),/*#__PURE__*/React.createElement(RegisterLinkUI.AutoLink,{data:data,save:save,canEdit:myOfficeRole()!=='viewer',hubCode:data.projectMeta?.code||(MY_PROJECTS.find(p=>p.id===ACTIVE_PROJECT_ID)||{}).code||''}),holdUi&&(holdUi.release||holdUi.delayApply)?React.createElement(HoldReleaseModal,{data,save,holdId:holdUi.release||holdUi.delayApply,mode:holdUi.delayApply?'delay':'release',onClose:()=>setHoldUi(null)}):holdUi?React.createElement(HoldModal,{data,save,holdId:holdUi.edit||null,onClose:()=>setHoldUi(null),onCreated:hd=>setHoldUi({delayApply:hd.id})}):null,readOnlyNotice?/*#__PURE__*/React.createElement("div",{role:"status",className:"ro-toast"},"צפייה בלבד — ברמת Viewer אין הרשאת עריכה"):null,saveError&&/*#__PURE__*/React.createElement("div",{style:{position:'fixed',top:0,left:0,right:0,zIndex:9999,background:'#DC2626',color:'#fff',fontSize:12,fontWeight:600,textAlign:'center',padding:'4px 0'}},"לא ניתן לשמור — השינויים האחרונים לא נשמרו"),externalNotice&&React.createElement("div",{style:{position:'fixed',top:saveError?22:0,left:0,right:0,zIndex:9999,background:'#2563EB',color:'#fff',fontSize:12,fontWeight:600,textAlign:'center',padding:'4px 0'}},"עודכן על ידי "+externalNotice),/*#__PURE__*/React.createElement(Sidebar,{track:track,setTrack:setTrack,tracks:data.tracks||[],data:data,save:save}),/*#__PURE__*/React.createElement("div",{className:"app"},/*#__PURE__*/React.createElement("div",{/* office-wide pages carry no project header */className:"proj-header"+(['home','mytasks','projects','portfolio','settings','search'].includes(track)?' hdr-home':'')},/*#__PURE__*/React.createElement("div",{className:"proj-top"},(()=>{/* the same code badge the sidebar shows for this project */const hp=MY_PROJECTS.find(p=>p.id===ACTIVE_PROJECT_ID)||{};const code=data.projectMeta?.code||hp.code||'';const color=data.projectMeta?.color||hp.color||'#2563EB';return /*#__PURE__*/React.createElement("span",{className:"sb-proj-badge proj-code-badge",style:{background:hexBg(color),color:color,border:`1px solid ${color}40`}},code);})(),editName?/*#__PURE__*/React.createElement("input",{className:"proj-name-input",autoFocus:true,value:nameDraft,onChange:e=>setNameDraft(e.target.value),onBlur:commitName,onKeyDown:e=>{if(e.key==='Enter')commitName();if(e.key==='Escape')setEditName(false);}}):/*#__PURE__*/React.createElement("span",{className:"proj-name",onClick:()=>{setNameDraft(data.projectName);setEditName(true);}},data.projectName),/*#__PURE__*/React.createElement("button",{className:"icon-btn",title:"מועדפים"},/*#__PURE__*/React.createElement(Ic,{n:"star"})),/*#__PURE__*/React.createElement(ProjectStatusSelect,{data:data,save:save}),/*#__PURE__*/React.createElement("div",{className:"hdr-right"},/*#__PURE__*/React.createElement("div",{className:"undo-pair"},/*#__PURE__*/React.createElement(UndoRedoBtn,{icon:"↩",tooltip:"ביטול (Ctrl+Z)",listTitle:"פעולות אחרונות — לחיצה חוזרת עד לשם",newestLast:true,items:pastStack,disabled:!pastStack.length,onApply:()=>undoTo(1),onGoTo:undoTo}),/*#__PURE__*/React.createElement(UndoRedoBtn,{icon:"↪",tooltip:"שחזור (Ctrl+Y)",listTitle:"שחזור — לחיצה משחזרת עד לשם",items:futureStack,disabled:!futureStack.length,onApply:()=>redoTo(1),onGoTo:redoTo})),/*#__PURE__*/React.createElement(ProjectShareControls,{data:data,save:save}))),/* the project strip belongs to מבט על and the pages it links to — not to tracks, ניהול תכנון or the template */['overview','contacts','data','notes'].includes(track)&&/*#__PURE__*/React.createElement("div",{className:"sheet-tabs",style:{borderTop:'1px solid var(--border)'}},React.createElement(ProjectHeaderNav,{track:track,setTrack:setTrack}))),!['home','mytasks','projects','portfolio','settings','search'].includes(track)&&React.createElement(HoldBanner,{data}),/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},track==='overview'&&(isAdminProject(data)?React.createElement(AdminOverview,{data,save,onNavigateToData:()=>setTrack('data'),onOpenTrack:trackId=>setTrack(trackId),onOpenStage:(trackId,sheetId)=>{screenSet('stage:'+ACTIVE_PROJECT_ID+':'+trackId,sheetId);screenSet('view:'+ACTIVE_PROJECT_ID+':'+trackId,'list');setTrack(trackId);}}):/*#__PURE__*/React.createElement(OverviewPage,{data:data,save:save,onNavigateToTasks:()=>setTrack('ongoing'),onNavigateToData:()=>setTrack('data')})),track==='contacts'&&/*#__PURE__*/React.createElement(ContactsView,{data:data,save:save}),track==='data'&&/*#__PURE__*/React.createElement(ProjectDataView,{data:data,save:save}),track==='notes'&&/*#__PURE__*/React.createElement(NotepadTab,{data:data,save:save}),track==='tasks'&&/*#__PURE__*/React.createElement(NihulHubView,{data:data,save:save,onNavigateToOngoing:()=>setTrack('ongoing'),onEditAutomation:editAutomation,onOpenTask:openTaskAt}),(data.tracks||[]).some(t=>t.id===track)&&/*#__PURE__*/React.createElement(TrackView,{data:data,save:save,trackId:track,onEditAutomation:editAutomation,taskNavReq:taskNavReq,onTaskNavConsumed:()=>setTaskNavReq(null)}),React.createElement(MailToast,{data:data,save:save,quiet:track==='mytasks'}),track==='mytasks'&&React.createElement(React.Fragment,null,React.createElement(MailSuggestionsPanel,{data:data,save:save}),/*#__PURE__*/React.createElement(MyTasksTable,{data:data,save:save,onOpenTask:openTaskAt})),track==='search'&&React.createElement(SearchPage,{data,initialQ:searchQ}),track==='home'&&/*#__PURE__*/React.createElement(HomeView,{data:data,save:save,onNavigate:setTrack,onOpenTask:openTaskAt}),track==='projects'&&/*#__PURE__*/React.createElement(ProjectsDirectoryView,{data:data,save:save}),track==='portfolio'&&/*#__PURE__*/React.createElement(PortfolioView,null),track==='settings'&&/*#__PURE__*/React.createElement(OfficeSettingsView,{data:data,save:save}),track==='template'&&/*#__PURE__*/React.createElement(TemplateView,{data:data,save:save,autoNavReq:autoNavReq,onAutoNavConsumed:()=>setAutoNavReq(null)}))));}if(isSignedOut())location.replace('login.html');else ME_READY.then(()=>loadProjectRegistry()).finally(()=>ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(PlanProvider,null,/*#__PURE__*/React.createElement(App,null))));
+/* redo order: the next action first; each entry holds the state right after its action */const futureEntries=displaced.map((p,j)=>({label:p.label,at:p.at,snapshot:j<displaced.length-1?displaced[j+1].snapshot:{...data}}));const restored={...displaced[0].snapshot,_ts:Date.now()};setPastStack(newPast);setFutureStack(fut=>[...futureEntries,...fut].slice(0,MAX_HIST));setData(restored);persist(restored);},[data,pastStack,persist]);const redoTo=useCallback(steps=>{const n=Math.min(steps,futureStack.length);if(!n)return;const displaced=futureStack.slice(0,n);const newFuture=futureStack.slice(n);const pastEntries=[{snapshot:{...data},label:displaced[0].label},...displaced.slice(1).map((f,i)=>({snapshot:displaced[i].snapshot,label:f.label}))];const restored={...displaced[n-1].snapshot,_ts:Date.now()};setPastStack(p=>[...p.slice(-(MAX_HIST-n)),...pastEntries]);setFutureStack(newFuture);setData(restored);persist(restored);},[data,futureStack,persist]);React.useEffect(()=>{/* Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z by physical key, so a Hebrew layout works; inside a text field they stay the field's own undo */const handler=e=>{if(!(e.ctrlKey||e.metaKey)||e.altKey)return;const t=e.target;if(t&&(t.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))return;if(document.querySelector('.mt-table-page:not(.mt-proj-only)'))return;if(e.code==='KeyZ'&&!e.shiftKey){e.preventDefault();undoTo(1);}else if(e.code==='KeyY'||e.code==='KeyZ'&&e.shiftKey){e.preventDefault();redoTo(1);}};document.addEventListener('keydown',handler);return()=>document.removeEventListener('keydown',handler);},[undoTo,redoTo]);const commitName=()=>{if(nameDraft.trim()){save({...data,projectName:nameDraft.trim()});syncProjectRegistry({name:nameDraft.trim()}).catch(()=>{});}setEditName(false);};/* top-level track: 'overview' | 'tasks' | 'template' | one of data.tracks' ids */const[track,setTrack]=useState(()=>{try{const t=sessionStorage.getItem(PENDING_TRACK_KEY);sessionStorage.removeItem(PENDING_TRACK_KEY);return t||(new URLSearchParams(location.search).get('view')==='mail'?'mytasks':null)||screenGet('track')||'home';}catch{return'home';}});useEffect(()=>{screenSet('track',track);},[track]);const[autoNavReq,setAutoNavReq]=useState(null);const editAutomation=useCallback(ruleId=>{setAutoNavReq(ruleId?{ruleId}:{isNew:true});setTrack('template');},[]);const[taskNavReq,setTaskNavReq]=useState(null);const openTaskAt=useCallback((trackId,taskId,sheetId)=>{setTrack(trackId);setTaskNavReq({taskId,sheetId,n:Date.now()});},[]);const dataReady=!!data;useEffect(()=>{if(!dataReady)return;let req=null;try{req=JSON.parse(sessionStorage.getItem(PENDING_TASK_KEY)||'null');sessionStorage.removeItem(PENDING_TASK_KEY);}catch{}if(!req||req.projId!==ACTIVE_PROJECT_ID)return;const trackId=trackIdForSheet(data,req.sheetId);if(trackId)openTaskAt(trackId,req.taskId,req.sheetId);},[dataReady]);useEffect(()=>{if(!dataReady||!PH_OPEN_LANDING)return;PH_OPEN_LANDING=false;if(canSeeExec()&&(data.execItems||[]).some(e=>!execIsClosed(e))&&(data.tracks||[]).some(t=>t.id==='execution'))setTrack('execution');},[dataReady]);const[searchQ,setSearchQ]=useState('');useEffect(()=>{const s=e=>{setSearchQ(e.detail&&e.detail.q||'');setTrack('search');};const hub=()=>setTrack('tasks');const gx=()=>setTrack('execution');/* Ctrl+K opens the search page from anywhere (and selects its box when already there) */const k=e=>{if(!(e.ctrlKey||e.metaKey)||e.code!=='KeyK')return;e.preventDefault();setTrack('search');setTimeout(()=>{const q=document.querySelector('.sr-q');if(q){q.focus();q.select();}},0);};document.addEventListener('keydown',k);window.addEventListener('ph:search',s);window.addEventListener('ph:go-hub',hub);window.addEventListener('ph:go-exec',gx);const gs=()=>setTrack('settings');window.addEventListener('ph:go-settings',gs);return()=>{window.removeEventListener('ph:go-settings',gs);document.removeEventListener('keydown',k);window.removeEventListener('ph:search',s);window.removeEventListener('ph:go-hub',hub);window.removeEventListener('ph:go-exec',gx);};},[]);useEffect(()=>{if(!data)return;const o=e=>{const{sheetId,taskId}=e.detail||{};const tr=trackIdForSheet(data,sheetId);if(tr)openTaskAt(tr,taskId,sheetId);};window.addEventListener('ph:open-task',o);return()=>window.removeEventListener('ph:open-task',o);},[data]);const[projListKey,setProjListKey]=useState(null);useEffect(()=>{const o=e=>setProjListKey(e.detail&&e.detail.key||null);window.addEventListener('ph:proj-list',o);return()=>window.removeEventListener('ph:proj-list',o);},[]);const[holdUi,setHoldUi]=useState(null);useEffect(()=>{const h=e=>setHoldUi(e.detail||{});window.addEventListener('ph:hold',h);return()=>window.removeEventListener('ph:hold',h);},[]);/* a hold opened from המשימות שלי in another project arrives after the switch */useEffect(()=>{if(!dataReady)return;let req=null;try{req=JSON.parse(sessionStorage.getItem('pm_pending_hold')||'null');sessionStorage.removeItem('pm_pending_hold');}catch{}if(req&&req.projId===ACTIVE_PROJECT_ID)setHoldUi(req.action==='release'?{release:req.holdId}:{edit:req.holdId});},[dataReady]);if(!data){return/*#__PURE__*/React.createElement("div",{style:{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,padding:40}},loadError?/*#__PURE__*/React.createElement(React.Fragment,null,/*#__PURE__*/React.createElement("div",{style:{fontSize:14,color:'var(--text-2)'}},"לא ניתן להתחבר לשרת השמירה המקומי"),window.showOpenFilePicker&&/*#__PURE__*/React.createElement("button",{onClick:openFileFallback,style:{background:'var(--accent)',color:'#fff',border:'none',borderRadius:6,padding:'8px 16px',fontSize:13,cursor:'pointer',fontFamily:'inherit'}},"פתח קובץ נתונים...")):/*#__PURE__*/React.createElement("div",{style:{fontSize:14,color:'var(--text-2)'}},"טוען..."));}/* quick access: only the compact window, no sidebar or pages */HOLD_INDEX=buildHoldIndex(data);if(QUICK_MODE)return/*#__PURE__*/React.createElement(QuickShell,{data:data,save:save});return/*#__PURE__*/React.createElement("div",{className:"shell"},/*#__PURE__*/React.createElement(ConfirmHost,null),projListKey&&React.createElement(ProjectListModal,{key:projListKey,data,save,listKey:projListKey,onClose:()=>setProjListKey(null)}),/*#__PURE__*/React.createElement(RegisterLinkUI.AutoLink,{data:data,save:save,canEdit:myOfficeRole()!=='viewer',hubCode:data.projectMeta?.code||(MY_PROJECTS.find(p=>p.id===ACTIVE_PROJECT_ID)||{}).code||''}),holdUi&&(holdUi.release||holdUi.delayApply)?React.createElement(HoldReleaseModal,{data,save,holdId:holdUi.release||holdUi.delayApply,mode:holdUi.delayApply?'delay':'release',onClose:()=>setHoldUi(null)}):holdUi?React.createElement(HoldModal,{data,save,holdId:holdUi.edit||null,onClose:()=>setHoldUi(null),onCreated:hd=>setHoldUi({delayApply:hd.id})}):null,readOnlyNotice?/*#__PURE__*/React.createElement("div",{role:"status",className:"ro-toast"},"צפייה בלבד — ברמת Viewer אין הרשאת עריכה"):null,saveError&&/*#__PURE__*/React.createElement("div",{style:{position:'fixed',top:0,left:0,right:0,zIndex:9999,background:'#DC2626',color:'#fff',fontSize:12,fontWeight:600,textAlign:'center',padding:'4px 0'}},"לא ניתן לשמור — השינויים האחרונים לא נשמרו"),externalNotice&&React.createElement("div",{style:{position:'fixed',top:saveError?22:0,left:0,right:0,zIndex:9999,background:'#2563EB',color:'#fff',fontSize:12,fontWeight:600,textAlign:'center',padding:'4px 0'}},"עודכן על ידי "+externalNotice),/*#__PURE__*/React.createElement(Sidebar,{track:track,setTrack:setTrack,tracks:data.tracks||[],data:data,save:save}),/*#__PURE__*/React.createElement("div",{className:"app"},/*#__PURE__*/React.createElement("div",{/* office-wide pages carry no project header */className:"proj-header"+(['home','mytasks','projects','portfolio','settings','search'].includes(track)?' hdr-home':'')},/*#__PURE__*/React.createElement("div",{className:"proj-top"},(()=>{/* the same code badge the sidebar shows for this project */const hp=MY_PROJECTS.find(p=>p.id===ACTIVE_PROJECT_ID)||{};const code=data.projectMeta?.code||hp.code||'';const color=data.projectMeta?.color||hp.color||'#2563EB';return /*#__PURE__*/React.createElement("span",{className:"sb-proj-badge proj-code-badge",style:{background:hexBg(color),color:color,border:`1px solid ${color}40`}},code);})(),editName?/*#__PURE__*/React.createElement("input",{className:"proj-name-input",autoFocus:true,value:nameDraft,onChange:e=>setNameDraft(e.target.value),onBlur:commitName,onKeyDown:e=>{if(e.key==='Enter')commitName();if(e.key==='Escape')setEditName(false);}}):/*#__PURE__*/React.createElement("span",{className:"proj-name",onClick:()=>{setNameDraft(data.projectName);setEditName(true);}},data.projectName),/*#__PURE__*/React.createElement("button",{className:"icon-btn",title:"מועדפים"},/*#__PURE__*/React.createElement(Ic,{n:"star"})),/*#__PURE__*/React.createElement(ProjectStatusSelect,{data:data,save:save}),/*#__PURE__*/React.createElement("div",{className:"hdr-right"},/*#__PURE__*/React.createElement("div",{className:"undo-pair"},/*#__PURE__*/React.createElement(UndoRedoBtn,{icon:"↩",tooltip:"ביטול (Ctrl+Z)",listTitle:"פעולות אחרונות — לחיצה חוזרת עד לשם",newestLast:true,items:pastStack,disabled:!pastStack.length,onApply:()=>undoTo(1),onGoTo:undoTo}),/*#__PURE__*/React.createElement(UndoRedoBtn,{icon:"↪",tooltip:"שחזור (Ctrl+Y)",listTitle:"שחזור — לחיצה משחזרת עד לשם",items:futureStack,disabled:!futureStack.length,onApply:()=>redoTo(1),onGoTo:redoTo})),/*#__PURE__*/React.createElement(ProjectShareControls,{data:data,save:save}))),/* the project strip belongs to מבט על and the pages it links to — not to tracks, ניהול תכנון or the template */['overview','contacts','data','notes','projsettings'].includes(track)&&/*#__PURE__*/React.createElement("div",{className:"sheet-tabs",style:{borderTop:'1px solid var(--border)'}},React.createElement(ProjectHeaderNav,{track:track,setTrack:setTrack}))),!['home','mytasks','projects','portfolio','settings','search'].includes(track)&&React.createElement(HoldBanner,{data}),/*#__PURE__*/React.createElement("div",{style:{display:'flex',flexDirection:'column',flex:1,overflow:'hidden'}},track==='overview'&&(isAdminProject(data)?React.createElement(AdminOverview,{data,save,onNavigateToData:()=>setTrack('data'),onOpenTrack:trackId=>setTrack(trackId),onOpenStage:(trackId,sheetId)=>{screenSet('stage:'+ACTIVE_PROJECT_ID+':'+trackId,sheetId);screenSet('view:'+ACTIVE_PROJECT_ID+':'+trackId,'list');setTrack(trackId);}}):/*#__PURE__*/React.createElement(OverviewPage,{data:data,save:save,onNavigateToTasks:()=>setTrack('ongoing'),onNavigateToData:()=>setTrack('data')})),track==='contacts'&&/*#__PURE__*/React.createElement(ContactsView,{data:data,save:save}),track==='data'&&/*#__PURE__*/React.createElement(ProjectDataView,{data:data,save:save}),track==='notes'&&/*#__PURE__*/React.createElement(NotepadTab,{data:data,save:save}),track==='projsettings'&&React.createElement(ProjectSettingsPage,{data:data,save:save}),track==='tasks'&&/*#__PURE__*/React.createElement(NihulHubView,{data:data,save:save,onNavigateToOngoing:()=>setTrack('ongoing'),onEditAutomation:editAutomation,onOpenTask:openTaskAt}),(data.tracks||[]).some(t=>t.id===track)&&/*#__PURE__*/React.createElement(TrackView,{data:data,save:save,trackId:track,onEditAutomation:editAutomation,taskNavReq:taskNavReq,onTaskNavConsumed:()=>setTaskNavReq(null)}),React.createElement(MailToast,{data:data,save:save,quiet:track==='mytasks'}),track==='mytasks'&&React.createElement(React.Fragment,null,React.createElement(MailSuggestionsPanel,{data:data,save:save}),/*#__PURE__*/React.createElement(MyTasksTable,{data:data,save:save,onOpenTask:openTaskAt})),track==='search'&&React.createElement(SearchPage,{data,initialQ:searchQ}),track==='home'&&/*#__PURE__*/React.createElement(HomeView,{data:data,save:save,onNavigate:setTrack,onOpenTask:openTaskAt}),track==='projects'&&/*#__PURE__*/React.createElement(ProjectsDirectoryView,{data:data,save:save}),track==='portfolio'&&/*#__PURE__*/React.createElement(PortfolioView,null),track==='settings'&&/*#__PURE__*/React.createElement(OfficeSettingsView,{data:data,save:save}),track==='template'&&/*#__PURE__*/React.createElement(TemplateView,{data:data,save:save,autoNavReq:autoNavReq,onAutoNavConsumed:()=>setAutoNavReq(null)}))));}if(isSignedOut())location.replace('login.html');else ME_READY.then(()=>loadProjectRegistry()).finally(()=>ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(PlanProvider,null,/*#__PURE__*/React.createElement(App,null))));
 </script>
 <script src="i18n-dict.js"></script>
 <script src="i18n.js"></script>
