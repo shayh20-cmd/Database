@@ -215,7 +215,7 @@ $key = Get-Key
 if (-not $key -and -not $DryRun) {
   Write-Log 'no key'
   if (-not $state.noKeyAlerted) {
-    Show-Toast $Title 'אין מפתח. הפק מפתח בהגדרות ← גישה מהירה ← סריקת מייל, והרץ שוב את ההתקנה.' "$Hub/project_hub_01"
+    Show-Toast $Title 'אין מפתח. הפק מפתח בהגדרות ← תוסף Outlook וסריקת מייל, והרץ שוב את ההתקנה.' "$Hub/project_hub_01"
     $state.noKeyAlerted = $true; Save-State $state
   }
   Stop-Scan 1
@@ -331,7 +331,7 @@ try {
     Write-Log 'key refused (401)'
     # once per key: cleared after the next successful send
     if (-not $state.keyAlerted) {
-      Show-Toast $Title 'המפתח בוטל או שגוי. הפק מפתח חדש בהגדרות ← גישה מהירה ← סריקת מייל, והרץ שוב את ההתקנה.' "$Hub/project_hub_01"
+      Show-Toast $Title 'המפתח בוטל או שגוי. הפק מפתח חדש בהגדרות ← תוסף Outlook וסריקת מייל, והרץ שוב את ההתקנה.' "$Hub/project_hub_01"
       $state.keyAlerted = $true; Save-State $state
     }
     Stop-Scan 1
