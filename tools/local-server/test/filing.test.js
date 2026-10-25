@@ -1220,3 +1220,209 @@ test('filing inbox: a folder chosen on the PC is offered like the inbox, and its
   const left = (await hub('inbox?id=' + r3.id)).body;
   assert.deepStrictEqual([left.status, left.files.map(f => f.name)], ['new', ['LDPB-A-102.dwg']]);
 });
+
+/* ── received files, from the same window ── */
+const SP = 'CONS/LDPB-structural/LDPB-structural-plans';
+const RCV_TREE = ['CONS', 'CONS/LDPB-structural', SP, SP + '/LDPB-structural-plans-v03', SP + '/LDPB-structural-plans-@ver', 'CONS/LDPB-structural/LDPB-structural-docs', 'CONS/LDPB-electric', 'RECEIVE', 'RECEIVE/LDPB-receive-iriya', 'RECEIVE/LDPB-receive-pm', 'GARM', 'GARM/LDPB-garm-kibui', 'GARM/LDPB-garm-kibui/Recieve', 'PUBLISH'];
+const RCV_MAP = { areas: { consultants: { paths: ['CONS'], note: 'a folder per consultant' }, receive: { paths: ['RECEIVE'], note: '' }, permit: { paths: ['GARM', 'NOT/THERE'], note: 'by authority' }, publish: { paths: ['PUBLISH'], note: '' } } };
+
+test('filing-ai: who may have sent received files — consultant folders with register contacts, receive and permit folders', () => {
+  const contacts = [
+    { name: 'דני', role: 'קונסטרוקציה', firm: 'Eng Ltd' }, { name: 'Avi', role: 'Electric', firm: 'Volt' }, { name: 'Avi B', role: 'Electric', firm: 'Volt' },
+    { name: 'Mira', role: '', firm: '' }, { name: '', role: '', firm: '' }
+  ];
+  const o = ai.receiveOptions({ map: RCV_MAP, tree: RCV_TREE, contacts, code: 'LDPB' });
+  assert.deepStrictEqual(o.consultants, [
+    { label: 'structural', folder: 'CONS/LDPB-structural', contact: '' },
+    { label: 'electric', folder: 'CONS/LDPB-electric', contact: 'Electric · Volt' },
+    { label: 'קונסטרוקציה · Eng Ltd', folder: null, contact: 'קונסטרוקציה · Eng Ltd' },
+    { label: 'Mira', folder: null, contact: 'Mira' }
+  ]);
+  assert.deepStrictEqual(o.others, [
+    { label: 'receive-iriya', folder: 'RECEIVE/LDPB-receive-iriya', area: 'receive' },
+    { label: 'receive-pm', folder: 'RECEIVE/LDPB-receive-pm', area: 'receive' },
+    { label: 'garm-kibui', folder: 'GARM/LDPB-garm-kibui', area: 'permit' }
+  ]);
+  assert.deepStrictEqual(o.unmapped, { consultants: false, others: false });
+  assert.deepStrictEqual(o.tree, RCV_TREE);
+  // an area folder with nothing under it is offered itself; no map: the tree's top folders, and it is said
+  assert.deepStrictEqual(ai.receiveOptions({ map: { areas: { receive: { paths: ['PUBLISH'], note: '' } } }, tree: RCV_TREE, contacts: [], code: 'LDPB' }).others, [{ label: 'PUBLISH', folder: 'PUBLISH', area: 'receive' }]);
+  const none = ai.receiveOptions({ map: null, tree: RCV_TREE, contacts: contacts.slice(0, 1), code: 'LDPB' });
+  assert.deepStrictEqual(none.unmapped, { consultants: true, others: true });
+  assert.deepStrictEqual(none.consultants, [{ label: 'קונסטרוקציה · Eng Ltd', folder: null, contact: 'קונסטרוקציה · Eng Ltd' }]);
+  assert.deepStrictEqual(none.others.map(x => [x.folder, x.area]), [['CONS', 'top'], ['RECEIVE', 'top'], ['GARM', 'top'], ['PUBLISH', 'top']]);
+});
+
+test('filing-ai: a received-files plan — real folders, nothing replaced, only the previous version moves into the @ver next to it', () => {
+  const V4 = SP + '/LDPB-structural-plans-v04', V3 = SP + '/LDPB-structural-plans-v03', VER = SP + '/LDPB-structural-plans-@ver';
+  const raw = {
+    message: 'x', mode: 'receive',
+    steps: [
+      { op: 'mkdir', path: V4, from: '', to: '' },
+      { op: 'move', path: '', from: V3, to: VER + '/LDPB-structural-plans-v03' },
+      { op: 'move', path: '', from: 'CONS/LDPB-electric', to: 'CONS/X-@ver/LDPB-electric' }, // no such @ver
+      { op: 'move', path: '', from: 'CONS', to: 'CONS-@ver/CONS' }, // the top
+      { op: 'move', path: '', from: 'CONS/LDPB-structural/LDPB-structural-docs', to: VER + '/LDPB-structural-docs' }, // not its sibling
+      { op: 'move', path: '', from: 'RECEIVE/LDPB-receive-pm', to: 'RECEIVE/LDPB-receive-iriya' }, // not to an @ver
+      { op: 'move', path: '', from: V4, to: VER + '/renamed' }, // not under its own name
+      { op: 'move-contents', path: '', from: V4, to: VER },
+      { op: 'mkdir', path: '../x', from: '', to: '' }
+    ],
+    files: [
+      { name: 'S-101.pdf', dests: [{ path: V4 }, { path: V3 }, { path: '../x' }, { path: 'NOPE' }] },
+      { name: 'S-102.dwg', dests: [{ path: V4, replace: true }] }
+    ]
+  };
+  const p = ai.sanitizeReceivePlan(raw, RCV_TREE, [{ n: 0, name: 'S-101.pdf' }, { n: 1, name: 'S-102.dwg' }, { n: 4, name: 'other.pdf' }]);
+  assert.deepStrictEqual(p, {
+    files: [
+      { n: 0, name: 'S-101.pdf', dests: [{ path: V4, replace: false }] },
+      { n: 1, name: 'S-102.dwg', dests: [{ path: V4, replace: false }] },
+      { n: 4, name: 'other.pdf', dests: [] }
+    ],
+    steps: [{ op: 'mkdir', path: V4, from: '', to: '' }, { op: 'move', path: '', from: V3, to: VER + '/LDPB-structural-plans-v03' }],
+    mode: 'receive'
+  });
+  // an @ver made by an earlier step is one; a name already there is not moved onto
+  const p2 = ai.sanitizeReceivePlan({ steps: [{ op: 'mkdir', path: 'CONS/LDPB-electric-@ver' }, { op: 'move', from: 'CONS/LDPB-electric', to: 'CONS/LDPB-electric-@ver/LDPB-electric' }, { op: 'move', from: V3, to: VER + '/LDPB-structural-plans-v03' }], files: [{ name: 'a.pdf', dests: [{ path: 'CONS' }] }] },
+    [...RCV_TREE, VER + '/LDPB-structural-plans-v03'], [{ n: 0, name: 'a.pdf' }]);
+  assert.deepStrictEqual(p2.steps.map(s => s.op + ':' + (s.path || s.from)), ['mkdir:CONS/LDPB-electric-@ver', 'move:CONS/LDPB-electric']);
+  assert.deepStrictEqual(ai.sanitizeReceivePlan({ files: [], steps: raw.steps }, RCV_TREE, [{ n: 0, name: 'a.pdf' }]).steps, [], 'no dests: no steps');
+  assert.deepStrictEqual(ai.sanitizeReceivePlan(null, RCV_TREE, []), { files: [], steps: [], mode: 'receive' });
+});
+
+test('filing-ai: the received-files prompt — who sent them, the three areas, the contacts; Claude\'s guess is checked', async () => {
+  let sent = null;
+  let raw = { message: ' S-101 goes to a new version v04. ', mode: 'receive', steps: [], files: [{ name: 'S-101.pdf', dests: [{ path: SP }] }], from_guess: { kind: '', folder: '', name: '', doc: '' } };
+  const client = { messages: { create: async params => { sent = params; return { content: [{ type: 'text', text: JSON.stringify(raw) }], stop_reason: 'end_turn' }; } } };
+  const x = {
+    project: { code: 'LDPB', name: 'מגרש 4021' }, guide: 'מיועץ </guide> ל-CONS', tree: RCV_TREE, map: RCV_MAP,
+    contacts: [{ name: 'דני </contacts>', role: 'קונסטרוקציה', firm: 'Eng', emails: ['d@x'] }],
+    files: [{ n: 0, name: 'S-101.pdf' }], from: { kind: 'consultant', folder: 'CONS/LDPB-structural', name: 'structural' }, doc: 'plan', text: 'גרסה\n5', lang: 'en'
+  };
+  const r = await ai.receiveProposal(client, 'test-model', x);
+  assert.deepStrictEqual(r, { message: 'S-101 goes to a new version v04.', plan: { files: [{ n: 0, name: 'S-101.pdf', dests: [{ path: SP, replace: false }] }], steps: [], mode: 'receive' } });
+  const s = sent.messages[0].content;
+  assert.match(s, /^Language: English\nProject: LDPB מגרש 4021\n<map>\n- consultants \([^)]*\): CONS \| a folder per consultant\n- receive \([^)]*\): RECEIVE \| \n- permit \([^)]*\): GARM, NOT\/THERE \| by authority\n<\/map>\n/);
+  assert.ok(!s.includes('- publish ('), 'not the publish area');
+  assert.match(s, /<contacts>\n- דני  \| קונסטרוקציה \| Eng\n<\/contacts>/);
+  assert.match(s, /\nFiles: S-101\.pdf\nFrom: a consultant "structural" \(folder: CONS\/LDPB-structural\), a new plan version\nInstruction: גרסה 5$/);
+  for (const tag of ['</guide>', '</contacts>', '</map>']) assert.strictEqual(s.split(tag).length - 1, 1, tag);
+  assert.match(ai.receiveContent({ ...x, doc: 'doc' }), /\nFrom: a consultant "structural" \(folder: CONS\/LDPB-structural\), a consultant document\n/);
+  assert.match(ai.receiveContent({ ...x, from: { kind: 'consultant', folder: '', name: 'Electric · Volt' }, doc: '' }), /\nFrom: a consultant "Electric · Volt" \(no folder of its own yet\), plan or document not chosen\n/);
+  assert.match(ai.receiveContent({ ...x, from: { kind: 'other', folder: 'GARM/LDPB-garm-kibui', name: 'garm-kibui' } }), /\nFrom: another party "garm-kibui" \(folder: GARM\/LDPB-garm-kibui\)\n/);
+  assert.match(ai.receiveContent({ ...x, from: null, text: '', lang: 'he' }), /^Language: Hebrew\n[\s\S]*\nFrom: \(not chosen\)\nInstruction: \(none\)$/);
+  assert.match(ai.RECEIVE_SYSTEM, /CODE-C-plans\/CODE-C-plans-vNN/);
+  assert.match(ai.RECEIVE_SYSTEM, /CODE-C-docs/);
+  assert.match(ai.RECEIVE_SYSTEM, /not uniform/);
+  assert.deepStrictEqual(sent.output_config.format.schema.required.sort(), ['files', 'from_guess', 'message', 'mode', 'steps']);
+  // a guess: a folder of the tree or none; doc only for a consultant
+  raw = { ...raw, from_guess: { kind: 'consultant', folder: 'cons\\ldpb-structural', name: '  the   structural engineer ', doc: 'plan' } };
+  assert.deepStrictEqual((await ai.receiveProposal(client, 'test-model', { ...x, from: null })).guess, { kind: 'consultant', folder: 'CONS/LDPB-structural', name: 'the structural engineer', doc: 'plan' });
+  raw = { ...raw, from_guess: { kind: 'other', folder: '../x', name: 'עירייה', doc: 'plan' } };
+  assert.deepStrictEqual((await ai.receiveProposal(client, 'test-model', { ...x, from: null })).guess, { kind: 'other', folder: '', name: 'עירייה', doc: '' });
+  await assert.rejects(ai.receiveProposal({ messages: { create: async () => ({ content: [], stop_reason: 'refusal' }) } }, 'test-model', x));
+});
+
+test('filing inbox: received files — the choices of the project, a consultant\'s new plan version, a document, another party, the history', async (t) => {
+  const fake = await fakeClaude(4040);
+  t.after(() => fake.close());
+  const { base, data, keyOf, call, agent, contacts } = await start(t, 4039, { ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: 'http://127.0.0.1:4040' });
+  const hubAs = email => async (route, body) => {
+    const r = await fetch(base + '/api/filing-hub/' + route, { method: body ? 'POST' : 'GET', headers: { 'x-ms-client-principal': principal(email), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  const hub = hubAs('dana@kkarc.com');
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, root: ROOT, guide: '', log: [], map: { ...RCV_MAP, updatedBy: 'דנה', updatedAt: 'T' } } } }));
+  assert.strictEqual((await contacts('dana@kkarc.com', 'reg-77', [{ name: 'Avi', role: 'Electric', firm: 'Volt', emails: [] }])).status, 200);
+  const dana = await keyOf('dana@kkarc.com');
+  const ron = await keyOf('ron@kkarc.com');
+  const id = (await call(dana, '/api/outlook/inbox-batch', { pc: 'PC1', files: [{ name: 'LDPB-S-101.pdf', size: 3, mtime: '' }, { name: 'LDPB-S-102.dwg', size: 3, mtime: '' }, { name: 'letter.pdf', size: 3, mtime: '' }] })).body.id;
+
+  // the choices: a viewer gets none; the tree is asked of the PC that announced the batch
+  const rb = (await call(ron, '/api/outlook/inbox-batch', { pc: 'PC5', files: [{ name: 'a.pdf', size: 1, mtime: '' }] })).body.id;
+  assert.strictEqual((await hubAs('ron@kkarc.com')('inbox-options?id=' + rb + '&projectId=pabc123')).status, 403);
+  assert.strictEqual((await hub('inbox-options?id=nope&projectId=pabc123')).status, 404);
+  const asking = hub('inbox-options?id=' + id + '&projectId=pabc123&lang=en');
+  const a1 = await agent(dana);
+  assert.deepStrictEqual([a1.got.kind, a1.got.folder, a1.got.lang], ['tree', FOLDER, 'en']);
+  await a1.result({ tree: RCV_TREE });
+  const opts = (await asking).body;
+  assert.deepStrictEqual(opts.consultants, [
+    { label: 'structural', folder: 'CONS/LDPB-structural', contact: '' },
+    { label: 'electric', folder: 'CONS/LDPB-electric', contact: 'Electric · Volt' }
+  ]);
+  assert.deepStrictEqual(opts.others.map(x => x.folder), ['RECEIVE/LDPB-receive-iriya', 'RECEIVE/LDPB-receive-pm', 'GARM/LDPB-garm-kibui']);
+  assert.deepStrictEqual([opts.tree.length, opts.unmapped], [RCV_TREE.length, { consultants: false, others: false }]);
+
+  // a consultant's new plan version: the tree is kept; the previous version moves into @ver
+  const V4 = SP + '/LDPB-structural-plans-v04', V3 = SP + '/LDPB-structural-plans-v03', VER = SP + '/LDPB-structural-plans-@ver';
+  fake.answer = {
+    message: 'New version v04; v03 moves to @ver.', mode: 'receive',
+    steps: [{ op: 'mkdir', path: V4, from: '', to: '' }, { op: 'move', path: '', from: V3, to: VER + '/LDPB-structural-plans-v03' }, { op: 'move', path: '', from: 'CONS', to: 'X' }],
+    files: [{ name: 'LDPB-S-101.pdf', dests: [{ path: V4 }] }, { name: 'LDPB-S-102.dwg', dests: [{ path: V4 }, { path: '../evil' }] }],
+    from_guess: { kind: '', folder: '', name: '', doc: '' }
+  };
+  const ask = { id, projectId: 'pabc123', files: [0, 1], mode: 'receive', from: { kind: 'consultant', folder: 'CONS/LDPB-structural', name: 'structural' }, doc: 'plan', lang: 'en', sent: true };
+  const p1 = await hub('inbox-propose', ask);
+  const PLAN = {
+    files: [{ n: 0, name: 'LDPB-S-101.pdf', dests: [{ path: V4, replace: false }] }, { n: 1, name: 'LDPB-S-102.dwg', dests: [{ path: V4, replace: false }] }],
+    steps: [{ op: 'mkdir', path: V4, from: '', to: '' }, { op: 'move', path: '', from: V3, to: VER + '/LDPB-structural-plans-v03' }],
+    mode: 'receive', from: 'structural'
+  };
+  assert.deepStrictEqual(p1.body, { message: fake.answer.message, plan: PLAN });
+  assert.match(fake.last, /\nFrom: a consultant "structural" \(folder: CONS\/LDPB-structural\), a new plan version\n/);
+  assert.match(fake.last, /<contacts>\n- Avi \| Electric \| Volt\n<\/contacts>/);
+  assert.ok(!fake.last.includes('Targets:'), 'no SENT / UPDATED in receive mode');
+  // a consultant's document; a folder the page names that is not in the tree is not one
+  fake.answer = { ...fake.answer, message: 'To the docs.', steps: [], files: [{ name: 'letter.pdf', dests: [{ path: 'CONS/LDPB-structural/LDPB-structural-docs' }] }] };
+  const p2 = await hub('inbox-propose', { ...ask, files: [2], from: { kind: 'consultant', folder: '../CONS', name: 'Electric · Volt' }, doc: 'doc' });
+  assert.deepStrictEqual(p2.body.plan.files[0].dests, [{ path: 'CONS/LDPB-structural/LDPB-structural-docs', replace: false }]);
+  assert.match(fake.last, /\nFrom: a consultant "Electric · Volt" \(no folder of its own yet\), a consultant document\n/);
+  // another party, and nobody chosen: Claude's guess comes back, and names the sender in the history
+  fake.answer = { ...fake.answer, message: 'From the fire department.', files: [{ name: 'letter.pdf', dests: [{ path: 'GARM/LDPB-garm-kibui/Recieve' }] }] };
+  const p3 = await hub('inbox-propose', { ...ask, files: [2], from: { kind: 'other', folder: 'GARM/LDPB-garm-kibui', name: 'garm-kibui' }, doc: 'plan' });
+  assert.match(fake.last, /\nFrom: another party "garm-kibui" \(folder: GARM\/LDPB-garm-kibui\)\n/);
+  assert.strictEqual(p3.body.plan.from, 'garm-kibui');
+  fake.answer = { ...fake.answer, from_guess: { kind: 'other', folder: 'GARM/LDPB-garm-kibui', name: 'כיבוי אש', doc: '' } };
+  const p4 = await hub('inbox-propose', { ...ask, files: [2], from: null, doc: '' });
+  assert.match(fake.last, /\nFrom: \(not chosen\)\n/);
+  assert.deepStrictEqual([p4.body.guess, p4.body.plan.from], [{ kind: 'other', folder: 'GARM/LDPB-garm-kibui', name: 'כיבוי אש', doc: '' }, 'כיבוי אש']);
+
+  // the plan for the consultant's version again, confirmed: the PC gets the move, and the history says receive and who
+  fake.answer = { message: 'v04', mode: 'receive', steps: PLAN.steps, files: [{ name: 'LDPB-S-101.pdf', dests: [{ path: V4 }] }, { name: 'LDPB-S-102.dwg', dests: [{ path: V4 }] }], from_guess: { kind: '', folder: '', name: '', doc: '' } };
+  assert.deepStrictEqual((await hub('inbox-propose', ask)).body.plan, PLAN);
+  const c = (await hub('inbox-confirm', { id })).body.taskId;
+  const a2 = await agent(dana);
+  assert.strictEqual(a2.id, c);
+  assert.deepStrictEqual([a2.got.kind, a2.got.plan, a2.got.move], ['inbox', PLAN, true]);
+  await a2.result({ files: [{ name: 'LDPB-S-101.pdf', dests: ['LDPB-S-101.pdf'] }, { name: 'LDPB-S-102.dwg', dests: ['LDPB-S-102.dwg'] }], notInInbox: [], error: null });
+  const log = JSON.parse(fs.readFileSync(path.join(data, 'filing.json'), 'utf8')).projects.pabc123.log;
+  assert.deepStrictEqual(log.map(l => [l.file, l.dest, l.mode, l.from]), [['LDPB-S-101.pdf', V4, 'receive', 'structural'], ['LDPB-S-102.dwg', V4, 'receive', 'structural']]);
+  assert.deepStrictEqual((await hub('inbox?id=' + id)).body.files.map(f => f.name), ['letter.pdf']);
+
+  // the PC made and moved folders: the tree is read again for the next proposal
+  fake.answer = { ...fake.answer, files: [{ name: 'letter.pdf', dests: [{ path: 'GARM' }] }], steps: [] };
+  const again = hub('inbox-propose', { ...ask, files: [2] });
+  await (await agent(dana)).result({ tree: RCV_TREE });
+  assert.deepStrictEqual((await again).body.plan.files[0].dests, [{ path: 'GARM', replace: false }]);
+  // another project without a folder: said, and the plan of this one stays
+  assert.deepStrictEqual((await hub('inbox-options?id=' + id + '&projectId=ph01')).body, { needsFolder: true });
+  assert.strictEqual((await hub('inbox-confirm', { id })).status, 200);
+});
+
+test('filing inbox: received files without a folder map — the tree\'s top folders, said', async (t) => {
+  const { base, data, keyOf, call, agent } = await start(t, 4041, {});
+  const hub = async route => {
+    const r = await fetch(base + '/api/filing-hub/' + route, { headers: { 'x-ms-client-principal': principal('dana@kkarc.com') } });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  const dana = await keyOf('dana@kkarc.com');
+  const id = (await call(dana, '/api/outlook/inbox-batch', { pc: 'PC1', files: [{ name: 'a.pdf', size: 1, mtime: '' }] })).body.id;
+  assert.deepStrictEqual((await hub('inbox-options?id=' + id + '&projectId=pabc123')).body, { needsFolder: true });
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, guide: '', log: [] } } }));
+  const asking = hub('inbox-options?id=' + id + '&projectId=pabc123');
+  await (await agent(dana)).result({ tree: ['A', 'A/x', 'B'] });
+  const o = (await asking).body;
+  assert.deepStrictEqual(o, { consultants: [], others: [{ label: 'A', folder: 'A', area: 'top' }, { label: 'B', folder: 'B', area: 'top' }], tree: ['A', 'A/x', 'B'], unmapped: { consultants: true, others: true } });
+});

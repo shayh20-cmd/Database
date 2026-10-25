@@ -524,6 +524,48 @@ try {
   Check 'replace: a folder of that name is left alone' (-not $res.error -and (Test-Path (Join-Path $proj 'R\B (2).pdf') -PathType Leaf) -and (Test-Path (Join-Path $proj 'R\B.pdf') -PathType Container))
   foreach ($d in $in1, $in2, $in4, $in5) { Remove-Item -LiteralPath $d -Recurse -Force }
 
+  # received files: a consultant's new plan version; the previous version folder moves into the @ver next to it
+  $sp = 'CONS/P-st/P-st-plans'
+  New-Item -ItemType Directory -Force -Path (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-v03') | Out-Null
+  Set-Content -Path (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-v03\S-1.pdf') -Value 'v3'
+  New-Item -ItemType Directory -Force -Path (Join-Path $proj 'CONS\P-st\P-st-docs') | Out-Null
+  function New-ReceiveTask($Steps, [string]$Dest = "$sp/P-st-plans-v04") {
+    return [pscustomobject]@{ kind = 'inbox'; files = @([pscustomobject]@{ n = 0; name = 'B.pdf' })
+      plan = [pscustomobject]@{ mode = 'receive'; from = 'st'; steps = @(@([pscustomobject]@{ op = 'mkdir'; path = 'MADE8'; from = ''; to = '' }) + $Steps)
+        files = @([pscustomobject]@{ n = 0; name = 'B.pdf'; dests = @([pscustomobject]@{ path = $Dest; replace = $false }) }) } }
+  }
+  $mv = { param($from, $to) [pscustomobject]@{ op = 'move'; path = ''; from = $from; to = $to } }
+  # what is refused, and then nothing at all is done: not to an @ver, not its sibling, another name, the top, a folder
+  # that is not there, onto a name that is there
+  New-Item -ItemType Directory -Force -Path (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-@ver\P-st-plans-v01') | Out-Null
+  foreach ($case in @(
+      @{ what = 'not into an @ver'; from = "$sp/P-st-plans-v03"; to = 'CONS/P-st/P-st-docs/P-st-plans-v03' },
+      @{ what = 'an @ver that is not its sibling'; from = 'CONS/P-st/P-st-docs'; to = "$sp/P-st-plans-@ver/P-st-docs" },
+      @{ what = 'under another name'; from = "$sp/P-st-plans-v03"; to = "$sp/P-st-plans-@ver/v3" },
+      @{ what = 'the top folder'; from = 'CONS'; to = 'CONS-@ver/CONS' },
+      @{ what = 'a folder that is not there'; from = "$sp/P-st-plans-v02"; to = "$sp/P-st-plans-@ver/P-st-plans-v02" },
+      @{ what = 'onto a name that is there'; from = "$sp/P-st-plans-v03"; to = "$sp/P-st-plans-@ver/P-st-plans-v01"; same = $true },
+      @{ what = 'outside'; from = "$sp/P-st-plans-v03"; to = '../@ver/P-st-plans-v03' })) {
+    $in8 = New-Inbox
+    if ($case.same) { New-Item -ItemType Directory -Force -Path (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-@ver\P-st-plans-v03') | Out-Null }
+    $res = Invoke-InboxTask $proj $in8 (New-ReceiveTask @(& $mv $case.from $case.to))
+    Check "receive: $($case.what) is an error" ($res.error -and @($res.files).Count -eq 0)
+    Check "receive: $($case.what), nothing done" (-not (Test-Path (Join-Path $proj 'MADE8')) -and (Test-Path (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-v03\S-1.pdf')) -and (Test-Path (Join-Path $in8 'B.pdf')))
+    if ($case.same) { Remove-Item -LiteralPath (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-@ver\P-st-plans-v03') -Recurse -Force }
+    Remove-Item -LiteralPath $in8 -Recurse -Force
+  }
+  Remove-Item -LiteralPath (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-@ver') -Recurse -Force
+  # the @ver made by an earlier step; the version moves with its files; the new one is made and filled
+  $in8 = New-Inbox
+  $res = Invoke-InboxTask $proj $in8 (New-ReceiveTask @(
+      [pscustomobject]@{ op = 'mkdir'; path = "$sp/P-st-plans-v04"; from = ''; to = '' },
+      [pscustomobject]@{ op = 'mkdir'; path = "$sp/P-st-plans-@ver"; from = ''; to = '' },
+      (& $mv "$sp/P-st-plans-v03" "$sp/P-st-plans-@ver/P-st-plans-v03")))
+  Check 'receive: no error' ($null -eq $res.error)
+  Check 'receive: the previous version moved, with its files' (-not (Test-Path (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-v03')) -and (Get-Content (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-@ver\P-st-plans-v03\S-1.pdf')) -eq 'v3')
+  Check 'receive: the new version filled' ((Get-Content (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-v04\B.pdf')) -eq 'new B' -and -not (Test-Path (Join-Path $in8 'B.pdf')))
+  Remove-Item -LiteralPath $in8 -Recurse -Force
+
   # texts
   $script:Lang = 'en'
   Check 'text: English' ((T 'בחר את התיקייה הראשית של הפרויקט {p}' @{ p = 'TASC' }) -eq 'Choose the main folder of project TASC')

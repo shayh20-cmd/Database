@@ -620,6 +620,9 @@ function Invoke-InboxTask([string]$Dir, [string]$InboxDir, $Task, [bool]$Move = 
   # done. A file copied to all its dests (sizes checked) is deleted from the inbox; the first failure stops it, and a
   # file not copied everywhere stays in the inbox. $Move = $false (a folder the person chose, not the export inbox): the
   # files are only copied, nothing is deleted.
+  # Received files (a consultant's new plan version) may also move the previous version folder into the @ver folder next
+  # to it: a move step whose from is a folder below the project's top that is there, and whose to is <a sibling folder
+  # with @ver in its name>\<the same name>, where nothing is (checked first, and again just before it moves).
   # Result: { files: [{ name, dests: [the name it was saved as, per dest, in the plan's order] }], notInInbox, error }.
   if (-not $Dir) { return @{ missing = $true } }
   $result = @{ files = @(); notInInbox = @(); error = $null }
@@ -629,8 +632,15 @@ function Invoke-InboxTask([string]$Dir, [string]$InboxDir, $Task, [bool]$Move = 
     foreach ($x in @($Task.files)) { if ($null -ne $x) { if ($null -ne $x.n) { $byN[[int]$x.n] = [string]$x.name }; $byName[[string]$x.name] = $true } }
     $steps = @(foreach ($s in @($Task.plan.steps)) {
       if (-not $s) { continue }
-      if ($s.op -ne 'mkdir') { throw "Not a step of a publish: $($s.op)" }
-      Resolve-InProject $Dir $s.path
+      if ($s.op -eq 'mkdir') { [pscustomobject]@{ op = 'mkdir'; a = (Resolve-InProject $Dir $s.path); b = $null }; continue }
+      if ($s.op -ne 'move') { throw "Not a step of a publish: $($s.op)" }
+      $a = Resolve-InProject $Dir $s.from; $b = Resolve-InProject $Dir $s.to
+      $ver = Split-Path $b -Parent
+      if ((ConvertTo-RelPath $s.from) -notmatch '/' -or (Split-Path $ver -Leaf) -notmatch '@ver' -or
+          -not (Test-SameFolder (Split-Path $ver -Parent) (Split-Path $a -Parent)) -or (Split-Path $b -Leaf) -ne (Split-Path $a -Leaf)) { throw "Not a move to the @ver folder next to it: $($s.from)" }
+      if (-not [IO.Directory]::Exists($a)) { throw "Not there: $($s.from)" }
+      if (Test-Path -LiteralPath $b) { throw "Already there: $($s.to)" }
+      [pscustomobject]@{ op = 'move'; a = $a; b = $b }
     })
     $jobs = @(foreach ($f in @($Task.plan.files)) {
       if (-not $f) { continue }
@@ -644,7 +654,12 @@ function Invoke-InboxTask([string]$Dir, [string]$InboxDir, $Task, [bool]$Move = 
       [pscustomobject]@{ name = $name; src = $src; dests = $dests }
     })
     if (-not $jobs.Count) { return $result }
-    foreach ($s in $steps) { [void][IO.Directory]::CreateDirectory($s) }
+    foreach ($s in $steps) {
+      if ($s.op -eq 'mkdir') { [void][IO.Directory]::CreateDirectory($s.a); continue }
+      if (Test-Path -LiteralPath $s.b) { throw "Already there: $($s.b)" }
+      if (-not [IO.Directory]::Exists((Split-Path $s.b -Parent))) { throw "No @ver folder: $(Split-Path $s.b -Parent)" }
+      [IO.Directory]::Move($s.a, $s.b)
+    }
     foreach ($j in $jobs) {
       $done = [pscustomobject]@{ name = $j.name; dests = @() }
       $result.files += $done
