@@ -3102,7 +3102,30 @@ Object.assign(HE_EN, {
 "הרשימה נסגרה בלי פרסום. הקבצים נשארו בתיקייה.": "The list was closed without publishing. The files stayed in the folder.",
 "תיבת הייצוא ({n})": "Export inbox ({n})",
 "קובץ אחד מחכה לפרסום": "1 file is waiting to be published",
-"{n} קבצים מחכים לפרסום": "{n} files are waiting to be published"
+"{n} קבצים מחכים לפרסום": "{n} files are waiting to be published",
+"פרסום שלנו (PUBLISH)": "Our publishing (PUBLISH)",
+"קבצים שהתקבלו": "Received files",
+"מי שלח את הקבצים:": "Who sent the files:",
+"יועץ של הפרויקט": "A consultant of the project",
+"בחר יועץ…": "Choose a consultant…",
+"אין לו תיקייה עדיין": "no folder yet",
+"תיקייה אחרת מהעץ": "Another folder from the tree",
+"בחר תיקייה מהעץ…": "Choose a folder from the tree…",
+"תכנית חדשה (תיקיית גרסה חדשה)": "New plan (a new version folder)",
+"מסמך של יועץ (תיקיית docs)": "Consultant document (docs folder)",
+"גורם אחר (רשות, מנהל פרויקט, ספק…)": "Another party (authority, project manager, supplier…)",
+"בחר תיקייה…": "Choose a folder…",
+"קורא את תיקיות הפרויקט במחשב…": "Reading the project's folders on the computer…",
+"קרא שוב את תיקיות הפרויקט": "Read the project's folders again",
+"לפרויקט אין מפת תיקיות מלאה — מוצגות התיקיות העליונות. אפשר למפות בהגדרות הפרויקט.": "The project's folder map is incomplete — its top folders are shown. You can map them in the project settings.",
+"Claude מילא לפי שמות הקבצים — אפשר לשנות": "Claude filled this in from the file names — you can change it",
+"שום קובץ לא מוחלף: קובץ בשם שכבר קיים נשמר בשם אחר.": "Nothing is replaced: a file whose name is taken is saved under another name.",
+"הגרסה הקודמת עוברת ל-@ver": "The previous version moves to @ver",
+"הוראה ל-Claude (לא חובה), למשל: זו גרסה 5 של הקונסטרוקציה": "An instruction for Claude (optional), e.g.: this is version 5 of the structural plans",
+"אשר ותייק": "Confirm and file",
+"מתייק ב-{pc}…": "Filing on {pc}…",
+"תויק קובץ אחד": "1 file filed",
+"תויקו {n} קבצים": "{n} files filed"
 });
 
 window.I18N_HE_EN = HE_EN;

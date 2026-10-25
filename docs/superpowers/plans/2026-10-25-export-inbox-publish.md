@@ -82,3 +82,22 @@ Files: `project_hub_01.html`, `i18n-dict.js`.
   `source: bool, folder, move`; the `inbox` task adds `source` and `move: !source`. The PC copies from a chosen
   folder and never deletes there (Get-InboxTaskSource ignores `move` for a source); an unknown source is an error.
   Batches of a chosen folder replace only the same PC's earlier chosen-folder batch, never the inbox's.
+
+## קבצים שהתקבלו — מאותו חלון (follow-up, 2026-10-25)
+
+- Window (InboxBatch): a switch "פרסום שלנו (PUBLISH)" / "קבצים שהתקבלו". Received: "מי שלח את הקבצים" — a project
+  consultant (select + "תכנית חדשה" / "מסמך של יועץ") or another party (Receive / Permit folders), each with "תיקייה אחרת
+  מהעץ". SENT / UPDATED only in publish mode; "אשר ותייק"; done: "תויקו N קבצים". Claude's guess fills the choices the
+  person has not made (guessKey: that change asks for no new proposal).
+- `GET /api/filing-hub/inbox-options?id=&projectId=` (writers) → `{ consultants: [{label, folder|null, contact}],
+  others: [{label, folder, area: receive|permit|top}], tree, unmapped: {consultants, others} }` (`ai.receiveOptions`:
+  folders directly under the consultants area matched to register contacts by discipline/firm words, unmatched contacts
+  with folder null; folders under receive/permit; no such areas → the tree's top folders) or the tree answers
+  (needsFolder / agent / missing). Choosing another project drops the plan made for the previous one.
+- `inbox-propose` `{ mode: 'receive', from: {kind, folder?, name?} | null, doc: 'plan'|'doc' }` →
+  `{ message, plan (mode 'receive', from), guess? }` (`ai.receiveProposal`, `RECEIVE_SYSTEM`: Folder Manager receive
+  convention; `sanitizeReceivePlan`: no replace; the only move is a folder below the top into an `@ver` sibling under the
+  same name, onto nothing). History entries: mode `receive`, from = chosen or guessed sender.
+- Previous versions: supported (not left alone) — `Invoke-InboxTask` runs such a move, checked before anything (inside the
+  project, not the top, `@ver` sibling, same name, source there, target not there) and again before it moves. A helper
+  of the previous version refuses the step and does nothing, so the installed helper needs FileHelper.Core.ps1 updated.
