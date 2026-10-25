@@ -16069,6 +16069,7 @@ function InboxBatch({
   const [instr, setInstr] = useState(''); // the instruction sent (goes with every proposal)
   const [prop, setProp] = useState(null); // { message, plan }
   const [msg, setMsg] = useState(null); // { s, v }
+  const [notice, setNotice] = useState(null); // what the last publish on the PC said, kept while a new plan is asked for
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState('edit'); // edit | publishing | done | closed
   const [done, setDone] = useState(null); // { count, rel, error }
@@ -16226,7 +16227,7 @@ function InboxBatch({
           status: e.message
         }));
         setPhase('closed');
-      } else if (e.message === 'confirmed') setMsg(say('הפרסום כבר נשלח לעוזר התיוק.'));else setMsg(e.message === 'changed' ? null : failMsg(e));
+      } else if (e.message === 'confirmed') setMsg(say(mode === 'receive' ? 'התיוק כבר נשלח לעוזר התיוק.' : 'הפרסום כבר נשלח לעוזר התיוק.'));else setMsg(e.message === 'changed' ? null : failMsg(e));
       end();
     });
   };
@@ -16402,6 +16403,7 @@ function InboxBatch({
   const canPublish = phase === 'edit' && !busy && !!plan && plan.files.some(f => f.dests && f.dests.length);
   const publish = () => {
     if (!canPublish) return;
+    setNotice(null);
     setPhase('publishing');
     setMsg(say('שולח לעוזר התיוק במחשב…'));
     fmCall('inbox-confirm', {
@@ -16431,14 +16433,15 @@ function InboxBatch({
         }
         const files = Array.isArray(r.files) ? r.files : [];
         const gone = Array.isArray(r.notInInbox) ? r.notInInbox.length : 0;
-        // files left the batch (published everywhere, or no longer in the inbox): the plan went with them
-        const changed = gone > 0 || files.some(f => f.all);
+        // files left the batch (published everywhere, or no longer in the inbox), the PC stopped part way, or it moved a
+        // folder: the server dropped the plan (and reads the tree again), so a new one is asked for
+        const changed = gone > 0 || files.some(f => f.all) || !!r.error || !!(plan && (plan.steps || []).some(s => s.op === 'move'));
         if (changed) setProp(null);
         // nothing published: the batch stays open (without the files that were no longer in the inbox)
         if (!files.length) {
-          setMsg(r.error ? say('לא פורסם אף קובץ: {error}', {
+          (changed ? setNotice : setMsg)(r.error ? say(mode === 'receive' ? 'לא תויק אף קובץ: {error}' : 'לא פורסם אף קובץ: {error}', {
             error: asTyped(String(r.error))
-          }) : gone ? say(info && info.source ? 'הקבצים כבר לא היו בתיקייה.' : 'הקבצים כבר לא היו בתיבת הייצוא.') : say('לא פורסם אף קובץ. נסה שוב.'));
+          }) : gone ? say(info && info.source ? 'הקבצים כבר לא היו בתיקייה.' : 'הקבצים כבר לא היו בתיבת הייצוא.') : say(mode === 'receive' ? 'לא תויק אף קובץ. נסה שוב.' : 'לא פורסם אף קובץ. נסה שוב.'));
           if (!changed) {
             setPhase('edit');
             return;
@@ -16484,7 +16487,7 @@ function InboxBatch({
       if (e.code === 404) lost();else if (e.message === 'no_folder') setMsg(say('לפרויקט עוד לא נבחרה תיקייה. בוחרים אותה בהגדרות הפרויקט ← תיקיות הפרויקט.'));else if (e.message === 'no_plan') {
         setMsg(null);
         propose(); // the plan went (the server restarted): ask again
-      } else if (e.message === 'confirmed') setMsg(say('הפרסום כבר נשלח לעוזר התיוק.'));else if (['published', 'dismissed'].includes(e.message)) {
+      } else if (e.message === 'confirmed') setMsg(say(mode === 'receive' ? 'התיוק כבר נשלח לעוזר התיוק.' : 'הפרסום כבר נשלח לעוזר התיוק.'));else if (['published', 'dismissed'].includes(e.message)) {
         setInfo(b => ({
           ...b,
           status: e.message
@@ -16573,7 +16576,7 @@ function InboxBatch({
     className: "qk-body"
   }, title, h("div", {
     className: "ib-msg"
-  }, info.status === 'dismissed' ? info.source ? 'הרשימה נסגרה בלי פרסום. הקבצים נשארו בתיקייה.' : 'הרשימה הזו נסגרה בלי פרסום. הקבצים נשארו בתיבת הייצוא.' : 'הקבצים האלה כבר פורסמו.'), h("button", {
+  }, info.status === 'dismissed' ? info.source ? 'הרשימה נסגרה בלי פרסום. הקבצים נשארו בתיקייה.' : 'הרשימה הזו נסגרה בלי פרסום. הקבצים נשארו בתיבת הייצוא.' : mode === 'receive' ? 'הקבצים האלה כבר תויקו.' : 'הקבצים האלה כבר פורסמו.'), h("button", {
     type: "button",
     className: "np-btn",
     onClick: closeWin
@@ -16813,7 +16816,7 @@ function InboxBatch({
     className: "ib-hint"
   }, "קובץ ישן באותו שם עובר ל-@ver ולא נמחק") : null, mode === 'receive' ? h("div", {
     className: "ib-hint"
-  }, "שום קובץ לא מוחלף: קובץ בשם שכבר קיים נשמר בשם אחר.") : null, line(msg), plan ? h("div", {
+  }, "שום קובץ לא מוחלף: קובץ בשם שכבר קיים נשמר בשם אחר.") : null, line(notice), line(msg), plan ? h("div", {
     className: "ib-plan"
   }, prop.message ? h("div", {
     className: "ib-ai",
@@ -16854,7 +16857,7 @@ function InboxBatch({
     className: "ib-rep"
   }, tx('מחליף קובץ קיים')) : null))) : h("div", {
     className: "ib-none"
-  }, tx('לא יפורסם')))))) : null, h("div", {
+  }, mode === 'receive' ? tx('לא יתויק') : tx('לא יפורסם')))))) : null, h("div", {
     className: "ib-ask"
   }, h("input", {
     className: "af-input",

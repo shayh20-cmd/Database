@@ -190,8 +190,11 @@ function fakeClaude(port) {
     req.on('data', c => { body += c; });
     req.on('end', () => {
       srv.last = JSON.parse(body).messages[0].content;
+      const answer = srv.answer;
+      setTimeout(() => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ id: 'msg', type: 'message', role: 'assistant', model: 'm', content: [{ type: 'text', text: JSON.stringify(srv.answer) }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } }));
+      res.end(JSON.stringify({ id: 'msg', type: 'message', role: 'assistant', model: 'm', content: [{ type: 'text', text: JSON.stringify(answer) }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } }));
+      }, srv.delay || 0);
     });
   });
   return new Promise(r => srv.listen(port, '127.0.0.1', () => r(srv)));
@@ -973,7 +976,7 @@ test('filing inbox: the agent announces a batch, the Hub window proposes, confir
       { n: 1, name: 'LDPB-A-102.dwg', dests: [{ path: 'WORK/DWG', replace: false }] }
     ],
     steps: [{ op: 'mkdir', path: DAY, from: '', to: '' }, { op: 'mkdir', path: DAY + '/PDF', from: '', to: '' }],
-    mode: 'publish'
+    mode: 'publish', projectId: 'pabc123'
   };
   // the DWG's replace was dropped (WORK is not in the publish area): the window is told, Claude's words are not changed
   assert.deepStrictEqual(p1.body, { message: fake.answer.message, plan: PLAN, replaceStripped: 'outside' });
@@ -1053,18 +1056,25 @@ test('filing inbox: no folder, no agent, a failed publish can be confirmed again
   await (await agent(dana)).result({ tree: ['PUBLISH'] });
   const p0 = (await proposing).body;
   assert.deepStrictEqual([p0.plan.files[0].dests, p0.replaceStripped], [[{ path: 'PUBLISH', replace: false }], 'no_map']);
-  // the PC could not publish: the batch is still new and can be confirmed again
+  // the PC could not publish: the batch is still new; the plan and the tree went (the PC may have done part of it), and
+  // a new proposal, on the tree read again, can be confirmed
   const c1 = (await hub('inbox-confirm', { id })).body.taskId;
   const a1 = await agent(dana);
   assert.strictEqual(a1.id, c1);
   assert.strictEqual((await a1.result({ files: [], error: 'A-101.pdf is not in the inbox' })).status, 200);
   assert.deepStrictEqual((await hub('task?id=' + c1)).body.result, { files: [], notInInbox: [], error: 'A-101.pdf is not in the inbox' });
   assert.strictEqual((await hub('inbox?id=' + id)).body.status, 'new');
+  assert.deepStrictEqual((await hub('inbox-confirm', { id })).body, { error: 'no_plan' });
+  const again = hub('inbox-propose', ask);
+  const at = await agent(dana);
+  assert.strictEqual(at.got.kind, 'tree', 'the tree is read again');
+  await at.result({ tree: ['PUBLISH'] });
+  assert.strictEqual((await again).status, 200);
   const c2 = (await hub('inbox-confirm', { id })).body.taskId;
   const a2 = await agent(dana);
   assert.strictEqual((await a2.result({ missing: true })).status, 200);
   assert.deepStrictEqual((await hub('task?id=' + c2)).body.result, { missing: true });
-  assert.strictEqual((await hub('inbox-confirm', { id })).status, 200, 'and again');
+  assert.strictEqual((await hub('inbox-confirm', { id })).status, 200, 'and again: missing changed nothing on the PC');
 });
 
 test('filing inbox: an expired task frees the batch, a working PC is waited for, what is left stays open, restarts are found again', async (t) => {
@@ -1283,10 +1293,24 @@ test('filing-ai: a received-files plan — real folders, nothing replaced, only 
     steps: [{ op: 'mkdir', path: V4, from: '', to: '' }, { op: 'move', path: '', from: V3, to: VER + '/LDPB-structural-plans-v03' }],
     mode: 'receive'
   });
-  // an @ver made by an earlier step is one; a name already there is not moved onto
-  const p2 = ai.sanitizeReceivePlan({ steps: [{ op: 'mkdir', path: 'CONS/LDPB-electric-@ver' }, { op: 'move', from: 'CONS/LDPB-electric', to: 'CONS/LDPB-electric-@ver/LDPB-electric' }, { op: 'move', from: V3, to: VER + '/LDPB-structural-plans-v03' }], files: [{ name: 'a.pdf', dests: [{ path: 'CONS' }] }] },
-    [...RCV_TREE, VER + '/LDPB-structural-plans-v03'], [{ n: 0, name: 'a.pdf' }]);
-  assert.deepStrictEqual(p2.steps.map(s => s.op + ':' + (s.path || s.from)), ['mkdir:CONS/LDPB-electric-@ver', 'move:CONS/LDPB-electric']);
+  // only a previous version moves: a folder <stem>-vNN of the tree whose newer sibling <stem>-vMM an earlier mkdir of
+  // the same plan makes; never a consultant's whole folder, an @ver folder, a folder the plan makes, or onto a name there
+  const only = (steps, tree = RCV_TREE) => ai.sanitizeReceivePlan({ steps, files: [{ name: 'a.pdf', dests: [{ path: 'CONS' }] }] }, tree, [{ n: 0, name: 'a.pdf' }]).steps.filter(s => s.op === 'move').length;
+  const mk = p => ({ op: 'mkdir', path: p }), mv = (from, to) => ({ op: 'move', from, to });
+  const toVer = VER + '/LDPB-structural-plans-v03';
+  assert.strictEqual(only([mk(V4), mv(V3, toVer)]), 1, 'the previous version');
+  assert.strictEqual(only([mk(SP + '/ldpb-STRUCTURAL-plans-V10'), mv(V3, toVer)]), 1, 'the stem in any case, a higher number');
+  assert.strictEqual(only([mv(V3, toVer), mk(V4)]), 0, 'the newer version is made before the move');
+  assert.strictEqual(only([mk(V4), mk('CONS/CONS-@ver'), mv('CONS/LDPB-electric', 'CONS/CONS-@ver/LDPB-electric')]), 0, 'a whole consultant folder');
+  assert.strictEqual(only([mk(V4), mk(SP + '/LDPB-structural-plans-@ver-@ver'), mv(SP + '/LDPB-structural-plans-@ver', SP + '/LDPB-structural-plans-@ver-@ver/LDPB-structural-plans-@ver')]), 0, 'an @ver folder');
+  assert.strictEqual(only([mk(SP + '/LDPB-structural-plans-@ver-v02'), mk(SP + '/LDPB-structural-plans-@ver-v05'), mv(SP + '/LDPB-structural-plans-@ver-v02', VER + '/LDPB-structural-plans-@ver-v02')], [...RCV_TREE, SP + '/LDPB-structural-plans-@ver-v02']), 0, 'an @ver folder with a version number');
+  assert.strictEqual(only([mk(SP + '/LDPB-structural-plans-v02'), mv(V3, toVer)]), 0, 'a lower number');
+  assert.strictEqual(only([mk(SP + '/LDPB-structural-plans-v3'), mv(V3, toVer)]), 0, 'the same number');
+  assert.strictEqual(only([mk(SP + '/LDPB-electric-plans-v04'), mv(V3, toVer)]), 0, 'another stem');
+  assert.strictEqual(only([mk('CONS/LDPB-structural/LDPB-structural-plans-v04'), mv(V3, toVer)]), 0, 'the newer one elsewhere');
+  assert.strictEqual(only([mk(V4), mk(SP + '/LDPB-structural-plans-v05'), mv(V4, VER + '/LDPB-structural-plans-v04')]), 0, 'a folder the plan makes');
+  assert.strictEqual(only([mk(V4), mv(V3, toVer)], [...RCV_TREE, toVer]), 0, 'onto a name that is there');
+  assert.strictEqual(only([mk(V4), mk('CONS/LDPB-structural/LDPB-structural-plans-@ver2'), mv(V3, 'CONS/LDPB-structural/LDPB-structural-plans-@ver2/LDPB-structural-plans-v03')]), 0, 'an @ver that is not its sibling');
   assert.deepStrictEqual(ai.sanitizeReceivePlan({ files: [], steps: raw.steps }, RCV_TREE, [{ n: 0, name: 'a.pdf' }]).steps, [], 'no dests: no steps');
   assert.deepStrictEqual(ai.sanitizeReceivePlan(null, RCV_TREE, []), { files: [], steps: [], mode: 'receive' });
 });
@@ -1368,7 +1392,7 @@ test('filing inbox: received files — the choices of the project, a consultant\
   const PLAN = {
     files: [{ n: 0, name: 'LDPB-S-101.pdf', dests: [{ path: V4, replace: false }] }, { n: 1, name: 'LDPB-S-102.dwg', dests: [{ path: V4, replace: false }] }],
     steps: [{ op: 'mkdir', path: V4, from: '', to: '' }, { op: 'move', path: '', from: V3, to: VER + '/LDPB-structural-plans-v03' }],
-    mode: 'receive', from: 'structural'
+    mode: 'receive', from: 'structural', projectId: 'pabc123'
   };
   assert.deepStrictEqual(p1.body, { message: fake.answer.message, plan: PLAN });
   assert.match(fake.last, /\nFrom: a consultant "structural" \(folder: CONS\/LDPB-structural\), a new plan version\n/);
@@ -1425,4 +1449,51 @@ test('filing inbox: received files without a folder map — the tree\'s top fold
   await (await agent(dana)).result({ tree: ['A', 'A/x', 'B'] });
   const o = (await asking).body;
   assert.deepStrictEqual(o, { consultants: [], others: [{ label: 'A', folder: 'A', area: 'top' }, { label: 'B', folder: 'B', area: 'top' }], tree: ['A', 'A/x', 'B'], unmapped: { consultants: true, others: true } });
+});
+
+test('filing inbox: received files — a move done and a copy failed leaves no stale plan; another project chosen while Claude answers', async (t) => {
+  const fake = await fakeClaude(4044);
+  t.after(() => fake.close());
+  const { base, data, keyOf, call, agent } = await start(t, 4043, { ANTHROPIC_API_KEY: 'test-key', ANTHROPIC_BASE_URL: 'http://127.0.0.1:4044' });
+  const hub = async (route, body) => {
+    const r = await fetch(base + '/api/filing-hub/' + route, { method: body ? 'POST' : 'GET', headers: { 'x-ms-client-principal': principal('dana@kkarc.com'), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, root: ROOT, guide: '', log: [], map: RCV_MAP }, ph01: { folder: 'PH01', guide: '', log: [] } } }));
+  const dana = await keyOf('dana@kkarc.com');
+  const id = (await call(dana, '/api/outlook/inbox-batch', { pc: 'PC1', files: [{ name: 'S-101.pdf', size: 3, mtime: '' }] })).body.id;
+  const V4 = SP + '/LDPB-structural-plans-v04', V3 = SP + '/LDPB-structural-plans-v03';
+  const MOVE = { message: 'v04', mode: 'receive', steps: [{ op: 'mkdir', path: V4, from: '', to: '' }, { op: 'move', path: '', from: V3, to: SP + '/LDPB-structural-plans-@ver/LDPB-structural-plans-v03' }], files: [{ name: 'S-101.pdf', dests: [{ path: V4 }] }], from_guess: { kind: '', folder: '', name: '', doc: '' } };
+  const ask = { id, projectId: 'pabc123', files: [0], mode: 'receive', from: { kind: 'consultant', folder: 'CONS/LDPB-structural', name: 'structural' }, doc: 'plan' };
+  const propose = async () => {
+    const going = hub('inbox-propose', ask);
+    const a = await agent(dana);
+    if (a) await a.result({ tree: RCV_TREE });
+    return (await going).body;
+  };
+  fake.answer = MOVE;
+  assert.strictEqual((await propose()).plan.steps.length, 2);
+  // the PC moved v03 into @ver, then the copy failed: nothing left the batch, but the plan and the tree are stale
+  const c = (await hub('inbox-confirm', { id })).body.taskId;
+  const a = await agent(dana);
+  assert.strictEqual(a.id, c);
+  await a.result({ files: [], notInInbox: [], error: 'Copy incomplete: S-101.pdf' });
+  assert.deepStrictEqual((await hub('inbox-confirm', { id })).body, { error: 'no_plan' });
+  const again = hub('inbox-propose', ask);
+  const at = await agent(dana);
+  assert.strictEqual(at.got.kind, 'tree', 'the tree is read again');
+  await at.result({ tree: RCV_TREE });
+  assert.strictEqual((await again).status, 200);
+
+  // the window chose another project (inbox-options) while Claude was answering for this one: the answer is not kept
+  fake.delay = 1500;
+  const late = hub('inbox-propose', ask);
+  await wait(300);
+  const opts = hub('inbox-options?id=' + id + '&projectId=ph01');
+  const a2 = await agent(dana);
+  assert.deepStrictEqual([a2.got.kind, a2.got.folder], ['tree', 'PH01']);
+  await a2.result({ tree: ['A'] });
+  assert.strictEqual((await opts).status, 200);
+  assert.deepStrictEqual(await late, { status: 409, body: { error: 'changed' } });
+  assert.deepStrictEqual((await hub('inbox-confirm', { id })).body, { error: 'no_plan' }, 'no plan of the other project is confirmed');
 });

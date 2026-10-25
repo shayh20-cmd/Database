@@ -657,9 +657,13 @@ module.exports = function createFiling(ctx) {
         // the files that left the inbox leave the batch; what is left stays open (the window may publish it too)
         if (gone.size) {
           b.files = b.files.filter(x => !gone.has(x.n));
-          b.plan = null; // it was for files that went
-          if (b.h) b.h.tree = null; // the PC made folders: read them again
           if (!b.files.length && b.status === 'new') b.status = 'published';
+        }
+        // files left, the PC stopped part way, or it moved a folder (perhaps before a copy failed): the plan is not
+        // the project's state any more, nor the tree read before it; both are made again for the next proposal
+        if (gone.size || error || t.plan.steps.some(s => s.op === 'move')) {
+          b.plan = null;
+          if (b.h) b.h.tree = null;
         }
       }
     } else {
@@ -808,7 +812,7 @@ module.exports = function createFiling(ctx) {
 
       if (route === 'inbox-confirm') {
         const h = b.h;
-        if (!b.plan || !h || !b.plan.files.some(x => x.dests.length)) { sendJson(res, 409, { error: 'no_plan' }); return; }
+        if (!b.plan || !h || b.plan.projectId !== h.projectId || !b.plan.files.some(x => x.dests.length)) { sendJson(res, 409, { error: 'no_plan' }); return; }
         getProject(h.projectId); // still open to this person
         const pr = known(h.projectId);
         if (!pr.folder) { sendJson(res, 409, { error: 'no_folder' }); return; }
@@ -867,7 +871,9 @@ module.exports = function createFiling(ctx) {
           sendJson(res, 200, { ai: 'failed' });
           return;
         }
+        // the window chose another project while Claude answered (inbox-options): this plan is not for it
         if (b.status !== 'new' || b.taskId || b.h !== h) { sendJson(res, 409, { error: 'changed' }); return; }
+        out.plan.projectId = project.id;
         b.plan = out.plan;
         // a replace Claude asked for and the plan dropped ('no_map': no publish area mapped; 'outside': not inside it):
         // the window says so, since Claude's words may still speak of replacing

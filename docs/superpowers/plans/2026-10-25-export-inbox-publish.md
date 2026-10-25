@@ -101,3 +101,8 @@ Files: `project_hub_01.html`, `i18n-dict.js`.
 - Previous versions: supported (not left alone) — `Invoke-InboxTask` runs such a move, checked before anything (inside the
   project, not the top, `@ver` sibling, same name, source there, target not there) and again before it moves. A helper
   of the previous version refuses the step and does nothing, so the installed helper needs FileHelper.Core.ps1 updated.
+- Review fixes: a move is only of a previous version — `<stem>-vNN` (not @ver, not made by the plan) whose sibling
+  `<stem>-vMM` (MM > NN) an earlier mkdir of the same plan makes — on the server and in `Invoke-InboxTask`; a failed step
+  takes the task's new empty folders away; `Resolve-InProject` refuses junctions / symbolic links. A result with an error
+  or a plan with a move drops `b.plan` and the cached tree (the window asks again, keeping the PC's error in view);
+  plans carry `projectId`, and confirm refuses a plan of another project than the window's.

@@ -3125,7 +3125,12 @@ Object.assign(HE_EN, {
 "אשר ותייק": "Confirm and file",
 "מתייק ב-{pc}…": "Filing on {pc}…",
 "תויק קובץ אחד": "1 file filed",
-"תויקו {n} קבצים": "{n} files filed"
+"תויקו {n} קבצים": "{n} files filed",
+"לא תויק אף קובץ: {error}": "No file was filed: {error}",
+"לא תויק אף קובץ. נסה שוב.": "No file was filed. Try again.",
+"התיוק כבר נשלח לעוזר התיוק.": "The filing was already sent to the filing helper.",
+"הקבצים האלה כבר תויקו.": "These files were already filed.",
+"לא יתויק": "won't be filed"
 });
 
 window.I18N_HE_EN = HE_EN;

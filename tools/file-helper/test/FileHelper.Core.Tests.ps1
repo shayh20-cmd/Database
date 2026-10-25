@@ -529,42 +529,69 @@ try {
   New-Item -ItemType Directory -Force -Path (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-v03') | Out-Null
   Set-Content -Path (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-v03\S-1.pdf') -Value 'v3'
   New-Item -ItemType Directory -Force -Path (Join-Path $proj 'CONS\P-st\P-st-docs') | Out-Null
+  New-Item -ItemType Directory -Force -Path (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-@ver\P-st-plans-v01') | Out-Null
+  New-Item -ItemType Directory -Force -Path (Join-Path $proj 'CONS\P-@ver') | Out-Null
+  New-Item -ItemType Directory -Force -Path (Join-Path $proj 'CONS-v1') | Out-Null
   function New-ReceiveTask($Steps, [string]$Dest = "$sp/P-st-plans-v04") {
     return [pscustomobject]@{ kind = 'inbox'; files = @([pscustomobject]@{ n = 0; name = 'B.pdf' })
       plan = [pscustomobject]@{ mode = 'receive'; from = 'st'; steps = @(@([pscustomobject]@{ op = 'mkdir'; path = 'MADE8'; from = ''; to = '' }) + $Steps)
         files = @([pscustomobject]@{ n = 0; name = 'B.pdf'; dests = @([pscustomobject]@{ path = $Dest; replace = $false }) }) } }
   }
+  $mk = { param($p) [pscustomobject]@{ op = 'mkdir'; path = $p; from = ''; to = '' } }
   $mv = { param($from, $to) [pscustomobject]@{ op = 'move'; path = ''; from = $from; to = $to } }
-  # what is refused, and then nothing at all is done: not to an @ver, not its sibling, another name, the top, a folder
-  # that is not there, onto a name that is there
-  New-Item -ItemType Directory -Force -Path (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-@ver\P-st-plans-v01') | Out-Null
+  $v4 = & $mk "$sp/P-st-plans-v04"
+  # what is refused, and then nothing at all is done
   foreach ($case in @(
-      @{ what = 'not into an @ver'; from = "$sp/P-st-plans-v03"; to = 'CONS/P-st/P-st-docs/P-st-plans-v03' },
-      @{ what = 'an @ver that is not its sibling'; from = 'CONS/P-st/P-st-docs'; to = "$sp/P-st-plans-@ver/P-st-docs" },
-      @{ what = 'under another name'; from = "$sp/P-st-plans-v03"; to = "$sp/P-st-plans-@ver/v3" },
-      @{ what = 'the top folder'; from = 'CONS'; to = 'CONS-@ver/CONS' },
-      @{ what = 'a folder that is not there'; from = "$sp/P-st-plans-v02"; to = "$sp/P-st-plans-@ver/P-st-plans-v02" },
-      @{ what = 'onto a name that is there'; from = "$sp/P-st-plans-v03"; to = "$sp/P-st-plans-@ver/P-st-plans-v01"; same = $true },
-      @{ what = 'outside'; from = "$sp/P-st-plans-v03"; to = '../@ver/P-st-plans-v03' })) {
+      @{ what = 'not into an @ver'; steps = @($v4, (& $mv "$sp/P-st-plans-v03" 'CONS/P-st/P-st-docs/P-st-plans-v03')) },
+      @{ what = 'an @ver that is not its sibling'; steps = @($v4, (& $mv "$sp/P-st-plans-v03" 'CONS/P-@ver/P-st-plans-v03')) },
+      @{ what = 'under another name'; steps = @($v4, (& $mv "$sp/P-st-plans-v03" "$sp/P-st-plans-@ver/v3")) },
+      @{ what = 'a whole consultant folder'; steps = @($v4, (& $mk 'CONS/P-st-v09'), (& $mv 'CONS/P-st' 'CONS/P-@ver/P-st')) },
+      @{ what = 'an @ver folder'; steps = @($v4, (& $mk "$sp/P-st-plans-@ver-@ver"), (& $mv "$sp/P-st-plans-@ver" "$sp/P-st-plans-@ver-@ver/P-st-plans-@ver")) },
+      @{ what = 'no newer version made'; steps = @((& $mv "$sp/P-st-plans-v03" "$sp/P-st-plans-@ver/P-st-plans-v03")) },
+      @{ what = 'the newer version made after it'; steps = @((& $mv "$sp/P-st-plans-v03" "$sp/P-st-plans-@ver/P-st-plans-v03"), $v4) },
+      @{ what = 'a lower number'; steps = @((& $mk "$sp/P-st-plans-v02"), (& $mv "$sp/P-st-plans-v03" "$sp/P-st-plans-@ver/P-st-plans-v03")) },
+      @{ what = 'the same number'; steps = @((& $mk "$sp/P-st-plans-v3"), (& $mv "$sp/P-st-plans-v03" "$sp/P-st-plans-@ver/P-st-plans-v03")) },
+      @{ what = 'another stem'; steps = @((& $mk "$sp/P-el-plans-v04"), (& $mv "$sp/P-st-plans-v03" "$sp/P-st-plans-@ver/P-st-plans-v03")) },
+      @{ what = 'a folder this task makes'; steps = @($v4, (& $mk "$sp/P-st-plans-v05"), (& $mv "$sp/P-st-plans-v04" "$sp/P-st-plans-@ver/P-st-plans-v04")) },
+      @{ what = 'the top folder'; steps = @((& $mk 'CONS-v2'), (& $mv 'CONS-v1' 'CONS-@ver/CONS-v1')) },
+      @{ what = 'a folder that is not there'; steps = @((& $mk "$sp/P-st-plans-v09"), (& $mv "$sp/P-st-plans-v02" "$sp/P-st-plans-@ver/P-st-plans-v02")) },
+      @{ what = 'onto a name that is there'; steps = @($v4, (& $mv "$sp/P-st-plans-v03" "$sp/P-st-plans-@ver/P-st-plans-v03")); same = $true },
+      @{ what = 'outside'; steps = @($v4, (& $mv "$sp/P-st-plans-v03" '../@ver/P-st-plans-v03')) })) {
     $in8 = New-Inbox
     if ($case.same) { New-Item -ItemType Directory -Force -Path (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-@ver\P-st-plans-v03') | Out-Null }
-    $res = Invoke-InboxTask $proj $in8 (New-ReceiveTask @(& $mv $case.from $case.to))
+    $res = Invoke-InboxTask $proj $in8 (New-ReceiveTask $case.steps)
     Check "receive: $($case.what) is an error" ($res.error -and @($res.files).Count -eq 0)
-    Check "receive: $($case.what), nothing done" (-not (Test-Path (Join-Path $proj 'MADE8')) -and (Test-Path (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-v03\S-1.pdf')) -and (Test-Path (Join-Path $in8 'B.pdf')))
+    Check "receive: $($case.what), nothing done" (-not (Test-Path (Join-Path $proj 'MADE8')) -and -not (Test-Path (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-v04')) -and (Test-Path (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-v03\S-1.pdf')) -and (Test-Path (Join-Path $proj 'CONS\P-st')) -and (Test-Path (Join-Path $in8 'B.pdf')))
     if ($case.same) { Remove-Item -LiteralPath (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-@ver\P-st-plans-v03') -Recurse -Force }
     Remove-Item -LiteralPath $in8 -Recurse -Force
   }
   Remove-Item -LiteralPath (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-@ver') -Recurse -Force
-  # the @ver made by an earlier step; the version moves with its files; the new one is made and filled
+  # a move that fails when it runs (its @ver folder is not there): the empty folders the task made go again
   $in8 = New-Inbox
-  $res = Invoke-InboxTask $proj $in8 (New-ReceiveTask @(
-      [pscustomobject]@{ op = 'mkdir'; path = "$sp/P-st-plans-v04"; from = ''; to = '' },
-      [pscustomobject]@{ op = 'mkdir'; path = "$sp/P-st-plans-@ver"; from = ''; to = '' },
-      (& $mv "$sp/P-st-plans-v03" "$sp/P-st-plans-@ver/P-st-plans-v03")))
+  $res = Invoke-InboxTask $proj $in8 (New-ReceiveTask @($v4, (& $mv "$sp/P-st-plans-v03" "$sp/P-st-plans-@ver/P-st-plans-v03")))
+  Check 'receive: a failed move is an error' ($res.error -and @($res.files).Count -eq 0)
+  Check 'receive: a failed move takes the new empty folders away' (-not (Test-Path (Join-Path $proj 'MADE8')) -and -not (Test-Path (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-v04')) -and (Test-Path (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-v03\S-1.pdf')) -and (Test-Path (Join-Path $in8 'B.pdf')))
+  # the @ver made by an earlier step; the version moves with its files; the new one is made and filled
+  $res = Invoke-InboxTask $proj $in8 (New-ReceiveTask @($v4, (& $mk "$sp/P-st-plans-@ver"), (& $mv "$sp/P-st-plans-v03" "$sp/P-st-plans-@ver/P-st-plans-v03")))
   Check 'receive: no error' ($null -eq $res.error)
   Check 'receive: the previous version moved, with its files' (-not (Test-Path (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-v03')) -and (Get-Content (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-@ver\P-st-plans-v03\S-1.pdf')) -eq 'v3')
   Check 'receive: the new version filled' ((Get-Content (Join-Path $proj 'CONS\P-st\P-st-plans\P-st-plans-v04\B.pdf')) -eq 'new B' -and -not (Test-Path (Join-Path $in8 'B.pdf')))
   Remove-Item -LiteralPath $in8 -Recurse -Force
+
+  # a junction inside the project (it could lead out of it) is never followed
+  $outside = New-TempDir
+  [void](cmd /c mklink /J (Join-Path $proj 'LINK') $outside)
+  if (Test-Path (Join-Path $proj 'LINK')) {
+    Check 'link: refused' (Throws { Resolve-InProject $proj 'LINK/x' })
+    Check 'link: the link itself refused' (Throws { Resolve-InProject $proj 'LINK' })
+    Check 'link: a name not there yet is fine' ((Resolve-InProject $proj 'NEW/x') -eq (Join-Path $proj 'NEW\x'))
+    $in9 = New-Inbox
+    $res = Invoke-InboxTask $proj $in9 ([pscustomobject]@{ kind = 'inbox'; files = @([pscustomobject]@{ n = 0; name = 'B.pdf' }); plan = [pscustomobject]@{ steps = @(); files = @([pscustomobject]@{ n = 0; name = 'B.pdf'; dests = @([pscustomobject]@{ path = 'LINK'; replace = $false }) }) } })
+    Check 'link: a dest through it is an error, nothing copied' ($res.error -and -not (Test-Path (Join-Path $outside 'B.pdf')) -and (Test-Path (Join-Path $in9 'B.pdf')))
+    Remove-Item -LiteralPath $in9 -Recurse -Force
+    [IO.Directory]::Delete((Join-Path $proj 'LINK')) # the junction only, never what it points at
+  } else { Check 'link: mklink /J made a junction' $false }
+  Remove-Item -LiteralPath $outside -Recurse -Force
 
   # texts
   $script:Lang = 'en'

@@ -518,14 +518,18 @@ const RECEIVE_SCHEMA = {
 };
 
 /* A received-files plan, kept to what is safe and real: as an inbox plan (sanitizeInboxPlan), with nothing replaced,
-   and the one move a receive plan may hold — a folder below the project's top (in the tree, or made by an earlier
-   step) into an @ver folder that is its sibling (in the tree or made earlier), under the same name, onto nothing that
-   is there. After a move the old path is gone: a dest there is dropped. */
+   and the one move a receive plan may hold — the previous version: a folder of the tree (never one this plan makes)
+   named <stem>-vNN, not an @ver folder, below the project's top, whose sibling <stem>-vMM (MM > NN, the same stem in
+   any case) an earlier mkdir of this plan makes; it goes into an @ver folder that is its sibling (in the tree or made
+   earlier), under the same name, onto nothing that is there. FileHelper.Core.ps1 (Invoke-InboxTask) checks the same.
+   After a move the old path is gone: a dest there is dropped. */
+const VERSION = /^(.*)-v(\d{1,4})$/i;
 function sanitizeReceivePlan(raw, tree, files) {
   const r = raw && typeof raw === 'object' ? raw : {};
   const known = new Set((tree || []).map(t => t.toLowerCase()));
   const has = p => p === '' || known.has(p.toLowerCase());
   const steps = [];
+  const made = []; // the folders this plan's mkdir steps make, in lower case
   for (const s of Array.isArray(r.steps) ? r.steps.slice(0, 30) : []) {
     if (!s || typeof s !== 'object') continue;
     if (s.op === 'mkdir') {
@@ -533,9 +537,19 @@ function sanitizeReceivePlan(raw, tree, files) {
       if (!p || has(p) || !has(parentOf(p))) continue;
       steps.push({ op: 'mkdir', path: p, from: '', to: '' });
       known.add(p.toLowerCase());
+      made.push(p.toLowerCase());
     } else if (s.op === 'move') {
       const from = relPath(s.from), to = relPath(s.to);
       if (!from || !to || !from.includes('/') || !has(from) || has(to)) continue;
+      const fl = from.toLowerCase();
+      if (made.some(m => fl === m || fl.startsWith(m + '/'))) continue;
+      const v = VERSION.exec(leafOf(from));
+      if (!v || /@ver/i.test(leafOf(from))) continue;
+      const newer = made.some(m => {
+        const w = VERSION.exec(leafOf(m));
+        return w && parentOf(m) === parentOf(fl) && w[1] === v[1].toLowerCase() && Number(w[2]) > Number(v[2]);
+      });
+      if (!newer) continue;
       const ver = parentOf(to);
       if (!ver || !/@ver/i.test(leafOf(ver)) || !has(ver) || ver.toLowerCase() === from.toLowerCase()) continue;
       if (parentOf(ver).toLowerCase() !== parentOf(from).toLowerCase() || leafOf(to).toLowerCase() !== leafOf(from).toLowerCase()) continue;
