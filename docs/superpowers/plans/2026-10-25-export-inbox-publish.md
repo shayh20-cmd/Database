@@ -50,3 +50,18 @@ Files: `project_hub_01.html`, `i18n-dict.js`.
 - Commit: `feat(hub): the export inbox window — files, project, SENT/UPDATED, publish`.
 
 ## Task 4: Review, PR, deploy (with the user's go-ahead), reinstall the helper on the user's PC (keeps the key; registers projecthub-inbox:), check with the user.
+
+## Review fixes (contracts as changed)
+
+- An inbox task that ends without a result frees its batch. Once the PC takes it, it lives `FILING_INBOX_TTL_MS`
+  (60 min) from then, and a result that arrives after it expired is still taken (history, batch).
+- Result `{ files: [{ n, name, dests: [savedAs|null, aligned with the plan], paths, all }], notInInbox: [names], error }`.
+  Files that left the inbox (`all`, or `notInInbox`) leave the batch; the batch is `published` only when none is left.
+  The PC skips a source that is no longer in the inbox and reports it instead of failing the task.
+- `GET /api/outlook/inbox-batch?pc=` → `{ id|null }` (the PC's open batch): the agent asks when it starts and every
+  5 minutes while the inbox holds files, and announces again when there is none (a notification only the first time
+  after a start). `GET /api/filing-hub/inbox-latest?pc=` → `{ id|null }`: the window whose batch is gone switches to it.
+  The window's address carries `&pc=`.
+- `inbox-propose` adds `replaceStripped: 'no_map'|'outside'` when a replace was dropped; the window says so under
+  Claude's words. Names the server would change are left out of a batch; a 400 to the agent counts as announced.
+- The lock test runs only when something is to be announced, and opens with `FileShare.Read`.
