@@ -3037,7 +3037,11 @@ Object.assign(HE_EN, {
 "שמור מפה": "Save map",
 "תשובה או תיקון, במילים שלך": "An answer or a correction, in your own words",
 "ההנחיה לתיוק": "Filing guide",
-"בטל שינויים": "Discard changes"
+"בטל שינויים": "Discard changes",
+"רק מנהל הפרויקט או Super Admin יכולים לערוך את פרטי הפרויקט": "Only the project manager or a Super Admin can edit the project details",
+"מנהלי הפרויקט: {names}": "Project managers: {names}",
+"נקבע ביצירת הפרויקט": "Set when the project was created",
+"השינויים נשמרו": "Changes saved"
 });
 
 window.I18N_HE_EN = HE_EN;
