@@ -437,6 +437,9 @@ const outlook = require('./outlook')({ DATA_DIR, STATIC_ROOT, SITE_MODE, LOCAL_U
    to a task is logged there through the add-in's links. */
 const mail = require('./mail')({ DATA_DIR, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, mcp, outlook });
 
+/* The one-click installers of the filing helper and the mail scanner, built per request; see installers.js. */
+const installers = require('./installers')({ STATIC_ROOT, SITE_MODE });
+
 function handleRequest(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const healthy = AUTH_CONFIRMED && !bootError;
@@ -532,6 +535,8 @@ function handleRequest(req, res) {
   const attMatch = url.pathname.match(ATTACH_ROUTE);
   if (attMatch) { handleAttachment(res, attMatch[1], attMatch[2], attMatch[3]); return; }
 
+  // signed in only (the gate above): the filing helper's and the mail scanner's installers
+  if (installers.handle(req, res, url, sendJson)) return;
   // index.html sends the GitHub Pages root to Site Note; this server's root is Project Hub
   if (url.pathname === '/') { redirect(res, '/project_hub_01'); return; }
   if (SITE_MODE === 'cloud') {

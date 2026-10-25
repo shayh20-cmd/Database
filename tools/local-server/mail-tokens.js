@@ -1,6 +1,6 @@
 'use strict';
 /* A personal key: the mail scanner's (phm_) and the Outlook add-in's (pho_), each in its own file.
-   One per person: issuing a new one ends the old. The key is shown once (Settings → גישה מהירה);
+   One per person: issuing a new one ends the old. The key is shown once (Settings → תוסף Outlook וסריקת מייל);
    the server keeps only its SHA-256. */
 const crypto = require('crypto');
 

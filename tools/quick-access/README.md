@@ -4,6 +4,14 @@ A compact window for adding a task or an update without opening the whole app:
 `https://kkarc-hub.azurewebsites.net/project_hub_01?quick=new` (or `?quick=update`).
 Optional prefills: `title=`, `link=`, `folder=`.
 
+## 0. One click, from Project Hub
+
+Settings → **גישה מהירה** → **⬇ הורדת קובץ ההתקנה** (`/ProjectHub-Setup.cmd`, this folder's `ProjectHub-Setup.cmd`)
+and **⬇ קובץ הסרה** (`/ProjectHub-Uninstall.cmd`, built by the server in `tools/local-server/installers.js`: it removes
+the three Start menu shortcuts, the right-click entries and `%LOCALAPPDATA%\Programs\ProjectHub`, and leaves the mail
+scanner's shortcut in the same Start menu folder). Both are served to signed-in people only. The same Settings page
+has the one-click installers of the filing helper (`tools/file-helper`) and the mail scanner (`tools/mail-scan`).
+
 ## 1. Keyboard (anywhere in Windows) and right-click on the desktop / in folders
 
 Run once, per user (no admin rights). The shortcuts take their icons from this folder, so run it

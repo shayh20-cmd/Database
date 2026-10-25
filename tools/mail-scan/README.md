@@ -7,12 +7,21 @@
 ## התקנה (פעם אחת, בלי הרשאות מנהל)
 
 1. Outlook הקלאסי במחשב מחובר לחשבון המשרד (File ← Add Account), ופתוח לפחות פעם אחת.
-2. ב-Project Hub: הגדרות ← גישה מהירה ← **סריקת מייל** ← **הפק מפתח**, והעתק אותו.
-3. מתיקיית Project Hub:
+2. ב-Project Hub: הגדרות ← **תוסף Outlook וסריקת מייל** ← סריקת מייל ← **הפק מפתח**, והעתק אותו.
+3. באותו מסך: **⬇ התקנת סריקת המייל** (`ProjectHub-MailScan-Setup.cmd`), ולחיצה כפולה על הקובץ שירד (אם Windows
+   מזהיר: More info ← Run anyway). חלון קטן מבקש את המפתח, וההתקנה בודקת אותו מול השרת לפני שהיא שומרת אותו. בסוף
+   רצה בדיקה שמציגה אילו מיילים היו נשלחים, בלי לשלוח.
+
+   הקובץ נבנה בשרת בכל הורדה (`tools/local-server/installers.js`, למחוברים בלבד): הוא נושא את `Scan-Mail.ps1`,
+   `run-hidden.vbs` ו-`Install-MailScan.ps1` כ-base64 ואת כתובת ה-Project Hub שממנה הורד, ומריץ
+   `Install-MailScan.ps1 -Local -Gui`. ‏`-Local` מעתיק את הסורק ל-`%LOCALAPPDATA%\ProjectHub\mail-scan`, והמשימה
+   המתוזמנת, הקיצור "סרוק מייל עכשיו" והקישור `projecthub-scan:` מצביעים לשם. המפתח אף פעם לא בקובץ.
+
+   **מהמאגר** (למנהלי המערכת), מתיקיית Project Hub — הסורק רץ מתיקיית המאגר, כמו קודם:
 
        powershell -ExecutionPolicy Bypass -File tools\mail-scan\Install-MailScan.ps1
 
-   הדבק את המפתח כשהוא מתבקש. בסוף רצה בדיקה שמציגה אילו מיילים היו נשלחים, בלי לשלוח.
+   הדבק את המפתח כשהוא מתבקש.
 
 ## מתי סורקים
 
@@ -41,10 +50,12 @@
 | התראה "השרת לא זמין כבר שלוש ריצות" | לבדוק ש-Project Hub נפתח; המיילים יישלחו בריצה הבאה |
 | שום דבר לא קורה | הלוג: `%LOCALAPPDATA%\ProjectHub\mail-scan.log`; בדיקה: `Scan-Mail.ps1 -DryRun` |
 
-הסרה: `powershell -ExecutionPolicy Bypass -File tools\mail-scan\Uninstall-MailScan.ps1`.
+הסרה: **קובץ הסרה** בהגדרות ← תוסף Outlook וסריקת מייל (`ProjectHub-MailScan-Uninstall.cmd`), או
+`powershell -ExecutionPolicy Bypass -File tools\mail-scan\Uninstall-MailScan.ps1`. שתיהן מסירות את המשימה, הקיצור,
+הקישורים, המפתח במחשב ואת `%LOCALAPPDATA%\ProjectHub\mail-scan`; המפתח בשרת נשאר עד שמבטלים אותו בהגדרות.
 
 ## Threads linked to a task (Outlook add-in)
 
 Each message also carries `conversationId` (Outlook's `ConversationID`), `inReplyTo` and `references`. A message of a
 thread linked to a task in the Outlook add-in is logged on that task by the server and goes no further. Suggestions
-from other new mail are off unless the person turns them on (Settings → גישה מהירה → סריקת מייל).
+from other new mail are off unless the person turns them on (Settings → תוסף Outlook וסריקת מייל).
