@@ -1,7 +1,11 @@
 ﻿<# Project Hub — filing helper: the background agent. Started hidden at Windows sign-in (Startup shortcut,
    run-file-helper-agent.vbs). It keeps one request open to the hub (/api/outlook/filing-next, up to 25 seconds,
-   with the person's Outlook add-in key) and receives the person's next task from the Outlook pane — pick the project
-   folder, read its tree, open it, or file — with its one-time token, and runs it in Run-Task.ps1.
+   with the person's Outlook add-in key) and receives the person's next task from the Outlook pane or the hub — pick
+   the project folder, read its tree, open it, file, or publish from the export inbox — with its one-time token, and
+   runs it in Run-Task.ps1.
+   While that request is open it looks at the export inbox (config "inbox", Desktop\לתיוק) every 3 seconds: once new
+   files there have settled (Get-InboxState), it tells the hub (/api/outlook/inbox-batch) and shows a notification
+   whose "Open" opens the hub's inbox window (projecthub-inbox:, Open-Inbox.ps1).
    One agent per Windows session. Log: %LOCALAPPDATA%\ProjectHub\file-helper.log.
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md
    Saved as UTF-8 with BOM. #>
@@ -9,21 +13,85 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 . (Join-Path $PSScriptRoot 'FileHelper.Core.ps1')
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+Add-Type -AssemblyName System.Net.Http
 
 $mutex = New-Object Threading.Mutex($false, 'Local\ProjectHubFileHelperAgent')
 if (-not $mutex.WaitOne(0)) { exit 0 }
 
 $runner = Join-Path $PSScriptRoot 'Run-Task.ps1'
 function Log([string]$Text) { Write-HelperLog $Text }
+
+# ── the export inbox ──
+$script:InboxState = $null
+$script:InboxKnown = @(Read-InboxKnown)
+$script:InboxRetryAt = [DateTime]::MinValue
+function Show-InboxToast([string]$Xml) {
+  # a Windows notification, as the mail scanner shows them (under Windows PowerShell's name); a failure is only logged
+  try {
+    $null = [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
+    $null = [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime]
+    $doc = New-Object Windows.Data.Xml.Dom.XmlDocument
+    $doc.LoadXml($Xml)
+    $appId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
+    [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId).Show([Windows.UI.Notifications.ToastNotification]::new($doc))
+  } catch { Log "inbox: notification failed: $($_.Exception.Message)" }
+}
+function Step-Inbox($Cfg, [string]$Key) {
+  # one look at the inbox; when new files have settled: the hub is told (the whole inbox), then the notification.
+  # A failure to reach the hub is tried again after a minute; the files count as announced only once it answered.
+  try {
+    $now = [DateTime]::UtcNow
+    $script:InboxState = Get-InboxState $Cfg.inbox $script:InboxState $now
+    if ($now -lt $script:InboxRetryAt) { return }
+    $pick = Select-InboxAnnouncement $script:InboxState $script:InboxKnown
+    if (-not $pick.changed) { return }
+    if ($pick.announce) {
+      $body = ConvertTo-InboxBatch $script:InboxState $env:COMPUTERNAME
+      $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 30 -Method POST -Headers @{ Authorization = "Bearer $Key" } -Uri ($Cfg.hub.TrimEnd('/') + '/api/outlook/inbox-batch') `
+        -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes(($body | ConvertTo-Json -Depth 5 -Compress)))
+      $j = [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray()) | ConvertFrom-Json
+      $link = Get-InboxLink ([string]$j.url)
+      $script:Lang = if ($j.lang -eq 'en') { 'en' } else { 'he' }
+      $files = @($script:InboxState.files)
+      Log ("inbox: batch {0}, {1} files" -f $j.id, $files.Count)
+      # only an address of the hub itself goes into the notification (Open-Inbox.ps1 checks it again)
+      if (Get-InboxOpenUrl $link $Cfg.hub) { Show-InboxToast (Get-InboxToastXml $files.Count @($files | ForEach-Object { $_.name }) $link) }
+      else { Log "inbox: the hub answered an address that is not its own: $($j.url)" }
+    }
+    $script:InboxKnown = @($pick.known)
+    Save-InboxKnown $script:InboxKnown
+  } catch {
+    Log "inbox: $($_.Exception.Message)"
+    $script:InboxRetryAt = [DateTime]::UtcNow.AddMinutes(1)
+  }
+}
+function Wait-Agent([int]$Seconds, $Cfg, [string]$Key) {
+  # a pause that keeps looking at the inbox
+  $until = [DateTime]::UtcNow.AddSeconds($Seconds)
+  while ([DateTime]::UtcNow -lt $until) { Start-Sleep -Seconds 3; if ($Key) { Step-Inbox $Cfg $Key } }
+}
+
+# the long poll runs on HttpClient, so the inbox is looked at every 3 seconds while it waits
+$http = New-Object Net.Http.HttpClient
+$http.Timeout = [TimeSpan]::FromSeconds(60)
 Log 'started'
 while ($true) {
   $cfg = Get-HelperConfig
   $key = Read-HelperKey
   if (-not $key) { Log 'no key: run Install-FileHelper.ps1'; Start-Sleep -Seconds 300; continue }
+  $req = $null; $resp = $null
   try {
     $uri = $cfg.hub.TrimEnd('/') + '/api/outlook/filing-next?pc=' + [uri]::EscapeDataString($env:COMPUTERNAME)
-    $r = Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Headers @{ Authorization = "Bearer $key" } -Uri $uri
-    $j = [Text.Encoding]::UTF8.GetString($r.RawContentStream.ToArray()) | ConvertFrom-Json
+    $req = New-Object Net.Http.HttpRequestMessage([Net.Http.HttpMethod]::Get, $uri)
+    $req.Headers.Authorization = New-Object Net.Http.Headers.AuthenticationHeaderValue('Bearer', $key)
+    $pending = $http.SendAsync($req)
+    while (-not $pending.Wait(3000)) { Step-Inbox $cfg $key }
+    Step-Inbox $cfg $key
+    $resp = $pending.Result
+    $code = [int]$resp.StatusCode
+    if ($code -eq 401) { Log 'the key was refused (401): issue a new key and run Install-FileHelper.ps1 again'; Start-Sleep -Seconds 300; continue }
+    if (-not $resp.IsSuccessStatusCode) { throw "HTTP $code" }
+    $j = [Text.Encoding]::UTF8.GetString($resp.Content.ReadAsByteArrayAsync().Result) | ConvertFrom-Json
     $t = $j.task
     if ($t -and (Test-TaskKind $t.kind) -and (Test-HelperToken $t.token)) {
       Log "task $($t.id) $($t.kind)"
@@ -32,8 +100,12 @@ while ($true) {
       Start-Process powershell.exe -ArgumentList @('-NoProfile', '-STA', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', "`"$runner`"", '-Token', $t.token)
     }
   } catch {
-    $code = try { [int]$_.Exception.Response.StatusCode } catch { 0 }
-    if ($code -eq 401) { Log 'the key was refused (401): issue a new key and run Install-FileHelper.ps1 again'; Start-Sleep -Seconds 300 }
-    else { Log "error: $($_.Exception.Message)"; Start-Sleep -Seconds 15 }
+    $e = $_.Exception
+    while ($e.InnerException) { $e = $e.InnerException }
+    Log "error: $($e.Message)"
+    Wait-Agent 15 $cfg $key
+  } finally {
+    if ($resp) { $resp.Dispose() }
+    if ($req) { $req.Dispose() }
   }
 }

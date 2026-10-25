@@ -1,6 +1,6 @@
 ﻿<# Project Hub — filing helper: one task from the pane, run on this PC. Started by the background agent
    (FileHelper-Agent.ps1) with the task's one-time token, which is its only permission: it reads the task, does the disk
-   work (pick the project folder / read its tree / open it / file; the folder is found by its root's name,
+   work (pick the project folder / read its tree / open it / file / publish from the export inbox; the folder is found by its root's name,
    Resolve-ProjectDir), posts the result and ends. The pane shows the result;
    the only window here is the folder picker of a "pick" task. On any failure the task is cancelled (best effort), so
    the pane does not wait for it, and the error goes to the log. The logic is in FileHelper.Core.ps1.
@@ -212,6 +212,11 @@ try {
           $res = Invoke-FileTask $dir $task $tmp
         }
       }
+    }
+    'inbox' {
+      # publishing from the export inbox: the files are on this PC already (the inbox is this PC's own folder, from the
+      # config); what was copied everywhere leaves the inbox
+      $res = Invoke-InboxTask (Resolve-ProjectDir $cfg ([string]$task.root) ([string]$task.folder)) $cfg.inbox $task
     }
   }
   [void](Api 'POST' '/result' $res)

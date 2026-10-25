@@ -2,9 +2,11 @@
    Asks for the person's Outlook add-in key (the one pasted in the add-in's pane), checks it with the hub and keeps
    it with DPAPI; copies the helper to %LOCALAPPDATA%\ProjectHub\file-helper; lists the project roots this PC
    reaches (the "@<Name> Projects" folders at the top of its drives); adds a Startup shortcut that runs the background agent
-   at every Windows sign-in, and starts it now. Run it again after an update or to replace the key.
+   at every Windows sign-in, and starts it now; makes the export inbox (Desktop\לתיוק unless -Inbox says otherwise) and
+   registers projecthub-inbox: (HKCU), the link of the inbox notification's "Open". Run it again after an update or to
+   replace the key.
    Saved as UTF-8 with BOM. #>
-param([string]$Hub = 'https://kkarc-hub.azurewebsites.net')
+param([string]$Hub = 'https://kkarc-hub.azurewebsites.net', [string]$Inbox = '')
 $ErrorActionPreference = 'Stop'
 function Say([string]$He, [string]$En) { Write-Host $He; Write-Host $En }
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -14,13 +16,14 @@ New-Item -ItemType Directory -Force -Path $dir | Out-Null
 
 # an agent of an earlier install is stopped first, so the new files are the ones that run
 Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -match 'FileHelper-Agent\.ps1' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
-foreach ($f in 'Run-Task.ps1', 'FileHelper.Core.ps1', 'FileHelper-Agent.ps1', 'run-file-helper-agent.vbs') { Copy-Item -LiteralPath (Join-Path $here $f) -Destination $dir -Force }
+foreach ($f in 'Run-Task.ps1', 'FileHelper.Core.ps1', 'FileHelper-Agent.ps1', 'run-file-helper-agent.vbs', 'Open-Inbox.ps1', 'open-inbox.vbs') { Copy-Item -LiteralPath (Join-Path $here $f) -Destination $dir -Force }
 # the filing window of the first version is gone: everything is in the Outlook pane now
 Remove-Item -LiteralPath (Join-Path $dir 'File-Helper.ps1') -Force -ErrorAction SilentlyContinue
 . (Join-Path $dir 'FileHelper.Core.ps1')
 
 $cfg = Get-HelperConfig
 $cfg.hub = $Hub.TrimEnd('/')
+if ($Inbox) { $cfg.inbox = [IO.Path]::GetFullPath($Inbox).TrimEnd('\') }
 # the roots are found on the drives at every task; a projectsRoot of an earlier version is kept as is
 Save-HelperConfig $cfg
 
@@ -44,6 +47,14 @@ while ($true) {
   }
 }
 
+# the export inbox, and its notification's link: projecthub-inbox:<the window's address> opens the hub's inbox window
+New-Item -ItemType Directory -Force -Path $cfg.inbox | Out-Null
+$proto = 'HKCU:\Software\Classes\projecthub-inbox'
+New-Item -Path "$proto\shell\open\command" -Force | Out-Null
+Set-ItemProperty -Path $proto -Name '(default)' -Value 'URL:Project Hub export inbox'
+Set-ItemProperty -Path $proto -Name 'URL Protocol' -Value ''
+Set-ItemProperty -Path "$proto\shell\open\command" -Name '(default)' -Value "wscript.exe //B //Nologo `"$dir\open-inbox.vbs`" `"%1`""
+
 # at every sign-in, and now
 $startup = [Environment]::GetFolderPath('Startup')
 $shell = New-Object -ComObject WScript.Shell
@@ -54,6 +65,7 @@ $lnk.Save()
 Start-Process wscript.exe -ArgumentList '//B', '//Nologo', "`"$dir\run-file-helper-agent.vbs`""
 
 Say 'הותקן. עוזר התיוק פועל ברקע, ויופעל מחדש בכל כניסה ל-Windows.' 'Installed. The filing helper runs in the background and starts again at every Windows sign-in.'
+Say "תיבת הייצוא: $($cfg.inbox) — קבצים שמייצאים אליה מוצעים לפרסום ב-PUBLISH של הפרויקט." "The export inbox: $($cfg.inbox) — files exported into it are offered for publishing to the project's PUBLISH."
 $roots = Get-ProjectRoots $cfg
 if ($roots.Count) {
   Say 'תיקיות הפרויקטים שהמחשב הזה מגיע אליהן:' 'The project folders this computer reaches:'
