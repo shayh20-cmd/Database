@@ -2283,6 +2283,22 @@ html[dir="ltr"] .hw-resize{cursor:nwse-resize;background:linear-gradient(-45deg,
 .cl-h3{font-size:15px;font-weight:800;margin:10px 0 0;}
 .cl-dl{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;text-decoration:none;margin:4px 0 6px;}
 .cl-dl-t{font-size:12.5px;line-height:1.6;color:var(--text-2);}
+/* Settings ← the five tools, one card each (ToolCard) */
+.st-nav-group{font-size:11px;font-weight:700;color:var(--text-3);padding:14px 10px 4px;}
+.tc-card{box-sizing:border-box;margin:24px;max-width:720px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 22px;}
+.tc-card .qa-feats,.tc-card .qa-sched,.tc-card .cl-url,.tc-card .cl-status:not(.on){background:var(--bg);}
+.tc-needs{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+.tc-needs-l{font-size:12px;font-weight:700;color:var(--text-2);margin-inline-end:2px;}
+.tc-need{font-size:12px;border:1px solid var(--border);border-radius:12px;padding:2px 9px;background:var(--bg);color:var(--text-2);}
+.tc-dl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.tc-dl .qa-dl{align-self:auto;}
+.tc-more{border-top:1px solid var(--border);padding-top:10px;}
+.tc-card .qa-mail{border-top:1px solid var(--border);padding-top:14px;display:flex;flex-direction:column;gap:8px;}
+.tc-card .qa-mail p{margin:0;}
+.tc-h3{font-size:15px;}
+.tc-card .cl-status{flex-wrap:wrap;}
+.tc-card .cl-st-txt{min-width:220px;}
+@media (max-width:700px){.tc-card{margin:12px;padding:16px;}}
 /* quick window, project picker, mail links, screenshots — lost with .cl-sc in 2919c1e */.qa-note code{direction:ltr;unicode-bidi:embed;font-size:11.5px;background:var(--bg);padding:1px 5px;border-radius:4px;}.qk-open-task{text-decoration:none;display:inline-flex;align-items:center;}.ver-bar{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:5000;display:flex;align-items:center;gap:10px;background:#0F172A;color:#fff;border-radius:10px;padding:8px 10px 8px 14px;box-shadow:0 10px 30px rgba(0,0,0,.3);font-family:Heebo,system-ui,sans-serif;font-size:13px;max-width:calc(100vw - 32px);}.ver-go{border:none;background:#2563EB;color:#fff;border-radius:7px;padding:5px 12px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;}.ver-go:hover{background:#1D4ED8;}.ver-x{border:none;background:none;color:#94A3B8;font-size:16px;cursor:pointer;padding:0 4px;line-height:1;}.ver-x:hover{color:#fff;}.pp{position:relative;}.pp-btn{display:flex;align-items:center;gap:8px;width:100%;cursor:pointer;text-align:start;font-family:inherit;background:var(--surface);color:var(--text);}.pp-btn:hover{border-color:var(--accent);}.pp-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;}.pp-ico{width:34px;text-align:center;flex-shrink:0;}.pp-caret{color:var(--text-3);font-size:11px;}.pp-pop{position:absolute;top:calc(100% + 4px);inset-inline:0;z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:9px;box-shadow:0 10px 28px rgba(15,23,42,.18);padding:4px;max-height:260px;overflow-y:auto;}.pp-opt{display:flex;align-items:center;gap:8px;width:100%;padding:7px 9px;border:none;background:none;border-radius:6px;cursor:pointer;font-family:inherit;font-size:13px;color:var(--text);text-align:start;}.pp-opt:hover{background:var(--bg);}.pp-opt.on{background:var(--accent-light,#EFF6FF);}.chp{display:flex;flex-wrap:wrap;gap:4px;}.chp-opt{font-family:inherit;font-size:11px;font-weight:700;border:1px solid;border-radius:10px;padding:2px 9px;cursor:pointer;line-height:1.5;}.chp-opt:hover:not(.on){filter:brightness(.96);box-shadow:0 0 0 1px currentColor inset;}.qk-row2{display:flex;gap:8px;align-items:flex-start;}.qk-row2 .af-input{height:36px;}.ml-box{display:flex;flex-direction:column;gap:5px;border-radius:8px;}.ml-box.over{outline:2px dashed var(--accent);outline-offset:2px;}.ml-chips{display:flex;flex-wrap:wrap;gap:5px;}.ml-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:1px 4px 1px 9px;font-size:12px;max-width:100%;}.ml-chip a{color:var(--accent);text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;}.ml-chip a:hover{text-decoration:underline;}.ml-x{border:none;background:none;color:var(--text-3);cursor:pointer;font-size:14px;line-height:1;padding:0 3px;}.ml-x:hover{color:#DC2626;}.ml-add{display:flex;gap:5px;align-items:center;}.ml-add .ml-url{flex:2;min-width:0;font-size:12px;padding:5px 8px;}.ml-add .ml-label{flex:1;min-width:0;font-size:12px;padding:5px 8px;}.ml-btn{flex-shrink:0;border:1px solid var(--border);background:var(--surface);border-radius:7px;padding:5px 9px;font-family:inherit;font-size:12px;color:var(--text-2);cursor:pointer;white-space:nowrap;}.ml-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}.ml-err{font-size:11.5px;color:#DC2626;}.src-cell{display:flex;flex-direction:column;gap:6px;align-items:flex-start;width:100%;}.src-cell .ml-box{width:100%;}.ev-mail-row .ml-box{width:100%;}.ev-mail-row .ml-url{font-size:11px;}.nt-extra{display:flex;flex-direction:column;gap:5px;}
 .nt-title-wrap{position:relative;}
 .nt-title-wrap .nt-title{width:100%;box-sizing:border-box;padding-inline-end:40px;}
@@ -13792,7 +13808,7 @@ function QuickMail({data,save}){
   useEffect(()=>{if(!d||!d.items)return;const seen=mailSeenGet();d.items.forEach(i=>seen.add(i.id));mailSeenSet(seen);},[d]);
   return h("div",{className:"qk-shell"},h("div",{className:"qk-hdr"},h("span",{className:"qk-brand"},"PROJECT HUB · הצעות מהמייל"),h("a",{className:"qk-open",href:"/project_hub_01?view=mail",target:"_blank",rel:"noopener"},"פתיחת Project Hub ↗")),h(MailSuggestionsPanel,{data,save,always:true}));
 }
-/* Settings ← גישה מהירה ← סריקת מייל: the scanner's personal key (shown once), and whether Claude is set up on the server. */
+/* Settings ← תוסף Outlook וסריקת מייל ← סריקת מייל: the scanner's personal key (shown once), and whether Claude is set up on the server. */
 const MAIL_SCHED_DEFAULT={days:[0,1,2,3,4],times:['08:00','12:00','16:00']};
 function MailScanSettings(){
   const h=React.createElement;
@@ -13820,7 +13836,7 @@ function MailScanSettings(){
   /* suggestions from new mail: off unless turned on (the Outlook add-in replaced them; linked threads are logged either way) */
   const saveSuggest=on=>{setErr('');setSt(x=>x&&{...x,suggest:on});fetch('/api/mail-connection/suggest',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({suggest:on})}).then(async r=>{if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||('HTTP '+r.status));}mailSug.load();}).catch(e=>{setErr(e.message);load();});};
   return h("div",{className:"qa-mail"},
-    h("h2",{className:"qa-h"},"סריקת מייל"),
+    h("h3",{className:"qa-h tc-h3"},"סריקת מייל"),
     h("p",{className:"qa-lead"},"Project Hub סורק את תיבת הדואר שלך דרך Outlook שבמחשב: מייל חדש בשרשור שקשור למשימה נרשם בה, ואם תבחר — Claude גם מציע משימות, בראש 'המשימות שלי'."),
     st?h("label",{style:{display:'flex',gap:8,alignItems:'center',margin:'4px 0',cursor:'pointer'}},h("input",{type:"checkbox",checked:!!st.suggest,onChange:e=>saveSuggest(e.target.checked)}),h("span",null,"הצע משימות ממיילים חדשים")):null,
     st?h("p",{className:"qa-note"},st.suggest?"דלוק: Claude מציע משימות מכל מייל חדש, ומיילים בשרשורים שקשורים למשימה נרשמים בה.":"כבוי: הסורק רק רושם מיילים חדשים בשרשורים שקשורים למשימה (דרך תוסף Outlook), בלי הצעות."):null,
@@ -13828,6 +13844,9 @@ function MailScanSettings(){
     key?h("div",{className:"qa-mail-key"},h("p",null,"המפתח שלך (מוצג פעם אחת בלבד):"),h("code",{"data-i18n-skip":"",style:{userSelect:'all',wordBreak:'break-all'}},key),' ',h("button",{type:"button",className:"np-btn",onClick:()=>navigator.clipboard&&navigator.clipboard.writeText(key)},"העתק")):null,
     h("p",null,has?tx('מפתח פעיל מ-{d}. שימוש אחרון: {u}',{d:fmtMailWhen(st.key.created),u:st.key.lastUsed?fmtMailWhen(st.key.lastUsed):tx('עדיין לא')}):"אין מפתח פעיל."),
     h("div",{style:{display:'flex',gap:8,flexWrap:'wrap'}},h("button",{type:"button",className:"np-btn primary",onClick:issue},has?"הפק מפתח חדש":"הפק מפתח"),has?h("button",{type:"button",className:"np-btn",onClick:revoke},"בטל מפתח"):null),
+    h("div",{className:"tc-dl"},h("a",{className:"np-btn primary qa-dl",href:"/ProjectHub-MailScan-Setup.cmd",download:"ProjectHub-MailScan-Setup.cmd"},"⬇ התקנת סריקת המייל"),h("a",{className:"np-btn qa-dl",href:"/ProjectHub-MailScan-Uninstall.cmd",download:"ProjectHub-MailScan-Uninstall.cmd"},"⬇ קובץ הסרה")),
+    h("p",{className:"qa-note"},"התקנה (פעם אחת בכל מחשב, בלי הרשאות מנהל): מפיקים מפתח, מריצים את הקובץ שירד ומדביקים את המפתח בחלון שנפתח. בסוף רצה בדיקה שמראה אילו מיילים היו נשלחים, בלי לשלוח."),
+    h("p",{className:"qa-note"},tx('או מתיקיית Project Hub במחשב: {cmd}',{cmd:'powershell -ExecutionPolicy Bypass -File tools\\mail-scan\\Install-MailScan.ps1'})),
     has?(()=>{const now=new Date();const last=(sug&&sug.scan&&sug.scan.lastScanAt)||st.lastScanAt;const w=mailScanWhen(nextMailScan(sched,now),now);
       const nextText=!w?tx('אין סריקות אוטומטיות'):w.day==='today'?tx('היום {t}',{t:w.time}):w.day==='tomorrow'?tx('מחר {t}',{t:w.time}):tx('{d} {t}',{d:w.day,t:w.time});
       return h("div",{className:"qa-sched"},
@@ -13844,10 +13863,9 @@ function MailScanSettings(){
         h("p",{className:"qa-sched-line"},tx('נסרק לאחרונה: {l} · הסריקה הבאה: {n}',{l:last?fmtMailWhen(last):tx('עדיין לא'),n:nextText})),
         h("div",{className:"qa-sched-row"},h("button",{type:"button",className:"np-btn",onClick:scanNow},"סרוק עכשיו")),
         scanNote?h("div",{className:"mail-sug-note",role:"status"},MAIL_SCAN_NOTE):null);})():null,
-    h("p",{className:"qa-note"},tx('התקנה (פעם אחת, בלי הרשאות מנהל): בתיקיית Project Hub מריצים {cmd} ומדביקים את המפתח כשהוא מתבקש.',{cmd:'powershell -ExecutionPolicy Bypass -File tools\\mail-scan\\Install-MailScan.ps1'})),
     err?h("div",{className:"mail-sug-err","data-i18n-skip":""},err):null);
 }
-/* Settings ← גישה מהירה ← תוסף Outlook: the personal key the add-in's pane asks for, and the add-in file.
+/* Settings ← תוסף Outlook וסריקת מייל ← תוסף Outlook: the personal key the add-in's pane asks for, and the add-in file.
    Spec: docs/superpowers/specs/2026-10-21-outlook-addin-design.md */
 function OutlookAddinSettings(){
   const h=React.createElement;
@@ -13860,13 +13878,14 @@ function OutlookAddinSettings(){
   const revoke=()=>{if(!confirm(tx('לבטל את המפתח? התוסף יפסיק לעבוד עד שיודבק מפתח חדש.')))return;setErr('');fetch('/api/outlook-connection',{method:'DELETE'}).then(async r=>{if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(j.error||('HTTP '+r.status));}setKey('');load();}).catch(e=>setErr(e.message));};
   const has=!!(st&&st.key);
   return h("div",{className:"qa-mail"},
-    h("h2",{className:"qa-h"},"תוסף Outlook"),
+    h("h3",{className:"qa-h tc-h3"},"תוסף Outlook"),
     h("p",{className:"qa-lead"},"חלונית Project Hub בתוך Outlook: יוצרים משימה, מעדכנים או מצרפים קבצים ישר מהמייל, ומיילים בשרשור שקשור למשימה נרשמים בה לבד."),
     key?h("div",{className:"qa-mail-key"},h("p",null,"המפתח שלך (מוצג פעם אחת בלבד):"),h("code",{"data-i18n-skip":"",style:{userSelect:'all',wordBreak:'break-all'}},key),' ',h("button",{type:"button",className:"np-btn",onClick:()=>navigator.clipboard&&navigator.clipboard.writeText(key)},"העתק")):null,
     h("p",null,has?tx('מפתח פעיל מ-{d}. שימוש אחרון: {u}',{d:fmtMailWhen(st.key.created),u:st.key.lastUsed?fmtMailWhen(st.key.lastUsed):tx('עדיין לא')}):"אין מפתח פעיל."),
     h("div",{style:{display:'flex',gap:8,flexWrap:'wrap'}},h("button",{type:"button",className:"np-btn primary",onClick:issue},has?"הפק מפתח חדש":"הפק מפתח"),has?h("button",{type:"button",className:"np-btn",onClick:revoke},"בטל מפתח"):null),
     h("p",{style:{marginTop:12}},h("a",{className:"np-btn qa-dl",href:"/outlook/manifest.xml",download:"project-hub-outlook.xml"},"⬇ הורדת קובץ התוסף")),
     h("p",{className:"qa-note"},"התקנה (פעם אחת): ב-Outlook בדפדפן פותחים את aka.ms/olksideload ← התוספים שלי ← הוסף תוסף מותאם אישית ← מקובץ, ובוחרים את הקובץ. אחר כך, במייל: אפליקציות ← Project Hub, ומדביקים את המפתח. התוסף מופיע גם ב-Outlook החדש וב-Outlook הקלאסי באותו חשבון."),
+    h("p",{className:"qa-note"},"הסרה: באותו מסך, התוספים שלי ← Project Hub ← הסר. אותו מפתח משמש גם את עוזר התיוק (תיוק מהיר)."),
     err?h("div",{className:"mail-sug-err","data-i18n-skip":""},err):null);
 }
 /* ── Quick access (2026-10-04): ?quick=new | update opens a compact window for adding a task or an
@@ -21760,23 +21779,26 @@ function QuickAccessSettings() {
   }, title), body && h("div", {
     className: "qa-step-b"
   }, body)));
-  return h("div", {
-    className: "qa-wrap"
-  }, h("h2", {
-    className: "qa-h"
-  }, "גישה מהירה"), h("p", {
-    className: "qa-lead"
-  }, "חלון קטן להוספת משימה או עדכון, מכל מקום ב-Windows — בלי לפתוח את Project Hub."), h("div", {
+  return h(ToolCard, {
+    title: "גישה מהירה",
+    what: "חלון קטן להוספת משימה או עדכון, מכל מקום ב-Windows — בלי לפתוח את Project Hub.",
+    needs: ["Windows", "Chrome או Edge", "חשבון kkarc.com"],
+    downloads: [{
+      href: "/ProjectHub-Setup.cmd",
+      label: "⬇ הורדת קובץ ההתקנה",
+      primary: true
+    }, {
+      href: "/ProjectHub-Uninstall.cmd",
+      label: "⬇ קובץ הסרה"
+    }],
+    more: "tools/quick-access/README.md"
+  }, h("div", {
     className: "qa-feats"
-  }, h("div", null, h("b", null, "Ctrl+Alt+Q"), " — משימה חדשה; בלשונית למעלה עוברים לעדכון משימה"), h("div", null, h("b", null, "כפתור בשורת המשימות"), " — עם הקוביה וה-+"), h("div", null, h("b", null, "לחצן ימני"), " על שולחן העבודה או בתוך תיקייה — משימה חדשה (הנתיב של התיקייה נכנס להערה)")), h("a", {
-    className: "np-btn primary qa-dl",
-    href: "/ProjectHub-Setup.cmd",
-    download: "ProjectHub-Setup.cmd"
-  }, "⬇ הורדת קובץ ההתקנה"), h("ol", {
+  }, h("div", null, h("b", null, "Ctrl+Alt+Q"), " — משימה חדשה; בלשונית למעלה עוברים לעדכון משימה"), h("div", null, h("b", null, "כפתור בשורת המשימות"), " — עם הקוביה וה-+"), h("div", null, h("b", null, "לחצן ימני"), " על שולחן העבודה או בתוך תיקייה — משימה חדשה (הנתיב של התיקייה נכנס להערה)")), h("ol", {
     className: "qa-steps"
   }, step(1, "לחצו פעמיים על הקובץ שירד (ProjectHub-Setup.cmd)", "אם Chrome שואל אם לשמור — 'שמור'."), step(2, "אם מופיע 'Windows protected your PC'", "לחצו 'More info' ואז 'Run anyway'. הקובץ לא דורש הרשאות מנהל ומשנה רק את המשתמש שלכם."), step(3, "בסיום נפתחת תיקייה עם שלושה קיצורים", "לחצן ימני על 'Project Hub - משימה חדשה' ← 'הצמד לשורת המשימות' (ב-Windows 11 תחת 'הצג אפשרויות נוספות')."), step(4, "בפעם הראשונה", "החלון יבקש להיכנס עם חשבון kkarc.com.")), h("p", {
     className: "qa-note"
-  }, "עדכונים בחלון עצמו מגיעים לבד. אם משתנים הקיצורים עצמם (המקש, האייקון) — מורידים ומריצים שוב, וזה מחליף את הקודם. להסרה: ", h("code", null, "%LOCALAPPDATA%\\Programs\\ProjectHub\\Uninstall-ProjectHub.cmd")), h(MailScanSettings, null), h(OutlookAddinSettings, null));
+  }, "עדכונים בחלון עצמו מגיעים לבד. אם משתנים הקיצורים עצמם (המקש, האייקון) — מורידים ומריצים שוב, וזה מחליף את הקודם. להסרה: ", h("code", null, "%LOCALAPPDATA%\\Programs\\ProjectHub\\Uninstall-ProjectHub.cmd")));
 }
 /* Settings ← Claude: connect one's own Claude to Project Hub (the connector at /mcp), see
    whether it is connected and when it was last used, and cut it off from here. The adding
@@ -21834,17 +21856,19 @@ function ClaudeSettings() {
   }, title), body && h("div", {
     className: "qa-step-b"
   }, body)));
-  return h("div", {
-    className: "qa-wrap"
-  }, h("h2", {
-    className: "qa-h cl-h"
-  }, h("span", {
-    className: "cl-mark"
-  }, h(ClaudeMark, {
-    size: 16
-  })), "Claude"), h("p", {
-    className: "qa-lead"
-  }, "מחברים את Claude ל-Project Hub פעם אחת, ומאז מבקשים ממנו בשפה רגילה להוסיף משימות, לעדכן, להכניס סיכום ישיבה או למחוק — והוא עושה את זה בשמך. הכי נוח: Project Hub פתוח בכרום, וחלונית Claude פתוחה לצידו."), h("div", {
+  return h(ToolCard, {
+    title: "Claude",
+    mark: h("span", {
+      className: "cl-mark"
+    }, h(ClaudeMark, {
+      size: 16
+    })),
+    what: "מחברים את Claude ל-Project Hub פעם אחת, ומאז מבקשים ממנו בשפה רגילה להוסיף משימות, לעדכן, להכניס סיכום ישיבה או למחוק — והוא עושה את זה בשמך. הכי נוח: Project Hub פתוח בכרום, וחלונית Claude פתוחה לצידו.",
+    needs: ["חשבון Claude (גם חינמי)", "Chrome, לחלונית Claude לצד Project Hub"],
+    more: "tools/claude-skill/hub/SKILL.md · tools/local-server/mcp.js"
+  }, h("p", {
+    className: "qa-note"
+  }, "אין מה להתקין במחשב: החיבור נעשה בהגדרות של Claude. כדי לנתק — 'נתק' כאן, ולהסיר את ה-Connector גם בהגדרות של Claude."), h("div", {
     className: 'cl-status' + (st && st.connected ? ' on' : ''),
     role: "status"
   }, st === null ? h("span", null, "בודק את החיבור…") : st.connected ? h(React.Fragment, null, h("span", {
@@ -21898,6 +21922,136 @@ function ClaudeSettings() {
     className: "qa-note"
   }, "השימוש נספר על המכסה של חשבון ה-Claude שלך (גם חינמי עובד, עם מכסה קטנה יותר). הרשאות: Claude רואה ומשנה רק מה שאתה רשאי בתוכנה."));
 }
+/* Settings ← the five tools (גישה מהירה, תיוק מהיר, תוסף Outlook וסריקת מייל, Claude, בוט טלגרם): one card each —
+   what it does, who it is for and what it needs, the install and uninstall downloads (the one-click installers are
+   built by the server per request, tools/local-server/installers.js), the key and the status where there are any,
+   and the README in the repo for admins. */
+function ToolCard({
+  title,
+  mark,
+  what,
+  needs,
+  downloads,
+  more,
+  children
+}) {
+  const h = React.createElement;
+  return h("section", {
+    className: "qa-wrap tc-card"
+  }, h("h2", {
+    className: "qa-h cl-h"
+  }, mark || null, title), h("p", {
+    className: "qa-lead"
+  }, what), needs && needs.length ? h("div", {
+    className: "tc-needs"
+  }, h("span", {
+    className: "tc-needs-l"
+  }, "למי ומה צריך:"), needs.map(n => h("span", {
+    key: n,
+    className: "tc-need"
+  }, n))) : null, downloads && downloads.length ? h("div", {
+    className: "tc-dl"
+  }, downloads.map(d => h("a", {
+    key: d.href,
+    className: 'np-btn qa-dl' + (d.primary ? ' primary' : ''),
+    href: d.href,
+    download: d.href.slice(1)
+  }, d.label))) : null, ...React.Children.toArray(children), more ? h("p", {
+    className: "qa-note tc-more"
+  }, "עוד פרטים, למנהלי המערכת:", " ", h("code", null, more)) : null);
+}
+/* Settings ← תיוק מהיר: the filing helper on the person's PC (tools/file-helper) — the Outlook pane's filing and the
+   export inbox. Its key is the Outlook add-in's, issued in the next card; here only whether there is one. */
+function FileHelperSettings({
+  onGoKey
+}) {
+  const h = React.createElement;
+  const [st, setSt] = useState(undefined);
+  const [open, setOpen] = useState(null);
+  useEffect(() => {
+    fetch('/api/outlook-connection', {
+      cache: 'no-store'
+    }).then(r => r.ok ? r.json() : null).then(setSt).catch(() => setSt(null));
+    fetch('/api/filing-hub/inbox-open', {
+      cache: 'no-store'
+    }).then(r => r.ok ? r.json() : null).then(l => setOpen(Array.isArray(l) ? l : null)).catch(() => setOpen(null));
+  }, []);
+  const has = !!(st && st.key);
+  const waiting = open ? open.reduce((n, b) => n + (b.files || 0), 0) : 0;
+  const step = (n, title, body) => h("li", {
+    className: "qa-step"
+  }, h("span", {
+    className: "qa-n"
+  }, n), h("div", null, h("div", {
+    className: "qa-step-t"
+  }, title), body && h("div", {
+    className: "qa-step-b"
+  }, body)));
+  return h(ToolCard, {
+    title: "תיוק מהיר",
+    what: "עוזר קטן שרץ ברקע במחשב ועושה את העבודה בדיסק: מתייק קבצים ממייל לתיקיית הפרויקט מתוך חלונית תוסף ה-Outlook, ומפרסם ל-PUBLISH של הפרויקט קבצים שמייצאים לתיבת הייצוא. שום דבר לא נמחק או נדרס.",
+    needs: ["Windows", "Chrome", "גישה לתיקיות הפרויקטים של המשרד", "המפתח האישי של תוסף Outlook"],
+    downloads: [{
+      href: "/ProjectHub-FileHelper-Setup.cmd",
+      label: "⬇ הורדת קובץ ההתקנה",
+      primary: true
+    }, {
+      href: "/ProjectHub-FileHelper-Uninstall.cmd",
+      label: "⬇ קובץ הסרה"
+    }],
+    more: "tools/file-helper/README.md"
+  }, h("div", {
+    className: 'cl-status' + (has ? ' on' : ''),
+    role: "status"
+  }, h("span", {
+    className: "cl-dot"
+  }), h("div", {
+    className: "cl-st-txt"
+  }, st === undefined ? h("span", null, "בודק את המפתח…") : h(React.Fragment, null, h("b", null, has ? "יש לך מפתח פעיל של תוסף Outlook" : "אין לך עדיין מפתח של תוסף Outlook"), h("span", null, has ? "ההתקנה תבקש אותו. המפתח מוצג רק פעם אחת, כשמפיקים אותו; מפתח חדש מחליף את הקודם גם בתוסף." : "הפק אותו לפני ההתקנה: אותו מפתח משמש את התוסף ואת עוזר התיוק."))), h("button", {
+    type: "button",
+    className: "np-btn",
+    onClick: onGoKey
+  }, "למפתח של תוסף Outlook")), waiting ? h("p", {
+    className: "qa-note",
+    role: "status"
+  }, waiting === 1 ? tx('תיבת הייצוא — קובץ אחד') : tx('תיבת הייצוא — {n} קבצים', {
+    n: waiting
+  })) : null, h("div", {
+    className: "qa-feats"
+  }, h("div", null, "תיבת הייצוא היא תיקייה על שולחן העבודה בכל מחשב:", " ", h("code", {
+    dir: "ltr",
+    "data-i18n-skip": ""
+  }, "Desktop\\לתיוק"), ". ", "מייצאים אליה מ-Revit, AutoCAD או מדפסת PDF, ומופיעה התראה עם 'פתח'."), h("div", null, "בחלון הגישה המהירה (Ctrl+Alt+Q), הלשונית 'תיוק קבצים' מציגה את הקבצים שמחכים ומפרסמת אותם."), h("div", null, "כשיש קבצים שמחכים, 'תיבת הייצוא' מופיעה בראש התפריט של Project Hub, עם מספר הקבצים."), h("div", null, "תיוק ממייל: בחלונית של תוסף Outlook בוחרים את תיקיית הפרויקט, Claude מציע לאן כל קובץ, ומאשרים.")), h("ol", {
+    className: "qa-steps"
+  }, step(1, "מפיקים מפתח לתוסף Outlook", "בכרטיס 'תוסף Outlook וסריקת מייל' (הכפתור למעלה מוביל אליו), ומעתיקים אותו."), step(2, "לחצו פעמיים על הקובץ שירד (ProjectHub-FileHelper-Setup.cmd)", "אם מופיע 'Windows protected your PC' — 'More info' ואז 'Run anyway'. הקובץ לא דורש הרשאות מנהל."), step(3, "מדביקים את המפתח בחלון שנפתח", "ההתקנה בודקת אותו מול השרת, שומרת אותו מוצפן במחשב ומפעילה את העוזר. הוא יופעל מחדש בכל כניסה ל-Windows."), step(4, "בסוף: סוגרים את Chrome ופותחים אותו מחדש", "הודעת הסיום מציגה גם את הנתיב של תיבת הייצוא.")), h("p", {
+    className: "qa-note"
+  }, "אחרי עדכון של העוזר מורידים ומריצים שוב — זה מחליף את הקודם. ההסרה משאירה את תיבת הייצוא ואת הקבצים שבה."));
+}
+/* Settings ← תוסף Outlook וסריקת מייל: the add-in and the mail scanner, each with its own key. */
+function OutlookMailSettings() {
+  const h = React.createElement;
+  return h(ToolCard, {
+    title: "תוסף Outlook וסריקת מייל",
+    what: "שני חיבורים בין המייל ל-Project Hub. התוסף מוסיף ל-Outlook חלונית: יוצרים משימה, מעדכנים או מצרפים קבצים ישר מהמייל. הסריקה רצה במחשב בשעות שבוחרים, ורושמת מיילים חדשים בשרשורים שקשורים למשימה.",
+    needs: ["התוסף: Outlook בדפדפן, החדש או הקלאסי", "הסריקה: Windows ו-Outlook הקלאסי", "מפתח אישי לכל אחד מהשניים"],
+    more: "outlook/README.md · tools/mail-scan/README.md"
+  }, h(OutlookAddinSettings, null), h(MailScanSettings, null));
+}
+/* Settings ← בוט טלגרם: the pilot, explained; nothing to install from here. */
+function TelegramSettings() {
+  const h = React.createElement;
+  return h(ToolCard, {
+    title: "בוט טלגרם",
+    what: h(React.Fragment, null, "פיילוט: כותבים בטלגרם לבוט ", h("span", {
+      dir: "ltr"
+    }, "@ProjectHub01_Bot"), ", ", "ו-Claude מתעד ב-Project Hub — מוסיף משימות ועדכונים, ומבקש אישור לפני כל שינוי."),
+    needs: ["Telegram", "הוספה על ידי מנהל המערכת"]
+  }, h("div", {
+    className: "qa-feats"
+  }, h("div", null, "הבוט רץ במחשב אחד במשרד, עם Claude Code (Channels ותוסף ה-telegram הרשמי) ומנוי Claude. הוא עונה רק כשהמחשב הזה דולק והבוט פועל בו."), h("div", null, "כרגע רק החשבון של מנהל המערכת במשרד מחובר לבוט; הודעות מחשבונות אחרים לא מגיעות אליו."), h("div", null, "אין התקנה בלחיצה אחת: כל חשבון טלגרם נוסף מתווסף ידנית, במחשב שבו הבוט רץ.")), h("p", {
+    className: "qa-note"
+  }, "רוצים להצטרף? פנו למנהל המערכת במשרד, עם שם המשתמש שלכם בטלגרם."));
+}
 function OfficeSettingsView({
   data,
   save
@@ -21933,13 +22087,27 @@ function OfficeSettingsView({
     label: 'גרפיקה',
     icon: 'palette'
   }, {
+    group: 'כלים וחיבורים'
+  }, {
     id: 'quick',
     label: 'גישה מהירה',
     icon: 'tasks'
   }, {
+    id: 'filing',
+    label: 'תיוק מהיר',
+    icon: 'projects'
+  }, {
+    id: 'outlook',
+    label: 'Outlook וסריקת מייל',
+    icon: 'share'
+  }, {
     id: 'claude',
     label: 'Claude',
     icon: 'claude'
+  }, {
+    id: 'telegram',
+    label: 'בוט טלגרם',
+    icon: 'meetings'
   }];
   return /*#__PURE__*/React.createElement("div", {
     className: "st-wrap"
@@ -21948,7 +22116,10 @@ function OfficeSettingsView({
     "aria-label": "הגדרות"
   }, /*#__PURE__*/React.createElement("div", {
     className: "st-nav-title"
-  }, "הגדרות"), SECTIONS.map(s => /*#__PURE__*/React.createElement("button", {
+  }, "הגדרות"), SECTIONS.map(s => s.group ? React.createElement("div", {
+    key: s.group,
+    className: "st-nav-group"
+  }, s.group) : /*#__PURE__*/React.createElement("button", {
     key: s.id,
     className: 'st-nav-item' + (section === s.id ? ' on' : ''),
     "aria-current": section === s.id ? 'page' : undefined,
@@ -21976,7 +22147,9 @@ function OfficeSettingsView({
   }), section === 'library' && /*#__PURE__*/React.createElement(OfficeLibraryView, {
     data: data,
     save: save
-  }), section === 'graphics' && /*#__PURE__*/React.createElement(GraphicsSettings, null), section === 'quick' && React.createElement(QuickAccessSettings, null), section === 'claude' && React.createElement(ClaudeSettings, null)));
+  }), section === 'graphics' && /*#__PURE__*/React.createElement(GraphicsSettings, null), section === 'quick' && React.createElement(QuickAccessSettings, null), section === 'filing' && React.createElement(FileHelperSettings, {
+    onGoKey: () => setSection('outlook')
+  }), section === 'outlook' && React.createElement(OutlookMailSettings, null), section === 'claude' && React.createElement(ClaudeSettings, null), section === 'telegram' && React.createElement(TelegramSettings, null)));
 }
 function App(){const[data,setData]=useState(null);const[,setLangTick]=useState(0);useEffect(()=>{const onLang=()=>setLangTick(t=>t+1);window.addEventListener('i18n:change',onLang);return()=>window.removeEventListener('i18n:change',onLang);},[]);const[loadError,setLoadError]=useState(false);const[saveError,setSaveError]=useState(false);const[readOnlyNotice,setReadOnlyNotice]=useState(0);useEffect(()=>{if(!readOnlyNotice)return;const t=setTimeout(()=>setReadOnlyNotice(0),3000);return()=>clearTimeout(t);},[readOnlyNotice]);const[externalNotice,setExternalNotice]=useState('');const fileHandleRef=useRef(null);const[editName,setEditName]=useState(false);const[nameDraft,setNameDraft]=useState('');const MAX_HIST=20;/* enough to walk back a working session; every step keeps a shallow copy of the project, so it stays light */const[pastStack,setPastStack]=useState([]);// [{snapshot, label}]
 const[futureStack,setFutureStack]=useState([]);// [{snapshot, label}]
