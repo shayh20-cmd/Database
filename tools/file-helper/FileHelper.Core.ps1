@@ -4,6 +4,10 @@
    checked to stay inside the project folder before anything is done. Nothing here deletes or overwrites.
    A "file" task's attachments are saved from classic Outlook on this PC when it has the email (Get-NeededFiles,
    Get-AttachmentMatch, the filters); the server's copy is the fallback.
+   The export inbox (Desktop\לתיוק): files exported there are noticed once they settle (Get-InboxState,
+   Select-InboxAnnouncement), announced with a notification whose link opens the hub's inbox window (Get-InboxLink,
+   Get-InboxOpenUrl), and published on request (Invoke-InboxTask) — the one place a file is deleted: the inbox's own
+   copy, after it was copied to every place the plan names.
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md
    Saved as UTF-8 with BOM (Windows PowerShell 5.1 reads Hebrew right only then). #>
 
@@ -11,12 +15,17 @@ $script:ConfigPath = Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper.json'
 $script:FmProjects = Join-Path $env:LOCALAPPDATA 'FolderManager\projects.json'
 $script:KeyPath = Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper.key'
 $script:LogPath = Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper.log'
+$script:InboxKnownPath = Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper-inbox.json'
 
 # ── texts: Hebrew is the source; English when the pane that made the task runs in English. The helper shows only
 #    the folder picker; everything else is said in the pane. ──
 $script:Lang = 'he'
 $script:EN = @{
   'בחר את התיקייה הראשית של הפרויקט {p}' = 'Choose the main folder of project {p}'
+  '{n} קבצים חדשים בתיבת הייצוא' = '{n} new files in the export inbox'
+  'קובץ חדש בתיבת הייצוא' = 'A new file in the export inbox'
+  'פתח' = 'Open'
+  'אחר כך' = 'Later'
 }
 function T([string]$He, [hashtable]$Slots) {
   $s = if ($script:Lang -eq 'en' -and $script:EN.ContainsKey($He)) { $script:EN[$He] } else { $He }
@@ -175,6 +184,8 @@ function Get-HelperConfig([string]$Path = $script:ConfigPath) {
     projectsRoot = $(if ($c -and $c.projectsRoot) { [string]$c.projectsRoot } else { '' })
     # roots picked outside every "@* projects" folder found on the drives: name → full path
     roots = (Get-ConfigRoots $c)
+    # the export inbox: one folder on this PC that Revit / AutoCAD / a PDF printer export into
+    inbox = $(if ($c -and $c.inbox) { [string]$c.inbox } else { Join-Path ([Environment]::GetFolderPath('Desktop')) 'לתיוק' })
   }
 }
 function Get-ConfigRoots($Config) {
@@ -191,7 +202,7 @@ function Save-HelperConfig($Config, [string]$Path = $script:ConfigPath) {
 }
 
 # ── the tasks the server hands this PC (Run-Task.ps1 does the network and the window) ──
-function Test-TaskKind([string]$Kind) { return $Kind -in @('pick', 'tree', 'open', 'file') }
+function Test-TaskKind([string]$Kind) { return $Kind -in @('pick', 'tree', 'open', 'file', 'inbox') }
 # ── the project roots: the office keeps projects on many computers, each sharing a drive whose top holds a folder
 #    named "@<Name> Projects" (any case). Drive letters differ between PCs; the root's folder name is what the server
 #    keeps with each project's folder. ──
@@ -466,4 +477,156 @@ function Invoke-FileTask([string]$Dir, $Task, [string]$SourceDir) {
   if (-not $Dir) { return @{ missing = $true } }
   try { $r = Invoke-FilingPlan $Dir $Task.plan $SourceDir } catch { return @{ files = @(); error = $_.Exception.Message } }
   return @{ files = @($r.files); error = $r.error }
+}
+
+# ── the export inbox ──
+function Test-FileLocked([string]$Path) {
+  # still being written (or held open for writing by the program that exports it): it cannot be opened for reading
+  # while others may only read it. A program that only reads it (a viewer) is no lock, and this read blocks no one.
+  try { $f = [IO.File]::Open($Path, 'Open', 'Read', 'Read'); $f.Close(); return $false } catch { return $true }
+}
+function Get-InboxKey($File) { return '{0}|{1}|{2}' -f $File.name, $File.size, $File.mtime.Ticks }
+function Get-InboxState([string]$Dir, $Prev, [datetime]$Now = [DateTime]::UtcNow, [scriptblock]$IsLocked = { param($p) Test-FileLocked $p }, [int]$SettleSec = 10, [string[]]$Known = @()) {
+  # the inbox's files (no folders, hidden files, Office lock files "~$…", *.tmp, *.part or empty files), each with its
+  # size and time; "settled" once the list, the sizes and the times have not changed for $SettleSec seconds (counted
+  # from the state $Prev of the check before) and no file is held open by a program writing it. The lock test runs only
+  # when something is to be announced (a file not in $Known, the inbox when it last settled): known files are not opened.
+  $files = @()
+  if ($Dir -and [IO.Directory]::Exists($Dir)) {
+    $files = @(foreach ($f in ([IO.DirectoryInfo]$Dir).GetFiles()) {
+      if ($f.Attributes -band ([IO.FileAttributes]::Hidden -bor [IO.FileAttributes]::System)) { continue }
+      if ($f.Name -like '~$*' -or $f.Name -like '*.tmp' -or $f.Name -like '*.part' -or $f.Length -eq 0) { continue }
+      [pscustomobject]@{ name = $f.Name; size = [long]$f.Length; mtime = $f.LastWriteTimeUtc }
+    })
+  }
+  $keys = @($files | ForEach-Object { Get-InboxKey $_ } | Sort-Object)
+  $sig = $keys -join "`n"
+  $since = if ($Prev -and $Prev.sig -eq $sig) { $Prev.since } else { $Now }
+  $settled = ($Now - $since).TotalSeconds -ge $SettleSec
+  $known = @($Known | Where-Object { $_ })
+  if ($settled -and @($keys | Where-Object { $known -notcontains $_ }).Count) {
+    foreach ($f in $files) { if (& $IsLocked (Join-Path $Dir $f.name)) { $settled = $false; break } }
+  }
+  return [pscustomobject]@{ files = $files; keys = $keys; sig = $sig; since = $since; settled = $settled }
+}
+function Select-InboxAnnouncement($State, [string[]]$Known) {
+  # what a settled inbox means: announce when it holds a file (name + size + time) not known before; a file that only
+  # left (published, deleted) is forgotten without a word. Known = the inbox when it last settled.
+  $known = @($Known | Where-Object { $_ })
+  if (-not $State.settled) { return [pscustomobject]@{ announce = $false; changed = $false; known = $known } }
+  $now = @($State.keys)
+  $new = @($now | Where-Object { $known -notcontains $_ })
+  $changed = $new.Count -gt 0 -or @($known | Where-Object { $now -notcontains $_ }).Count -gt 0
+  return [pscustomobject]@{ announce = ($new.Count -gt 0); changed = $changed; known = $now }
+}
+function Test-InboxRecheck($State, [datetime]$Now, [datetime]$Due) {
+  # time to ask the hub whether it still has an open batch of this PC (GET /api/outlook/inbox-batch?pc=): the inbox has
+  # settled, it holds files, and the time came (at once when the agent starts, then every few minutes). A restart of the
+  # server loses its batches and a batch ends after a day: with none, the agent announces the inbox again.
+  return [bool]($State -and $State.settled -and @($State.files).Count -gt 0 -and $Now -ge $Due)
+}
+function Get-ErrorStatus($Exception) {
+  # the HTTP status of a refused request (Invoke-WebRequest's WebException, or one inside another); 0 when there is none
+  for ($e = $Exception; $e; $e = $e.InnerException) {
+    try { if ($e.Response -and $e.Response.StatusCode) { return [int]$e.Response.StatusCode } } catch { }
+  }
+  return 0
+}
+function ConvertTo-InboxBatch($State, [string]$Pc) {
+  # the body of POST /api/outlook/inbox-batch: the whole inbox as it is now (a new batch replaces the one before)
+  return [pscustomobject]@{ pc = $Pc; files = @($State.files | ForEach-Object { [pscustomobject]@{ name = $_.name; size = $_.size; mtime = $_.mtime.ToString('yyyy-MM-ddTHH:mm:ss.fffZ', [Globalization.CultureInfo]::InvariantCulture) } }) }
+}
+function Read-InboxKnown([string]$Path = $script:InboxKnownPath) {
+  # the inbox as it was when it last settled, kept across sign-ins so the same files are not announced again
+  if (-not (Test-Path -LiteralPath $Path)) { return @() }
+  # Windows PowerShell hands a JSON array on as one object: kept in a variable first, so it is enumerated
+  try { $j = Get-Content -Raw -Encoding UTF8 -LiteralPath $Path | ConvertFrom-Json; return @($j | ForEach-Object { [string]$_ } | Where-Object { $_ }) } catch { return @() }
+}
+function Save-InboxKnown([string[]]$Known, [string]$Path = $script:InboxKnownPath) {
+  New-Item -ItemType Directory -Force -Path (Split-Path $Path -Parent) | Out-Null
+  [IO.File]::WriteAllText($Path, (ConvertTo-Json -InputObject @($Known | Where-Object { $_ }) -Compress), (New-Object Text.UTF8Encoding $false))
+}
+function Get-InboxLink([string]$Url) { return 'projecthub-inbox:' + [uri]::EscapeDataString($Url) }
+function Get-InboxOpenUrl([string]$Link, [string]$Hub) {
+  # the address a projecthub-inbox: link opens, or $null: it must be the hub's own address (same scheme, host and
+  # port, nothing before the host) followed by a path — anything else is never handed to the browser
+  if (-not $Hub -or $Link -notmatch '^projecthub-inbox:((?:[A-Za-z0-9._~-]|%[0-9A-Fa-f]{2})+)/?$') { return $null }
+  try { $url = [uri]::UnescapeDataString($Matches[1]) } catch { return $null }
+  $base = $Hub.TrimEnd('/')
+  if ($url -match '[\x00-\x20"<>\\^`{|}]' -or -not $url.StartsWith($base + '/', [StringComparison]::OrdinalIgnoreCase)) { return $null }
+  $u = $null; $h = $null
+  if (-not [uri]::TryCreate($url, [UriKind]::Absolute, [ref]$u) -or -not [uri]::TryCreate($base, [UriKind]::Absolute, [ref]$h)) { return $null }
+  if ($u.Scheme -notin @('https', 'http') -or $u.Scheme -ne $h.Scheme -or $u.Host -ne $h.Host -or $u.Port -ne $h.Port -or $u.UserInfo) { return $null }
+  return $url
+}
+function Get-InboxToastXml([int]$Count, [string[]]$Names, [string]$Link) {
+  # the notification: "N new files", up to three names, "Open" (the link) and "Later"
+  $e = [Security.SecurityElement]
+  $head = if ($Count -eq 1) { T 'קובץ חדש בתיבת הייצוא' } else { T '{n} קבצים חדשים בתיבת הייצוא' @{ n = $Count } }
+  $line = (@($Names) | Select-Object -First 3) -join ', '
+  if (@($Names).Count -gt 3) { $line += '…' }
+  $l = $e::Escape($Link)
+  return '<toast activationType="protocol" launch="' + $l + '"><visual><binding template="ToastGeneric"><text>' + $e::Escape($head) + '</text><text>' + $e::Escape($line) + '</text></binding></visual>' +
+    '<actions><action content="' + $e::Escape((T 'פתח')) + '" activationType="protocol" arguments="' + $l + '"/><action content="' + $e::Escape((T 'אחר כך')) + '" activationType="system" arguments="dismiss"/></actions></toast>'
+}
+function Find-AppBrowser([string[]]$Candidates = @("$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+    "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe")) {
+  # Chrome first, else Edge (as the quick-access windows), for an --app window; $null when neither is here
+  foreach ($c in $Candidates) { if ($c -and (Test-Path -LiteralPath $c -PathType Leaf)) { return $c } }
+  return $null
+}
+function Invoke-InboxTask([string]$Dir, [string]$InboxDir, $Task) {
+  # Publishes files of the export inbox into the project's folder $Dir ($null when it is not on this PC) by the plan:
+  # the mkdir steps, then each file to each of its dests. A dest with replace: an existing file of the same name in that
+  # folder first moves into "@ver" inside the same folder (made when missing; a name already in @ver gets a free name,
+  # nothing is overwritten); without replace the copy gets a free name. Everything is checked first (every path inside
+  # the project, every source a file of the batch, mkdir the only step) — a bad one: nothing is done. A source no longer
+  # in the inbox (published from another window, deleted) is skipped and said (notInInbox); with none left nothing is
+  # done. A file copied to all its dests (sizes checked) is deleted from the inbox; the first failure stops it, and a
+  # file not copied everywhere stays in the inbox.
+  # Result: { files: [{ name, dests: [the name it was saved as, per dest, in the plan's order] }], notInInbox, error }.
+  if (-not $Dir) { return @{ missing = $true } }
+  $result = @{ files = @(); notInInbox = @(); error = $null }
+  try {
+    if (-not $InboxDir -or -not [IO.Directory]::Exists($InboxDir)) { throw "The export inbox is not on this PC: $InboxDir" }
+    $byN = @{}; $byName = @{}
+    foreach ($x in @($Task.files)) { if ($null -ne $x) { if ($null -ne $x.n) { $byN[[int]$x.n] = [string]$x.name }; $byName[[string]$x.name] = $true } }
+    $steps = @(foreach ($s in @($Task.plan.steps)) {
+      if (-not $s) { continue }
+      if ($s.op -ne 'mkdir') { throw "Not a step of a publish: $($s.op)" }
+      Resolve-InProject $Dir $s.path
+    })
+    $jobs = @(foreach ($f in @($Task.plan.files)) {
+      if (-not $f) { continue }
+      $name = if ($null -ne $f.n -and $byN.ContainsKey([int]$f.n)) { $byN[[int]$f.n] } else { [string]$f.name }
+      if ($byName.Count -and -not $byName.ContainsKey($name)) { throw "Not a file of this batch: $name" }
+      if (-not $name -or $name -ne [IO.Path]::GetFileName($name) -or $null -eq (ConvertTo-RelPath $name)) { throw "Not a file name: $name" }
+      $src = Join-Path $InboxDir $name
+      $dests = @(foreach ($d in @($f.dests)) { if ($d) { [pscustomobject]@{ full = (Resolve-InProject $Dir $d.path); replace = [bool]$d.replace } } })
+      if (-not $dests.Count) { continue }
+      if (-not (Test-Path -LiteralPath $src -PathType Leaf)) { $result.notInInbox += $name; continue }
+      [pscustomobject]@{ name = $name; src = $src; dests = $dests }
+    })
+    if (-not $jobs.Count) { return $result }
+    foreach ($s in $steps) { [void][IO.Directory]::CreateDirectory($s) }
+    foreach ($j in $jobs) {
+      $done = [pscustomobject]@{ name = $j.name; dests = @() }
+      $result.files += $done
+      foreach ($d in $j.dests) {
+        [void][IO.Directory]::CreateDirectory($d.full)
+        $there = Join-Path $d.full $j.name
+        if ($d.replace -and (Test-Path -LiteralPath $there -PathType Leaf)) {
+          $ver = Join-Path $d.full '@ver'
+          [void][IO.Directory]::CreateDirectory($ver)
+          Move-Item -LiteralPath $there -Destination (Join-Path $ver (Get-FreeName $ver $j.name))
+        }
+        $as = Get-FreeName $d.full $j.name
+        Copy-Item -LiteralPath $j.src -Destination (Join-Path $d.full $as)
+        if ((Get-Item -LiteralPath (Join-Path $d.full $as)).Length -ne (Get-Item -LiteralPath $j.src).Length) { throw "Copy incomplete: $($j.name)" }
+        $done.dests += $as
+      }
+      Remove-Item -LiteralPath $j.src -Force
+    }
+  } catch { $result.error = $_.Exception.Message }
+  return $result
 }

@@ -20,7 +20,12 @@
    filing.json, and so is its folder map (map: the seven areas of filing-ai.js, each with its folders and a note),
    mapped with Claude on the project's settings page in Project Hub (handleHub, signed in: the tasks go to the agent
    holding the key of the same person) and given to Claude with every filing.
-   Tasks, filings and mapping sessions live in memory: a restart only loses work nobody finished.
+   The export inbox: a folder on each PC (Desktop\לתיוק) that Revit / AutoCAD export into. The agent there announces
+   what is in it (a batch, inbox-batch); the Hub's quick window (?quick=inbox) shows the batch, guesses the project
+   from a project code in the file names, asks Claude where the files go in the project's PUBLISH area (inbox-propose:
+   today's SENT folder and/or UPDATED, replacing a file of the same name) and sends the confirmed plan to the agent
+   on the PC that announced the batch (an `inbox` task), which copies the files there and takes them out of the inbox.
+   Tasks, filings, mapping sessions and inbox batches live in memory: a restart only loses work nobody finished.
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md */
 const fs = require('fs');
 const path = require('path');
@@ -35,8 +40,12 @@ const POLL = Number(process.env.FILING_POLL_MS) || 25 * 1000;               // h
 const TREE_WAIT = Number(process.env.FILING_TREE_WAIT_MS) || 20 * 1000;     // how long a proposal waits for the tree
 const AGENT_WAIT = Number(process.env.FILING_AGENT_WAIT_MS) || 15 * 1000;   // … and for an agent to take the tree task
 const DAILY = Number(process.env.FILING_DAILY_BYTES) || 50 * 1024 * 1024; // bytes a day the agents may download from the server
+// an inbox task's life from when the PC takes it: copying many large exports to a network drive may take a while
+const INBOX_TTL = Number(process.env.FILING_INBOX_TTL_MS) || 60 * 60 * 1000;
+const BATCH_TTL = 24 * 60 * 60 * 1000; // an export inbox batch's life
 const KEEP = 60 * 60 * 1000;  // a task or filing stays this long after it ends, for the pane's status
 const MAX_FILES = 20;
+const INBOX_MAX = 100; // files in one inbox batch
 const LOG_MAX = 200;
 const GUIDE_MAX = 4000;
 const WRITERS = ['editor', 'admin', 'superadmin'];
@@ -60,6 +69,26 @@ const DEFAULT_GUIDE = [
   'מכל השאר (עירייה, מנהל פרויקט, ספקים): RECEIVE ← XXXX-receive-<סוג>.'
 ].join('\n');
 
+/* The project of an export inbox batch, from the project codes in its file names: a code is a whole token (names
+   split on - _ . and spaces; a code with a separator inside is a run of tokens), in any case. The one project
+   matched by most files; none when no file matches or two projects tie. */
+function inboxGuess(files, projects) {
+  const tokens = v => String(v == null ? '' : v).toLowerCase().split(/[-_. ]+/).filter(Boolean);
+  const count = new Map();
+  for (const f of files || []) {
+    const s = ' ' + tokens(f.name).join(' ') + ' ';
+    for (const p of projects || []) {
+      const c = tokens(p.code);
+      if (c.length && s.includes(' ' + c.join(' ') + ' ')) count.set(p, (count.get(p) || 0) + 1);
+    }
+  }
+  let best = null, most = 0, tie = false;
+  for (const [p, n] of count) {
+    if (n > most) { best = p; most = n; tie = false; } else if (n === most) tie = true;
+  }
+  return best && !tie ? { projectId: best.id, code: best.code || '', name: best.name, why: 'code' } : { projectId: null, code: '', name: '', why: 'none' };
+}
+
 module.exports = function createFiling(ctx) {
   const { DATA_DIR, readJson, writeJsonAtomic, sendJson, readRequestBody, readRequestBuffer, mcp, client, model, linkedTaskOf } = ctx;
   const STORE = path.join(DATA_DIR, 'filing.json');
@@ -70,6 +99,10 @@ module.exports = function createFiling(ctx) {
   const maps = new Map();    // id → a mapping session of the Hub page
   const byToken = new Map(); // sha(token) → task id
   const waiting = new Map(); // who → Set of wake-ups of agents waiting for a task
+  const batches = new Map(); // id → an export inbox batch, announced by the agent on a PC
+  // the language each person last used on the Hub page (requests that carry lang), for the agent's inbox toast; 'he' until then
+  const langs = new Map();
+  const noteLang = (who, lang) => { if (lang === 'he' || lang === 'en') langs.set(who, lang); };
 
   const load = () => {
     const d = readJson(STORE);
@@ -89,7 +122,15 @@ module.exports = function createFiling(ctx) {
   const known = id => load().projects[id] || { folder: '', root: '', guide: '', log: [] };
   const projectOf = (d, id) => d.projects[id] || (d.projects[id] = { folder: '', root: '', guide: '', log: [] });
   const writer = person => WRITERS.includes(mcp.whoAmI(person.email, person.name).role);
-  const nextFor = who => { for (const t of tasks.values()) if (t.who === who && !t.handed && !t.closed && t.exp > Date.now()) return t; return null; };
+  // a task with a pc goes only to the agent on that PC (an inbox's files are on the PC that announced them)
+  const samePc = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
+  // the person's newest open batch of that PC (of any PC when pc is ''), or null
+  const latestBatch = (who, pc) => {
+    let best = null;
+    for (const b of batches.values()) if (b.who === who && b.status === 'new' && (!pc || samePc(b.pc, pc)) && (!best || b.at >= best.at)) best = b;
+    return best;
+  };
+  const nextFor = (who, pc) => { for (const t of tasks.values()) if (t.who === who && !t.handed && !t.closed && t.exp > Date.now() && (!t.pc || samePc(t.pc, pc))) return t; return null; };
   const wake = who => { for (const f of [...(waiting.get(who) || [])]) f(); };
   const newId = () => crypto.randomBytes(9).toString('hex');
   const iso = ms => new Date(ms).toISOString();
@@ -101,11 +142,17 @@ module.exports = function createFiling(ctx) {
     return c && Array.isArray(c.list) ? c.list : [];
   }
 
-  /* A task's token stops working; those waiting for its result are told. */
-  function close(t) {
-    for (const [h, id] of byToken) if (id === t.id) byToken.delete(h);
+  /* A task's token stops working; those waiting for its result are told. An inbox task that ends without a result
+     (expired, cancelled) frees its batch: the window may confirm again. One the PC had taken keeps its token when it
+     expires (late): the PC may still be copying, and its result, when it comes, still counts (runToken). */
+  function close(t, late = false) {
+    if (!late) for (const [h, id] of byToken) if (id === t.id) byToken.delete(h);
     delete t.token;
     t.closed = true;
+    if (t.kind === 'inbox' && !t.result) {
+      const b = batches.get(t.inboxId);
+      if (b && b.taskId === t.id) b.taskId = null;
+    }
     for (const f of [...t.waiters]) f();
   }
   /* A filing ends: its waiting files go. */
@@ -115,21 +162,25 @@ module.exports = function createFiling(ctx) {
   }
   function sweep(now = Date.now()) {
     for (const [id, t] of tasks) {
-      if (!t.closed && t.exp < now) close(t);
-      if (t.exp + KEEP < now) tasks.delete(id);
+      if (!t.closed && t.exp < now) close(t, t.kind === 'inbox' && !!t.handed);
+      if (t.exp + KEEP < now) {
+        tasks.delete(id);
+        for (const [h, tid] of byToken) if (tid === id) byToken.delete(h);
+      }
     }
     for (const [id, f] of filings) {
       if (!f.closed && f.exp < now) endFiling(f);
       if (f.exp + KEEP < now) filings.delete(id);
     }
     for (const [id, m] of maps) if (m.exp < now) maps.delete(id);
+    for (const [id, b] of batches) if (b.exp < now) batches.delete(id);
   }
   function makeTask(kind, x) {
     const token = crypto.randomBytes(32).toString('base64url');
     const t = {
       id: newId(), kind, who: x.who, person: x.person, base: x.base, by: mcp.whoAmI(x.person.email, x.person.name).name,
       projectId: x.project.id, project: x.project, folder: x.folder || '', root: x.root || '', lang: x.lang === 'en' ? 'en' : 'he', token,
-      exp: Date.now() + (kind === 'file' ? TTL : QUICK), handed: null, opened: false, result: null, closed: false, cancelled: false,
+      exp: Date.now() + (kind === 'file' || kind === 'inbox' ? TTL : QUICK), handed: null, opened: false, result: null, closed: false, cancelled: false,
       waiters: new Set(), ...(x.extra || {})
     };
     tasks.set(t.id, t);
@@ -191,10 +242,44 @@ module.exports = function createFiling(ctx) {
     const route = url.pathname.slice('/api/outlook/'.length);
     const getProject = ref => mcp.runToolAs(p.email, p.name, base, 'get_project', { project: String(ref || '') }); // ToolError when not visible
 
+    /* the agent on the PC: what is in its export inbox now (the full list), as a new batch for the Hub's quick
+       window; it replaces this person's previous batch from the same PC unless that one is being published */
+    if (route === 'inbox-batch' && req.method === 'GET') {
+      // the agent asks, when it (re)starts and now and then while its inbox holds files, whether the server still has an
+      // open batch of that PC (a restart of the server loses them, and a batch ends after a day): none → it announces again
+      const pc = clip(url.searchParams.get('pc'), 60).trim();
+      const b = latestBatch(who, pc);
+      sendJson(res, 200, { id: b ? b.id : null });
+      return;
+    }
+    if (route === 'inbox-batch') {
+      const body = await json(req);
+      const pc = clip(body.pc, 60).trim();
+      const files = [];
+      for (const x of Array.isArray(body.files) ? body.files.slice(0, INBOX_MAX) : []) {
+        const raw = x && x.name != null ? String(x.name) : '';
+        const name = safeName(raw);
+        if (!name || BLOCKED.test(name)) continue; // never published
+        // a name the server would change (too long, a character it drops) could never be matched to the file on the PC
+        if (name !== raw) { console.log('filing: an inbox file left out of the batch, its name is not kept as is:', name.slice(0, 60)); continue; }
+        const ms = typeof x.mtime === 'number' ? x.mtime : Date.parse(x.mtime);
+        files.push({ n: files.length, name, size: Math.max(0, Math.floor(Number(x.size) || 0)), mtime: Number.isFinite(ms) ? iso(ms) : '' });
+      }
+      if (!files.length) { sendJson(res, 400, { error: 'files' }); return; }
+      for (const [id, b] of batches) if (b.who === who && samePc(b.pc, pc) && b.status === 'new' && !b.taskId) batches.delete(id);
+      const b = {
+        id: newId(), who, person: p, base, pc, files, at: new Date().toISOString(), status: 'new', exp: Date.now() + BATCH_TTL,
+        h: null, plan: null, taskId: null, busy: false
+      };
+      batches.set(b.id, b);
+      sendJson(res, 200, { id: b.id, url: `${base}/project_hub_01?quick=inbox&id=${encodeURIComponent(b.id)}${pc ? '&pc=' + encodeURIComponent(pc) : ''}`, lang: langs.get(who) || 'he' });
+      return;
+    }
+
     /* the agent on the PC: this person's next task, handed out once; waits up to POLL for one */
     if (route === 'filing-next') {
       const pc = clip(url.searchParams.get('pc'), 60);
-      let t = nextFor(who);
+      let t = nextFor(who, pc);
       if (!t) {
         await new Promise(resolve => {
           const set = waiting.get(who) || new Set();
@@ -212,10 +297,11 @@ module.exports = function createFiling(ctx) {
           res.on('close', done);
         });
         if (res.writableEnded || res.destroyed) return;
-        t = nextFor(who);
+        t = nextFor(who, pc);
       }
       if (!t) { sendJson(res, 200, { task: null }); return; }
       t.handed = { at: new Date().toISOString(), pc };
+      if (t.kind === 'inbox') t.exp = Math.max(t.exp, Date.now() + INBOX_TTL); // the PC is copying from now on
       const token = t.token;
       delete t.token; // from here on the server keeps only its hash
       sendJson(res, 200, { task: { id: t.id, kind: t.kind, token } });
@@ -413,17 +499,24 @@ module.exports = function createFiling(ctx) {
   async function runToken(req, res, token, what, n) {
     sweep();
     const t = tasks.get(byToken.get(sha(token)));
-    if (!t || t.closed) { sendJson(res, 410, { error: 'expired' }); return; }
+    // an inbox task the PC took and that expired while it copied: its result is still taken (and only that)
+    const late = !!t && t.closed && t.kind === 'inbox' && !!t.handed && !t.result && !t.cancelled && what === 'result';
+    if (!t || (t.closed && !late)) { sendJson(res, 410, { error: 'expired' }); return; }
     if (req.method !== METHOD[what]) { sendJson(res, 405, { error: 'Method not allowed' }); return; }
     const f = t.filingId ? filings.get(t.filingId) : null;
+    const b = t.inboxId ? batches.get(t.inboxId) : null;
+    const freeBatch = () => { if (t.kind === 'inbox' && b && b.taskId === t.id) b.taskId = null; }; // the window may confirm again
 
     if (!what) {
       t.opened = true;
       // the folder picker is open on the PC from now on: the person's choice may take a while
       if (t.kind === 'pick') t.exp = Math.max(t.exp, Date.now() + PICK);
+      if (t.kind === 'inbox') t.exp = Math.max(t.exp, Date.now() + INBOX_TTL);
       sendJson(res, 200, {
         kind: t.kind, lang: t.lang, project: t.project, folder: t.folder, root: t.root,
         ...(t.kind === 'open' && t.rel ? { rel: t.rel } : {}),
+        // the files to take from the PC's own inbox, and where each goes
+        ...(t.kind === 'inbox' ? { files: t.plan.files.filter(x => x.dests.length).map(x => ({ n: x.n, name: x.name })), plan: t.plan } : {}),
         ...(t.kind === 'file' ? {
           files: f.files.map((x, i) => ({ n: i, name: x.name, size: x.size, source: x.source })), plan: t.plan,
           // what classic Outlook on the PC finds the email by
@@ -444,6 +537,7 @@ module.exports = function createFiling(ctx) {
     if (what === 'cancel') {
       t.cancelled = true;
       if (t.kind === 'file' && f && f.taskId === t.id) f.taskId = null; // the pane may confirm again
+      freeBatch();
       close(t);
       sendJson(res, 200, { ok: true });
       return;
@@ -453,6 +547,7 @@ module.exports = function createFiling(ctx) {
     if (body.missing === true) {
       t.result = { missing: true };
       if (t.kind === 'file' && f && f.taskId === t.id) f.taskId = null;
+      freeBatch();
     } else if (t.kind === 'file' && body.needUpload != null) {
       // classic Outlook on the PC could not give these files: nothing was filed; the pane uploads them and confirms again
       const ns = [...new Set([].concat(body.needUpload))];
@@ -482,9 +577,59 @@ module.exports = function createFiling(ctx) {
       if (f && !f.closed) f.tree = tree;
       const m = t.mapId ? maps.get(t.mapId) : null;
       if (m) m.tree = tree;
+      if (b && b.h && b.h.treeTask === t.id) b.h.tree = tree;
       t.result = { folders: tree.length };
     } else if (t.kind === 'open') {
       t.result = { opened: true };
+    } else if (t.kind === 'inbox') {
+      /* what the agent published: per file, the name it saved in each of the plan's dests, in the plan's order (null or
+         '' where it saved nothing); the plan's file is the k-th of that name, as in the plan. notInInbox: the files that
+         were no longer in the inbox (nothing was done with them). Kept per file: the saved names aligned with the plan's
+         dests (null: not saved), their paths, and whether it reached all of them (then it left the inbox). */
+      const seen = new Map();
+      const out = [], log = [], gone = new Set();
+      for (const x of (Array.isArray(body.files) ? body.files : []).slice(0, INBOX_MAX)) {
+        if (!x || typeof x !== 'object') continue;
+        const name = safeName(x.name);
+        const k = seen.get(name) || 0;
+        seen.set(name, k + 1);
+        const pf = t.plan.files.filter(y => y.name === name)[k];
+        if (!pf || !pf.dests.length) continue;
+        const dests = pf.dests.map((d, i) => {
+          const v = Array.isArray(x.dests) ? x.dests[i] : null;
+          const as = typeof v === 'string' ? safeName(v.split(/[\\/]/).pop()) : '';
+          if (as) log.push({ file: as, dest: d.path });
+          return as || null;
+        });
+        if (!dests.some(Boolean)) continue;
+        const all = dests.every(Boolean);
+        if (all) gone.add(pf.n);
+        out.push({ n: pf.n, name, dests, paths: pf.dests.map(d => d.path), all });
+      }
+      const notInInbox = [];
+      for (const v of (Array.isArray(body.notInInbox) ? body.notInInbox : []).slice(0, INBOX_MAX)) {
+        const pf = t.plan.files.find(y => y.name === safeName(v));
+        if (pf && !notInInbox.includes(pf.name)) { notInInbox.push(pf.name); gone.add(pf.n); }
+      }
+      const error = body.error ? clip(body.error, 500) : null;
+      if (log.length) {
+        const at = new Date().toISOString();
+        const d = load();
+        const pr = projectOf(d, t.projectId);
+        pr.log = [...(pr.log || []), ...log.map(l => ({ at, by: t.by, from: '', subject: '', file: l.file, dest: l.dest, mode: 'publish' }))].slice(-LOG_MAX);
+        writeJsonAtomic(STORE, d);
+      }
+      t.result = { files: out, notInInbox, error };
+      if (b) {
+        if (b.taskId === t.id) b.taskId = null;
+        // the files that left the inbox leave the batch; what is left stays open (the window may publish it too)
+        if (gone.size) {
+          b.files = b.files.filter(x => !gone.has(x.n));
+          b.plan = null; // it was for files that went
+          if (b.h) b.h.tree = null; // the PC made folders: read them again
+          if (!b.files.length && b.status === 'new') b.status = 'published';
+        }
+      }
     } else {
       // file: what the agent actually did
       const did = (Array.isArray(body.files) ? body.files : []).slice(0, MAX_FILES)
@@ -536,7 +681,11 @@ module.exports = function createFiling(ctx) {
   /* ── the Hub page (signed in): the project's folder, its map and its guide, on the project's settings page ──
      The person is the signed-in user; the tasks go to the agent running with the same person's key (who, as the
      key names its owner: the address in lower case, 'local' on the local server). base: the site, for the tools. */
-  const HUB_METHOD = { project: 'GET', task: 'GET', pick: 'POST', open: 'POST', 'map-session': 'POST', 'map-propose': 'POST', map: 'PUT', guide: 'PUT' };
+  const HUB_METHOD = {
+    project: 'GET', task: 'GET', pick: 'POST', open: 'POST', 'map-session': 'POST', 'map-propose': 'POST', map: 'PUT', guide: 'PUT',
+    inbox: 'GET', 'inbox-latest': 'GET', 'inbox-propose': 'POST', 'inbox-confirm': 'POST', 'inbox-dismiss': 'POST'
+  };
+  const israelToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
   async function handleHub(req, res, url, user, base) {
     sweep();
     const route = url.pathname.slice('/api/filing-hub/'.length);
@@ -558,7 +707,94 @@ module.exports = function createFiling(ctx) {
       sendJson(res, 200, taskState(t));
       return;
     }
+
+    /* ── the export inbox's quick window: one batch of the person's own agent ── */
+    // the window whose batch is gone (replaced by a newer one, or lost in a restart of the server and announced again by
+    // the agent): the person's newest open batch of that PC (of any PC when the address names none)
+    if (route === 'inbox-latest') {
+      const b = latestBatch(who, clip(url.searchParams.get('pc'), 60).trim());
+      sendJson(res, 200, { id: b ? b.id : null });
+      return;
+    }
+    if (route.startsWith('inbox')) {
+      const body = route === 'inbox' ? {} : await json(req);
+      noteLang(who, route === 'inbox' ? url.searchParams.get('lang') : body.lang);
+      const b = batches.get(String((route === 'inbox' ? url.searchParams.get('id') : body.id) || url.searchParams.get('id') || ''));
+      if (!b || b.who !== who) { sendJson(res, 404, { error: 'no_batch' }); return; }
+      if (route === 'inbox') {
+        const projects = mcp.runToolAs(p.email, p.name, base, 'list_projects', {}).projects.map(x => ({ id: x.id, code: x.code || '', name: x.name }));
+        sendJson(res, 200, { id: b.id, pc: b.pc, status: b.status, files: b.files, guess: inboxGuess(b.files, projects), projects });
+        return;
+      }
+      if (b.status !== 'new') { sendJson(res, 409, { error: b.status }); return; }
+      if (b.taskId) { sendJson(res, 409, { error: 'confirmed' }); return; }
+      if (route === 'inbox-dismiss') {
+        b.status = 'dismissed';
+        sendJson(res, 200, { ok: true });
+        return;
+      }
+      if (!writer(p)) { sendJson(res, 403, { error: 'viewer' }); return; }
+      if (b.busy) { sendJson(res, 409, { error: 'busy' }); return; }
+
+      if (route === 'inbox-confirm') {
+        const h = b.h;
+        if (!b.plan || !h || !b.plan.files.some(x => x.dests.length)) { sendJson(res, 409, { error: 'no_plan' }); return; }
+        getProject(h.projectId); // still open to this person
+        const pr = known(h.projectId);
+        if (!pr.folder) { sendJson(res, 409, { error: 'no_folder' }); return; }
+        // to the agent on the PC whose inbox has the files; any agent of the person when the batch named no PC
+        const t = makeTask('inbox', { who, person: p, base, project: h.project, folder: pr.folder, root: pr.root || '', lang: h.lang, extra: { inboxId: b.id, plan: b.plan, pc: b.pc } });
+        b.taskId = t.id;
+        sendJson(res, 200, { taskId: t.id });
+        return;
+      }
+
+      // inbox-propose: the selected files, the chosen targets, the person's instruction
+      const ns = Array.isArray(body.files) ? [...new Set(body.files)] : [];
+      // a file's n stays what it was announced as; a published one is no longer in the batch
+      const fileOf = n => b.files.find(x => x.n === n);
+      if (!ns.length || !ns.every(n => Number.isInteger(n) && fileOf(n))) { sendJson(res, 400, { error: 'files' }); return; }
+      const project = projectRef(getProject(body.projectId));
+      const lang = body.lang === 'en' ? 'en' : 'he';
+      const mine = {};
+      b.busy = mine;
+      const release = () => { if (b.busy === mine) b.busy = false; };
+      b.plan = null; // a plan is for one selection: the previous one goes
+      // the project's tree, asked once per project chosen in the window, of the PC that announced the batch
+      if (!b.h || b.h.projectId !== project.id) b.h = { who, person: p, base, projectId: project.id, project, lang, tree: null, treeTask: null };
+      const h = b.h;
+      h.lang = lang;
+      try {
+        const pr = known(project.id);
+        if (!pr.folder) { sendJson(res, 200, { needsFolder: true }); return; }
+        const no = await treeOf(h, pr, res, release, { inboxId: b.id, pc: b.pc });
+        if (no === 'gone') return;
+        if (no) { sendJson(res, 200, no); return; }
+        if (!client) { sendJson(res, 200, { ai: 'unavailable' }); return; }
+        let out;
+        try {
+          out = await ai.inboxProposal(client, model, {
+            project, map: ai.normalizeMap(pr.map), guide: String(pr.guide || '').trim() || DEFAULT_GUIDE, tree: h.tree, today: israelToday(),
+            files: ns.sort((x, y) => x - y).map(n => ({ n, name: fileOf(n).name })), sent: body.sent === true, updated: body.updated === true,
+            text: clip(body.text, 1000).trim(), lang
+          });
+        } catch (e) {
+          console.error('filing inbox propose failed:', e.message);
+          sendJson(res, 200, { ai: 'failed' });
+          return;
+        }
+        if (b.status !== 'new' || b.taskId || b.h !== h) { sendJson(res, 409, { error: 'changed' }); return; }
+        b.plan = out.plan;
+        // a replace Claude asked for and the plan dropped ('no_map': no publish area mapped; 'outside': not inside it):
+        // the window says so, since Claude's words may still speak of replacing
+        sendJson(res, 200, { message: out.message, plan: out.plan, ...(out.replaceStripped ? { replaceStripped: out.replaceStripped } : {}) });
+      } finally {
+        release();
+      }
+      return;
+    }
     const body = await json(req);
+    noteLang(who, body.lang);
 
     if (route === 'map-propose') {
       const m = maps.get(url.searchParams.get('id') || '');
@@ -645,3 +881,4 @@ module.exports = function createFiling(ctx) {
   return { handlePane, handleToken, handleContacts, handleHub, DEFAULT_GUIDE };
 };
 module.exports.folderName = folderName;
+module.exports.inboxGuess = inboxGuess;

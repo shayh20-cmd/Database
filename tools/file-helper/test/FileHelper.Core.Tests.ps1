@@ -305,6 +305,193 @@ try {
   $mail.received = ''
   Check 'mail: no time, no match' (-not (Test-MailMatch ([pscustomobject]@{ Subject = 'תכנית קונסטרוקציה'; Received = $at; From = 'x@y' }) $mail))
 
+  # ── the export inbox ──
+  Check 'kind: inbox' (Test-TaskKind 'inbox')
+  Check 'config: the inbox by default on the desktop' ((Get-HelperConfig (Join-Path $root 'cfg\none.json')).inbox -eq (Join-Path ([Environment]::GetFolderPath('Desktop')) 'לתיוק'))
+  $c3 = Get-HelperConfig $cfgPath; $c3.inbox = 'D:\Out'; Save-HelperConfig $c3 $cfgPath
+  Check 'config: the inbox saved' ((Get-HelperConfig $cfgPath).inbox -eq 'D:\Out')
+
+  $ib = Join-Path $root 'inbox'
+  New-Item -ItemType Directory -Force -Path (Join-Path $ib 'a folder') | Out-Null
+  Set-Content -Path (Join-Path $ib 'A-101.pdf') -Value 'plan'
+  Set-Content -Path (Join-Path $ib 'קומה.dwg') -Value 'dwg'
+  foreach ($junk in '~$x.docx', 'x.tmp', 'y.part') { Set-Content -Path (Join-Path $ib $junk) -Value 'junk' }
+  New-Item -ItemType File -Path (Join-Path $ib 'empty.pdf') | Out-Null
+  Set-Content -Path (Join-Path $ib 'hidden.pdf') -Value 'h'; (Get-Item -LiteralPath (Join-Path $ib 'hidden.pdf')).Attributes = 'Hidden'
+  $t0 = [datetime]::new(2026, 10, 25, 9, 0, 0, [DateTimeKind]::Utc)
+  $never = { param($p) $false }
+  $s1 = Get-InboxState $ib $null $t0 $never
+  Check 'inbox: only real files' ((@($s1.files | ForEach-Object { $_.name } | Sort-Object) -join ',') -eq ((@('A-101.pdf', 'קומה.dwg') | Sort-Object) -join ','))
+  Check 'inbox: size and time' (@($s1.files | Where-Object { $_.name -eq 'A-101.pdf' })[0].size -gt 0 -and @($s1.files)[0].mtime -is [datetime])
+  Check 'inbox: new is not settled' (-not $s1.settled)
+  $s2 = Get-InboxState $ib $s1 $t0.AddSeconds(9) $never
+  Check 'inbox: 9 s unchanged, not settled' (-not $s2.settled -and $s2.since -eq $t0)
+  $s3 = Get-InboxState $ib $s2 $t0.AddSeconds(10) $never
+  Check 'inbox: 10 s unchanged, settled' ($s3.settled)
+  Check 'inbox: a locked file is not settled' (-not (Get-InboxState $ib $s2 $t0.AddSeconds(10) { param($p) $p -like '*A-101.pdf' }).settled)
+  Add-Content -Path (Join-Path $ib 'A-101.pdf') -Value 'more'
+  $s4 = Get-InboxState $ib $s3 $t0.AddSeconds(12) $never
+  Check 'inbox: a size change starts again' (-not $s4.settled -and $s4.since -eq $t0.AddSeconds(12))
+  Check 'inbox: no folder, nothing' (@((Get-InboxState (Join-Path $root 'no-inbox') $null $t0 $never).files).Count -eq 0)
+  Check 'inbox: real lock test' (-not (Test-FileLocked (Join-Path $ib 'קומה.dwg')))
+  $fs = [IO.File]::Open((Join-Path $ib 'קומה.dwg'), 'Open', 'Read', 'None')
+  try { Check 'inbox: real lock test, locked' (Test-FileLocked (Join-Path $ib 'קומה.dwg')) } finally { $fs.Close() }
+  # only a writer counts: a program that only reads the file (a viewer, an exporter reading it back) is no lock
+  $fs = [IO.File]::Open((Join-Path $ib 'קומה.dwg'), 'Open', 'Read', 'ReadWrite')
+  try { Check 'inbox: a reader is no lock' (-not (Test-FileLocked (Join-Path $ib 'קומה.dwg'))) } finally { $fs.Close() }
+  $fs = [IO.File]::Open((Join-Path $ib 'קומה.dwg'), 'Open', 'ReadWrite', 'ReadWrite')
+  try { Check 'inbox: a writer is a lock' (Test-FileLocked (Join-Path $ib 'קומה.dwg')) } finally { $fs.Close() }
+  # the lock test runs only when there is something to announce (a file not known): known files are never opened
+  $script:opened = 0
+  $count = { param($p) $script:opened++; $true }
+  $k1 = Get-InboxState $ib $null $t0 $never
+  $k3 = Get-InboxState $ib $k1 $t0.AddSeconds(10) $count 10 $k1.keys
+  Check 'inbox: all known, no lock test' ($k3.settled -and $script:opened -eq 0)
+  $k3 = Get-InboxState $ib $k1 $t0.AddSeconds(10) $count 10 @($k1.keys | Select-Object -First 1)
+  Check 'inbox: one unknown, the lock test' (-not $k3.settled -and $script:opened -eq 1)
+
+  # announcing: once per new arrival, never while it is still being written, never for removals alone
+  $s5 = Get-InboxState $ib $s4 $t0.AddSeconds(30) $never
+  $a1 = Select-InboxAnnouncement $s4 @()
+  Check 'announce: not before settled' (-not $a1.announce -and -not $a1.changed)
+  $a2 = Select-InboxAnnouncement $s5 @()
+  Check 'announce: settled and new' ($a2.announce -and $a2.changed -and @($a2.known).Count -eq 2)
+  $a3 = Select-InboxAnnouncement $s5 $a2.known
+  Check 'announce: the same set, never again' (-not $a3.announce -and -not $a3.changed)
+  Remove-Item -LiteralPath (Join-Path $ib 'קומה.dwg')
+  $s6 = Get-InboxState $ib $s5 $t0.AddSeconds(31) $never; $s6 = Get-InboxState $ib $s6 $t0.AddSeconds(45) $never
+  $a4 = Select-InboxAnnouncement $s6 $a2.known
+  Check 'announce: a removal is not announced, but remembered' (-not $a4.announce -and $a4.changed -and @($a4.known).Count -eq 1)
+  Set-Content -Path (Join-Path $ib 'B.pdf') -Value 'b'
+  $s7 = Get-InboxState $ib $s6 $t0.AddSeconds(46) $never; $s7 = Get-InboxState $ib $s7 $t0.AddSeconds(60) $never
+  $a5 = Select-InboxAnnouncement $s7 $a4.known
+  Check 'announce: one more file, announced' ($a5.announce -and @($a5.known).Count -eq 2)
+  Check 'announce: the batch is the whole inbox' (((@((ConvertTo-InboxBatch $s7 'PC1').files) | ForEach-Object { $_.name } | Sort-Object) -join ',') -eq 'A-101.pdf,B.pdf')
+  $batch = ConvertTo-InboxBatch $s7 'PC1'
+  Check 'batch: pc, size, ISO time' ($batch.pc -eq 'PC1' -and @($batch.files)[0].size -gt 0 -and @($batch.files)[0].mtime -match '^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$')
+  # asking the hub whether it still has this PC's batch: when the inbox settled with files in it, and the time came
+  Check 'recheck: due' (Test-InboxRecheck $s7 $t0.AddSeconds(60) $t0)
+  Check 'recheck: not yet' (-not (Test-InboxRecheck $s7 $t0.AddSeconds(60) $t0.AddMinutes(5)))
+  Check 'recheck: not while it changes' (-not (Test-InboxRecheck $s4 $t0.AddSeconds(60) $t0))
+  Check 'recheck: not for an empty inbox' (-not (Test-InboxRecheck (Get-InboxState (Join-Path $root 'no-inbox') $null $t0 $never 0) $t0 $t0))
+  Check 'recheck: no state' (-not (Test-InboxRecheck $null $t0 $t0))
+  # the status of a refused request (Invoke-WebRequest's WebException, or one inside another)
+  Check 'status: of a response' ((Get-ErrorStatus ([pscustomobject]@{ Response = [pscustomobject]@{ StatusCode = 400 } })) -eq 400)
+  Check 'status: inner' ((Get-ErrorStatus ([pscustomobject]@{ Response = $null; InnerException = [pscustomobject]@{ Response = [pscustomobject]@{ StatusCode = 404 } } })) -eq 404)
+  Check 'status: none' ((Get-ErrorStatus (New-Object Exception 'x')) -eq 0)
+  $knownPath = Join-Path $root 'cfg\inbox-known.json'
+  Check 'known: none yet' (@(Read-InboxKnown $knownPath).Count -eq 0)
+  Save-InboxKnown $a5.known $knownPath
+  Check 'known: round trip' ((@(Read-InboxKnown $knownPath) -join '/') -eq (@($a5.known) -join '/'))
+  Save-InboxKnown @() $knownPath
+  Check 'known: empty' (@(Read-InboxKnown $knownPath).Count -eq 0)
+
+  # the notification and its link
+  $hub = 'https://kkarc-hub.azurewebsites.net'
+  $url = "$hub/project_hub_01?quick=inbox&id=b_12"
+  $link = Get-InboxLink $url
+  Check 'link: projecthub-inbox: + encoded' ($link -eq ('projecthub-inbox:' + [uri]::EscapeDataString($url)) -and $link -match '^projecthub-inbox:[A-Za-z0-9%._~-]+$')
+  Check 'open: the hub''s page' ((Get-InboxOpenUrl $link $hub) -eq $url)
+  Check 'open: a trailing / added by Windows' ((Get-InboxOpenUrl ($link + '/') "$hub/") -eq $url)
+  Check 'open: case of the scheme' ((Get-InboxOpenUrl ('PROJECTHUB-INBOX:' + [uri]::EscapeDataString($url)) $hub) -eq $url)
+  foreach ($bad in 'https://evil.example/x', 'https://kkarc-hub.azurewebsites.net.evil.example/x', 'http://kkarc-hub.azurewebsites.net/x',
+                   'https://kkarc-hub.azurewebsites.net@evil.example/x', 'https://kkarc-hub.azurewebsites.net:444/x', 'file:///C:/Windows/system32/calc.exe',
+                   'https://kkarc-hub.azurewebsites.net/x" --x', 'https://kkarc-hub.azurewebsites.net', 'javascript:alert(1)') {
+    Check "open: refused $bad" ($null -eq (Get-InboxOpenUrl ('projecthub-inbox:' + [uri]::EscapeDataString($bad)) $hub))
+  }
+  Check 'open: refused, not encoded' ($null -eq (Get-InboxOpenUrl "projecthub-inbox:$url" $hub))
+  Check 'open: refused, a % without two hex digits' ($null -eq (Get-InboxOpenUrl ($link + '%2') $hub) -and $null -eq (Get-InboxOpenUrl ($link.Replace('%2F', '%ZZ')) $hub))
+  Check 'open: refused, no hub' ($null -eq (Get-InboxOpenUrl $link ''))
+  $script:Lang = 'he'
+  $x = [xml](Get-InboxToastXml 3 @('A-101.pdf', 'B & C.pdf') $link)
+  Check 'toast: Hebrew' ($x.toast.visual.binding.text[0] -eq '3 קבצים חדשים בתיבת הייצוא' -and $x.toast.visual.binding.text[1] -eq 'A-101.pdf, B & C.pdf')
+  Check 'toast: opens the link' ($x.toast.launch -eq $link -and $x.toast.activationType -eq 'protocol' -and @($x.toast.actions.action)[0].arguments -eq $link -and @($x.toast.actions.action)[0].content -eq 'פתח')
+  $script:Lang = 'en'
+  $x = [xml](Get-InboxToastXml 1 @('A-101.pdf') $link)
+  Check 'toast: English, one file' ($x.toast.visual.binding.text[0] -eq 'A new file in the export inbox' -and @($x.toast.actions.action)[0].content -eq 'Open')
+  $x = [xml](Get-InboxToastXml 5 @('1', '2', '3', '4', '5') $link)
+  Check 'toast: at most three names' ($x.toast.visual.binding.text[0] -eq '5 new files in the export inbox' -and $x.toast.visual.binding.text[1] -eq '1, 2, 3…')
+  $script:Lang = 'he'
+  Check 'browser: the first that exists' ((Find-AppBrowser @((Join-Path $root 'none.exe'), $knownPath)) -eq $knownPath -and $null -eq (Find-AppBrowser @((Join-Path $root 'none.exe'))))
+
+  # publishing from the inbox
+  $proj = Join-Path $root 'P-1'
+  $upd = 'PUBLISH/P-pub-updated/P-pub-updated-PDF'
+  New-Item -ItemType Directory -Force -Path (Join-Path $proj ($upd -replace '/', '\')) | Out-Null
+  Set-Content -Path (Join-Path $proj 'PUBLISH\P-pub-updated\P-pub-updated-PDF\A-101.pdf') -Value 'old A'
+  function New-Inbox { $d = New-TempDir; Set-Content -Path (Join-Path $d 'A-101.pdf') -Value 'new A'; Set-Content -Path (Join-Path $d 'B.pdf') -Value 'new B'; Set-Content -Path (Join-Path $d 'C.dwg') -Value 'keep'; return $d }
+  $sent = 'PUBLISH/P-pub-@sent/P-pub-sent-2026/P-pub-2026,10,25/PDF'
+  $itask = [pscustomobject]@{ kind = 'inbox'; root = '@X'; folder = 'P-1'
+    files = @([pscustomobject]@{ n = 0; name = 'A-101.pdf' }, [pscustomobject]@{ n = 1; name = 'B.pdf' })
+    plan = [pscustomobject]@{ mode = 'publish'; steps = @([pscustomobject]@{ op = 'mkdir'; path = $sent; from = ''; to = '' })
+      files = @([pscustomobject]@{ n = 0; name = 'A-101.pdf'; dests = @([pscustomobject]@{ path = $sent; replace = $false }, [pscustomobject]@{ path = $upd; replace = $true }) },
+                [pscustomobject]@{ n = 1; name = 'B.pdf'; dests = @([pscustomobject]@{ path = $upd; replace = $true }) }) } }
+  $in1 = New-Inbox
+  $res = Invoke-InboxTask $proj $in1 $itask
+  $updFull = Join-Path $proj ($upd -replace '/', '\')
+  Check 'publish: no error' ($null -eq $res.error -and -not $res.missing)
+  Check 'publish: SENT' ((Get-Content (Join-Path $proj (($sent -replace '/', '\') + '\A-101.pdf'))) -eq 'new A')
+  Check 'publish: UPDATED replaced' ((Get-Content (Join-Path $updFull 'A-101.pdf')) -eq 'new A' -and (Get-Content (Join-Path $updFull 'B.pdf')) -eq 'new B')
+  Check 'publish: the old one in @ver inside the folder' ((Get-Content (Join-Path $updFull '@ver\A-101.pdf')) -eq 'old A')
+  Check 'publish: reports the names, per dest' ((@($res.files | ForEach-Object { $_.name + '=' + (@($_.dests) -join '|') }) -join ',') -eq 'A-101.pdf=A-101.pdf|A-101.pdf,B.pdf=B.pdf')
+  Check 'publish: the sources leave the inbox, the rest stays' (-not (Test-Path (Join-Path $in1 'A-101.pdf')) -and -not (Test-Path (Join-Path $in1 'B.pdf')) -and (Test-Path (Join-Path $in1 'C.dwg')))
+  # again: the version before is in @ver already: kept, the next one gets a free name
+  $in2 = New-Inbox; Set-Content -Path (Join-Path $in2 'A-101.pdf') -Value 'newer A'
+  $res = Invoke-InboxTask $proj $in2 $itask
+  Check 'publish: @ver never overwritten' ((Get-Content (Join-Path $updFull '@ver\A-101.pdf')) -eq 'old A' -and (Get-Content (Join-Path $updFull '@ver\A-101 (2).pdf')) -eq 'new A' -and (Get-Content (Join-Path $updFull 'A-101.pdf')) -eq 'newer A')
+  Check 'publish: SENT without replace gets a free name' ((Get-Content (Join-Path $proj (($sent -replace '/', '\') + '\A-101 (2).pdf'))) -eq 'newer A' -and @($res.files)[0].dests[0] -eq 'A-101 (2).pdf')
+  # a bad dest, a step that is no mkdir, a file that is not in the inbox: nothing at all is done
+  foreach ($case in @(
+      @{ what = 'a dest outside'; dests = @([pscustomobject]@{ path = '../out'; replace = $false }); steps = @(); name = 'A-101.pdf' },
+      @{ what = 'a move step'; dests = @([pscustomobject]@{ path = 'NEW'; replace = $false }); steps = @([pscustomobject]@{ op = 'move'; path = ''; from = 'PUBLISH'; to = 'X' }); name = 'A-101.pdf' },
+      @{ what = 'a source path'; dests = @([pscustomobject]@{ path = 'NEW'; replace = $false }); steps = @(); name = '..\A-101.pdf' })) {
+    $in3 = New-Inbox
+    $t3 = [pscustomobject]@{ kind = 'inbox'; files = @([pscustomobject]@{ n = 0; name = $case.name })
+      plan = [pscustomobject]@{ steps = @(@([pscustomobject]@{ op = 'mkdir'; path = 'MADE'; from = ''; to = '' }) + $case.steps); files = @([pscustomobject]@{ n = 0; name = $case.name; dests = $case.dests }) } }
+    $res = Invoke-InboxTask $proj $in3 $t3
+    Check "publish: $($case.what) is an error" ($res.error -and @($res.files).Count -eq 0)
+    Check "publish: $($case.what), nothing done" (-not (Test-Path (Join-Path $proj 'MADE')) -and -not (Test-Path (Join-Path $proj 'NEW')) -and (Test-Path (Join-Path $in3 'A-101.pdf')))
+    Remove-Item -LiteralPath $in3 -Recurse -Force
+  }
+  # a source no longer in the inbox (published from another window, deleted): skipped and said; the rest goes on
+  $in6 = New-Inbox
+  $t6 = [pscustomobject]@{ kind = 'inbox'; files = @([pscustomobject]@{ n = 0; name = 'none.pdf' }, [pscustomobject]@{ n = 1; name = 'B.pdf' })
+    plan = [pscustomobject]@{ steps = @([pscustomobject]@{ op = 'mkdir'; path = 'MADE6'; from = ''; to = '' })
+      files = @([pscustomobject]@{ n = 0; name = 'none.pdf'; dests = @([pscustomobject]@{ path = 'MADE6'; replace = $false }) },
+                [pscustomobject]@{ n = 1; name = 'B.pdf'; dests = @([pscustomobject]@{ path = 'MADE6'; replace = $false }) }) } }
+  $res = Invoke-InboxTask $proj $in6 $t6
+  Check 'stale: no error' ($null -eq $res.error)
+  Check 'stale: the missing one said' ((@($res.notInInbox) -join ',') -eq 'none.pdf')
+  Check 'stale: the rest published' ((@($res.files | ForEach-Object { $_.name + '=' + (@($_.dests) -join '|') }) -join ',') -eq 'B.pdf=B.pdf' -and (Test-Path (Join-Path $proj 'MADE6\B.pdf')) -and -not (Test-Path (Join-Path $in6 'B.pdf')))
+  # every source gone: nothing done at all, not even the folders
+  $t7 = [pscustomobject]@{ kind = 'inbox'; files = @([pscustomobject]@{ n = 0; name = 'none.pdf' })
+    plan = [pscustomobject]@{ steps = @([pscustomobject]@{ op = 'mkdir'; path = 'MADE7'; from = ''; to = '' })
+      files = @([pscustomobject]@{ n = 0; name = 'none.pdf'; dests = @([pscustomobject]@{ path = 'MADE7'; replace = $false }) }) } }
+  $res = Invoke-InboxTask $proj $in6 $t7
+  Check 'stale: all gone, no error' ($null -eq $res.error -and @($res.files).Count -eq 0 -and (@($res.notInInbox) -join ',') -eq 'none.pdf')
+  Check 'stale: all gone, nothing made' (-not (Test-Path (Join-Path $proj 'MADE7')))
+  Remove-Item -LiteralPath $in6 -Recurse -Force
+  # a failure part way: what was copied is said, and a file not wholly published stays in the inbox
+  $in4 = New-Inbox
+  Set-Content -Path (Join-Path $proj 'BLOCK') -Value 'a file where a folder should be'
+  $t4 = [pscustomobject]@{ kind = 'inbox'; files = @([pscustomobject]@{ n = 0; name = 'B.pdf' }, [pscustomobject]@{ n = 1; name = 'A-101.pdf' })
+    plan = [pscustomobject]@{ steps = @(); files = @([pscustomobject]@{ n = 0; name = 'B.pdf'; dests = @([pscustomobject]@{ path = 'OK1'; replace = $false }) },
+      [pscustomobject]@{ n = 1; name = 'A-101.pdf'; dests = @([pscustomobject]@{ path = 'OK2'; replace = $false }, [pscustomobject]@{ path = 'BLOCK/x'; replace = $false }) }) } }
+  $res = Invoke-InboxTask $proj $in4 $t4
+  Check 'partial: an error' ([bool]$res.error)
+  Check 'partial: the first file published and gone from the inbox' (-not (Test-Path (Join-Path $in4 'B.pdf')) -and (Test-Path (Join-Path $proj 'OK1\B.pdf')))
+  Check 'partial: the second file stays in the inbox' ((Test-Path (Join-Path $in4 'A-101.pdf')) -and (Test-Path (Join-Path $proj 'OK2\A-101.pdf')))
+  Check 'partial: the report' ((@($res.files | ForEach-Object { $_.name + '=' + (@($_.dests) -join '|') }) -join ',') -eq 'B.pdf=B.pdf,A-101.pdf=A-101.pdf')
+  Check 'publish: missing project' ((Invoke-InboxTask $null $in4 $t4).missing -eq $true)
+  Check 'publish: no inbox' ([bool](Invoke-InboxTask $proj (Join-Path $root 'no-inbox') $t4).error)
+  # replace on a name that is a folder in the dest: no move, a free name
+  $in5 = New-Inbox
+  New-Item -ItemType Directory -Force -Path (Join-Path $proj 'R\B.pdf') | Out-Null
+  $t5 = [pscustomobject]@{ kind = 'inbox'; files = @([pscustomobject]@{ n = 0; name = 'B.pdf' }); plan = [pscustomobject]@{ steps = @(); files = @([pscustomobject]@{ n = 0; name = 'B.pdf'; dests = @([pscustomobject]@{ path = 'R'; replace = $true }) }) } }
+  $res = Invoke-InboxTask $proj $in5 $t5
+  Check 'replace: a folder of that name is left alone' (-not $res.error -and (Test-Path (Join-Path $proj 'R\B (2).pdf') -PathType Leaf) -and (Test-Path (Join-Path $proj 'R\B.pdf') -PathType Container))
+  foreach ($d in $in1, $in2, $in4, $in5) { Remove-Item -LiteralPath $d -Recurse -Force }
+
   # texts
   $script:Lang = 'en'
   Check 'text: English' ((T 'בחר את התיקייה הראשית של הפרויקט {p}' @{ p = 'TASC' }) -eq 'Choose the main folder of project TASC')
