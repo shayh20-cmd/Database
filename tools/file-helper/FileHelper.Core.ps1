@@ -64,6 +64,14 @@ function Resolve-InProject([string]$Root, [string]$Rel) {
   if ($r -eq '') { return $rootFull }
   $full = [IO.Path]::GetFullPath((Join-Path $rootFull ($r -replace '/', '\')))
   if (-not $full.StartsWith($rootFull + '\', [StringComparison]::OrdinalIgnoreCase)) { throw "Not inside the project: $Rel" }
+  # a junction or a symbolic link on the way could lead out of the project: none is followed (the names that are not
+  # there yet are made as folders)
+  $at = $rootFull
+  foreach ($part in ($r -split '/')) {
+    $at = Join-Path $at $part
+    try { $attr = [IO.File]::GetAttributes($at) } catch { break }
+    if ($attr -band [IO.FileAttributes]::ReparsePoint) { throw "A link inside the project: $Rel" }
+  }
   return $full
 }
 # ── the project's folders: names only, breadth first (parents before children) ──
@@ -620,6 +628,12 @@ function Invoke-InboxTask([string]$Dir, [string]$InboxDir, $Task, [bool]$Move = 
   # done. A file copied to all its dests (sizes checked) is deleted from the inbox; the first failure stops it, and a
   # file not copied everywhere stays in the inbox. $Move = $false (a folder the person chose, not the export inbox): the
   # files are only copied, nothing is deleted.
+  # Received files (a consultant's new plan version) may also move the previous version folder into the @ver folder next
+  # to it, as the server allows it (filing-ai.js, sanitizeReceivePlan): from is a folder that is there, below the
+  # project's top, named <stem>-vNN and no @ver folder, not one this plan makes, and an earlier mkdir step of the plan
+  # makes its sibling <stem>-vMM (MM > NN, the stem in any case); to is <a sibling folder with @ver in its name>\<the
+  # same name>, where nothing is — checked first, and again just before it moves. When a step fails, the folders this
+  # task made are taken away again if they are still empty.
   # Result: { files: [{ name, dests: [the name it was saved as, per dest, in the plan's order] }], notInInbox, error }.
   if (-not $Dir) { return @{ missing = $true } }
   $result = @{ files = @(); notInInbox = @(); error = $null }
@@ -627,10 +641,28 @@ function Invoke-InboxTask([string]$Dir, [string]$InboxDir, $Task, [bool]$Move = 
     if (-not $InboxDir -or -not [IO.Directory]::Exists($InboxDir)) { throw "The folder of the files is not on this PC: $InboxDir" }
     $byN = @{}; $byName = @{}
     foreach ($x in @($Task.files)) { if ($null -ne $x) { if ($null -ne $x.n) { $byN[[int]$x.n] = [string]$x.name }; $byName[[string]$x.name] = $true } }
+    $made = New-Object System.Collections.Generic.List[string] # the folders the mkdir steps so far make (full paths)
     $steps = @(foreach ($s in @($Task.plan.steps)) {
       if (-not $s) { continue }
-      if ($s.op -ne 'mkdir') { throw "Not a step of a publish: $($s.op)" }
-      Resolve-InProject $Dir $s.path
+      if ($s.op -eq 'mkdir') { $m = Resolve-InProject $Dir $s.path; $made.Add($m); [pscustomobject]@{ op = 'mkdir'; a = $m; b = $null }; continue }
+      if ($s.op -ne 'move') { throw "Not a step of a publish: $($s.op)" }
+      $a = Resolve-InProject $Dir $s.from; $b = Resolve-InProject $Dir $s.to
+      $leaf = Split-Path $a -Leaf; $parent = Split-Path $a -Parent
+      if ($leaf -match '@ver' -or $leaf -notmatch '^(.*)-v(\d{1,4})$') { throw "Not a version folder: $($s.from)" }
+      $stem = $Matches[1]; $num = [int]$Matches[2]
+      foreach ($m in $made) { if ((Test-SameFolder $m $a) -or $a.StartsWith($m.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) { throw "A folder this task makes: $($s.from)" } }
+      $newer = $false
+      foreach ($m in $made) {
+        $ml = Split-Path $m -Leaf
+        if ((Test-SameFolder (Split-Path $m -Parent) $parent) -and $ml -match '^(.*)-v(\d{1,4})$' -and $Matches[1] -ieq $stem -and [int]$Matches[2] -gt $num) { $newer = $true }
+      }
+      if (-not $newer) { throw "No newer version made before it: $($s.from)" }
+      $ver = Split-Path $b -Parent
+      if ((ConvertTo-RelPath $s.from) -notmatch '/' -or (Split-Path $ver -Leaf) -notmatch '@ver' -or
+          -not (Test-SameFolder (Split-Path $ver -Parent) $parent) -or (Split-Path $b -Leaf) -ne $leaf) { throw "Not a move to the @ver folder next to it: $($s.from)" }
+      if (-not [IO.Directory]::Exists($a)) { throw "Not there: $($s.from)" }
+      if (Test-Path -LiteralPath $b) { throw "Already there: $($s.to)" }
+      [pscustomobject]@{ op = 'move'; a = $a; b = $b; rel = [string]$s.from; relTo = [string]$s.to }
     })
     $jobs = @(foreach ($f in @($Task.plan.files)) {
       if (-not $f) { continue }
@@ -644,7 +676,24 @@ function Invoke-InboxTask([string]$Dir, [string]$InboxDir, $Task, [bool]$Move = 
       [pscustomobject]@{ name = $name; src = $src; dests = $dests }
     })
     if (-not $jobs.Count) { return $result }
-    foreach ($s in $steps) { [void][IO.Directory]::CreateDirectory($s) }
+    $created = @()
+    try {
+      foreach ($s in $steps) {
+        if ($s.op -eq 'mkdir') {
+          if (-not [IO.Directory]::Exists($s.a)) { [void][IO.Directory]::CreateDirectory($s.a); $created += $s.a }
+          continue
+        }
+        if (Test-Path -LiteralPath $s.b) { throw "Already there: $($s.b)" }
+        if (-not [IO.Directory]::Exists((Split-Path $s.b -Parent))) { throw "No @ver folder: $(Split-Path $s.b -Parent)" }
+        [void](Resolve-InProject $Dir $s.rel); [void](Resolve-InProject $Dir $s.relTo) # no link appeared on the way
+        [IO.Directory]::Move($s.a, $s.b)
+      }
+    } catch {
+      # the folders this task made, still empty, go again (the newest first); nothing else is touched
+      [array]::Reverse($created)
+      foreach ($c in $created) { try { if ([IO.Directory]::Exists($c) -and -not [IO.Directory]::EnumerateFileSystemEntries($c).GetEnumerator().MoveNext()) { [IO.Directory]::Delete($c) } } catch {} }
+      throw
+    }
     foreach ($j in $jobs) {
       $done = [pscustomobject]@{ name = $j.name; dests = @() }
       $result.files += $done

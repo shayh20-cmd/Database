@@ -25,6 +25,10 @@
    from a project code in the file names, asks Claude where the files go in the project's PUBLISH area (inbox-propose:
    today's SENT folder and/or UPDATED, replacing a file of the same name) and sends the confirmed plan to the agent
    on the PC that announced the batch (an `inbox` task), which copies the files there and takes them out of the inbox.
+   The same window files received files too (mode 'receive'): inbox-options offers who sent them (the project's
+   consultant folders with its register contacts, the folders of its receive and permit areas, the tree), and Claude
+   places them — a consultant's plans in a new version folder (the previous one may move into the @ver next to it), its
+   documents in its docs folder, another party's in its folder — without replacing anything.
    Tasks, filings, mapping sessions and inbox batches live in memory: a restart only loses work nobody finished.
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md */
 const fs = require('fs');
@@ -642,7 +646,9 @@ module.exports = function createFiling(ctx) {
         const at = new Date().toISOString();
         const d = load();
         const pr = projectOf(d, t.projectId);
-        pr.log = [...(pr.log || []), ...log.map(l => ({ at, by: t.by, from: '', subject: '', file: l.file, dest: l.dest, mode: 'publish' }))].slice(-LOG_MAX);
+        // received files: who sent them (as chosen in the window, or as Claude guessed)
+        const rcv = t.plan.mode === 'receive';
+        pr.log = [...(pr.log || []), ...log.map(l => ({ at, by: t.by, from: rcv ? oneLine(t.plan.from, 120) : '', subject: '', file: l.file, dest: l.dest, mode: rcv ? 'receive' : 'publish' }))].slice(-LOG_MAX);
         writeJsonAtomic(STORE, d);
       }
       t.result = { files: out, notInInbox, error };
@@ -651,9 +657,13 @@ module.exports = function createFiling(ctx) {
         // the files that left the inbox leave the batch; what is left stays open (the window may publish it too)
         if (gone.size) {
           b.files = b.files.filter(x => !gone.has(x.n));
-          b.plan = null; // it was for files that went
-          if (b.h) b.h.tree = null; // the PC made folders: read them again
           if (!b.files.length && b.status === 'new') b.status = 'published';
+        }
+        // files left, the PC stopped part way, or it moved a folder (perhaps before a copy failed): the plan is not
+        // the project's state any more, nor the tree read before it; both are made again for the next proposal
+        if (gone.size || error || t.plan.steps.some(s => s.op === 'move')) {
+          b.plan = null;
+          if (b.h) b.h.tree = null;
         }
       }
     } else {
@@ -709,7 +719,7 @@ module.exports = function createFiling(ctx) {
      key names its owner: the address in lower case, 'local' on the local server). base: the site, for the tools. */
   const HUB_METHOD = {
     project: 'GET', task: 'GET', pick: 'POST', open: 'POST', 'map-session': 'POST', 'map-propose': 'POST', map: 'PUT', guide: 'PUT',
-    inbox: 'GET', 'inbox-latest': 'GET', 'inbox-open': 'GET', 'pick-source': 'POST', 'inbox-propose': 'POST', 'inbox-confirm': 'POST', 'inbox-dismiss': 'POST'
+    inbox: 'GET', 'inbox-options': 'GET', 'inbox-latest': 'GET', 'inbox-open': 'GET', 'pick-source': 'POST', 'inbox-propose': 'POST', 'inbox-confirm': 'POST', 'inbox-dismiss': 'POST'
   };
   const israelToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
   async function handleHub(req, res, url, user, base) {
@@ -759,10 +769,17 @@ module.exports = function createFiling(ctx) {
       return;
     }
     if (route.startsWith('inbox')) {
-      const body = route === 'inbox' ? {} : await json(req);
-      noteLang(who, route === 'inbox' ? url.searchParams.get('lang') : body.lang);
-      const b = batches.get(String((route === 'inbox' ? url.searchParams.get('id') : body.id) || url.searchParams.get('id') || ''));
+      const get = HUB_METHOD[route] === 'GET';
+      const body = get ? {} : await json(req);
+      noteLang(who, get ? url.searchParams.get('lang') : body.lang);
+      const b = batches.get(String((get ? url.searchParams.get('id') : body.id) || url.searchParams.get('id') || ''));
       if (!b || b.who !== who) { sendJson(res, 404, { error: 'no_batch' }); return; }
+      // the project's tree, asked once per project chosen in the window, of the PC that announced the batch; another
+      // project's: the plan (for the one before) goes with it
+      const holdFor = (project, lang) => {
+        if (!b.h || b.h.projectId !== project.id) { b.h = { who, person: p, base, projectId: project.id, project, lang, tree: null, treeTask: null }; b.plan = null; }
+        return b.h;
+      };
       if (route === 'inbox') {
         const projects = mcp.runToolAs(p.email, p.name, base, 'list_projects', {}).projects.map(x => ({ id: x.id, code: x.code || '', name: x.name }));
         // source: files of a folder the person chose (copied), not of the export inbox (moved out of it)
@@ -770,6 +787,20 @@ module.exports = function createFiling(ctx) {
         return;
       }
       if (b.status !== 'new') { sendJson(res, 409, { error: b.status }); return; }
+      /* received files: who may have sent them, for the chosen project — its consultants (the folders under the
+         consultants area, with the register contacts), the folders under receive and permit, and the whole tree */
+      if (route === 'inbox-options') {
+        if (!writer(p)) { sendJson(res, 403, { error: 'viewer' }); return; }
+        const project = projectRef(getProject(url.searchParams.get('projectId')));
+        const pr = known(project.id);
+        if (!pr.folder) { sendJson(res, 200, { needsFolder: true }); return; }
+        const h = holdFor(project, url.searchParams.get('lang') === 'en' ? 'en' : 'he');
+        const no = await treeOf(h, pr, res, () => {}, { inboxId: b.id, pc: b.pc });
+        if (no === 'gone') return;
+        if (no) { sendJson(res, 200, no); return; }
+        sendJson(res, 200, ai.receiveOptions({ map: ai.normalizeMap(pr.map), tree: h.tree, contacts: contactsOf(p, project.id), code: project.code }));
+        return;
+      }
       if (b.taskId) { sendJson(res, 409, { error: 'confirmed' }); return; }
       if (route === 'inbox-dismiss') {
         b.status = 'dismissed';
@@ -781,7 +812,7 @@ module.exports = function createFiling(ctx) {
 
       if (route === 'inbox-confirm') {
         const h = b.h;
-        if (!b.plan || !h || !b.plan.files.some(x => x.dests.length)) { sendJson(res, 409, { error: 'no_plan' }); return; }
+        if (!b.plan || !h || b.plan.projectId !== h.projectId || !b.plan.files.some(x => x.dests.length)) { sendJson(res, 409, { error: 'no_plan' }); return; }
         getProject(h.projectId); // still open to this person
         const pr = known(h.projectId);
         if (!pr.folder) { sendJson(res, 409, { error: 'no_folder' }); return; }
@@ -792,7 +823,11 @@ module.exports = function createFiling(ctx) {
         return;
       }
 
-      // inbox-propose: the selected files, the chosen targets, the person's instruction
+      // inbox-propose: the selected files, the chosen targets (publish) or who sent them (receive), the person's instruction
+      const receive = body.mode === 'receive';
+      const fr = receive && body.from && typeof body.from === 'object' && (body.from.kind === 'consultant' || body.from.kind === 'other') ? body.from : null;
+      const from = fr ? { kind: fr.kind, folder: ai.relPath(fr.folder) || '', name: oneLine(fr.name, 120).trim() } : null;
+      const doc = from && from.kind === 'consultant' && (body.doc === 'plan' || body.doc === 'doc') ? body.doc : '';
       const ns = Array.isArray(body.files) ? [...new Set(body.files)] : [];
       // a file's n stays what it was announced as; a published one is no longer in the batch
       const fileOf = n => b.files.find(x => x.n === n);
@@ -803,9 +838,7 @@ module.exports = function createFiling(ctx) {
       b.busy = mine;
       const release = () => { if (b.busy === mine) b.busy = false; };
       b.plan = null; // a plan is for one selection: the previous one goes
-      // the project's tree, asked once per project chosen in the window, of the PC that announced the batch
-      if (!b.h || b.h.projectId !== project.id) b.h = { who, person: p, base, projectId: project.id, project, lang, tree: null, treeTask: null };
-      const h = b.h;
+      const h = holdFor(project, lang);
       h.lang = lang;
       try {
         const pr = known(project.id);
@@ -815,22 +848,36 @@ module.exports = function createFiling(ctx) {
         if (no) { sendJson(res, 200, no); return; }
         if (!client) { sendJson(res, 200, { ai: 'unavailable' }); return; }
         let out;
+        const files = ns.sort((x, y) => x - y).map(n => ({ n, name: fileOf(n).name }));
+        const guide = String(pr.guide || '').trim() || DEFAULT_GUIDE;
         try {
-          out = await ai.inboxProposal(client, model, {
-            project, map: ai.normalizeMap(pr.map), guide: String(pr.guide || '').trim() || DEFAULT_GUIDE, tree: h.tree, today: israelToday(),
-            files: ns.sort((x, y) => x - y).map(n => ({ n, name: fileOf(n).name })), sent: body.sent === true, updated: body.updated === true,
-            text: clip(body.text, 1000).trim(), lang
-          });
+          if (receive) {
+            // a folder the page named that is not in the tree is not one
+            const inTree = from && from.folder && h.tree.find(q => q.toLowerCase() === from.folder.toLowerCase());
+            if (from) from.folder = inTree || '';
+            out = await ai.receiveProposal(client, model, {
+              project, map: ai.normalizeMap(pr.map), guide, tree: h.tree, contacts: contactsOf(p, project.id), files, from, doc, text: clip(body.text, 1000).trim(), lang
+            });
+            // who sent them, for the project's history: as the person chose it, else as Claude guessed
+            out.plan.from = (from && from.name) || (out.guess && out.guess.name) || '';
+          } else {
+            out = await ai.inboxProposal(client, model, {
+              project, map: ai.normalizeMap(pr.map), guide, tree: h.tree, today: israelToday(), files,
+              sent: body.sent === true, updated: body.updated === true, text: clip(body.text, 1000).trim(), lang
+            });
+          }
         } catch (e) {
           console.error('filing inbox propose failed:', e.message);
           sendJson(res, 200, { ai: 'failed' });
           return;
         }
+        // the window chose another project while Claude answered (inbox-options): this plan is not for it
         if (b.status !== 'new' || b.taskId || b.h !== h) { sendJson(res, 409, { error: 'changed' }); return; }
+        out.plan.projectId = project.id;
         b.plan = out.plan;
         // a replace Claude asked for and the plan dropped ('no_map': no publish area mapped; 'outside': not inside it):
         // the window says so, since Claude's words may still speak of replacing
-        sendJson(res, 200, { message: out.message, plan: out.plan, ...(out.replaceStripped ? { replaceStripped: out.replaceStripped } : {}) });
+        sendJson(res, 200, { message: out.message, plan: out.plan, ...(out.replaceStripped ? { replaceStripped: out.replaceStripped } : {}), ...(out.guess ? { guess: out.guess } : {}) });
       } finally {
         release();
       }
