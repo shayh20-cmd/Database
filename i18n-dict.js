@@ -3006,7 +3006,22 @@ Object.assign(HE_EN, {
 "אחראי בסטטוס הבא": "Owner in the next status",
 "משימות אישיות": "Personal tasks",
 "שנה עדיפות": "Change priority",
-"שנה שיוך": "Change assignees"
+"שנה שיוך": "Change assignees",
+"רצף הכדור": "Ball sequence",
+"+ העבר כדור": "+ Pass the ball",
+"+ הערה": "+ Note",
+"הכדור עובר ל": "Ball goes to",
+"ללא העברה": "No handoff",
+"מאת": "From",
+"נערך": "edited",
+"מ־{d}": "from {d}",
+"נפתח {d}": "Opened {d}",
+"הכדור עדיין כאן": "The ball is still here",
+"כבר {n} ימי עבודה": "for {n} workdays",
+"סגור — הכדור לא אצל אף צד": "Closed — no one holds the ball",
+"כותרת — מה צריך לקרות עכשיו": "Title — what needs to happen now",
+"תיאור מלא…": "Full description…",
+"למחוק את הרשומה מהרצף?": "Delete this entry from the sequence?"
 });
 
 window.I18N_HE_EN = HE_EN;

@@ -1056,12 +1056,12 @@ textarea.ex-in{resize:vertical;min-height:64px;}
 .ex-file button{border:none;background:none;color:var(--text-3);cursor:pointer;font-size:14px;line-height:1;padding:0 2px;}
 .ex-dlg-acts{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;}
 .ex-err{color:var(--danger-text);font-size:12px;margin-top:6px;}
-.ex-panel{width:min(1000px,calc((100vw - 40px)/0.9));color:var(--text);}
+.ex-panel{width:min(780px,calc((100vw - 40px)/0.9));color:var(--text);}
 .ex-p-hdr .ex-num{font-weight:700;}
 .ex-p-title{cursor:text;}
 .ex-p-title-in{flex:1;min-width:0;font-size:15px;font-weight:700;padding:3px 6px;border:1px solid var(--accent);border-radius:6px;font-family:inherit;color:var(--text);background:var(--bg);}
 .ex-p-body{container-type:inline-size;}
-.ex-p-grid{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:18px;align-items:start;}
+.ex-p-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;align-items:start;}
 @container (max-width:720px){.ex-p-grid{grid-template-columns:minmax(0,1fr);}}
 .ex-p-main{display:flex;flex-direction:column;gap:14px;min-width:0;}
 .ex-sec-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12.5px;font-weight:700;margin-bottom:8px;}
@@ -1087,6 +1087,39 @@ textarea.ex-in{resize:vertical;min-height:64px;}
 .ex-sys b{font-weight:600;color:var(--text-2);}
 .ex-comp,.ex-rounds,.ex-tform{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;}
 .ex-comp-h{font-size:12.5px;font-weight:700;}
+.ex-tag{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;padding:1px 8px;border-radius:999px;color:#fff;border:1px solid transparent;white-space:nowrap;flex-shrink:0;line-height:1.6;}
+.ex-tag-muted{background:transparent;}
+.ex-sum{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;padding:8px 12px;margin-bottom:12px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;}
+.ex-sum-bar{width:96px;height:6px;}
+.ex-sum-meta{display:inline-flex;align-items:center;gap:14px;flex-wrap:wrap;margin-inline-start:auto;}
+.ex-meta{display:inline-flex;align-items:center;gap:5px;}
+.ex-meta>label{font-size:11.5px;color:var(--text-3);}
+.ex-meta .ex-in{width:auto;max-width:150px;padding:2px 6px;font-size:12px;}
+.ex-meta .df-box{min-width:0;}
+.ex-tl-head{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
+.ex-tl-head .ex-sec-h{margin:0;margin-inline-end:auto;}
+.ex-tl-form{margin-bottom:10px;}
+.ex-comp-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.ex-tag-sel{width:auto;font-weight:700;font-size:11.5px;padding:2px 6px;border-radius:999px;}
+.ex-tl{position:relative;padding-inline-start:20px;display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+.ex-tl::before{content:"";position:absolute;inset-inline-start:5px;top:10px;bottom:10px;width:2px;background:var(--border);}
+.ex-tl-node{position:relative;}
+.ex-tl-node::before{content:"";position:absolute;inset-inline-start:-19px;top:10px;width:8px;height:8px;border-radius:50%;background:var(--c,var(--text-3));box-shadow:0 0 0 2px var(--bg);}
+.ex-tl-row{display:flex;align-items:center;gap:8px;width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-family:inherit;font-size:12.5px;color:var(--text);cursor:pointer;text-align:start;}
+.ex-tl-row:hover{border-color:var(--border-strong);}
+.ex-tl-node.is-expanded .ex-tl-row{border-radius:8px 8px 0 0;}
+.ex-tl-row.is-note{background:transparent;}
+.ex-tl-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ex-tl-row.is-open .ex-tl-title{font-weight:700;}
+.ex-tl-date{font-size:11px;color:var(--text-3);white-space:nowrap;font-variant-numeric:tabular-nums;}
+.ex-tl-days{font-size:11px;padding:1px 7px;border-radius:6px;background:var(--surface-2);color:var(--text-2);white-space:nowrap;}
+.ex-tl-days.warn{background:var(--pri-high-bg);color:var(--pri-high);}
+.ex-tl-det{border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:8px 12px 10px;background:var(--surface);display:flex;flex-direction:column;gap:6px;}
+.ex-tl-det .ex-card-b{margin-top:0;}
+.ex-tl-from{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-3);flex-wrap:wrap;}
+.ex-tl-acts{display:flex;gap:14px;border-top:1px solid var(--border);padding-top:6px;margin-top:2px;}
+.ex-tl-acts .ex-del{color:var(--danger-text);}
+.ex-tl-start{font-size:11.5px;color:var(--text-3);display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:2px 0;}
 .ex-decide,.ex-revform{background:var(--surface);border:1px dashed var(--border-strong);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:8px;}
 .ex-rev{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;}
 .ex-rev-h{display:flex;align-items:center;gap:8px;font-size:12px;flex-wrap:wrap;}
@@ -4090,7 +4123,7 @@ function execRespond(item,r,now){
   /* a decided submittal round is history: reopening it waits for the contractor's next revision instead of undoing the decision */
   const lastRev=(item.revisions||[]).slice(-1)[0];const resubmit=kind==='reopen'&&item.type==='submittal'&&!!(lastRev&&lastRev.decision);
   const ballTo=kind==='close'?null:resubmit?{party:'contractor',name:''}:(r.ballTo||null);
-  let next={...item,responses:[...(item.responses||[]),{id:uid(),at,party:r.party,name:r.name||'',body:r.body||'',files:r.files||[],ballTo,kind}]};
+  let next={...item,responses:[...(item.responses||[]),{id:uid(),at,party:r.party,name:r.name||'',body:r.body||'',files:r.files||[],ballTo,kind,...(r.title?{title:r.title}:{}),...(r.mail?{mail:r.mail}:{}),...(r.byId?{byId:r.byId}:{})}]};
   if(kind==='close'){next.status=item.type==='issue'?'resolved':item.type==='rfi'?'closed':item.status;next.closedAt=at;return execSetBall(next,null,at);}
   if(resubmit){next.status='rejected';next.closedAt=null;return execSetBall(next,ballTo,at);}
   if(kind==='reopen'){next.status=EXEC_TYPES[item.type].statuses[0].id;next.closedAt=null;if(item.type==='change')next.approvedText='';}
@@ -4213,6 +4246,32 @@ function execLogRows(items,filter,today){
   const open=list.filter(i=>!execIsClosed(i)).map(i=>({i,w:execWaiting(i,today)})).sort((a,b)=>b.w-a.w||(a.i.seq-b.i.seq)).map(x=>x.i);
   const closed=list.filter(i=>execIsClosed(i)).sort((a,b)=>String(b.closedAt||'').localeCompare(String(a.closedAt||'')));
   return[...open,...closed];
+}
+/* the thread as ball periods, newest first: an entry that moved the ball opens its new holder's period, which runs to the
+   next move (or the close, or today); an entry that left the ball where it was is a note */
+function execThreadRows(item,today){
+  const h=item.ballHistory||[];
+  return(item.responses||[]).map(r=>{
+    let hi=-1;h.forEach((x,i)=>{if(x.from===r.at)hi=i;});
+    if(hi<0||!h[hi].party)return{r,holder:null,moved:hi>=0,from:r.at};
+    const nx=h[hi+1];const to=nx?nx.from:(item.closedAt||null);
+    return{r,holder:{party:h[hi].party,name:h[hi].name||''},moved:true,from:r.at,to,open:!nx&&!item.closedAt,days:execWorkdays(r.at,to||today)};
+  }).reverse();
+}
+/* editing an entry keeps when it happened and who held the ball; it changes only what was said and attached */
+function execEditResponse(item,id,p,now){
+  const at=now||new Date().toISOString();let hit=false;
+  const responses=(item.responses||[]).map(r=>{if(r.id!==id)return r;hit=true;const n={...r,editedAt:at};['title','body','files','mail'].forEach(k=>{if(k in p)n[k]=p[k];});if(!n.mail)delete n.mail;if(!n.title)delete n.title;return n;});
+  return hit?{...item,responses}:item;
+}
+/* only a reply or a formal answer can be deleted: the opening, rounds, decisions and status lines carry the item's history.
+   The ball goes back to whoever held it before that entry moved it. */
+const EXEC_DELETABLE=['reply','answer'];
+function execDeleteResponse(item,id){
+  const r=(item.responses||[]).find(x=>x.id===id);if(!r||!EXEC_DELETABLE.includes(r.kind))return item;
+  const ballHistory=(item.ballHistory||[]).filter(x=>x.from!==r.at);const last=ballHistory[ballHistory.length-1];
+  const ball=execIsClosed(item)?item.ball:(last&&last.party?{party:last.party,name:last.name||''}:null);
+  return{...item,responses:item.responses.filter(x=>x.id!==id),ballHistory,ball};
 }
 /* ═══ /exec-logic ═══ */
 /* ═══ meeting-logic ═══ */
@@ -4713,7 +4772,6 @@ const EX_CHG_DECISIONS=[{id:'approved',label:'אושר'},{id:'approved_cond',lab
 function ExChgDecisionPill({d}){const x=EX_CHG_DECISIONS.find(y=>y.id===d);return x?React.createElement("span",{className:"ex-st "+(d==='rejected'?"ex-st-rejected":"ex-st-closed")},x.label):null;}
 const EX_SOURCE_LABEL={meeting:'ישיבה',site_visit:'סיור באתר',email:'מייל',manual:'ידני'};
 const exDateTime=iso=>{if(!iso)return '';const d=new Date(iso);if(isNaN(d))return '';const p=n=>String(n).padStart(2,'0');return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+String(d.getFullYear()).slice(2)+' '+p(d.getHours())+':'+p(d.getMinutes());};
-const exBallOf=v=>v.choice==='keep'?null:{party:v.choice,name:''};
 const exGoHub=hub=>{try{sessionStorage.setItem('pm_pending_hub',JSON.stringify(hub));}catch{}window.dispatchEvent(new CustomEvent('ph:go-hub',{detail:hub}));};
 function ExStatusPill({item}){const st=((EXEC_TYPES[item.type]||{}).statuses||[]).find(x=>x.id===item.status);const closed=execIsClosed(item);return React.createElement("span",{className:"ex-st"+(item.status==='rejected'?" ex-st-rejected":closed?" ex-st-closed":"")},st?st.label:item.status);}
 function ExDecisionPill({d}){if(!d)return React.createElement("span",{className:"ex-st"},'ממתין להחלטה');const x=EX_DECISIONS.find(y=>y.id===d);return React.createElement("span",{className:"ex-st "+(d==='rejected'?"ex-st-rejected":"ex-st-closed")},x?x.label:d);}
@@ -4726,10 +4784,46 @@ React.createElement("label",{className:"ex-btn ex-btn-sm"},'📎 צרף קבצי
 (up.files.length>0||up.busy>0)&&React.createElement("div",{className:"ex-files"},up.files.map(x=>React.createElement("div",{key:x.id,className:"ex-file"},React.createElement("span",{"data-i18n-skip":""},x.name),React.createElement("button",{type:"button",title:'הסר',onClick:()=>up.setFiles(p=>p.filter(y=>y.id!==x.id))},'×'))),up.busy>0&&React.createElement("div",{className:"ex-file"},'מעלה…')),
 up.err&&React.createElement("div",{className:"ex-err"},up.err));}
 function ExFileLinks({files}){if(!files||!files.length)return null;return React.createElement("div",{className:"ex-flinks"},files.map(f=>React.createElement("a",{key:f.id||f.url,href:f.url,target:"_blank",rel:"noopener","data-i18n-skip":""},'📎 '+(f.name||tx('קובץ')))));}
-function ExBallPicker({value,onChange}){
-const opts=[{id:'contractor',label:'קבלן'},{id:'supervisor',label:'מפקח'},{id:'consultant',label:'יועץ'},{id:'architect',label:'אדריכל'},{id:'keep',label:'ללא שינוי'}];
-return React.createElement("div",{className:"ex-ballpick"},'העבר את הכדור ל:',
-React.createElement("div",{className:"ex-seg",role:"group"},opts.map(o=>React.createElement("button",{key:o.id,type:"button",className:value.choice===o.id?"on":"","aria-pressed":value.choice===o.id,onClick:()=>onChange({...value,choice:o.id})},o.id!=='keep'&&React.createElement("i",{className:"ex-dot",style:{background:EX_PARTY_COLORS[o.id]}}),o.label))));}
+/* the parties as discipline tags: אדריכל ARCH, קבלן CONT, מפקח PM; a consultant shows the discipline it was picked by
+   (its ball.name holds the discipline id; an older free-text consultant name shows as CONS + the name) */
+const EX_PARTY_TAG={architect:'ARCH',contractor:'CONT',supervisor:'PM'};
+function exTagOf(ball,discs){if(!ball||!ball.party)return null;const find=id=>(discs||[]).find(x=>x.id===id);
+if(ball.party==='consultant'){const d=find(ball.name);return d?{code:d.label||d.id,color:d.color}:{code:'CONS',color:EX_PARTY_COLORS.consultant,name:String(ball.name||'').trim()};}
+const code=EX_PARTY_TAG[ball.party]||ball.party;const d=find(code);return{code,color:d?d.color:EX_PARTY_COLORS[ball.party]||'#888780'};}
+const exTagKey=b=>!b?'keep':b.party==='consultant'?'consultant|'+(b.name||''):b.party;
+function exTagOptions(discs){const taken=new Set(Object.values(EX_PARTY_TAG));
+return[...['architect','contractor','supervisor'].map(p=>({key:p,ball:{party:p,name:''}})),...(discs||[]).filter(d=>!taken.has(d.id)).map(d=>({key:'consultant|'+d.id,ball:{party:'consultant',name:d.id}}))];}
+function ExTag({ball,discs,muted}){const t=exTagOf(ball,discs);if(!t)return React.createElement("span",{className:"ex-muted"},'—');
+const p=EXEC_PARTIES.find(x=>x.id===ball.party);
+return React.createElement("span",{className:"ex-tag"+(muted?" ex-tag-muted":""),title:p?tx(p.label):undefined,style:muted?{color:t.color,borderColor:t.color}:{background:t.color,borderColor:t.color}},React.createElement("span",{"data-i18n-skip":""},t.code+(t.name?' '+t.name:'')));}
+/* one entry of the ball sequence: a row (holder, title, dates, days) that opens to the full text, mail and files */
+function ExThreadRow({row,discs,open,onToggle,kindNote,extra,canEdit,canDel,onSave,onDelete}){
+const h=React.createElement;const r=row.r;const[ed,setEd]=useState(null);const up=useExUploads();
+const startEdit=()=>{up.setFiles(r.files||[]);setEd({title:r.title||'',body:r.body||'',mail:r.mail||null});};
+const commit=()=>{if(up.busy)return;onSave({title:ed.title.trim(),body:ed.body.trim(),files:up.files,mail:ed.mail});setEd(null);};
+const own=r.title||String(r.body||'').split(/\r?\n/)[0];
+const dd=iso=>exDdMm(String(iso||'').slice(0,10));
+const who=row.holder||{party:r.party,name:r.name};
+return h(React.Fragment,null,
+h("button",{type:"button",className:"ex-tl-row"+(row.open?" is-open":"")+(row.holder?"":" is-note"),"aria-expanded":open,onClick:onToggle},
+h(ExTag,{ball:who,discs,muted:!row.holder}),
+h("span",{className:"ex-tl-title",...(own?{"data-i18n-skip":""}:{})},own||kindNote||'—'),
+kindNote&&own&&h("span",{className:"ex-kind"},kindNote),
+h("span",{className:"ex-tl-date"},row.holder?(row.to?dd(row.from)+' – '+dd(row.to):tx('מ־{d}',{d:dd(row.from)})):dd(row.from)),
+row.holder&&h("span",{className:"ex-tl-days"+(row.open?" warn":""),title:row.open?tx('הכדור עדיין כאן'):undefined},tx('{n} ימי עבודה',{n:row.days}))),
+open&&h("div",{className:"ex-tl-det"},ed?h(React.Fragment,null,
+h("input",{className:"ex-in",autoFocus:true,value:ed.title,placeholder:'כותרת',"aria-label":'כותרת',onChange:e=>{const v=e.target.value;setEd(x=>({...x,title:v}));}}),
+h("textarea",{className:"ex-in",rows:3,value:ed.body,placeholder:'תיאור מלא…',"aria-label":'תיאור',onChange:e=>{const v=e.target.value;setEd(x=>({...x,body:v}));}}),
+h(MailLinksEditor,{mails:ed.mail?[ed.mail]:[],single:true,onChange:a=>setEd(x=>({...x,mail:a[0]||null})),placeholder:'קישור למייל (לא חובה)'}),
+h(ExFilesInput,{up}),
+h("div",{className:"ex-acts"},h("button",{type:"button",className:"ex-btn ex-btn-sm",onClick:()=>setEd(null)},'ביטול'),h("button",{type:"button",className:"ex-btn ex-btn-sm ex-btn-pri",disabled:!!up.busy,onClick:commit},'שמור'))):
+h(React.Fragment,null,
+h("div",{className:"ex-tl-from"},'מאת',h(ExTag,{ball:{party:r.party,name:r.name},discs,muted:true}),h("span",null,exDateTime(r.at)),r.editedAt&&h("span",null,'· '+tx('נערך'))),
+extra,
+r.body&&h("div",{className:"ex-card-b","data-i18n-skip":""},r.body),
+r.mail&&h("div",{className:"ex-tl-mail"},h(MailLink,{mail:r.mail})),
+h(ExFileLinks,{files:r.files}),
+(canEdit||canDel)&&h("div",{className:"ex-tl-acts"},canEdit&&h("button",{type:"button",className:"ex-link",onClick:startEdit},'✎ ערוך'),canDel&&h("button",{type:"button",className:"ex-link ex-del",onClick:onDelete},'מחק')))));}
 function ExecItemPanel({data,save,itemId,onClose,guardRef}){
 const dataRef=useRef(data);dataRef.current=data;const saveRef=useRef(save);saveRef.current=save;
 const item=(data.execItems||[]).find(x=>x.id===itemId);
@@ -4737,22 +4831,23 @@ const today=todayISO();const me=CURRENT_USER.name;const role=myOfficeRole();cons
 const updateItem=(id,fn)=>{const d=dataRef.current;saveRef.current({...d,execItems:(d.execItems||[]).map(x=>x.id===id?fn(x):x)});};
 const upd=fn=>updateItem(itemId,fn);
 const[menu,setMenu]=useState(null);const[editTitle,setEditTitle]=useState(false);const[titleDraft,setTitleDraft]=useState('');
-const[author,setAuthor]=useState({party:'architect',name:''});const[body,setBody]=useState('');const[ball,setBall]=useState({choice:'keep',name:''});const up=useExUploads();
+const[author,setAuthor]=useState({party:'architect',name:''});const[body,setBody]=useState('');const[toBall,setToBall]=useState(null);const up=useExUploads();
+const[cTitle,setCTitle]=useState('');const[cMail,setCMail]=useState(null);const[formOpen,setFormOpen]=useState(false);const[openRows,setOpenRows]=useState({});
 const[decNotes,setDecNotes]=useState('');
 const[chgApproved,setChgApproved]=useState(()=>(item&&item.proposed)||'');const[chgNotes,setChgNotes]=useState('');const[chgFin,setChgFin]=useState('');const[chgEdit,setChgEdit]=useState(null);
 const[revOpen,setRevOpen]=useState(false);const[revBody,setRevBody]=useState('');const revUp=useExUploads();
 const[taskForm,setTaskForm]=useState(null);
 /* "הוסף ללוח הגמרים": a new finishes row prefilled from this submittal, edited in ExFinishDialog over the panel */
 const[finDraft,setFinDraft]=useState(null);
-const resetComposer=()=>{setBody('');up.reset();setBall({choice:'keep',name:''});setAuthor({party:'architect',name:''});};
+const resetComposer=()=>{setBody('');up.reset();setToBall(null);setAuthor({party:'architect',name:''});setCTitle('');setCMail(null);setFormOpen(false);};
 /* an unsent reply (or Rev form) is not thrown away silently: overlay, ×, Escape and switching items ask first (deleting the item does not) */
-const dirtyRef=useRef(false);dirtyRef.current=!!(body.trim()||up.files.length||up.busy||(revOpen&&(revBody.trim()||revUp.files.length||revUp.busy))||chgNotes.trim()||chgEdit||!!(item&&item.type==='change'&&!execIsClosed(item)&&chgApproved.trim()!==String(item.proposed||'').trim()));
+const dirtyRef=useRef(false);dirtyRef.current=!!(body.trim()||cTitle.trim()||cMail||up.files.length||up.busy||(revOpen&&(revBody.trim()||revUp.files.length||revUp.busy))||chgNotes.trim()||chgEdit||!!(item&&item.type==='change'&&!execIsClosed(item)&&chgApproved.trim()!==String(item.proposed||'').trim()));
 const askingRef=useRef(false);
 const confirmDiscard=async()=>{if(!dirtyRef.current)return true;if(askingRef.current)return false;askingRef.current=true;try{return await askConfirm('לסגור בלי לשלוח את התגובה?',{confirmLabel:'סגור בלי לשלוח'});}finally{askingRef.current=false;}};
 const requestClose=async()=>{if(await confirmDiscard())onClose();};
 if(guardRef)guardRef.current=confirmDiscard;
 useEffect(()=>()=>{if(guardRef)guardRef.current=null;},[]);
-useEffect(()=>{resetComposer();setDecNotes('');setRevOpen(false);setTaskForm(null);setEditTitle(false);setMenu(null);setFinDraft(null);},[itemId]);
+useEffect(()=>{resetComposer();setOpenRows({});setDecNotes('');setRevOpen(false);setTaskForm(null);setEditTitle(false);setMenu(null);setFinDraft(null);},[itemId]);
 /* the change decision form starts from what was proposed; it resets on another item or when the item closes / reopens —
    not on a reply (requested → in_review) or a saved "✎ ערוך", which would wipe what was typed */
 const itemClosed=!!item&&execIsClosed(item);
@@ -4766,11 +4861,14 @@ const waiting=execWaiting(item,today);const ballDays=execBallDays(item,today);co
 const team=data.team||[];const disciplines=visOpts(projList(data,'disciplines'));const priorities=visOpts(projList(data,'priorities'));
 const patch=p=>upd(x=>({...x,...p}));
 /* composer */
-const setAuthorParty=p=>{setAuthor({party:p,name:''});setBall(b=>({...b,choice:p==='architect'?'keep':'architect'}));};
-const canSend=!!(body.trim()||up.files.length)&&!up.busy;
-const respond=(kind,ballTo)=>{const r={kind,party:author.party,name:author.name.trim(),body:body.trim(),files:up.files,ballTo};upd(x=>execRespond(x,r));resetComposer();};
-const send=()=>{if(canSend)respond('reply',closed?null:exBallOf(ball));};
-const answer=()=>{if(canSend)respond('answer',ball.choice==='keep'?{party:'contractor',name:''}:exBallOf(ball));};
+/* a new entry: written by the architect unless picked otherwise; the ball goes to the side that held it before the architect */
+const otherSide=()=>{const hs=(item.ballHistory||[]).filter(x=>x.party&&x.party!=='architect');const l=hs[hs.length-1];return l?{party:l.party,name:l.name||''}:{party:'contractor',name:''};};
+const openForm=()=>{setFormOpen(true);setAuthor({party:'architect',name:''});setToBall(closed?null:otherSide());};
+const setAuthorBall=b=>{setAuthor(b||{party:'architect',name:''});if(!closed)setToBall(b&&b.party!=='architect'?{party:'architect',name:''}:otherSide());};
+const canSend=!!(body.trim()||cTitle.trim()||cMail||up.files.length)&&!up.busy;
+const respond=(kind,ballTo)=>{const r={kind,party:author.party,name:String(author.name||'').trim(),title:cTitle.trim(),body:body.trim(),files:up.files,mail:cMail||null,byId:CURRENT_USER.id,ballTo};upd(x=>execRespond(x,r));resetComposer();};
+const send=()=>{if(canSend)respond('reply',closed?null:toBall);};
+const answer=()=>{if(canSend)respond('answer',toBall||{party:'contractor',name:''});};
 const closeItem=async()=>{if(up.busy)return;const issue=item.type==='issue';if(!(await askConfirm(issue?tx('לסמן את {n} כנפתר?',{n:item.number}):tx('לסגור את {n}?',{n:item.number}),{confirmLabel:issue?'סמן כנפתר':'סגור',danger:false})))return;respond('close',null);};
 const reopen=()=>{setMenu(null);upd(x=>execRespond(x,{kind:'reopen',party:'architect',name:me,body:'',ballTo:{party:'architect',name:''}}));};
 const setStatus=sid=>{setMenu(null);upd(x=>execSetStatus(x,sid,{name:me}));};
@@ -4799,35 +4897,50 @@ const createTask=()=>{const f=taskForm;if(!f||!f.title.trim()||!f.sheetId)return
 const task={id:uid(),groupId:g?g.id:null,title:f.title.trim(),statusId:'N',priority:'medium',discipline:item.discipline||null,startDate:'',dueDate:f.dueDate||'',done:false,taskType:'simple',fieldValues:{},subtasks:[],assigneeIds:f.assignee?[f.assignee]:[],execRef:{itemId:item.id,number:item.number}};
 saveRef.current({...d,sheets:d.sheets.map(sh=>sh.id===sheet.id?{...sh,tasks:[...(sh.tasks||[]),task]}:sh),execItems:(d.execItems||[]).map(x=>x.id===item.id?{...x,links:[...(x.links||[]),{id:uid(),kind:'task',sheetId:sheet.id,taskId:task.id}]}:x)});setTaskForm(null);};
 const meetingOf=id=>(data.meetings||[]).find(m=>m.id===id);
-/* thread: a handoff marker follows the response whose time opened a ballHistory entry */
-const hist=item.ballHistory||[];let revK=0;
-const kindLabel=r=>{if(r.kind==='open')return item.type==='submittal'?'הוגשה Rev A':'פתח';if(r.kind==='revision'){revK++;return 'הוגשה Rev '+String.fromCharCode(65+revK);}return EX_KIND_LABEL[r.kind]||r.kind;};
-const thread=(item.responses||[]).map(r=>{const moved=hist.filter(h=>h.from===r.at&&h.party).pop();const dec=r.kind==='decision'?(item.revisions||[]).find(v=>v.decidedAt===r.at):null;
-const hand=moved&&React.createElement("div",{className:"ex-hand"},'↳ הכדור עבר ל',React.createElement(ExPartyChip,{ball:moved}));
-/* a manual status change is a small system line, not a card */
-if(r.kind==='status'){const st=r.status&&T.statuses.find(s=>s.id===r.status);return React.createElement(React.Fragment,{key:r.id},
-React.createElement("div",{className:"ex-sys"},'⟳ ',st?React.createElement(React.Fragment,null,'סטטוס שונה ל־',React.createElement("b",null,st.label)):r.body,r.name&&React.createElement(React.Fragment,null,' · ',React.createElement("span",{"data-i18n-skip":""},r.name)),' · '+exDateTime(r.at)),hand);}
-return React.createElement(React.Fragment,{key:r.id},
-React.createElement("div",{className:"ex-card ex-card-"+r.kind},
-React.createElement("div",{className:"ex-card-h"},React.createElement(ExPartyChip,{ball:{party:r.party,name:r.name}}),React.createElement("span",{className:"ex-kind"},kindLabel(r)),React.createElement("span",{className:"ex-card-d"},exDateTime(r.at))),
-r.kind==='decision'&&item.type==='change'&&React.createElement("div",{className:"ex-card-dec"},React.createElement(ExChgDecisionPill,{d:r.decision}),r.approvedText&&React.createElement("div",{className:"ex-muted ex-small",style:{marginTop:4}},'אושר בפועל: ',React.createElement("span",{"data-i18n-skip":""},r.approvedText))),
-r.kind==='decision'&&item.type!=='change'&&React.createElement("div",{className:"ex-card-dec"},React.createElement(ExDecisionPill,{d:dec?dec.decision:null}),dec&&React.createElement("span",{className:"ex-muted ex-small"},' Rev '+dec.label)),
-r.body&&React.createElement("div",{className:"ex-card-b","data-i18n-skip":""},r.body),
-React.createElement(ExFileLinks,{files:r.files})),
-hand);});
-const partyRow=(v,setParty)=>React.createElement("select",{className:"ex-in",value:v.party,"aria-label":'כותב',onChange:e=>setParty(e.target.value)},EXEC_PARTIES.map(p=>React.createElement("option",{key:p.id,value:p.id},p.label)));
-const composer=!ro&&React.createElement("div",{className:"ex-comp"},
-React.createElement("div",{className:"ex-comp-h"},item.type==='submittal'?'הערה בשרשור':'תגובה חדשה'),
-partyRow(author,setAuthorParty),
-React.createElement("textarea",{className:"ex-in",rows:3,value:body,placeholder:item.type==='rfi'?'נוסח התגובה / התשובה…':'מה נאמר / מה נעשה…',onChange:e=>setBody(e.target.value),onKeyDown:e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))send();}}),
+/* the ball sequence, newest first, in the look of a task's updates: each row is a period with its holder, the newest opens */
+let revK=0;
+const kindLabel=r=>{if(r.kind==='open')return item.type==='submittal'?'הוגשה Rev A':'פתיחה';if(r.kind==='revision'){revK++;return 'הוגשה Rev '+String.fromCharCode(65+revK);}return EX_KIND_LABEL[r.kind]||r.kind;};
+const kinds=new Map((item.responses||[]).map(r=>[r.id,kindLabel(r)]));
+const canEditR=r=>!ro&&(!r.byId||r.byId===CURRENT_USER.id||role==='admin'||role==='superadmin'||iManage(team));
+const delResponse=async r=>{if(!(await askConfirm(tx('למחוק את הרשומה מהרצף?'),{confirmLabel:'מחק'})))return;upd(x=>execDeleteResponse(x,r.id));};
+const tlRows=execThreadRows(item,today);
+const src=item.source;const srcMeeting=src&&src.kind==='meeting'&&src.ref?meetingOf(src.ref):null;
+const thread=React.createElement("div",{className:"ex-tl"},
+tlRows.map((row,i)=>{const r=row.r;
+if(r.kind==='status'||r.kind==='close'){const st=r.status&&T.statuses.find(x=>x.id===r.status);return React.createElement("div",{key:r.id,className:"ex-sys"},r.kind==='close'?'✓ '+EX_KIND_LABEL.close:React.createElement(React.Fragment,null,'⟳ ',st?React.createElement(React.Fragment,null,'סטטוס שונה ל־',React.createElement("b",null,st.label)):r.body),' · '+exDateTime(r.at));}
+const dec=r.kind==='decision'?(item.revisions||[]).find(v=>v.decidedAt===r.at):null;
+const extra=r.kind==='decision'?(item.type==='change'?React.createElement("div",{className:"ex-card-dec"},React.createElement(ExChgDecisionPill,{d:r.decision}),r.approvedText&&React.createElement("div",{className:"ex-muted ex-small",style:{marginTop:4}},'אושר בפועל: ',React.createElement("span",{"data-i18n-skip":""},r.approvedText))):
+React.createElement("div",{className:"ex-card-dec"},React.createElement(ExDecisionPill,{d:dec?dec.decision:null}),dec&&React.createElement("span",{className:"ex-muted ex-small"},' Rev '+dec.label))):null;
+const open=openRows[r.id]!==undefined?openRows[r.id]:i===0;
+const kn=r.kind==='reply'?null:kinds.get(r.id);
+return React.createElement("div",{key:r.id,className:"ex-tl-node"+(open?" is-expanded":""),style:{'--c':(exTagOf(row.holder||{party:r.party,name:r.name},disciplines)||{}).color}},
+React.createElement(ExThreadRow,{row,discs:disciplines,open,onToggle:()=>setOpenRows(m=>({...m,[r.id]:!open})),kindNote:kn,extra,canEdit:canEditR(r),canDel:canEditR(r)&&EXEC_DELETABLE.includes(r.kind),onSave:p=>upd(x=>execEditResponse(x,r.id,p)),onDelete:()=>delResponse(r)}));}),
+React.createElement("div",{className:"ex-tl-start"},'◎ '+tx('נפתח {d}',{d:exDateTime(item.createdAt)}),React.createElement(ExTag,{ball:item.openedBy,discs:disciplines}),src&&React.createElement("span",null,'· ',EX_SOURCE_LABEL[src.kind]||src.kind,srcMeeting&&React.createElement(React.Fragment,null,' · ',React.createElement("button",{type:"button",className:"ex-link","data-i18n-skip":"",onClick:()=>exGoHub({tab:'meetings',meetingId:srcMeeting.id})},(srcMeeting.title||tx('ישיבה'))+(srcMeeting.date?' '+exDdMm(srcMeeting.date):'')+' ↗')))));
+const tagOpts=exTagOptions(disciplines);
+const tagSel=(val,on,withKeep,label)=>{const t=exTagOf(val,disciplines);return React.createElement("select",{className:"ex-in ex-tag-sel","aria-label":label,value:exTagKey(val),onChange:e=>{const v=e.target.value;on(v==='keep'?null:((tagOpts.find(o=>o.key===v)||{}).ball||null));},style:t?{background:t.color,borderColor:t.color,color:'#fff'}:undefined},
+withKeep&&React.createElement("option",{value:'keep',style:{color:'var(--option-text)'}},'ללא העברה'),tagOpts.map(o=>React.createElement("option",{key:o.key,value:o.key,style:{color:'var(--option-text)'}},exTagOf(o.ball,disciplines).code)));};
+const tlHead=React.createElement("div",{className:"ex-tl-head"},
+React.createElement("div",{className:"ex-sec-h"},'רצף הכדור'),
+!ro&&!formOpen&&React.createElement("button",{type:"button",className:"ex-btn ex-btn-sm ex-btn-pri",onClick:openForm},closed?'+ הערה':'+ העבר כדור'),
+!ro&&item.type==='issue'&&!closed&&React.createElement("button",{type:"button",className:"ex-btn ex-btn-sm ex-btn-ok",onClick:closeItem},'סמן כנפתר'),
+!ro&&item.type==='rfi'&&!closed&&React.createElement("button",{type:"button",className:"ex-btn ex-btn-sm",onClick:closeItem},'סגור'),
+!ro&&closed&&React.createElement("button",{type:"button",className:"ex-btn ex-btn-sm",onClick:reopen},'פתח מחדש'));
+const composer=!ro&&formOpen&&React.createElement("div",{className:"ex-comp ex-tl-form"},
+React.createElement("div",{className:"ex-comp-row"},React.createElement("span",{className:"ex-muted ex-small"},'מאת'),tagSel(author,setAuthorBall,false,'מאת'),
+!closed&&React.createElement(React.Fragment,null,React.createElement("span",{className:"ex-muted ex-small"},'הכדור עובר ל'),tagSel(toBall,setToBall,true,'הכדור עובר ל'))),
+React.createElement("input",{className:"ex-in",autoFocus:true,value:cTitle,"aria-label":'כותרת',placeholder:'כותרת — מה צריך לקרות עכשיו',onChange:e=>setCTitle(e.target.value),onKeyDown:e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))send();}}),
+React.createElement("textarea",{className:"ex-in",rows:3,value:body,"aria-label":'תיאור',placeholder:item.type==='rfi'?'נוסח התגובה / התשובה…':'תיאור מלא…',onChange:e=>setBody(e.target.value),onKeyDown:e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))send();}}),
+React.createElement(MailLinksEditor,{mails:cMail?[cMail]:[],single:true,onChange:a=>setCMail(a[0]||null),placeholder:'קישור למייל (לא חובה)'}),
 React.createElement(ExFilesInput,{up}),
-!closed&&React.createElement(ExBallPicker,{value:ball,onChange:setBall}),
 React.createElement("div",{className:"ex-acts"},
-item.type==='issue'&&!closed&&React.createElement("button",{type:"button",className:"ex-btn ex-btn-ok",onClick:closeItem},'סמן כנפתר'),
-item.type==='rfi'&&!closed&&React.createElement("button",{type:"button",className:"ex-btn",onClick:closeItem},'סגור'),
-closed&&React.createElement("button",{type:"button",className:"ex-btn",onClick:reopen},'פתח מחדש'),
+React.createElement("button",{type:"button",className:"ex-btn",onClick:async()=>{if(await confirmDiscard())resetComposer();}},'ביטול'),
 item.type==='rfi'&&!closed&&React.createElement("button",{type:"button",className:"ex-btn",disabled:!canSend,onClick:answer,"aria-description":tx('הסטטוס יהפוך ל"נענה"; הכדור עובר לקבלן אלא אם נבחר אחרת')},'תשובה רשמית'),
-React.createElement("button",{type:"button",className:"ex-btn ex-btn-pri",disabled:!canSend,onClick:send,"aria-keyshortcuts":"Control+Enter"},'שלח')));
+React.createElement("button",{type:"button",className:"ex-btn ex-btn-pri",disabled:!canSend,onClick:send,"aria-keyshortcuts":"Control+Enter"},'שמור')));
+/* the one line under the title: who holds the ball, for how long, and how the days split (codes and numbers on hover) */
+const waitCls=waiting>(exLateLimit(item.type)||EXEC_ISSUE_LATE)?"ex-wait-bad":waiting>=5?"ex-wait-warn":"";
+const summary=React.createElement(React.Fragment,null,
+closed?React.createElement("span",{className:"ex-muted"},'סגור — הכדור לא אצל אף צד'):React.createElement(React.Fragment,null,React.createElement("span",{className:"ex-muted"},'הכדור אצל'),React.createElement(ExTag,{ball:item.ball,discs:disciplines}),item.ball&&React.createElement("span",{className:waitCls},tx('כבר {n} ימי עבודה',{n:waiting}))),
+totalDays>0&&React.createElement("span",{className:"ex-bar ex-sum-bar","data-i18n-skip":"",title:ballDays.filter(b=>b.days>0).map(b=>((exTagOf(b,disciplines)||{}).code||'')+' '+b.days).join(' · ')},ballDays.map(b=>b.days>0&&React.createElement("i",{key:b.party+'|'+b.name,style:{flex:b.days,background:(exTagOf(b,disciplines)||{}).color||'#888780'}}))));
 /* finishes schedule: an approved submittal adds a row in one click; once a row links it, the button opens that row (TrackView switches tabs) */
 const finRow=item.type==='submittal'?(data.finishes||[]).find(r=>r.submittalId===item.id):null;
 const canFin=item.type==='submittal'&&(item.status==='approved'||item.status==='approved_notes');
@@ -4882,27 +4995,17 @@ React.createElement("textarea",{className:"ex-in",rows:2,value:chgNotes,"data-i1
 finRows.length>0&&React.createElement("div",{className:"ex-f"},React.createElement("label",null,'עדכן שורה בלוח הגמרים (באישור, לא חובה)'),
 React.createElement("select",{className:"ex-in",value:chgFin,onChange:e=>setChgFin(e.target.value)},React.createElement("option",{value:''},'— ללא —'),finRows.map(r=>React.createElement("option",{key:r.id,value:r.id,"data-i18n-skip":""},finLabel(r))))),
 React.createElement("div",{className:"ex-acts"},EX_CHG_DECISIONS.map(dd=>React.createElement("button",{key:dd.id,type:"button",className:"ex-btn"+(dd.id==='approved'?" ex-btn-ok":dd.id==='rejected'?" ex-btn-bad":""),disabled:dd.id!=='approved'&&!chgNotes.trim(),onClick:()=>decideChange(dd.id)},dd.label))));
-const row=(label,child,key)=>React.createElement("div",{className:"ex-side-row",key:key||label},React.createElement("label",null,label),React.createElement("div",null,child));
-const src=item.source;const srcMeeting=src&&src.kind==='meeting'&&src.ref?meetingOf(src.ref):null;
+/* the item's fields sit in the header line, after the ball */
+const row=(label,child,key)=>React.createElement("span",{className:"ex-meta",key:key||label},React.createElement("label",null,label),child);
 const dueBad=!closed&&item.dueDate&&item.dueDate<today;
 const taskLinks=(item.links||[]).filter(l=>l.kind==='task');const mtgLinks=(item.links||[]).filter(l=>l.kind==='meeting');
-const side=React.createElement("div",{className:"ex-side"},
-React.createElement("div",{className:"ex-side-box"},
-row('הכדור אצל',closed?React.createElement("span",{className:"ex-muted"},'— (סגור)'):React.createElement(ExPartyChip,{ball:item.ball})),
-!closed&&item.ball&&row('ממתין',React.createElement("span",{className:waiting>(exLateLimit(item.type)||EXEC_ISSUE_LATE)?"ex-wait-bad":waiting>=5?"ex-wait-warn":""},tx('{n} ימי עבודה',{n:waiting}))),
+const metaEls=[
 row('יעד',React.createElement("span",{className:dueBad?"ex-due-bad":""},React.createElement(DateField,{value:item.dueDate||'',onChange:v=>patch({dueDate:v||''}),clearable:true,disabled:ro,title:dueBad?'תאריך היעד עבר':undefined}))),
-row('נפתח ע"י',React.createElement("span",null,React.createElement(ExPartyChip,{ball:item.openedBy}),React.createElement("span",{className:"ex-muted ex-small"},' · '+exDateTime(item.createdAt)))),
 row('תחום',React.createElement("select",{className:"ex-in",value:item.discipline||'',disabled:ro,onChange:e=>patch({discipline:e.target.value})},React.createElement("option",{value:''},'—'),disciplines.map(d=>React.createElement("option",{key:d.id,value:d.id},DISCIPLINE_FULL_NAMES[d.id]||d.label||d.id)))),
 row('עדיפות',React.createElement("select",{className:"ex-in",value:item.priority||'',disabled:ro,onChange:e=>patch({priority:e.target.value})},React.createElement("option",{value:''},'—'),priorities.map(p=>React.createElement("option",{key:p.id,value:p.id},p.label)))),
 item.type==='submittal'&&row('סעיף מפרט',React.createElement("input",{className:"ex-in",key:item.id+'|'+(item.specSection||''),defaultValue:item.specSection||'',disabled:ro,placeholder:'למשל 08.04.010',onBlur:e=>{const v=e.target.value.trim();if(v!==(item.specSection||''))patch({specSection:v});},onKeyDown:e=>{if(e.key==='Enter')e.target.blur();}})),
-row('מקור',src?React.createElement("span",null,EX_SOURCE_LABEL[src.kind]||src.kind,srcMeeting&&React.createElement(React.Fragment,null,' · ',React.createElement("button",{type:"button",className:"ex-link","data-i18n-skip":"",onClick:()=>exGoHub({tab:'meetings',meetingId:srcMeeting.id})},(srcMeeting.title||tx('ישיבה'))+(srcMeeting.date?' '+exDdMm(srcMeeting.date):'')+' ↗'))):React.createElement("span",{className:"ex-muted"},'—'))),
-React.createElement("div",{className:"ex-side-sec"},
-React.createElement("div",{className:"ex-sec-h"},'ימי המתנה לפי צד',React.createElement("span",null,tx('{n} ימי עבודה',{n:totalDays}))),
-ballDays.length?React.createElement(React.Fragment,null,
-React.createElement("div",{className:"ex-bar"},totalDays>0&&ballDays.map(b=>b.days>0&&React.createElement("i",{key:b.party+'|'+b.name,title:execPartyLabel({...b,name:asTyped(String(b.name||'').trim())})+' · '+b.days,style:{flex:b.days,background:EX_PARTY_COLORS[b.party]||'#888780'}}))),
-React.createElement("div",{className:"ex-bd-rows"},ballDays.map(b=>React.createElement("div",{key:b.party+'|'+b.name,className:"ex-bd-row"},React.createElement(ExPartyChip,{ball:b}),React.createElement("span",{className:"ex-sp"}),React.createElement("b",null,b.days),React.createElement("span",{className:"ex-muted ex-small"},'ימים'))))):
-React.createElement("div",{className:"ex-muted ex-small"},'אין עדיין נתוני המתנה')),
-React.createElement("div",{className:"ex-side-sec"},
+null];
+const linksSec=React.createElement("div",{className:"ex-side-sec ex-links"},
 React.createElement("div",{className:"ex-sec-h"},'קישורים',React.createElement("span",null,(taskLinks.length+mtgLinks.length)||'')),
 taskLinks.map((l,i)=>{const f=findTask(l);const done=f&&(f.task.done||f.task.statusId==='C');return React.createElement("div",{key:'t'+i,className:"ex-lk"},React.createElement("span",{title:'משימה'},'☑'),
 f?React.createElement("button",{type:"button",className:"ex-link"+(done?" ex-lk-done":""),"data-i18n-skip":"",title:asTyped(sheetLabel(f.sheet))+tx(' — פתח את המשימה'),onClick:()=>openTask(f.sheet.id,f.task.id)},f.task.title||tx('(ללא שם)')):React.createElement("span",{className:"ex-muted",style:{flex:1}},'המשימה נמחקה'),
@@ -4914,7 +5017,7 @@ React.createElement("input",{className:"ex-in",autoFocus:true,value:taskForm.tit
 React.createElement("select",{className:"ex-in","aria-label":'אחראי',value:taskForm.assignee,onChange:e=>setTaskForm(f=>({...f,assignee:e.target.value}))},React.createElement("option",{value:''},'אחראי — ללא'),team.map(p=>React.createElement("option",{key:p.id,value:p.staffId||p.id,"data-i18n-skip":""},p.name))),
 React.createElement(DateField,{value:taskForm.dueDate,onChange:v=>setTaskForm(f=>({...f,dueDate:v||''})),clearable:true,placeholder:'תאריך יעד',style:{width:'100%'}}),
 React.createElement("div",{className:"ex-acts"},React.createElement("button",{type:"button",className:"ex-btn ex-btn-sm",onClick:()=>setTaskForm(null)},'ביטול'),React.createElement("button",{type:"button",className:"ex-btn ex-btn-sm ex-btn-pri",disabled:!taskForm.title.trim()||!taskForm.sheetId,onClick:createTask},'צור משימה'))):
-listSheets.length>0&&React.createElement("button",{type:"button",className:"ex-link",style:{marginTop:8},onClick:openTaskForm},'+ צור משימה מקושרת'))));
+listSheets.length>0&&React.createElement("button",{type:"button",className:"ex-link",style:{marginTop:8},onClick:openTaskForm},'+ צור משימה מקושרת')));
 const mbtn=(label,fn,cls)=>React.createElement("button",{key:label,type:"button",role:"menuitem",className:cls||'',onClick:fn},label);
 return ReactDOM.createPortal(React.createElement(React.Fragment,null,
 React.createElement("div",{className:"tds-overlay",onClick:requestClose}),
@@ -4933,11 +5036,11 @@ closed&&mbtn('פתח מחדש',reopen),
 canDelete&&mbtn('מחק פריט',del,'ex-danger')]:
 [mbtn('‹ חזרה',()=>setMenu('main')),...T.statuses.map(st=>mbtn((st.id===item.status?'✓ ':'')+st.label,()=>setStatus(st.id)))]))),
 React.createElement("button",{type:"button",className:"ms-panel-btn",title:'סגור',onClick:requestClose},'×')),
-React.createElement("div",{className:"tds-body ex-p-body"},React.createElement("div",{className:"ex-p-grid"},
+React.createElement("div",{className:"tds-body ex-p-body"},React.createElement("div",{className:"ex-sum"},summary,React.createElement("span",{className:"ex-sum-meta"},metaEls)),React.createElement("div",{className:"ex-p-grid"},
 React.createElement("div",{className:"ex-p-main"},chgBlock,
-React.createElement("div",null,React.createElement("div",{className:"ex-sec-h"},'שרשור',React.createElement("span",null,tx('{n} רשומות',{n:(item.responses||[]).length}))),React.createElement("div",{className:"ex-thread"},thread)),
-rounds,chgDecide,composer),
-side))),
+React.createElement("div",null,tlHead,composer,thread),
+rounds,chgDecide,linksSec),
+null))),
 finDraft&&React.createElement(ExFinishDialog,{data:data,save:save,row:finDraft,isNew:true,onClose:()=>setFinDraft(null)})),document.body);}
 
 function NihulHubView({data,save,onNavigateToOngoing,onEditAutomation}){const takeHub=()=>{try{const r=JSON.parse(sessionStorage.getItem('pm_pending_hub')||'null');sessionStorage.removeItem('pm_pending_hub');return r;}catch{return null;}};const[firstHub]=useState(takeHub);const[activeTab,setActiveTabRaw]=useState(()=>{const t=firstHub&&firstHub.tab||screenGet('hub:'+ACTIVE_PROJECT_ID)||'ongoing';return isAdminProject(data)&&ADMIN_HIDDEN_HUB_TABS.includes(t)?'ongoing':t;});const setActiveTab=t=>setActiveTabRaw(isAdminProject(data)&&ADMIN_HIDDEN_HUB_TABS.includes(t)?'ongoing':t);useEffect(()=>{screenSet('hub:'+ACTIVE_PROJECT_ID,activeTab);},[activeTab]);const[pendingMeetingId,setPendingMeetingId]=useState(firstHub&&firstHub.meetingId||null);const[pendingPrincipleId,setPendingPrincipleId]=useState(firstHub&&firstHub.principleId||null);useEffect(()=>{const on=e=>{takeHub();const r=e.detail||{};if(r.tab)setActiveTab(r.tab);if(r.meetingId)setPendingMeetingId(r.meetingId);if(r.principleId)setPendingPrincipleId(r.principleId);};window.addEventListener('ph:go-hub',on);return()=>window.removeEventListener('ph:go-hub',on);},[]);return/*#__PURE__*/React.createElement("div",{style:{flex:1,display:'flex',flexDirection:'column',overflow:'hidden'}},/*#__PURE__*/React.createElement("div",{style:{display:'flex',borderBottom:'1px solid var(--border)',background:'var(--surface)',flexShrink:0}},CROSS_CUTTING_ITEMS.filter(t=>!isAdminProject(data)||!ADMIN_HIDDEN_HUB_TABS.includes(t.id)).map(t=>/*#__PURE__*/React.createElement("button",{key:t.id,onClick:()=>setActiveTab(t.id),style:{padding:'9px 16px',fontSize:12,fontFamily:'inherit',border:'none',cursor:'pointer',background:'none',borderBottom:'2px solid',borderBottomColor:activeTab===t.id?'var(--accent)':'transparent',fontWeight:activeTab===t.id?700:400,color:activeTab===t.id?'var(--text)':'var(--text-2)'}},t.label)),React.createElement("button",{type:"button",className:"mtp-jump",title:"מסך התכנון שלי, רק עם הפרויקט הזה",onClick:()=>window.dispatchEvent(new Event('ph:open-my-planner'))},"המשימות שלי בפרויקט ←")),/*#__PURE__*/React.createElement("div",{style:{flex:1,display:'flex',flexDirection:'column',minHeight:0,overflowY:'auto',overflowX:'hidden',background:'var(--bg)'}},activeTab==='ongoing'&&/*#__PURE__*/React.createElement(TrackView,{data:data,save:save,trackId:"ongoing",onEditAutomation:onEditAutomation,onOpenMeeting:id=>{setPendingMeetingId(id);setActiveTab('meetings');}}),activeTab==='gantt'&&/*#__PURE__*/React.createElement(NihulGanttView,{data:data,save:save}),activeTab==='meetings'&&/*#__PURE__*/React.createElement(MeetingsView,{data:data,save:save,trackId:null,openMeetingId:pendingMeetingId,onConsumeOpen:()=>setPendingMeetingId(null)}),activeTab==='supervision'&&/*#__PURE__*/React.createElement(ComingSoonPage,{iconName:"supervision",title:"פיקוח",desc:"ריכוז וניהול דוחות פיקוח מהביצוע — בפיתוח"}),activeTab==='reviews'&&React.createElement(ReviewsPage,{data:data,save:save}),activeTab==='principles'&&/*#__PURE__*/React.createElement(PrinciplesView,{data:data,save:save,openPrincipleId:pendingPrincipleId,onConsumeOpen:()=>setPendingPrincipleId(null),onNavigateToTasks:()=>setActiveTab('ongoing'),onOpenMeeting:id=>{setPendingMeetingId(id);setActiveTab('meetings');}}),activeTab==='milestones'&&/*#__PURE__*/React.createElement("div",{style:{padding:'18px 20px'}},/*#__PURE__*/React.createElement(GoalsMilestonesPanel,{data:data,save:save,only:"milestones"})),activeTab==='goals'&&/*#__PURE__*/React.createElement("div",{style:{padding:'18px 20px'}},/*#__PURE__*/React.createElement(GoalsMilestonesPanel,{data:data,save:save,only:"goals"}))));}/* Small popover for viewing/editing/deleting a single process-event "update"

@@ -8,7 +8,7 @@ const m = html.match(/\/\* ═══ exec-logic ═══ \*\/([\s\S]*?)\/\* ═
 if (!m) throw new Error('exec-logic block not found in project_hub_01.html');
 let n = 0;
 const uid = () => 'x' + ++n;
-const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories,finishNoteForChange,finishUnlinkItem,execSortToggle,execSortRows,FINISH_ZONES,finishZone,finishCat,finishGroups};')(uid);
+const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories,finishNoteForChange,finishUnlinkItem,execSortToggle,execSortRows,FINISH_ZONES,finishZone,finishCat,finishGroups,execThreadRows,execEditResponse,execDeleteResponse};')(uid);
 
 const T0 = '2026-10-04T08:00:00.000Z'; // Sunday
 const mk = (over = {}) => L.execNewItem(over.items || [], { type: 'rfi', title: 'גובה תקרה', description: 'שאלה', openedBy: { party: 'contractor', name: 'דנה' }, ballTo: { party: 'architect', name: '' }, ...over }, T0);
@@ -394,4 +394,51 @@ test('finishGroups: zone order, the zone\'s categories first, others after, unca
   assert.deepStrictEqual(g[0].groups.map(x => [x.category, x.rows.map(r => r.id)]), [['ריצוף', [5]], ['קירות', [3]]]);
   assert.deepStrictEqual(g[1].groups.map(x => [x.category, x.rows.map(r => r.id)]), [['ריצוף', [2, 6]], ['תאורה', [1]], ['', [4]]]);
   assert.deepStrictEqual(L.finishGroups([]), []);
+});
+
+// the ball sequence: each move opens a period for its new holder; the newest period is open until the next move
+const seq = () => {
+  let a = mk(); // contractor opens on Sun 04.10, ball to the architect
+  a = L.execRespond(a, { party: 'architect', title: 'חלופות', body: 'נבקש 3 חלופות', ballTo: { party: 'contractor', name: '' }, byId: 'u1' }, '2026-10-06T08:00:00.000Z');
+  a = L.execRespond(a, { party: 'architect', body: 'הערה בלי העברה' }, '2026-10-07T08:00:00.000Z');
+  a = L.execRespond(a, { party: 'contractor', body: 'מצורפות', ballTo: { party: 'consultant', name: 'HVAC' } }, '2026-10-11T08:00:00.000Z');
+  return a;
+};
+
+test('thread rows: newest first, one period per move, notes have no holder', () => {
+  const rows = L.execThreadRows(seq(), '2026-10-13');
+  assert.deepStrictEqual(rows.map(r => r.holder && r.holder.party), ['consultant', null, 'contractor', 'architect']);
+  assert.deepStrictEqual(rows.map(r => r.open || false), [true, false, false, false]);
+  assert.strictEqual(rows[0].days, 2); // Sun 11 → Tue 13
+  assert.strictEqual(rows[2].days, 3); // Tue 6 → Sun 11, the note does not end it
+  assert.strictEqual(rows[2].to, '2026-10-11T08:00:00.000Z');
+  assert.strictEqual(rows[2].r.title, 'חלופות');
+  assert.strictEqual(rows[2].r.byId, 'u1');
+});
+
+test('editing an entry changes its text and attachments only', () => {
+  const a = seq();
+  const id = a.responses[1].id;
+  const b = L.execEditResponse(a, id, { title: '', body: 'נבקש 2 חלופות', mail: { url: 'outlook:x' } }, '2026-10-12T09:00:00.000Z');
+  assert.strictEqual(b.responses[1].body, 'נבקש 2 חלופות');
+  assert.strictEqual(b.responses[1].title, undefined);
+  assert.deepStrictEqual(b.responses[1].mail, { url: 'outlook:x' });
+  assert.strictEqual(b.responses[1].editedAt, '2026-10-12T09:00:00.000Z');
+  assert.strictEqual(b.responses[1].at, a.responses[1].at);
+  assert.deepStrictEqual(b.ballHistory, a.ballHistory);
+  assert.strictEqual(L.execEditResponse(a, 'nope', { body: 'x' }), a);
+});
+
+test('deleting the newest move gives the ball back; the opening cannot be deleted', () => {
+  const a = seq();
+  const last = a.responses[3];
+  const b = L.execDeleteResponse(a, last.id);
+  assert.strictEqual(b.responses.length, 3);
+  assert.deepStrictEqual(b.ball, { party: 'contractor', name: '' });
+  assert.deepStrictEqual(b.ballHistory.map(h => h.party), ['architect', 'contractor']);
+  assert.strictEqual(L.execDeleteResponse(a, a.responses[0].id), a);
+  // deleting a move in the middle merges the periods around it
+  const c = L.execDeleteResponse(a, a.responses[1].id);
+  assert.deepStrictEqual(c.ballHistory.map(h => h.party), ['architect', 'consultant']);
+  assert.deepStrictEqual(c.ball, { party: 'consultant', name: 'HVAC' });
 });
