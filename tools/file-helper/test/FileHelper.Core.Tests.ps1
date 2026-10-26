@@ -8,6 +8,16 @@ function Check([string]$What, [bool]$Ok) { if ($Ok) { $script:pass++ } else { $s
 function New-TempDir { $d = Join-Path ([IO.Path]::GetTempPath()) ('fh-test-' + [guid]::NewGuid().ToString('N').Substring(0, 8)); New-Item -ItemType Directory -Path $d | Out-Null; return $d }
 function Throws([scriptblock]$Block) { try { & $Block; return $false } catch { return $true } }
 
+# error detail for the agent's log
+function Test-Throw { throw 'boom inside' }
+try { Test-Throw } catch { $detail = Format-ErrorDetail $_ }
+Check 'error detail: message' ($detail -like 'boom inside*')
+Check 'error detail: type' ($detail -like '*[[]RuntimeException[]]*')
+Check 'error detail: stack names the function' ($detail -like '*stack:*Test-Throw*')
+Check 'error detail: one line' ($detail -notmatch "[\r\n]")
+try { [void][int]'x' } catch { $detail2 = Format-ErrorDetail $_ }
+Check 'error detail: innermost exception' ($detail2 -like '*[[]FormatException[]]*')
+
 # relative paths
 Check 'rel: backslashes' ((ConvertTo-RelPath 'CONS\יועצים\') -eq 'CONS/יועצים')
 Check 'rel: empty is the project folder' ((ConvertTo-RelPath '') -eq '')

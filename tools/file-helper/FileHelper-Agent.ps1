@@ -8,7 +8,11 @@
    whose "Open" opens the hub's inbox window (its https address, in the default browser). When it starts, and every 5 minutes
    while the inbox holds files, it asks the hub whether it still has an open batch of this PC, and announces the inbox
    again when not (a restart of the hub loses its batches).
-   One agent per Windows session. Log: %LOCALAPPDATA%\ProjectHub\file-helper.log.
+   One agent per Windows session (the mutex). It is started at sign-in (Startup shortcut) and by the scheduled task
+   "Project Hub filing helper" every 5 minutes and at sign-in: a start while an agent runs ends at once, a start after
+   the agent died brings it back. Anything that ends the loop is logged ("fatal: ...", then "stopped"); one failing
+   round (a bad config, an inbox error) is logged and the loop goes on.
+   Log: %LOCALAPPDATA%\ProjectHub\file-helper.log.
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md
    Saved as UTF-8 with BOM. #>
 $ErrorActionPreference = 'Stop'
@@ -18,7 +22,10 @@ $ProgressPreference = 'SilentlyContinue'
 Add-Type -AssemblyName System.Net.Http
 
 $mutex = New-Object Threading.Mutex($false, 'Local\ProjectHubFileHelperAgent')
-if (-not $mutex.WaitOne(0)) { exit 0 }
+$owner = $false
+try { $owner = $mutex.WaitOne(0) }
+catch [Threading.AbandonedMutexException] { $owner = $true }   # the agent before died holding it: this one now owns it
+if (-not $owner) { exit 0 }
 
 $runner = Join-Path $PSScriptRoot 'Run-Task.ps1'
 function Log([string]$Text) { Write-HelperLog $Text }
@@ -104,40 +111,53 @@ function Wait-Agent([int]$Seconds, $Cfg, [string]$Key) {
 }
 
 # the long poll runs on HttpClient, so the inbox is looked at every 3 seconds while it waits
-$http = New-Object Net.Http.HttpClient
-$http.Timeout = [TimeSpan]::FromSeconds(60)
-Log 'started'
-while ($true) {
-  $cfg = Get-HelperConfig
-  $key = Read-HelperKey
-  if (-not $key) { Log 'no key: run Install-FileHelper.ps1'; Start-Sleep -Seconds 300; continue }
-  $req = $null; $resp = $null
-  try {
-    $uri = $cfg.hub.TrimEnd('/') + '/api/outlook/filing-next?pc=' + [uri]::EscapeDataString($env:COMPUTERNAME)
-    $req = New-Object Net.Http.HttpRequestMessage([Net.Http.HttpMethod]::Get, $uri)
-    $req.Headers.Authorization = New-Object Net.Http.Headers.AuthenticationHeaderValue('Bearer', $key)
-    $pending = $http.SendAsync($req)
-    while (-not $pending.Wait(3000)) { Step-Inbox $cfg $key }
-    Step-Inbox $cfg $key
-    $resp = $pending.Result
-    $code = [int]$resp.StatusCode
-    if ($code -eq 401) { Log 'the key was refused (401): issue a new key and run Install-FileHelper.ps1 again'; Start-Sleep -Seconds 300; continue }
-    if (-not $resp.IsSuccessStatusCode) { throw "HTTP $code" }
-    $j = [Text.Encoding]::UTF8.GetString($resp.Content.ReadAsByteArrayAsync().Result) | ConvertFrom-Json
-    $t = $j.task
-    if ($t -and (Test-TaskKind $t.kind) -and (Test-HelperToken $t.token)) {
-      Log "task $($t.id) $($t.kind)"
-      # -WindowStyle Hidden on Start-Process would hide the folder picker too (it inherits the hidden show state);
-      # as powershell.exe's own argument it hides only its console, which may flash for a moment
-      Start-Process powershell.exe -ArgumentList @('-NoProfile', '-STA', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', "`"$runner`"", '-Token', $t.token)
+$exitCode = 0
+try {
+  $http = New-Object Net.Http.HttpClient
+  $http.Timeout = [TimeSpan]::FromSeconds(60)
+  Log 'started'
+  while ($true) {
+    $cfg = $null; $key = $null; $req = $null; $resp = $null
+    try {
+      $cfg = Get-HelperConfig
+      $key = Read-HelperKey
+      if (-not $key) { Log 'no key: run Install-FileHelper.ps1'; Start-Sleep -Seconds 300; continue }
+      $uri = $cfg.hub.TrimEnd('/') + '/api/outlook/filing-next?pc=' + [uri]::EscapeDataString($env:COMPUTERNAME)
+      $req = New-Object Net.Http.HttpRequestMessage([Net.Http.HttpMethod]::Get, $uri)
+      $req.Headers.Authorization = New-Object Net.Http.Headers.AuthenticationHeaderValue('Bearer', $key)
+      $pending = $http.SendAsync($req)
+      while (-not $pending.Wait(3000)) { Step-Inbox $cfg $key }
+      Step-Inbox $cfg $key
+      $resp = $pending.Result
+      $code = [int]$resp.StatusCode
+      if ($code -eq 401) { Log 'the key was refused (401): issue a new key and run Install-FileHelper.ps1 again'; Start-Sleep -Seconds 300; continue }
+      if (-not $resp.IsSuccessStatusCode) { throw "HTTP $code" }
+      $j = [Text.Encoding]::UTF8.GetString($resp.Content.ReadAsByteArrayAsync().Result) | ConvertFrom-Json
+      $t = $j.task
+      if ($t -and (Test-TaskKind $t.kind) -and (Test-HelperToken $t.token)) {
+        Log "task $($t.id) $($t.kind)"
+        # -WindowStyle Hidden on Start-Process would hide the folder picker too (it inherits the hidden show state);
+        # as powershell.exe's own argument it hides only its console, which may flash for a moment
+        Start-Process powershell.exe -ArgumentList @('-NoProfile', '-STA', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', "`"$runner`"", '-Token', $t.token)
+      }
+    } catch {
+      # one failing round never ends the agent: it is logged, and the loop goes on after a pause
+      try {
+        $e = $_.Exception
+        while ($e.InnerException) { $e = $e.InnerException }
+        Log "error: $($e.Message)"
+      } catch {}
+      try { if ($cfg -and $key) { Wait-Agent 15 $cfg $key } else { Start-Sleep -Seconds 15 } } catch { Start-Sleep -Seconds 15 }
+    } finally {
+      if ($resp) { $resp.Dispose() }
+      if ($req) { $req.Dispose() }
     }
-  } catch {
-    $e = $_.Exception
-    while ($e.InnerException) { $e = $e.InnerException }
-    Log "error: $($e.Message)"
-    Wait-Agent 15 $cfg $key
-  } finally {
-    if ($resp) { $resp.Dispose() }
-    if ($req) { $req.Dispose() }
   }
+} catch {
+  # anything that gets out of the loop: the reason is in the log; the scheduled task starts the agent again
+  $exitCode = 1
+  Log ('fatal: ' + (Format-ErrorDetail $_))
+} finally {
+  Log 'stopped'
 }
+exit $exitCode

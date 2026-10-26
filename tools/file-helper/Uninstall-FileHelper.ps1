@@ -1,6 +1,7 @@
 ﻿<# Project Hub — filing helper: remove for the current Windows user. Saved as UTF-8 with BOM. #>
 $ErrorActionPreference = 'SilentlyContinue'
-# the background agent, and a task that is running (or a filing window of the first version)
+# the watchdog task first (or it would start the agent again), then the background agent, and a task that is running (or a filing window of the first version)
+try { Unregister-ScheduledTask -TaskName 'Project Hub filing helper' -Confirm:$false -ErrorAction Stop } catch {}
 Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | Where-Object { $_.CommandLine -match 'FileHelper-Agent\.ps1|file-helper\\Run-Task\.ps1|File-Helper\.ps1' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 Remove-Item -LiteralPath (Join-Path ([Environment]::GetFolderPath('Startup')) 'Project Hub filing helper.lnk') -Force
 Remove-Item -LiteralPath (Join-Path $env:LOCALAPPDATA 'ProjectHub\file-helper') -Recurse -Force
