@@ -8,7 +8,7 @@ const m = html.match(/\/\* ═══ exec-logic ═══ \*\/([\s\S]*?)\/\* ═
 if (!m) throw new Error('exec-logic block not found in project_hub_01.html');
 let n = 0;
 const uid = () => 'x' + ++n;
-const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories,finishNoteForChange,finishUnlinkItem,execSortToggle,execSortRows,FINISH_ZONES,finishZone,finishCat,finishGroups,execThreadRows,execEditResponse,execDeleteResponse};')(uid);
+const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories,finishNoteForChange,finishUnlinkItem,execSortToggle,execSortRows,FINISH_ZONES,finishZone,finishCat,finishGroups,execThreadRows,execEditResponse,execDeleteResponse,execRoundOf,execLastRound};')(uid);
 
 const T0 = '2026-10-04T08:00:00.000Z'; // Sunday
 const mk = (over = {}) => L.execNewItem(over.items || [], { type: 'rfi', title: 'גובה תקרה', description: 'שאלה', openedBy: { party: 'contractor', name: 'דנה' }, ballTo: { party: 'architect', name: '' }, ...over }, T0);
@@ -441,4 +441,26 @@ test('deleting the newest move gives the ball back; the opening cannot be delete
   const c = L.execDeleteResponse(a, a.responses[1].id);
   assert.deepStrictEqual(c.ballHistory.map(h => h.party), ['architect', 'consultant']);
   assert.deepStrictEqual(c.ball, { party: 'consultant', name: 'HVAC' });
+});
+test('rounds: an entry keeps the round picked; the next entry starts on the last one picked', () => {
+  let a = mk();
+  assert.strictEqual(L.execLastRound(a), null);
+  a = L.execRespond(a, { party: 'architect', body: 'x', round: 2, ballTo: { party: 'contractor' } }, '2026-10-06T08:00:00.000Z');
+  a = L.execRespond(a, { party: 'contractor', body: 'y' }, '2026-10-07T08:00:00.000Z');
+  assert.strictEqual(a.responses[1].round, 2);
+  assert.strictEqual(a.responses[2].round, undefined);
+  assert.strictEqual(L.execLastRound(a), 2);
+  const b = L.execEditResponse(a, a.responses[1].id, { round: null });
+  assert.strictEqual(b.responses[1].round, undefined);
+  assert.strictEqual(L.execLastRound(b), null);
+});
+
+test('rounds on a submittal follow its revisions', () => {
+  let s = mkSub();
+  assert.strictEqual(L.execRoundOf(s, s.responses[0]), 1);
+  s = L.execDecide(s, { decision: 'rejected', notes: 'עובי', name: 'שי' }, '2026-10-05T08:00:00.000Z');
+  s = L.execAddRevision(s, { body: 'Rev B', files: [] }, '2026-10-07T08:00:00.000Z');
+  const rev = s.responses.find(r => r.kind === 'revision');
+  assert.strictEqual(L.execRoundOf(s, rev), 2);
+  assert.strictEqual(L.execLastRound(s), 2);
 });

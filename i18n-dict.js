@@ -3021,7 +3021,8 @@ Object.assign(HE_EN, {
 "סגור — הכדור לא אצל אף צד": "Closed — no one holds the ball",
 "כותרת — מה צריך לקרות עכשיו": "Title — what needs to happen now",
 "תיאור מלא…": "Full description…",
-"למחוק את הרשומה מהרצף?": "Delete this entry from the sequence?"
+"למחוק את הרשומה מהרצף?": "Delete this entry from the sequence?",
+"סבב {n}": "Round {n}"
 });
 
 window.I18N_HE_EN = HE_EN;

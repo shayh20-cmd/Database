@@ -1119,6 +1119,9 @@ textarea.ex-in{resize:vertical;min-height:64px;}
 .ex-tl-from{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-3);flex-wrap:wrap;}
 .ex-tl-acts{display:flex;gap:14px;border-top:1px solid var(--border);padding-top:6px;margin-top:2px;}
 .ex-tl-acts .ex-del{color:var(--danger-text);}
+.ex-round{font-size:10.5px;font-weight:700;padding:0 6px;border:1px solid var(--border-strong);border-radius:4px;color:var(--text-2);white-space:nowrap;flex-shrink:0;}
+.ex-round-pick{display:inline-flex;align-items:center;gap:5px;margin-inline-start:auto;}
+.ex-round-sel{width:auto;padding:2px 6px;font-size:12px;}
 .ex-tl-start{font-size:11.5px;color:var(--text-3);display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:2px 0;}
 .ex-decide,.ex-revform{background:var(--surface);border:1px dashed var(--border-strong);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:8px;}
 .ex-rev{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;}
@@ -4123,7 +4126,7 @@ function execRespond(item,r,now){
   /* a decided submittal round is history: reopening it waits for the contractor's next revision instead of undoing the decision */
   const lastRev=(item.revisions||[]).slice(-1)[0];const resubmit=kind==='reopen'&&item.type==='submittal'&&!!(lastRev&&lastRev.decision);
   const ballTo=kind==='close'?null:resubmit?{party:'contractor',name:''}:(r.ballTo||null);
-  let next={...item,responses:[...(item.responses||[]),{id:uid(),at,party:r.party,name:r.name||'',body:r.body||'',files:r.files||[],ballTo,kind,...(r.title?{title:r.title}:{}),...(r.mail?{mail:r.mail}:{}),...(r.byId?{byId:r.byId}:{})}]};
+  let next={...item,responses:[...(item.responses||[]),{id:uid(),at,party:r.party,name:r.name||'',body:r.body||'',files:r.files||[],ballTo,kind,...(r.title?{title:r.title}:{}),...(r.mail?{mail:r.mail}:{}),...(r.byId?{byId:r.byId}:{}),...(r.round?{round:r.round}:{})}]};
   if(kind==='close'){next.status=item.type==='issue'?'resolved':item.type==='rfi'?'closed':item.status;next.closedAt=at;return execSetBall(next,null,at);}
   if(resubmit){next.status='rejected';next.closedAt=null;return execSetBall(next,ballTo,at);}
   if(kind==='reopen'){next.status=EXEC_TYPES[item.type].statuses[0].id;next.closedAt=null;if(item.type==='change')next.approvedText='';}
@@ -4261,7 +4264,7 @@ function execThreadRows(item,today){
 /* editing an entry keeps when it happened and who held the ball; it changes only what was said and attached */
 function execEditResponse(item,id,p,now){
   const at=now||new Date().toISOString();let hit=false;
-  const responses=(item.responses||[]).map(r=>{if(r.id!==id)return r;hit=true;const n={...r,editedAt:at};['title','body','files','mail'].forEach(k=>{if(k in p)n[k]=p[k];});if(!n.mail)delete n.mail;if(!n.title)delete n.title;return n;});
+  const responses=(item.responses||[]).map(r=>{if(r.id!==id)return r;hit=true;const n={...r,editedAt:at};['title','body','files','mail','round'].forEach(k=>{if(k in p)n[k]=p[k];});['mail','title','round'].forEach(k=>{if(!n[k])delete n[k];});return n;});
   return hit?{...item,responses}:item;
 }
 /* only a reply or a formal answer can be deleted: the opening, rounds, decisions and status lines carry the item's history.
@@ -4272,6 +4275,18 @@ function execDeleteResponse(item,id){
   const ballHistory=(item.ballHistory||[]).filter(x=>x.from!==r.at);const last=ballHistory[ballHistory.length-1];
   const ball=execIsClosed(item)?item.ball:(last&&last.party?{party:last.party,name:last.name||''}:null);
   return{...item,responses:item.responses.filter(x=>x.id!==id),ballHistory,ball};
+}
+/* the round an entry belongs to: its own pick; on a submittal the opening is round 1 (Rev A) and each resubmission the next */
+function execRoundOf(item,r){
+  if(r.round)return r.round;if(item.type!=='submittal')return null;
+  if(r.kind==='open')return 1;if(r.kind==='revision')return 1+(item.responses||[]).filter(x=>x.kind==='revision'&&x.at<=r.at).length;
+  if(r.kind==='decision'){const i=(item.revisions||[]).findIndex(v=>v.decidedAt===r.at);return i>=0?i+1:null;}
+  return null;
+}
+/* the round a new entry starts on: the last one picked in this item (a submittal: its current Rev), none before any pick */
+function execLastRound(item){
+  const rs=item.responses||[];for(let i=rs.length-1;i>=0;i--){const n=execRoundOf(item,rs[i]);if(n)return n;}
+  return null;
 }
 /* ═══ /exec-logic ═══ */
 /* ═══ meeting-logic ═══ */
@@ -4797,10 +4812,10 @@ function ExTag({ball,discs,muted}){const t=exTagOf(ball,discs);if(!t)return Reac
 const p=EXEC_PARTIES.find(x=>x.id===ball.party);
 return React.createElement("span",{className:"ex-tag"+(muted?" ex-tag-muted":""),title:p?tx(p.label):undefined,style:muted?{color:t.color,borderColor:t.color}:{background:t.color,borderColor:t.color}},React.createElement("span",{"data-i18n-skip":""},t.code+(t.name?' '+t.name:'')));}
 /* one entry of the ball sequence: a row (holder, title, dates, days) that opens to the full text, mail and files */
-function ExThreadRow({row,discs,open,onToggle,kindNote,extra,canEdit,canDel,onSave,onDelete}){
+function ExThreadRow({row,discs,open,onToggle,kindNote,extra,canEdit,canDel,onSave,onDelete,round,roundLabel,roundSel}){
 const h=React.createElement;const r=row.r;const[ed,setEd]=useState(null);const up=useExUploads();
-const startEdit=()=>{up.setFiles(r.files||[]);setEd({title:r.title||'',body:r.body||'',mail:r.mail||null});};
-const commit=()=>{if(up.busy)return;onSave({title:ed.title.trim(),body:ed.body.trim(),files:up.files,mail:ed.mail});setEd(null);};
+const startEdit=()=>{up.setFiles(r.files||[]);setEd({title:r.title||'',body:r.body||'',mail:r.mail||null,round:round||null});};
+const commit=()=>{if(up.busy)return;onSave({title:ed.title.trim(),body:ed.body.trim(),files:up.files,mail:ed.mail,round:ed.round});setEd(null);};
 const own=r.title||String(r.body||'').split(/\r?\n/)[0];
 const dd=iso=>exDdMm(String(iso||'').slice(0,10));
 const who=row.holder||{party:r.party,name:r.name};
@@ -4808,10 +4823,12 @@ return h(React.Fragment,null,
 h("button",{type:"button",className:"ex-tl-row"+(row.open?" is-open":"")+(row.holder?"":" is-note"),"aria-expanded":open,onClick:onToggle},
 h(ExTag,{ball:who,discs,muted:!row.holder}),
 h("span",{className:"ex-tl-title",...(own?{"data-i18n-skip":""}:{})},own||kindNote||'—'),
+round&&h("span",{className:"ex-round"},roundLabel(round)),
 kindNote&&own&&h("span",{className:"ex-kind"},kindNote),
 h("span",{className:"ex-tl-date"},row.holder?(row.to?dd(row.from)+' – '+dd(row.to):tx('מ־{d}',{d:dd(row.from)})):dd(row.from)),
 row.holder&&h("span",{className:"ex-tl-days"+(row.open?" warn":""),title:row.open?tx('הכדור עדיין כאן'):undefined},tx('{n} ימי עבודה',{n:row.days}))),
 open&&h("div",{className:"ex-tl-det"},ed?h(React.Fragment,null,
+roundSel&&h("div",{className:"ex-comp-row"},roundSel(ed.round,v=>setEd(x=>({...x,round:v})))),
 h("input",{className:"ex-in",autoFocus:true,value:ed.title,placeholder:'כותרת',"aria-label":'כותרת',onChange:e=>{const v=e.target.value;setEd(x=>({...x,title:v}));}}),
 h("textarea",{className:"ex-in",rows:3,value:ed.body,placeholder:'תיאור מלא…',"aria-label":'תיאור',onChange:e=>{const v=e.target.value;setEd(x=>({...x,body:v}));}}),
 h(MailLinksEditor,{mails:ed.mail?[ed.mail]:[],single:true,onChange:a=>setEd(x=>({...x,mail:a[0]||null})),placeholder:'קישור למייל (לא חובה)'}),
@@ -4832,14 +4849,14 @@ const updateItem=(id,fn)=>{const d=dataRef.current;saveRef.current({...d,execIte
 const upd=fn=>updateItem(itemId,fn);
 const[menu,setMenu]=useState(null);const[editTitle,setEditTitle]=useState(false);const[titleDraft,setTitleDraft]=useState('');
 const[author,setAuthor]=useState({party:'architect',name:''});const[body,setBody]=useState('');const[toBall,setToBall]=useState(null);const up=useExUploads();
-const[cTitle,setCTitle]=useState('');const[cMail,setCMail]=useState(null);const[formOpen,setFormOpen]=useState(false);const[openRows,setOpenRows]=useState({});
+const[cTitle,setCTitle]=useState('');const[cMail,setCMail]=useState(null);const[cRound,setCRound]=useState(null);const[formOpen,setFormOpen]=useState(false);const[openRows,setOpenRows]=useState({});
 const[decNotes,setDecNotes]=useState('');
 const[chgApproved,setChgApproved]=useState(()=>(item&&item.proposed)||'');const[chgNotes,setChgNotes]=useState('');const[chgFin,setChgFin]=useState('');const[chgEdit,setChgEdit]=useState(null);
 const[revOpen,setRevOpen]=useState(false);const[revBody,setRevBody]=useState('');const revUp=useExUploads();
 const[taskForm,setTaskForm]=useState(null);
 /* "הוסף ללוח הגמרים": a new finishes row prefilled from this submittal, edited in ExFinishDialog over the panel */
 const[finDraft,setFinDraft]=useState(null);
-const resetComposer=()=>{setBody('');up.reset();setToBall(null);setAuthor({party:'architect',name:''});setCTitle('');setCMail(null);setFormOpen(false);};
+const resetComposer=()=>{setBody('');up.reset();setToBall(null);setAuthor({party:'architect',name:''});setCTitle('');setCMail(null);setCRound(null);setFormOpen(false);};
 /* an unsent reply (or Rev form) is not thrown away silently: overlay, ×, Escape and switching items ask first (deleting the item does not) */
 const dirtyRef=useRef(false);dirtyRef.current=!!(body.trim()||cTitle.trim()||cMail||up.files.length||up.busy||(revOpen&&(revBody.trim()||revUp.files.length||revUp.busy))||chgNotes.trim()||chgEdit||!!(item&&item.type==='change'&&!execIsClosed(item)&&chgApproved.trim()!==String(item.proposed||'').trim()));
 const askingRef=useRef(false);
@@ -4863,10 +4880,10 @@ const patch=p=>upd(x=>({...x,...p}));
 /* composer */
 /* a new entry: written by the architect unless picked otherwise; the ball goes to the side that held it before the architect */
 const otherSide=()=>{const hs=(item.ballHistory||[]).filter(x=>x.party&&x.party!=='architect');const l=hs[hs.length-1];return l?{party:l.party,name:l.name||''}:{party:'contractor',name:''};};
-const openForm=()=>{setFormOpen(true);setAuthor({party:'architect',name:''});setToBall(closed?null:otherSide());};
+const openForm=()=>{setFormOpen(true);setAuthor({party:'architect',name:''});setToBall(closed?null:otherSide());setCRound(execLastRound(item));};
 const setAuthorBall=b=>{setAuthor(b||{party:'architect',name:''});if(!closed)setToBall(b&&b.party!=='architect'?{party:'architect',name:''}:otherSide());};
 const canSend=!!(body.trim()||cTitle.trim()||cMail||up.files.length)&&!up.busy;
-const respond=(kind,ballTo)=>{const r={kind,party:author.party,name:String(author.name||'').trim(),title:cTitle.trim(),body:body.trim(),files:up.files,mail:cMail||null,byId:CURRENT_USER.id,ballTo};upd(x=>execRespond(x,r));resetComposer();};
+const respond=(kind,ballTo)=>{const r={kind,party:author.party,name:String(author.name||'').trim(),title:cTitle.trim(),body:body.trim(),files:up.files,mail:cMail||null,byId:CURRENT_USER.id,round:cRound||null,ballTo};upd(x=>execRespond(x,r));resetComposer();};
 const send=()=>{if(canSend)respond('reply',closed?null:toBall);};
 const answer=()=>{if(canSend)respond('answer',toBall||{party:'contractor',name:''});};
 const closeItem=async()=>{if(up.busy)return;const issue=item.type==='issue';if(!(await askConfirm(issue?tx('לסמן את {n} כנפתר?',{n:item.number}):tx('לסגור את {n}?',{n:item.number}),{confirmLabel:issue?'סמן כנפתר':'סגור',danger:false})))return;respond('close',null);};
@@ -4898,36 +4915,46 @@ const task={id:uid(),groupId:g?g.id:null,title:f.title.trim(),statusId:'N',prior
 saveRef.current({...d,sheets:d.sheets.map(sh=>sh.id===sheet.id?{...sh,tasks:[...(sh.tasks||[]),task]}:sh),execItems:(d.execItems||[]).map(x=>x.id===item.id?{...x,links:[...(x.links||[]),{id:uid(),kind:'task',sheetId:sheet.id,taskId:task.id}]}:x)});setTaskForm(null);};
 const meetingOf=id=>(data.meetings||[]).find(m=>m.id===id);
 /* the ball sequence, newest first, in the look of a task's updates: each row is a period with its holder, the newest opens */
-let revK=0;
-const kindLabel=r=>{if(r.kind==='open')return item.type==='submittal'?'הוגשה Rev A':'פתיחה';if(r.kind==='revision'){revK++;return 'הוגשה Rev '+String.fromCharCode(65+revK);}return EX_KIND_LABEL[r.kind]||r.kind;};
+/* the round pill names the Rev, so a submittal's kind tag says only what happened */
+const kindLabel=r=>r.kind==='open'?(item.type==='submittal'?'הגשה':'פתיחה'):(EX_KIND_LABEL[r.kind]||r.kind);
 const kinds=new Map((item.responses||[]).map(r=>[r.id,kindLabel(r)]));
 const canEditR=r=>!ro&&(!r.byId||r.byId===CURRENT_USER.id||role==='admin'||role==='superadmin'||iManage(team));
 const delResponse=async r=>{if(!(await askConfirm(tx('למחוק את הרשומה מהרצף?'),{confirmLabel:'מחק'})))return;upd(x=>execDeleteResponse(x,r.id));};
 const tlRows=execThreadRows(item,today);
+/* rounds: numbers, on a submittal its Rev letters; the list runs one past the highest round used */
+const isSub=item.type==='submittal';
+const roundLabel=n=>isSub?'Rev '+String.fromCharCode(64+n):tx('סבב {n}',{n});
+const maxRound=Math.max(0,(item.revisions||[]).length,...(item.responses||[]).map(r=>execRoundOf(item,r)||0));
+const roundSel=(v,on)=>React.createElement("label",{className:"ex-round-pick"},React.createElement("span",{className:"ex-muted ex-small"},'סבב'),
+React.createElement("select",{className:"ex-in ex-round-sel","aria-label":'סבב',value:v||'',onChange:e=>on(e.target.value?Number(e.target.value):null)},
+React.createElement("option",{value:''},'—'),Array.from({length:maxRound+1},(_,i)=>i+1).map(n=>React.createElement("option",{key:n,value:n},roundLabel(n)))));
 const src=item.source;const srcMeeting=src&&src.kind==='meeting'&&src.ref?meetingOf(src.ref):null;
 const thread=React.createElement("div",{className:"ex-tl"},
 tlRows.map((row,i)=>{const r=row.r;
 if(r.kind==='status'||r.kind==='close'){const st=r.status&&T.statuses.find(x=>x.id===r.status);return React.createElement("div",{key:r.id,className:"ex-sys"},r.kind==='close'?'✓ '+EX_KIND_LABEL.close:React.createElement(React.Fragment,null,'⟳ ',st?React.createElement(React.Fragment,null,'סטטוס שונה ל־',React.createElement("b",null,st.label)):r.body),' · '+exDateTime(r.at));}
 const dec=r.kind==='decision'?(item.revisions||[]).find(v=>v.decidedAt===r.at):null;
 const extra=r.kind==='decision'?(item.type==='change'?React.createElement("div",{className:"ex-card-dec"},React.createElement(ExChgDecisionPill,{d:r.decision}),r.approvedText&&React.createElement("div",{className:"ex-muted ex-small",style:{marginTop:4}},'אושר בפועל: ',React.createElement("span",{"data-i18n-skip":""},r.approvedText))):
-React.createElement("div",{className:"ex-card-dec"},React.createElement(ExDecisionPill,{d:dec?dec.decision:null}),dec&&React.createElement("span",{className:"ex-muted ex-small"},' Rev '+dec.label))):null;
+React.createElement("div",{className:"ex-card-dec"},React.createElement(ExDecisionPill,{d:dec?dec.decision:null}))):null;
 const open=openRows[r.id]!==undefined?openRows[r.id]:i===0;
 const kn=r.kind==='reply'?null:kinds.get(r.id);
 return React.createElement("div",{key:r.id,className:"ex-tl-node"+(open?" is-expanded":""),style:{'--c':(exTagOf(row.holder||{party:r.party,name:r.name},disciplines)||{}).color}},
-React.createElement(ExThreadRow,{row,discs:disciplines,open,onToggle:()=>setOpenRows(m=>({...m,[r.id]:!open})),kindNote:kn,extra,canEdit:canEditR(r),canDel:canEditR(r)&&EXEC_DELETABLE.includes(r.kind),onSave:p=>upd(x=>execEditResponse(x,r.id,p)),onDelete:()=>delResponse(r)}));}),
+React.createElement(ExThreadRow,{row,discs:disciplines,round:execRoundOf(item,r),roundLabel,roundSel:canEditR(r)?roundSel:null,open,onToggle:()=>setOpenRows(m=>({...m,[r.id]:!open})),kindNote:kn,extra,canEdit:canEditR(r),canDel:canEditR(r)&&EXEC_DELETABLE.includes(r.kind),onSave:p=>upd(x=>execEditResponse(x,r.id,p)),onDelete:()=>delResponse(r)}));}),
 React.createElement("div",{className:"ex-tl-start"},'◎ '+tx('נפתח {d}',{d:exDateTime(item.createdAt)}),React.createElement(ExTag,{ball:item.openedBy,discs:disciplines}),src&&React.createElement("span",null,'· ',EX_SOURCE_LABEL[src.kind]||src.kind,srcMeeting&&React.createElement(React.Fragment,null,' · ',React.createElement("button",{type:"button",className:"ex-link","data-i18n-skip":"",onClick:()=>exGoHub({tab:'meetings',meetingId:srcMeeting.id})},(srcMeeting.title||tx('ישיבה'))+(srcMeeting.date?' '+exDdMm(srcMeeting.date):'')+' ↗')))));
 const tagOpts=exTagOptions(disciplines);
 const tagSel=(val,on,withKeep,label)=>{const t=exTagOf(val,disciplines);return React.createElement("select",{className:"ex-in ex-tag-sel","aria-label":label,value:exTagKey(val),onChange:e=>{const v=e.target.value;on(v==='keep'?null:((tagOpts.find(o=>o.key===v)||{}).ball||null));},style:t?{background:t.color,borderColor:t.color,color:'#fff'}:undefined},
 withKeep&&React.createElement("option",{value:'keep',style:{color:'var(--option-text)'}},'ללא העברה'),tagOpts.map(o=>React.createElement("option",{key:o.key,value:o.key,style:{color:'var(--option-text)'}},exTagOf(o.ball,disciplines).code)));};
-const tlHead=React.createElement("div",{className:"ex-tl-head"},
+const tlHead=()=>React.createElement("div",{className:"ex-tl-head"},
 React.createElement("div",{className:"ex-sec-h"},'רצף הכדור'),
 !ro&&!formOpen&&React.createElement("button",{type:"button",className:"ex-btn ex-btn-sm ex-btn-pri",onClick:openForm},closed?'+ הערה':'+ העבר כדור'),
 !ro&&item.type==='issue'&&!closed&&React.createElement("button",{type:"button",className:"ex-btn ex-btn-sm ex-btn-ok",onClick:closeItem},'סמן כנפתר'),
 !ro&&item.type==='rfi'&&!closed&&React.createElement("button",{type:"button",className:"ex-btn ex-btn-sm",onClick:closeItem},'סגור'),
-!ro&&closed&&React.createElement("button",{type:"button",className:"ex-btn ex-btn-sm",onClick:reopen},'פתח מחדש'));
+!ro&&closed&&React.createElement("button",{type:"button",className:"ex-btn ex-btn-sm",onClick:reopen},'פתח מחדש'),
+!ro&&isSub&&item.status==='rejected'&&!revOpen&&React.createElement("button",{type:"button",className:"ex-btn ex-btn-sm",onClick:()=>setRevOpen(true)},'+ הגשה חוזרת (Rev '+nextRev+')'),
+finBtn);
 const composer=!ro&&formOpen&&React.createElement("div",{className:"ex-comp ex-tl-form"},
 React.createElement("div",{className:"ex-comp-row"},React.createElement("span",{className:"ex-muted ex-small"},'מאת'),tagSel(author,setAuthorBall,false,'מאת'),
-!closed&&React.createElement(React.Fragment,null,React.createElement("span",{className:"ex-muted ex-small"},'הכדור עובר ל'),tagSel(toBall,setToBall,true,'הכדור עובר ל'))),
+!closed&&React.createElement(React.Fragment,null,React.createElement("span",{className:"ex-muted ex-small"},'הכדור עובר ל'),tagSel(toBall,setToBall,true,'הכדור עובר ל')),
+roundSel(cRound,setCRound)),
 React.createElement("input",{className:"ex-in",autoFocus:true,value:cTitle,"aria-label":'כותרת',placeholder:'כותרת — מה צריך לקרות עכשיו',onChange:e=>setCTitle(e.target.value),onKeyDown:e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))send();}}),
 React.createElement("textarea",{className:"ex-in",rows:3,value:body,"aria-label":'תיאור',placeholder:item.type==='rfi'?'נוסח התגובה / התשובה…':'תיאור מלא…',onChange:e=>setBody(e.target.value),onKeyDown:e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey))send();}}),
 React.createElement(MailLinksEditor,{mails:cMail?[cMail]:[],single:true,onChange:a=>setCMail(a[0]||null),placeholder:'קישור למייל (לא חובה)'}),
@@ -4945,15 +4972,10 @@ totalDays>0&&React.createElement("span",{className:"ex-bar ex-sum-bar","data-i18
 const finRow=item.type==='submittal'?(data.finishes||[]).find(r=>r.submittalId===item.id):null;
 const canFin=item.type==='submittal'&&(item.status==='approved'||item.status==='approved_notes');
 const goFinish=async id=>{if(!(await confirmDiscard()))return;window.dispatchEvent(new CustomEvent('ph:go-finish',{detail:{rowId:id}}));};
-const finBtn=finRow?React.createElement("div",{className:"ex-acts ex-fin-acts"},React.createElement("button",{type:"button",className:"ex-btn",onClick:()=>goFinish(finRow.id)},'פתח בלוח הגמרים')):
-canFin&&!ro?React.createElement("div",{className:"ex-acts ex-fin-acts"},React.createElement("button",{type:"button",className:"ex-btn ex-btn-ok",onClick:()=>setFinDraft(finishFromSubmittal(item))},'+ הוסף ללוח הגמרים')):null;
-const rounds=item.type==='submittal'&&React.createElement("div",{className:"ex-rounds"},
-React.createElement("div",{className:"ex-sec-h"},'סבבי הגשה',React.createElement("span",null,tx('{n} סבבים',{n:(item.revisions||[]).length}))),
-(item.revisions||[]).map(rv=>React.createElement("div",{key:rv.id,className:"ex-rev"},
-React.createElement("div",{className:"ex-rev-h"},React.createElement("b",{className:"ex-num"},'Rev '+rv.label),React.createElement("span",{className:"ex-muted"},'הוגש '+exDateTime(rv.submittedAt)),React.createElement("span",{className:"ex-sp"}),React.createElement(ExDecisionPill,{d:rv.decision})),
-React.createElement(ExFileLinks,{files:rv.files}),
-rv.notes&&React.createElement("div",{className:"ex-rev-n","data-i18n-skip":""},rv.notes),
-rv.decision&&React.createElement("div",{className:"ex-muted ex-small"},'הוחלט ע"י ',React.createElement("span",{"data-i18n-skip":""},rv.decidedBy||'—'),' · '+exDateTime(rv.decidedAt)))),
+const finBtn=finRow?React.createElement("button",{type:"button",className:"ex-btn ex-btn-sm",onClick:()=>goFinish(finRow.id)},'פתח בלוח הגמרים'):
+canFin&&!ro?React.createElement("button",{type:"button",className:"ex-btn ex-btn-sm ex-btn-ok",onClick:()=>setFinDraft(finishFromSubmittal(item))},'+ הוסף ללוח הגמרים'):null;
+/* a submittal's open round: the decision on it, or the form for the next Rev (each round itself shows in the sequence) */
+const rounds=isSub&&!ro&&(undecided||(item.status==='rejected'&&revOpen))&&React.createElement("div",{className:"ex-comp ex-tl-form"},
 !ro&&undecided&&React.createElement("div",{className:"ex-decide"},
 React.createElement("div",{className:"ex-comp-h"},'החלטה על Rev '+(item.revisions||[]).slice(-1)[0].label),
 React.createElement("textarea",{className:"ex-in",rows:2,value:decNotes,placeholder:'הערות (חובה ב"אושר עם הערות")',onChange:e=>setDecNotes(e.target.value)}),
@@ -4963,7 +4985,7 @@ React.createElement("div",{className:"ex-comp-h"},'הגשה חוזרת · Rev '+
 React.createElement("textarea",{className:"ex-in",rows:2,value:revBody,placeholder:'מה השתנה בהגשה',onChange:e=>setRevBody(e.target.value)}),
 React.createElement(ExFilesInput,{up:revUp}),
 React.createElement("div",{className:"ex-acts"},React.createElement("button",{type:"button",className:"ex-btn",onClick:()=>{setRevOpen(false);revUp.reset();}},'ביטול'),React.createElement("button",{type:"button",className:"ex-btn ex-btn-pri",disabled:revUp.busy>0||(!revUp.files.length&&!revBody.trim()),onClick:addRev},'הגש Rev '+nextRev))):
-React.createElement("div",null,React.createElement("button",{type:"button",className:"ex-btn",onClick:()=>setRevOpen(true)},'+ הגשה חוזרת (Rev '+nextRev+')'))),finBtn);
+null));
 /* contractor change: tender vs proposed (editable while open) and the decision */
 const isChg=item.type==='change';const finRows=data.finishes||[];
 const finLabel=r=>[r.category,r.element,r.location].map(x=>String(x||'').trim()).filter(Boolean).join(' · ')||tx('(ללא שם)');
@@ -5038,8 +5060,8 @@ canDelete&&mbtn('מחק פריט',del,'ex-danger')]:
 React.createElement("button",{type:"button",className:"ms-panel-btn",title:'סגור',onClick:requestClose},'×')),
 React.createElement("div",{className:"tds-body ex-p-body"},React.createElement("div",{className:"ex-sum"},summary,React.createElement("span",{className:"ex-sum-meta"},metaEls)),React.createElement("div",{className:"ex-p-grid"},
 React.createElement("div",{className:"ex-p-main"},chgBlock,
-React.createElement("div",null,tlHead,composer,thread),
-rounds,chgDecide,linksSec),
+React.createElement("div",null,tlHead(),rounds,composer,thread),
+chgDecide,linksSec),
 null))),
 finDraft&&React.createElement(ExFinishDialog,{data:data,save:save,row:finDraft,isNew:true,onClose:()=>setFinDraft(null)})),document.body);}
 
