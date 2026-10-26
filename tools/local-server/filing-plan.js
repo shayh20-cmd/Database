@@ -100,4 +100,83 @@ function inboxPlan({ slots, tree, code, files, sent, updated, date }) {
   return { plan, ...(Object.keys(missing).length ? { slotsMissing: missing } : {}) };
 }
 
-module.exports = { autoSlots, sentFolder, inboxPlan };
+const VERSION = /^(.*)-(v)(\d{1,4})$/i; // as filing-ai's VERSION (and the PC's), with the v kept as written
+const isVersion = p => VERSION.test(leafOf(p)) && !/@ver/i.test(leafOf(p));
+// a consultant's short name, as receiveOptions shows it: the folder's name without the project code in front
+const shortOf = (folder, code) => { const l = leafOf(folder); return code && lc(l).startsWith(lc(code) + '-') && l.length > code.length + 1 ? l.slice(code.length + 1) : l; };
+
+/* Where a consultant's next plan version goes: its …-plans folder (or the consultant's folder itself when the versions
+   sit there), the next name after the highest …-vNN there (same name, same v, at least the same digits), the version
+   it follows (prev) and the @ver folder next to the versions (ver; verName: the one to make when there is none).
+   No versions but other folders there: the name is the person's to type (editable), suggested by the convention.
+   Nothing yet: <code>-<consultant>-plans/…-v01, the plans folder made too (make). */
+function nextVersion(tree, folder, code) {
+  const plansDir = kids(tree, folder).find(p => /-plans$/i.test(leafOf(p))) || null;
+  let dir = plansDir;
+  let versions = plansDir ? kids(tree, plansDir).filter(isVersion) : [];
+  if (!versions.length && kids(tree, folder).some(isVersion)) { dir = folder; versions = kids(tree, folder).filter(isVersion); }
+  if (!dir) {
+    const conv = `${pre(code)}${shortOf(folder, code)}-plans`;
+    return { dir: `${folder}/${conv}`, make: true, name: `${conv}-v01`, editable: false, prev: '', ver: '', verName: '' };
+  }
+  const ver = kids(tree, dir).find(p => /@ver/i.test(leafOf(p))) || '';
+  if (!versions.length) {
+    const others = kids(tree, dir).filter(p => !/@ver/i.test(leafOf(p)));
+    return { dir, make: false, name: `${leafOf(dir)}-v01`, editable: others.length > 0, prev: '', ver, verName: '' };
+  }
+  const top = versions.map(p => ({ p, m: VERSION.exec(leafOf(p)) })).sort((a, b) => Number(b.m[3]) - Number(a.m[3]))[0];
+  const num = String(Number(top.m[3]) + 1).padStart(top.m[3].length, '0');
+  return { dir, make: false, name: `${top.m[1]}-${top.m[2]}${num}`, editable: false, prev: top.p, ver, verName: ver ? leafOf(ver) : `${top.m[1]}-@ver` };
+}
+
+/* The receive plan, from who sent the files (from: { kind: 'consultant' | 'other', folder, name }) and, for a consultant,
+   doc 'plan' (a new version folder) or 'doc' (its …-docs folder, made when missing); another party's files go into its
+   folder as it is. versionName: the typed name, used only where the name is the person's to choose; toVer: move the
+   current version to @ver (undefined: when an @ver folder is there). { plan, version?, problem? } — problem names what
+   is missing ('no_from', 'no_consultant', 'consultant_folder', 'no_doc', 'other_folder', 'name'), and then nothing is
+   filed. Nothing is replaced; the only move is the current version into the @ver next to it. */
+const nameOk = n => { const r = ai.relPath(n); return !!r && !r.includes('/'); };
+function receivePlan({ tree, code, from, doc, versionName, toVer, files }) {
+  const list = (tree || []).filter(Boolean);
+  const plan = (steps, to) => ai.sanitizeReceivePlan({ steps, files: (files || []).map(f => ({ name: f.name, dests: to ? [{ path: to }] : [] })) }, list, files);
+  const none = problem => ({ plan: plan([], null), problem });
+  if (!from) return none('no_from');
+  const folder = from.folder ? inTree(list, from.folder) : null;
+  if (from.kind === 'other') return folder ? { plan: plan([], folder) } : none('other_folder');
+  if (!folder) return none(from.folder || from.name ? 'consultant_folder' : 'no_consultant');
+  if (doc === 'doc') {
+    const docs = kids(list, folder).find(p => /-docs$/i.test(leafOf(p)));
+    const to = docs || `${folder}/${pre(code)}${shortOf(folder, code)}-docs`;
+    return { plan: plan(docs ? [] : [{ op: 'mkdir', path: to }], to) };
+  }
+  if (doc !== 'plan') return none('no_doc');
+  const v = nextVersion(list, folder, code);
+  const typed = String(versionName || '').trim();
+  const name = v.editable && typed ? typed : v.name;
+  const version = { name: v.name, editable: v.editable, prev: v.prev, hasVer: !!v.ver };
+  if (!nameOk(name) || inTree(list, `${v.dir}/${name}`)) return { ...none('name'), version: { ...version, toVer: false } };
+  const to = `${v.dir}/${name}`;
+  const steps = [];
+  if (v.make) steps.push({ op: 'mkdir', path: v.dir });
+  steps.push({ op: 'mkdir', path: to });
+  const move = !!v.prev && !v.editable && (toVer === undefined ? !!v.ver : toVer === true);
+  if (move) {
+    const ver = v.ver || `${v.dir}/${v.verName}`;
+    if (!v.ver) steps.push({ op: 'mkdir', path: ver });
+    steps.push({ op: 'move', from: v.prev, to: `${ver}/${leafOf(v.prev)}` });
+  }
+  return { plan: plan(steps, to), version: { ...version, toVer: move } };
+}
+
+/* The consultant the sender is: the register contact with the sender's address, and the consultant folder that contact
+   was matched to (receiveOptions); -1 when none. */
+function senderConsultant(options, contacts, email) {
+  const e = lc(email).trim();
+  if (!e || !options || !Array.isArray(options.consultants)) return -1;
+  const c = (contacts || []).find(x => (x.emails || []).some(y => lc(y).trim() === e));
+  if (!c) return -1;
+  const text = lc(ai.contactText(c));
+  return options.consultants.findIndex(x => x.folder && x.contact && lc(x.contact) === text);
+}
+
+module.exports = { autoSlots, sentFolder, inboxPlan, nextVersion, receivePlan, senderConsultant };
