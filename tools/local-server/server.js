@@ -425,7 +425,7 @@ function serveGzipped(req, res, pathname) {
 
 /* Project Hub as a Claude connector (MCP + OAuth); see mcp.js. */
 const mcp = require('./mcp')({
-  DATA_DIR, STATIC_ROOT, SITE_MODE, APPS, PROJECTS_DIR, LOCAL_USER_NAME,
+  DATA_DIR, STATIC_ROOT, SITE_MODE, APPS, PROJECTS_DIR, LOCAL_USER_NAME, personalFileOf,
   readJson, writeJsonAtomic, sendJson, readRequestBody, readRequestBuffer, saveAttachment,
   beforeProjectWrite: (file, oldDoc, newDoc, who) => history.beforeSave(projectIdOfFile(file), file, oldDoc, newDoc, who)
 });

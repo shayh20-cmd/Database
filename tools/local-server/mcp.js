@@ -47,7 +47,7 @@ const bare = s => norm(s).replace(/[וי]/g, '');
 class ToolError extends Error {}
 
 module.exports = function createMcp(ctx) {
-  const { DATA_DIR, STATIC_ROOT, SITE_MODE, APPS, PROJECTS_DIR, readJson, writeJsonAtomic, sendJson, readRequestBody, readRequestBuffer, saveAttachment } = ctx;
+  const { DATA_DIR, STATIC_ROOT, SITE_MODE, APPS, PROJECTS_DIR, personalFileOf, readJson, writeJsonAtomic, sendJson, readRequestBody, readRequestBuffer, saveAttachment } = ctx;
   const STORE_FILE = path.join(DATA_DIR, 'mcp_oauth.json');
   const REGISTRY = APPS['hub-projects'];
 
@@ -243,7 +243,18 @@ module.exports = function createMcp(ctx) {
     writeJsonAtomic(proj.file, next);
     return out;
   }
-  const logEntry = (me, text) => ({ id: uid(), at: Date.now(), user: me.name + ' (Claude)', text });
+  /* The person's own list (/api/personal), found from the signed-in address the way the server finds it.
+     The page reads the list fresh before each of its writes, so a write here is not lost. */
+  function writePersonal(c, mutate) {
+    const file = personalFileOf(c.who);
+    const doc = { tasks: [], prefs: {}, ...readJson(file) };
+    const out = mutate(doc);
+    writeJsonAtomic(file, { ...doc, _ts: Date.now() });
+    return out;
+  }
+  // the page's PERSONAL_PRIORITIES: דחוף, then the built-in priorities
+  const personalPriorities = () => [{ id: 'urgent', label: 'דחוף' }, ...officeData().lists.priorities.map(o => ({ id: o.id, label: o.label }))];
+  const logEntry = (me, text) =>({ id: uid(), at: Date.now(), user: me.name + ' (Claude)', text });
   function canWrite(me) { if (ROLE_RANK[me.role] < ROLE_RANK.editor) throw new ToolError('Your role in Project Hub is viewer: you can read, not change.'); }
 
   /* ── tools ── */
@@ -698,6 +709,75 @@ module.exports = function createMcp(ctx) {
           project: p.code + ' ' + p.name,
           created: made.map(x => ({ id: x.task.id, title: x.task.title, stage: x.path, due: x.task.dueDate, link: linkOf(c.base, p.id, x.sheetId, x.task.id) }))
         };
+      }
+    },
+    {
+      name: 'create_personal_tasks',
+      title: 'Add personal tasks',
+      description: 'Add one or more tasks to the signed-in person\'s own personal tasks (משימות אישיות, shown in המשימות שלי) — not to a project. Use when the user says "add to my personal tasks", "תוסיף לי משימה אישית", "תזכיר לי…" or names no project for something of their own. Show the list you are about to add (title, priority, due) and add only after they confirm. Defaults: start today, due in 14 days, priority בינונית.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          tasks: {
+            type: 'array', minItems: 1, maxItems: 50,
+            items: {
+              type: 'object',
+              properties: {
+                title: { type: 'string' },
+                priority: { type: 'string', description: 'דחוף | גבוהה | בינונית | נמוכה (or the id)' },
+                start_date: { type: 'string', description: 'YYYY-MM-DD' },
+                due_date: { type: 'string', description: 'YYYY-MM-DD' },
+                note: { type: 'string', description: 'Short comment shown in the task row' },
+                description: { type: 'string', description: 'Longer text for the task\'s description' },
+                mail_url: { type: 'string', description: 'Link to a related email' }
+              },
+              required: ['title'], additionalProperties: false
+            }
+          }
+        },
+        required: ['tasks'], additionalProperties: false
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+      run(args, c) {
+        const pris = personalPriorities();
+        const made = args.tasks.map(x => {
+          const title = String(x.title || '').trim();
+          if (!title) throw new ToolError('Every task needs a title');
+          checkDates(x.start_date, x.due_date);
+          const start = x.start_date || todayISO();
+          let due = x.due_date || plusDays(start, 14);
+          if (due < start) due = start;
+          // the shape of the page's newPersonalTask
+          return {
+            id: uid(), title, statusId: 'N', priority: pickOption(pris, x.priority, 'priority') || 'medium', discipline: null,
+            startDate: start, dueDate: due, comment: String(x.note || '').trim(),
+            ...(x.description ? { description: esc(x.description).replace(/\n/g, '<br>') } : {}),
+            ...(x.mail_url ? { mails: [{ url: String(x.mail_url), added: todayISO() }] } : {}),
+            done: false, taskType: 'simple', fieldValues: {}, subtasks: [], createdAt: todayISO(),
+            activityLog: [logEntry(c.me, 'נוצרה דרך Claude')]
+          };
+        });
+        writePersonal(c, doc => { doc.tasks = [...doc.tasks, ...made]; });
+        const link = c.base + '/project_hub_01?go=mytasks';
+        return { list: 'משימות אישיות', created: made.map(t => ({ id: t.id, title: t.title, priority: (pris.find(p => p.id === t.priority) || {}).label, due: t.dueDate, link })) };
+      }
+    },
+    {
+      name: 'list_personal_tasks',
+      title: 'Personal tasks',
+      description: 'The signed-in person\'s own personal tasks (משימות אישיות), open ones only unless include_done; due date first.',
+      inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'Words in the title or comment' }, include_done: { type: 'boolean' } }, additionalProperties: false },
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      run(args, c) {
+        const doc = readJson(personalFileOf(c.who));
+        const pris = personalPriorities(), sts = officeData().lists.statuses;
+        const words = bare(args.query || '').split(' ').filter(Boolean);
+        const tasks = (doc.tasks || [])
+          .filter(t => args.include_done || !(t.done || statusOf(t) === 'C'))
+          .filter(t => !words.length || words.every(w => bare([t.title, t.comment].join(' ')).includes(w)))
+          .sort((a, b) => (a.dueDate || '9999') < (b.dueDate || '9999') ? -1 : (a.dueDate || '9999') > (b.dueDate || '9999') ? 1 : 0)
+          .map(t => ({ id: t.id, title: t.title, status: (sts.find(x => x.id === statusOf(t)) || {}).label || statusOf(t), priority: (pris.find(p => p.id === t.priority) || {}).label || undefined, due: t.dueDate || undefined, comment: t.comment || undefined }));
+        return { count: tasks.length, tasks, link: c.base + '/project_hub_01?go=mytasks' };
       }
     },
     {
@@ -1234,6 +1314,7 @@ module.exports = function createMcp(ctx) {
     'A project has tracks (מסלולים) with stages (שלבים); each stage is a task list. New tasks go to the project\'s default stage (usually "מסלול תכנון › משימות שוטפות") unless the user names another.',
     'Before adding or changing anything, call get_project for the project, map what the user said onto its real stages, disciplines (תחום), priorities and team, and show a short table of exactly what you will write. Write only after the user confirms. Never invent a project, stage, discipline or person — ask.',
     'From meeting minutes or a summary: work out the project, then read every item and propose what each becomes — a new task, an update or subtask on an existing task (search_tasks first), a planning principle (עקרון תכנון), a milestone, or minutes only. Show a numbered table and let the user change and pick; then record it all with one create_meeting call (or add_meeting_items for a meeting already in Project Hub), so the minutes and everything made from them stay linked.',
+    'Personal tasks (משימות אישיות) are the person\'s own private list, shown with their project tasks in המשימות שלי. When they ask for a task of their own ("תוסיף לי משימה אישית", "add to my personal tasks", "תזכיר לי…") or name no project for it, use create_personal_tasks — no project and no get_project needed — after showing what you will add; list_personal_tasks reads them. If it is unclear whether a task belongs to a project or to them, ask.',
     'Progress on an existing task is recorded as an update (update_task.add_update), not by editing the title. An update\'s owner is a discipline — who holds the ball after this step.',
     'Delete only when the user asked to delete: name the exact task (title, stage, id), get an explicit yes, then call delete_task with the id. Never delete to "clean up" on your own.',
     'Dates are YYYY-MM-DD. Defaults: start today, due in 14 days. After writing, give the user the task links.',
@@ -1683,7 +1764,7 @@ document.querySelectorAll('input[type=file]').forEach(function(inp){inp.onchange
         return reply({
           protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: 'project-hub', title: 'Project Hub', version: '1.3.0' },
+          serverInfo: { name: 'project-hub', title: 'Project Hub', version: '1.4.0' },
           instructions: INSTRUCTIONS
         });
       }
