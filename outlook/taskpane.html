@@ -216,19 +216,40 @@
       <a id="fMapLink" target="_blank" rel="noopener" data-t="פתח ב-Project Hub">פתח ב-Project Hub</a>
     </div>
     <div id="fileList" style="display:flex;flex-direction:column;gap:4px;margin-block-start:8px"></div>
-    <div class="row" style="margin-block-start:6px;flex-wrap:nowrap">
-      <input id="fText" class="grow" data-i18n-skip>
-      <button class="primary" type="button" id="fPropose" data-t="הצע">הצע</button>
+    <!-- without Claude: who sent the files, plans or documents, the new version; the server builds the plan in code -->
+    <div id="fForm" style="display:flex;flex-direction:column;gap:6px;margin-block-start:8px">
+      <label for="fFrom" data-t="ממי:">ממי:</label>
+      <select id="fFrom" data-i18n-skip></select>
+      <div class="row" id="fDocRow" hidden>
+        <label style="display:flex;gap:4px;align-items:center"><input type="radio" name="fDoc" value="plan" style="width:auto" checked> <span data-t="תכניות (גרסה חדשה)">תכניות (גרסה חדשה)</span></label>
+        <label style="display:flex;gap:4px;align-items:center"><input type="radio" name="fDoc" value="doc" style="width:auto"> <span data-t="מסמכים">מסמכים</span></label>
+      </div>
+      <div id="fVerRow" style="display:flex;flex-direction:column;gap:4px" hidden>
+        <div class="hint" id="fVerText" data-i18n-skip></div>
+        <input id="fVerName" dir="ltr" data-i18n-skip hidden>
+        <div class="hint" id="fVerHint" data-t="שמות הגרסאות כאן אינם בצורה …-vNN, ולכן ההעברה ל-@ver מושבתת." hidden>שמות הגרסאות כאן אינם בצורה …-vNN, ולכן ההעברה ל-@ver מושבתת.</div>
+        <label id="fToVerRow" style="display:flex;gap:4px;align-items:center" hidden><input type="checkbox" id="fToVer" style="width:auto"> <span id="fToVerText" data-i18n-skip></span></label>
+      <div class="hint" id="fVerBlocked" data-t="בתיקיית ה-@ver כבר יש תיקייה בשם הזה — הגרסה הקיימת תישאר במקומה." hidden>בתיקיית ה-@ver כבר יש תיקייה בשם הזה — הגרסה הקיימת תישאר במקומה.</div>
+      </div>
+      <ul class="plan" id="fPlan" data-i18n-skip></ul>
+      <div class="hint" id="fFormState"></div>
     </div>
-    <div class="conv" id="fConv" data-i18n-skip></div>
     <div class="row" id="fConfirmRow" style="margin-block-start:6px" hidden>
       <button class="primary" type="button" id="fOk" data-t="אשר ותייק">אשר ותייק</button>
       <button type="button" id="fCancel" data-t="ביטול">ביטול</button>
     </div>
-    <div class="row" id="fFixRow" style="margin-block-start:6px;flex-wrap:nowrap" hidden>
-      <input id="fFix" class="grow" data-i18n-skip>
-      <button type="button" id="fFixGo" data-t="שלח">שלח</button>
-    </div>
+    <details id="fClaude" style="margin-block-start:6px">
+      <summary class="hint" style="cursor:pointer" data-t="הצע עם Claude (לרוב לא צריך)">הצע עם Claude (לרוב לא צריך)</summary>
+      <div class="row" style="margin-block-start:6px;flex-wrap:nowrap">
+        <input id="fText" class="grow" data-i18n-skip>
+        <button type="button" id="fPropose" data-t="הצע">הצע</button>
+      </div>
+      <div class="conv" id="fConv" data-i18n-skip></div>
+      <div class="row" id="fFixRow" style="margin-block-start:6px;flex-wrap:nowrap" hidden>
+        <input id="fFix" class="grow" data-i18n-skip>
+        <button type="button" id="fFixGo" data-t="שלח">שלח</button>
+      </div>
+    </details>
     <div class="hint" id="fileState"></div>
     <div id="fDone" style="display:flex;flex-direction:column;gap:2px;margin-block-start:6px"></div>
     <div class="row" id="fLearn" style="margin-block-start:6px;flex-wrap:nowrap" hidden>
@@ -467,6 +488,28 @@ var HE_EN = {
   'פותח את התיקייה במחשב…': 'Opening the folder on your computer…',
   'הוראה (לא חובה), למשל: תכניות קונסטרוקציה, גרסה חדשה': 'Instruction (optional), e.g. structural plans, new version',
   'הצע': 'Suggest',
+  'ממי:': 'From:',
+  'תכניות (גרסה חדשה)': 'Plans (new version)',
+  'מסמכים': 'Documents',
+  'שמות הגרסאות כאן אינם בצורה …-vNN, ולכן ההעברה ל-@ver מושבתת.': 'The versions here are not named …-vNN, so moving to @ver is off.',
+  'הצע עם Claude (לרוב לא צריך)': 'Suggest with Claude (usually not needed)',
+  'בחר…': 'Choose…',
+  'יועצים': 'Consultants',
+  'רשות, קבלן ואחרים': 'Authorities, the contractor and others',
+  'אין לו תיקייה עדיין': 'no folder yet',
+  'שם תיקיית הגרסה החדשה:': 'Name of the new version folder:',
+  'גרסה חדשה: {v}': 'New version: {v}',
+  'העבר את הגרסה הקיימת ({v}) ל-@ver': 'Move the current version ({v}) to @ver',
+  'בונה את התוכנית…': 'Building the plan…',
+  'סמן קובץ': 'Tick a file',
+  'פתח בסייר הקבצים': 'Open in File Explorer',
+  'בחר ממי הקבצים.': 'Choose who sent the files.',
+  'בחר יועץ.': 'Choose a consultant.',
+  'ליועץ הזה אין עדיין תיקייה בפרויקט.': 'This consultant has no folder in the project yet.',
+  'בחר תכניות או מסמכים.': 'Choose plans or documents.',
+  'בחר תיקייה.': 'Choose a folder.',
+  'שם תיקיית הגרסה לא תקין, או שתיקייה בשם הזה כבר קיימת.': 'The version folder\'s name is not valid, or a folder of that name already exists.',
+  'בתיקיית ה-@ver כבר יש תיקייה בשם הזה — הגרסה הקיימת תישאר במקומה.': 'The @ver folder already holds a folder of that name — the current version stays where it is.',
   'קורא את התיקיות במחשב…': 'Reading the folders on your computer…',
   'Claude לא זמין כרגע — אפשר לפתוח את התיקייה ולתייק ידנית': 'Claude is not available right now — you can open the folder and file by hand',
   'עוזר התיוק לא הספיק לקרוא את התיקיות. נסה שוב.': 'The filing helper did not read the folders in time. Try again.',
@@ -919,14 +962,142 @@ function fHint(t) { $('fFolderHint').textContent = t || ''; }
 function endFilingCard() { fGen++; fTimers.forEach(clearInterval); fTimers = []; fBusy = false; fFiling = false; }
 function filingKeys() { return [].slice.call($('fileList').querySelectorAll('input:checked')).map(function (cb) { return cb.value; }); }
 function keyLabel(k) { return k === 'mail' ? tx('המייל עצמו (‎.eml)') : ((currentMail.attachments || []).find(function (a) { return 'att:' + a.id === k; }) || {}).name; }
+/* ── filing without Claude: who sent the files (a consultant — plans or documents — or another party's folder), and the
+   server builds the plan in code from the project's tree (filing-options, filing-plan); "הצע" (Claude) stays for the rest ── */
+var fOpts = null, fPlanTimer = null, fVerTouched = false;
+var F_PROBLEM = {
+  no_from: 'בחר ממי הקבצים.',
+  no_consultant: 'בחר יועץ.',
+  consultant_folder: 'ליועץ הזה אין עדיין תיקייה בפרויקט.',
+  no_doc: 'בחר תכניות או מסמכים.',
+  other_folder: 'בחר תיקייה.',
+  name: 'שם תיקיית הגרסה לא תקין, או שתיקייה בשם הזה כבר קיימת.'
+};
+function fFormState(t) { $('fFormState').textContent = t || ''; }
+function docChoice() { var r = document.querySelector('input[name="fDoc"]:checked'); return r ? r.value : 'plan'; }
+function fromChoice() {
+  var v = $('fFrom').value, o = fOpts;
+  if (!v || !o) return null;
+  if (v.indexOf('c:') === 0) { var c = o.consultants[+v.slice(2)]; return c ? { kind: 'consultant', folder: c.folder || '', name: c.label } : null; }
+  var folder = v.slice(2), x = (o.others || []).find(function (y) { return y.folder === folder; });
+  return { kind: 'other', folder: folder, name: x ? x.label : folder };
+}
+function fillFrom(o) {
+  var s = $('fFrom');
+  s.innerHTML = '';
+  s.appendChild(new Option(tx('בחר…'), ''));
+  var g1 = document.createElement('optgroup'); g1.label = tx('יועצים');
+  o.consultants.forEach(function (c, i) {
+    var opt = new Option(c.label + (c.contact && c.contact !== c.label ? ' · ' + c.contact : '') + (c.folder ? '' : ' — ' + tx('אין לו תיקייה עדיין')), 'c:' + i);
+    opt.disabled = !c.folder;
+    g1.appendChild(opt);
+  });
+  if (g1.children.length) s.appendChild(g1);
+  var g2 = document.createElement('optgroup'); g2.label = tx('רשות, קבלן ואחרים');
+  (o.others || []).forEach(function (x) { g2.appendChild(new Option(x.label, 'o:' + x.folder)); });
+  if (g2.children.length) s.appendChild(g2);
+  if (o.sender >= 0) s.value = 'c:' + o.sender;
+  $('fDocRow').hidden = !(fromChoice() && fromChoice().kind === 'consultant');
+}
+// the tree's answers (as for a proposal): no folder, no helper, the folder not on this PC; true when the tree was read
+function treeOk(r) {
+  if (r.needsFolder) { fFormState(''); needFolder(); return false; }
+  if (r.agent) { fFormState(tx(r.agent === 'none' ? HELPER_OFF : r.agent === 'slow' ? 'עוזר התיוק לא הספיק לקרוא את התיקיות. נסה שוב.' : 'קריאת התיקיות במחשב לא הצליחה. נסה שוב.')); return false; }
+  if (r.missing) { fFormState(''); folderMissing(); return false; }
+  return true;
+}
+/* a filing for the ticked attachments, named only: the helper saves them from classic Outlook on the PC, and what it
+   cannot give is uploaded on confirm (needUpload) — so nothing goes through the server unless it must. A new filing
+   when the ticked files changed. */
+function readyFiling() {
+  var keys = filingKeys(), sig = keys.join('|');
+  if (fJob && fJob.sig === sig) return Promise.resolve(fJob);
+  var named = keys.map(function (k) { var a = currentMail.attachments.find(function (x) { return 'att:' + x.id === k; }); return { name: a.name, size: a.size || 0, outlookId: a.id }; });
+  return api('/api/outlook/filing', { projectId: fProj.pid, mail: mailRef(currentMail, true), files: named, lang: lang }).then(function (j) {
+    fJob = { id: j.id, sig: sig, proposed: false, local: keys, pending: keys.length };
+    fTurns = []; fPlan = null; fGuideAdd = ''; fOpts = null;
+    return fJob;
+  });
+}
+function schedulePlan() { clearTimeout(fPlanTimer); fPlanTimer = setTimeout(planFiling, 350); }
+function planFiling() {
+  if (!fProj || !fProj.canWrite || fBusy || fFiling) return;
+  var gen = fGen;
+  if (!filingKeys().length) { fPlan = null; renderPlan(null); fFormState(tx('סמן קובץ')); renderConv(); return; }
+  fFormState(fOpts ? tx('בונה את התוכנית…') : tx('קורא את התיקיות במחשב…'));
+  readyFiling().then(function (job) {
+    if (gen !== fGen || fOpts) return true;
+    return api('/api/outlook/filing-options?id=' + encodeURIComponent(job.id), {}).then(function (o) {
+      if (gen !== fGen || !treeOk(o)) return false;
+      fOpts = o; fillFrom(o);
+      return true;
+    });
+  }).then(function (go) {
+    if (!go || gen !== fGen || !fJob) return null;
+    var from = fromChoice();
+    var body = { from: from, doc: from && from.kind === 'consultant' ? docChoice() : '' };
+    if (!$('fVerName').hidden && $('fVerName').value.trim()) body.versionName = $('fVerName').value.trim();
+    if (fVerTouched) body.toVer = $('fToVer').checked;
+    return api('/api/outlook/filing-plan?id=' + encodeURIComponent(fJob.id), body);
+  }).then(function (r) {
+    if (!r || gen !== fGen || !treeOk(r)) return;
+    fFormState(r.problem ? tx(F_PROBLEM[r.problem] || r.problem) : '');
+    fPlan = r.plan || null;
+    fJob.proposed = true;
+    renderVersion(r.version);
+    renderPlan(fPlan);
+    renderConv();
+  }).catch(function (e) {
+    if (gen !== fGen) return;
+    fFormState('');
+    if (e.message === 'busy') { schedulePlan(); return; }
+    if (/^(expired|no_filing|confirmed)$/.test(e.message)) { fJob = null; fOpts = null; schedulePlan(); return; }
+    fail(e);
+  });
+}
+function renderVersion(v) {
+  var show = !!v && !$('fDocRow').hidden && docChoice() === 'plan';
+  $('fVerRow').hidden = !show;
+  if (!show) return;
+  $('fVerText').textContent = v.editable ? tx('שם תיקיית הגרסה החדשה:') : tx('גרסה חדשה: {v}', { v: iso(v.name) });
+  $('fVerName').hidden = !v.editable;
+  $('fVerName').placeholder = v.name;
+  $('fVerHint').hidden = !v.editable;
+  $('fToVerRow').hidden = !(v.prev && !v.editable);
+  $('fVerBlocked').hidden = !v.verBlocked;
+  if (v.prev) $('fToVerText').textContent = tx('העבר את הגרסה הקיימת ({v}) ל-@ver', { v: iso(v.prev.split('/').pop()) });
+  $('fToVer').checked = !!v.toVer;
+}
+// the plan's lines, and a 📂 for each target folder that is already there
+function renderPlan(plan) {
+  var ul = $('fPlan');
+  ul.innerHTML = '';
+  if (!plan) return;
+  planLines(plan).forEach(function (l) { ul.appendChild(el('li', l)); });
+  var made = (plan.steps || []).filter(function (s) { return s.op === 'mkdir'; }).map(function (s) { return s.path.toLowerCase(); });
+  var seen = {};
+  (plan.files || []).forEach(function (f) {
+    if (f.dest === null) return;
+    var k = f.dest.toLowerCase();
+    if (seen[k] || made.indexOf(k) >= 0) return;
+    seen[k] = true;
+    var li = el('li'), b = el('button', '📂');
+    b.type = 'button'; b.className = 'sm'; b.title = tx('פתח בסייר הקבצים');
+    b.onclick = function () { openFolder(f.dest); };
+    li.appendChild(b); li.appendChild(document.createTextNode(' ' + iso(where(f.dest))));
+    ul.appendChild(li);
+  });
+}
 
 function openFiling() {
   var pid = $('project').value;
   if (!pid) { showErr('appErr', tx('בחר קודם פרויקט')); return; }
   clearResult();
   var gen = fGen;
-  fProj = null; fJob = null; fTurns = []; fPlan = null; fGuideAdd = '';
+  fProj = null; fJob = null; fTurns = []; fPlan = null; fGuideAdd = ''; fOpts = null; fVerTouched = false;
   $('fText').value = ''; $('fFix').value = ''; $('fGuide').value = ''; $('fGuide').placeholder = '';
+  $('fFrom').innerHTML = ''; $('fVerName').value = ''; $('fDocRow').hidden = true; $('fVerRow').hidden = true;
+  $('fClaude').open = false; renderPlan(null); fFormState('');
   $('fDone').innerHTML = ''; $('fGuideState').textContent = '';
   $('fMapNone').hidden = true;
   $('fFolderRow').classList.remove('need');
@@ -947,6 +1118,7 @@ function openFiling() {
     $('fMapLink').href = location.origin + '/project_hub_01';
     $('fMapNone').hidden = mapped;
     renderFolder();
+    if (p.canWrite && p.folder) schedulePlan();
   }).catch(fail);
 }
 function renderFolder() {
@@ -1005,10 +1177,11 @@ function pickFolder() {
       limit: 12 * 60 * 1000, say: fHint,
       handed: function (pc) { fHint(tx('בורר התיקיות נפתח ב-{pc}…', { pc: pc })); },
       done: function (r) {
-        if (r && r.picked) { fProj.folder = r.picked; fProj.root = r.root || ''; fHint(''); }
+        if (r && r.picked) { fProj.folder = r.picked; fProj.root = r.root || ''; fHint(''); fJob = null; fOpts = null; }
         else if (r && r.missing) folderMissing();
         else if (r) fHint('');
         renderFolder();
+        if (r && r.picked) schedulePlan();
       }
     });
   }).catch(function (e) { fHint(''); renderFolder(); fail(e); });
@@ -1146,7 +1319,7 @@ function renderConv() {
   });
   var open = !!(fJob && fJob.proposed && !fFiling);
   $('fConfirmRow').hidden = !(open && fPlan && (fPlan.files || []).some(function (f) { return f.dest !== null; }));
-  $('fFixRow').hidden = !open;
+  $('fFixRow').hidden = !(open && fTurns.length);
   $('fLearn').hidden = !fGuideAdd;
   $('fLearnText').textContent = fGuideAdd ? tx('להוסיף להנחיה: „{g}”?', { g: iso(fGuideAdd) }) : '';
 }
@@ -1225,11 +1398,15 @@ function showFiled(r) {
   });
   if (r.error) { var e = el('div', tx('התיוק נעצר: {e}', { e: r.error })); e.className = 'err'; box.appendChild(e); }
   if (r.taskLogged) box.appendChild(el('div', tx('נרשם ביומן המשימה המקושרת.')));
-  if (n) {
-    var b = el('button', tx('📂 פתח')); b.type = 'button'; b.className = 'sm'; b.style.alignSelf = 'start';
-    b.onclick = function () { openFolder(files[0].dest); };
+  var dirs = [];
+  files.forEach(function (f) { if (dirs.indexOf(f.dest) < 0) dirs.push(f.dest); });
+  dirs.forEach(function (d) {
+    var b = el('button', tx('📂 פתח') + ' ' + iso(where(d))); b.type = 'button'; b.className = 'sm'; b.style.alignSelf = 'start';
+    b.setAttribute('data-i18n-skip', '');
+    b.onclick = function () { openFolder(d); };
     box.appendChild(b);
-  }
+  });
+  renderPlan(null);
   renderConv();
 }
 // "תלמד" and corrections end in a sentence for the project's guide; the person adds it with one click
@@ -1446,6 +1623,11 @@ function init() {
   $('fFix').onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); proposeFiling(true); } };
   $('fOk').onclick = confirmFiling;
   $('fCancel').onclick = clearResult;
+  $('fileList').onchange = schedulePlan;
+  $('fFrom').onchange = function () { $('fDocRow').hidden = !(fromChoice() && fromChoice().kind === 'consultant'); fVerTouched = false; $('fVerName').value = ''; schedulePlan(); };
+  [].forEach.call(document.querySelectorAll('input[name="fDoc"]'), function (r) { r.onchange = function () { fVerTouched = false; $('fVerName').value = ''; schedulePlan(); }; });
+  $('fVerName').oninput = schedulePlan;
+  $('fToVer').onchange = function () { fVerTouched = true; schedulePlan(); };
   $('fLearnGo').onclick = addToGuide;
   $('fGuideSave').onclick = saveGuide;
   $('mExec').onclick = function () { openExec($('project').value, null); };
