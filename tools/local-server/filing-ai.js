@@ -438,13 +438,13 @@ async function inboxProposal(client, model, x) {
 const leafOf = p => p.slice(p.lastIndexOf('/') + 1);
 const WORDS = v => String(v == null ? '' : v).toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(w => w.length >= 3);
 
+/* A register contact as the window shows it: "role · firm", the name when there is no firm */
+const contactText = c => [String(c.role || '').trim(), String(c.firm || '').trim() || String(c.name || '').trim()].filter(Boolean).join(' · ').replace(/[\r\n]+/g, ' ').slice(0, 120);
 /* What the window offers for "who sent the files", from the project's map, its real tree and its register contacts:
    consultants = the folders directly under the consultants area, each with the contact whose discipline or firm names
    it, and the contacts no folder matched (folder null); others = the folders directly under the receive, permit and exec
    areas (an area's own folder when it has none under it). An area that is not mapped: unmapped says so, and others are
    the tree's top folders. label: the folder's name without the project code in front. */
-/* A register contact as the window shows it: "role · firm", the name when there is no firm */
-const contactText = c => [String(c.role || '').trim(), String(c.firm || '').trim() || String(c.name || '').trim()].filter(Boolean).join(' · ').replace(/[\r\n]+/g, ' ').slice(0, 120);
 function receiveOptions({ map, tree, contacts, code }) {
   const areas = (normalizeMap(map) || {}).areas || {};
   const list = (tree || []).filter(Boolean);
