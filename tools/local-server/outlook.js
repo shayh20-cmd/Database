@@ -279,7 +279,7 @@ module.exports = function createOutlook(ctx) {
   }
 
   const GET_ROUTES = ['/api/outlook/me', '/api/outlook/projects', '/api/outlook/tasks', '/api/outlook/project', '/api/outlook/filing-project', '/api/outlook/filing-task', '/api/outlook/filing-next'];
-  const POST_ROUTES = ['/api/outlook/context', '/api/outlook/link', '/api/outlook/unlink', '/api/outlook/entry', '/api/outlook/parse', '/api/outlook/create', '/api/outlook/apply', '/api/outlook/undo', '/api/outlook/upload', '/api/outlook/attached', '/api/outlook/exec', '/api/outlook/filing', '/api/outlook/filing-file', '/api/outlook/filing-pick', '/api/outlook/filing-open', '/api/outlook/filing-guide-add', '/api/outlook/filing-propose', '/api/outlook/filing-confirm', '/api/outlook/inbox-batch'];
+  const POST_ROUTES = ['/api/outlook/context', '/api/outlook/link', '/api/outlook/unlink', '/api/outlook/entry', '/api/outlook/parse', '/api/outlook/create', '/api/outlook/apply', '/api/outlook/undo', '/api/outlook/upload', '/api/outlook/attached', '/api/outlook/exec', '/api/outlook/filing', '/api/outlook/filing-file', '/api/outlook/filing-pick', '/api/outlook/filing-open', '/api/outlook/filing-guide-add', '/api/outlook/filing-propose', '/api/outlook/filing-options', '/api/outlook/filing-plan', '/api/outlook/filing-confirm', '/api/outlook/inbox-batch'];
   const PUT_ROUTES = ['/api/outlook/filing-guide'];
 
   async function run(req, res, url) {

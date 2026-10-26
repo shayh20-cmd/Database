@@ -35,6 +35,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const ai = require('./filing-ai');
+const plans = require('./filing-plan');
 const { personOf } = require('./mail-tokens');
 
 const TTL = Number(process.env.FILING_TTL_MS) || 15 * 60 * 1000;            // a filing's (and its file task's) life
@@ -447,6 +448,41 @@ module.exports = function createFiling(ctx) {
     if (over()) { sendJson(res, 410, { error: 'expired' }); return; }
     if (f.taskId) { sendJson(res, 409, { error: 'confirmed' }); return; }
 
+    /* filing without Claude: the choices of who sent the files (filing-options: the project's consultants and other
+       folders, and the consultant the sender is), and the plan built in code from them (filing-plan, filing-plan.js) —
+       in the pane's shape, one folder per file, as Claude's plan in the pane has. The tree is the filing's, read once. */
+    if (route === 'filing-options' || route === 'filing-plan') {
+      if (f.busy) { sendJson(res, 409, { error: 'busy' }); return; }
+      const mine = {};
+      f.busy = mine;
+      const release = () => { if (f.busy === mine) f.busy = false; };
+      try {
+        const pr = known(f.projectId);
+        if (!pr.folder) { sendJson(res, 200, { needsFolder: true }); return; }
+        const no = await treeOf(f, pr, res, release, { filingId: f.id });
+        if (no === 'gone') return;
+        if (no) { sendJson(res, 200, no); return; }
+        if (over() || f.taskId) { sendJson(res, 410, { error: 'expired' }); return; }
+        if (route === 'filing-options') {
+          const contacts = contactsOf(f.person, f.projectId);
+          const o = ai.receiveOptions({ map: ai.normalizeMap(pr.map), tree: f.tree, contacts, code: f.project.code });
+          sendJson(res, 200, { ...o, sender: plans.senderConsultant(o, contacts, f.mail.fromEmail) });
+          return;
+        }
+        const fr = body.from && typeof body.from === 'object' && (body.from.kind === 'consultant' || body.from.kind === 'other') ? body.from : null;
+        const from = fr ? { kind: fr.kind, folder: ai.relPath(fr.folder) || '', name: oneLine(fr.name, 120).trim() } : null;
+        const doc = body.doc === 'plan' || body.doc === 'doc' ? body.doc : '';
+        const out = plans.receivePlan({ tree: f.tree, code: f.project.code, from, doc, versionName: oneLine(body.versionName, 120), toVer: typeof body.toVer === 'boolean' ? body.toVer : undefined, files: f.files.map((x, n) => ({ n, name: x.name })) });
+        const raw = { files: out.plan.files.map(x => ({ name: x.name, dest: x.dests.length ? x.dests[0].path : null })), steps: out.plan.steps, mode: doc === 'plan' ? 'new-version' : 'existing' };
+        const { why, ...plan } = ai.sanitizePlan(raw, f.tree, f.files.map(x => x.name));
+        f.plan = plan;
+        sendJson(res, 200, { plan, ...(out.version ? { version: out.version } : {}), ...(out.problem ? { problem: out.problem } : {}) });
+      } finally {
+        release();
+      }
+      return;
+    }
+
     if (route === 'filing-propose') {
       if (f.busy) { sendJson(res, 409, { error: 'busy' }); return; }
       const text = clip(body.text, 1000).trim();
@@ -718,8 +754,8 @@ module.exports = function createFiling(ctx) {
      The person is the signed-in user; the tasks go to the agent running with the same person's key (who, as the
      key names its owner: the address in lower case, 'local' on the local server). base: the site, for the tools. */
   const HUB_METHOD = {
-    project: 'GET', task: 'GET', pick: 'POST', open: 'POST', 'map-session': 'POST', 'map-propose': 'POST', map: 'PUT', guide: 'PUT',
-    inbox: 'GET', 'inbox-options': 'GET', 'inbox-latest': 'GET', 'inbox-open': 'GET', 'pick-source': 'POST', 'inbox-propose': 'POST', 'inbox-confirm': 'POST', 'inbox-dismiss': 'POST'
+    project: 'GET', task: 'GET', pick: 'POST', open: 'POST', 'map-session': 'POST', 'map-propose': 'POST', 'map-auto': 'POST', map: 'PUT', guide: 'PUT',
+    inbox: 'GET', 'inbox-options': 'GET', 'inbox-latest': 'GET', 'inbox-open': 'GET', 'pick-source': 'POST', 'inbox-propose': 'POST', 'inbox-plan': 'POST', 'inbox-confirm': 'POST', 'inbox-dismiss': 'POST'
   };
   const israelToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
   async function handleHub(req, res, url, user, base) {
@@ -823,7 +859,9 @@ module.exports = function createFiling(ctx) {
         return;
       }
 
-      // inbox-propose: the selected files, the chosen targets (publish) or who sent them (receive), the person's instruction
+      // inbox-propose (Claude) and inbox-plan (code, filing-plan.js): the selected files, the chosen targets (publish) or
+      // who sent them (receive); Claude also gets the person's instruction, the code the day of SENT, a typed version
+      // name and the @ver choice
       const receive = body.mode === 'receive';
       const fr = receive && body.from && typeof body.from === 'object' && (body.from.kind === 'consultant' || body.from.kind === 'other') ? body.from : null;
       const from = fr ? { kind: fr.kind, folder: ai.relPath(fr.folder) || '', name: oneLine(fr.name, 120).trim() } : null;
@@ -846,15 +884,31 @@ module.exports = function createFiling(ctx) {
         const no = await treeOf(h, pr, res, release, { inboxId: b.id, pc: b.pc });
         if (no === 'gone') return;
         if (no) { sendJson(res, 200, no); return; }
+        const files = ns.sort((x, y) => x - y).map(n => ({ n, name: fileOf(n).name }));
+        // a folder the page named that is not in the tree is not one
+        const inTree = from && from.folder && h.tree.find(q => q.toLowerCase() === from.folder.toLowerCase());
+        if (from) from.folder = inTree || '';
+        if (route === 'inbox-plan') {
+          let out;
+          if (receive) {
+            out =plans.receivePlan({ tree: h.tree, code: project.code, from, doc, versionName: oneLine(body.versionName, 120), toVer: typeof body.toVer === 'boolean' ? body.toVer : undefined, files });
+            out.plan.from = (from && from.name) || '';
+          } else {
+            const date = /^\d{4}-\d{2}-\d{2}$/.test(body.date) && !Number.isNaN(Date.parse(body.date)) && new Date(body.date + 'T00:00:00Z').toISOString().slice(0, 10) === body.date ? body.date : israelToday();
+            const map = ai.normalizeMap(pr.map);
+            out = plans.inboxPlan({ slots: map && map.slots, tree: h.tree, code: project.code, files, sent: body.sent === true, updated: body.updated === true, date });
+          }
+          if (b.status !== 'new' || b.taskId || b.h !== h) { sendJson(res, 409, { error: 'changed' }); return; }
+          out.plan.projectId = project.id;
+          b.plan = out.plan;
+          sendJson(res, 200, { plan: out.plan, ...(out.version ? { version: out.version } : {}), ...(out.slotsMissing ? { slotsMissing: out.slotsMissing } : {}), ...(out.problem ? { problem: out.problem } : {}) });
+          return;
+        }
         if (!client) { sendJson(res, 200, { ai: 'unavailable' }); return; }
         let out;
-        const files = ns.sort((x, y) => x - y).map(n => ({ n, name: fileOf(n).name }));
         const guide = String(pr.guide || '').trim() || DEFAULT_GUIDE;
         try {
           if (receive) {
-            // a folder the page named that is not in the tree is not one
-            const inTree = from && from.folder && h.tree.find(q => q.toLowerCase() === from.folder.toLowerCase());
-            if (from) from.folder = inTree || '';
             out = await ai.receiveProposal(client, model, {
               project, map: ai.normalizeMap(pr.map), guide, tree: h.tree, contacts: contactsOf(p, project.id), files, from, doc, text: clip(body.text, 1000).trim(), lang
             });
@@ -929,6 +983,28 @@ module.exports = function createFiling(ctx) {
       return;
     }
 
+    // the office's convention found in the session's tree (filing-plan.autoSlots), for the map: no Claude, nothing saved
+    if (route === 'map-auto') {
+      const m = maps.get(url.searchParams.get('id') || '');
+      if (!m || m.who !== who) { sendJson(res, 404, { error: 'no_session' }); return; }
+      if (m.busy) { sendJson(res, 409, { error: 'busy' }); return; }
+      const mine = {};
+      m.busy = mine;
+      const release = () => { if (m.busy === mine) m.busy = false; };
+      m.exp = Date.now() + TTL;
+      try {
+        const pr = known(m.projectId);
+        if (!pr.folder) { sendJson(res, 200, { needsFolder: true }); return; }
+        const no = await treeOf(m, pr, res, release, { mapId: m.id });
+        if (no === 'gone') return;
+        if (no) { sendJson(res, 200, no); return; }
+        sendJson(res, 200, { auto: plans.autoSlots(m.tree), tree: m.tree });
+      } finally {
+        release();
+      }
+      return;
+    }
+
     if (route !== 'open' && !writer(p)) { sendJson(res, 403, { error: 'viewer' }); return; }
     const g = getProject(body.projectId);
     const project = projectRef(g);
@@ -961,9 +1037,12 @@ module.exports = function createFiling(ctx) {
     if (!body.areas || typeof body.areas !== 'object' || Array.isArray(body.areas)) { sendJson(res, 400, { error: 'areas' }); return; }
     const areas = ai.cleanAreas(body.areas, rel => rel || false);
     if (!areas) { sendJson(res, 400, { error: 'path' }); return; }
-    const map = { areas, updatedBy: mcp.whoAmI(p.email, p.name).name, updatedAt: new Date().toISOString() };
     const d = load();
-    projectOf(d, project.id).map = map;
+    const pd = projectOf(d, project.id);
+    // the slots for filing without Claude: as sent, or kept when a page that does not know them saves the areas
+    const slots = ai.cleanSlots(body.slots !== undefined ? body.slots : (pd.map || {}).slots);
+    const map = { areas, slots, updatedBy: mcp.whoAmI(p.email, p.name).name, updatedAt: new Date().toISOString() };
+    pd.map = map;
     writeJsonAtomic(STORE, d);
     sendJson(res, 200, { map });
   }
