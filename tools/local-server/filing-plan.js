@@ -40,4 +40,64 @@ function autoSlots(tree) {
   return { slots: { sent, sentSplit, updated }, areas };
 }
 
-module.exports = { autoSlots };
+const pre = code => (code ? code + '-' : '');
+const typeOf = name => { const m = /\.([^.]+)$/.exec(name); const x = m ? m[1].toUpperCase() : ''; return x === 'PDF' || x === 'DWG' || x === 'RVT' ? x : 'DOCS'; };
+const isPdf = name => /\.pdf$/i.test(name);
+
+/* The day's folder in the SENT archive and the folders to make for it, in order. The year layer (<code>-pub-sent-YYYY)
+   is used when the archive has year folders, or nothing yet (the convention); when its day folders sit right in it,
+   they keep doing so. A day folder that is already there (any name ending in YYYY,MM,DD) is used as it is. */
+function sentFolder(tree, sent, code, date) {
+  const [y, m, d] = date.split('-');
+  const want = `${y},${m},${d}`;
+  const under = kids(tree, sent);
+  const years = under.filter(p => YEAR.test(leafOf(p)));
+  const mkdir = [];
+  let parent = sent;
+  if (years.length || !under.some(p => DAY.test(leafOf(p)))) {
+    const year = years.find(p => YEAR.exec(leafOf(p))[1] === y);
+    parent = year || `${sent}/${pre(code)}pub-sent-${y}`;
+    if (!year) mkdir.push(parent);
+  }
+  const day = mkdir.length ? null : kids(tree, parent).find(p => leafOf(p).endsWith(want));
+  const path = day || `${parent}/${pre(code)}pub-${want}`;
+  if (!day) mkdir.push(path);
+  return { path, mkdir };
+}
+
+/* The publish plan: SENT into the day's folder (a folder per file type when the map says so), UPDATED for PDFs only,
+   replacing a file of the same name there (the PC moves the old one to @ver). { plan, slotsMissing? } — a chosen target
+   whose folder is not mapped ('unmapped') or no longer in the tree ('gone') gets no dests, and is reported. */
+function inboxPlan({ slots, tree, code, files, sent, updated, date }) {
+  const list = (tree || []).filter(Boolean);
+  const s = slots || {};
+  const missing = {};
+  const target = (on, key) => {
+    if (!on) return null;
+    if (!s[key]) { missing[key] = 'unmapped'; return null; }
+    const p = inTree(list, s[key]);
+    if (!p) missing[key] = 'gone';
+    return p;
+  };
+  const sentRoot = target(sent, 'sent'), upd = target(updated, 'updated');
+  const steps = [], made = new Set();
+  const mk = p => { if (!made.has(lc(p)) && !inTree(list, p)) { made.add(lc(p)); steps.push({ op: 'mkdir', path: p }); } };
+  const day = sentRoot ? sentFolder(list, sentRoot, code, date) : null;
+  if (day) day.mkdir.forEach(mk);
+  const raw = { steps, files: [] };
+  for (const f of files || []) {
+    const dests = [];
+    if (day) {
+      const typed = `${day.path}/${typeOf(f.name)}`;
+      const to = s.sentSplit === false ? day.path : inTree(list, typed) || typed;
+      mk(to);
+      dests.push({ path: to, replace: false });
+    }
+    if (upd && isPdf(f.name)) dests.push({ path: upd, replace: true });
+    raw.files.push({ name: f.name, dests });
+  }
+  const plan = ai.sanitizeInboxPlan(raw, list, files, upd ? [upd] : [], null);
+  return { plan, ...(Object.keys(missing).length ? { slotsMissing: missing } : {}) };
+}
+
+module.exports = { autoSlots, sentFolder, inboxPlan };
