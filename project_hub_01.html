@@ -1111,7 +1111,7 @@ textarea.ex-in{resize:vertical;min-height:64px;}
 .exg-done{--exg-c:#94A3B8;}.exg-now{--exg-c:var(--accent);}.exg-future{--exg-c:#7FA7F0;}
 .exg-dia{background:var(--exg-c);}
 .exg-tags{position:relative;margin-top:2px;}
-.exg-tag{position:absolute;height:18px;border:none;background:none;padding:0 2px;font-family:inherit;font-size:11px;line-height:18px;color:var(--text);white-space:nowrap;cursor:pointer;border-inline-start:2px solid var(--exg-c);padding-inline-start:5px;}
+.exg-tag{position:absolute;height:18px;border:none;background:none;padding:0 2px;font-family:inherit;font-size:11px;line-height:18px;color:var(--text);white-space:nowrap;cursor:pointer;transform:translateX(-50%);}
 .exg-tag b{font-weight:400;color:var(--text-3);}
 .exg-tag:hover span{color:var(--accent);text-decoration:underline;}
 .exg-empty{font-size:12px;color:var(--text-3);padding:6px 0 2px;text-align:center;}
@@ -4531,8 +4531,8 @@ const todayIn=today>=rg.from&&today<rg.to;const tx0=xOf(today);
 const prog=execScheduleProgress(sc,today);
 const toToday=()=>requestAnimationFrame(()=>{const el=bodyRef.current;if(el)el.scrollLeft=Math.max(0,tx0-el.clientWidth/2);});
 useEffect(()=>{if(open&&todayIn)toToday();},[open]);
-/* names under the line, each starting at its marker; one that would run into the previous name drops to the next lane */
-const lanes=[];const tags=evs.map(p=>{const nm=nameForLang(p.name);const x=xOf(p.start);const w=nm.length*6.4+14;let ln=lanes.findIndex(end=>end<=x-4);if(ln<0){ln=lanes.length;lanes.push(0);}lanes[ln]=x+w;return{p,nm,x,ln};});
+/* names under the line, centred on their markers (kept inside the axis); one that would run into another drops to the next lane */
+const lanes=[];const tags=evs.map(p=>{const nm=nameForLang(p.name);const w=(nm.length+6)*6.2+8;const x=Math.max(w/2,Math.min(W-w/2,xOf(p.start)));let ln=lanes.findIndex(end=>end<=x-w/2-4);if(ln<0){ln=lanes.length;lanes.push(0);}lanes[ln]=x+w/2;return{p,nm,x,ln};});
 const stCls=p=>'exg-'+execPhaseState(p,today);
 return h("section",{className:"exg"},
 h("div",{className:"exg-head"},
@@ -4562,7 +4562,7 @@ h("div",{className:"exg-line"},
 sc.start&&h("span",{className:"exg-span",style:{left:xOf(sc.start),width:sc.end?Math.max(6,xOf(execPlusDays(sc.end,1))-xOf(sc.start)):6},title:fmtDateFull(sc.start)+(sc.end?' – '+fmtDateFull(sc.end):'')},
 prog&&prog.started&&h("i",{style:{width:Math.round(prog.gone/Math.max(1,prog.total)*100)+'%'}})),
 evs.map(p=>h("button",{key:p.id,type:"button",className:"exg-dia "+stCls(p),style:{left:xOf(p.start)-7},title:nameForLang(p.name)+' · '+fmtDateFull(p.start),"aria-label":nameForLang(p.name),onClick:()=>editEv(p)}))),
-evs.length>0&&h("div",{className:"exg-tags",style:{height:lanes.length*19}},tags.map(t=>h("button",{key:t.p.id,type:"button",className:"exg-tag "+stCls(t.p),style:{left:t.x-6,top:t.ln*19},onClick:()=>editEv(t.p),title:fmtDateFull(t.p.start)},h("span",{"data-i18n-skip":""},t.nm),h("b",null,' '+exDdMm(t.p.start))))),
+evs.length>0&&h("div",{className:"exg-tags",style:{height:lanes.length*19}},tags.map(t=>h("button",{key:t.p.id,type:"button",className:"exg-tag "+stCls(t.p),style:{left:t.x,top:t.ln*19},onClick:()=>editEv(t.p),title:fmtDateFull(t.p.start)},h("span",{"data-i18n-skip":""},t.nm),h("b",null,' '+exDdMm(t.p.start))))),
 evs.length===0&&h("div",{className:"exg-empty"},ro?'אין עדיין אירועים בלוח הזמנים':'הוסף אירועים — חפירה, דיפון, שלד…'),
 todayIn&&h("span",{className:"exg-today",style:{left:tx0},title:tx('היום')})))));}
 function ExecutionView({data,save,openItemId=null,onConsumeOpen,onOpenTasks}){
