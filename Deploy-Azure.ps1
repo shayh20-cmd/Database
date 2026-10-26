@@ -367,7 +367,7 @@ try {
     foreach ($f in "Scan-Mail.ps1", "run-hidden.vbs", "Install-MailScan.ps1", "Uninstall-MailScan.ps1") {
         Copy-Item (Join-Path $root "tools/mail-scan/$f") (Join-Path $stage "tools/mail-scan")
     }
-    foreach ($f in "server.js", "mcp.js", "history.js", "mail.js", "mail-store.js", "mail-ai.js", "mail-tokens.js", "outlook.js", "outlook-ai.js", "filing.js", "filing-ai.js", "installers.js", "package.json", "package-lock.json") {
+    foreach ($f in "server.js", "mcp.js", "history.js", "mail.js", "mail-store.js", "mail-ai.js", "mail-tokens.js", "outlook.js", "outlook-ai.js", "filing.js", "filing-ai.js", "filing-plan.js", "installers.js", "package.json", "package-lock.json") {
         Copy-Item (Join-Path $root "tools/local-server/$f") (Join-Path $stage "tools/local-server")
     }
     Copy-Item (Join-Path $root "tools/local-server/node_modules") (Join-Path $stage "tools/local-server/node_modules") -Recurse
