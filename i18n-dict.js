@@ -2999,7 +2999,14 @@ Object.assign(HE_EN, {
 "נסרק לאחרונה: {l} · הסריקה הבאה: {n}": "Last scanned: {l} · Next scan: {n}",
 "אין סריקות אוטומטיות": "no automatic scans",
 "היום {t}": "today at {t}",
-"מחר {t}": "tomorrow at {t}"
+"מחר {t}": "tomorrow at {t}",
+"פעיל לאחרונה": "Last active",
+"לפני {n} ימים": "{n} days ago",
+"נשמר {when} על ידי {person}": "Saved {when} by {person}",
+"אחראי בסטטוס הבא": "Owner in the next status",
+"משימות אישיות": "Personal tasks",
+"שנה עדיפות": "Change priority",
+"שנה שיוך": "Change assignees"
 });
 
 window.I18N_HE_EN = HE_EN;
