@@ -1037,6 +1037,7 @@ html[data-appearance="dark"] .rv-verify{background:rgba(245,158,11,.18);color:#F
 .ex-st{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;background:var(--chip-neutral-bg);color:var(--text-2);white-space:nowrap;}
 .ex-st-closed{background:var(--success-bg);color:var(--text-2);}
 .ex-st-rejected{background:var(--danger-bg);color:var(--danger-text);}
+.ex-tl-row .ex-st{flex-shrink:0;}
 .ex-empty{padding:34px 16px;text-align:center;color:var(--text-3);font-size:13px;}
 .ex-foot{margin-top:12px;font-size:12px;color:var(--text-3);}
 .ex-link{border:none;background:none;padding:0;font-family:inherit;font-size:12px;color:var(--text-2);cursor:pointer;}
@@ -4305,6 +4306,26 @@ function execDeleteResponse(item,id){
   const ball=execIsClosed(item)?item.ball:(last&&last.party?{party:last.party,name:last.name||''}:null);
   return{...item,responses:item.responses.filter(x=>x.id!==id),ballHistory,ball};
 }
+/* the item's status right after each entry, by replaying the thread with execRespond's rules; the newest entry shows the
+   item's own status, so a change made elsewhere (the ⋯ menu, the connector) still reads right */
+function execStatusTrail(item){
+  const T=EXEC_TYPES[item.type];const first=T?T.statuses[0].id:item.status;const out=new Map();let st=first;
+  const rs=(item.responses||[]).slice().sort((a,b)=>a.at<b.at?-1:a.at>b.at?1:0);
+  rs.forEach(r=>{
+    if(r.kind==='open')st=first;
+    else if(r.kind==='status'&&r.status)st=r.status;
+    else if(r.kind==='close')st=item.type==='issue'?'resolved':item.type==='rfi'?'closed':st;
+    else if(r.kind==='reopen')st=item.type==='submittal'&&['approved','approved_notes','rejected'].includes(st)?'rejected':first;
+    else if(r.kind==='revision')st='submitted';
+    else if(r.kind==='decision'){if(item.type==='change')st=r.decision||st;else{const v=(item.revisions||[]).find(x=>x.decidedAt===r.at);if(v&&v.decision)st=v.decision;}}
+    else if(r.kind==='answer'&&item.type==='rfi')st='answered';
+    else if(r.kind==='reply'&&item.type==='issue'&&st==='open')st='in_progress';
+    else if(r.kind==='reply'&&item.type==='change'&&st==='requested')st='in_review';
+    out.set(r.id,st);
+  });
+  if(rs.length)out.set(rs[rs.length-1].id,item.status);
+  return out;
+}
 /* the round an entry belongs to: its own pick; on a submittal the opening is round 1 (Rev A) and each resubmission the next */
 function execRoundOf(item,r){
   if(r.round)return r.round;if(item.type!=='submittal')return null;
@@ -4924,7 +4945,7 @@ function ExTag({ball,discs,muted}){const t=exTagOf(ball,discs);if(!t)return Reac
 const p=EXEC_PARTIES.find(x=>x.id===ball.party);
 return React.createElement("span",{className:"ex-tag"+(muted?" ex-tag-muted":""),title:p?tx(p.label):undefined,style:muted?{color:t.color,borderColor:t.color}:{background:t.color,borderColor:t.color}},React.createElement("span",{"data-i18n-skip":""},t.code+(t.name?' '+t.name:'')));}
 /* one entry of the ball sequence: a row (holder, title, dates, days) that opens to the full text, mail and files */
-function ExThreadRow({row,discs,open,onToggle,kindNote,extra,canEdit,canDel,onSave,onDelete,round,roundLabel,roundSel}){
+function ExThreadRow({row,discs,open,onToggle,kindNote,extra,canEdit,canDel,onSave,onDelete,round,roundLabel,roundSel,status}){
 const h=React.createElement;const r=row.r;const[ed,setEd]=useState(null);const up=useExUploads();
 const startEdit=()=>{up.setFiles(r.files||[]);setEd({title:r.title||'',body:r.body||'',mail:r.mail||null,round:round||null});};
 const commit=()=>{if(up.busy)return;onSave({title:ed.title.trim(),body:ed.body.trim(),files:up.files,mail:ed.mail,round:ed.round});setEd(null);};
@@ -4935,6 +4956,7 @@ return h(React.Fragment,null,
 h("button",{type:"button",className:"ex-tl-row"+(row.open?" is-open":"")+(row.holder?"":" is-note"),"aria-expanded":open,onClick:onToggle},
 h(ExTag,{ball:who,discs,muted:!row.holder}),
 h("span",{className:"ex-tl-title",...(own?{"data-i18n-skip":""}:{})},own||kindNote||'—'),
+status,
 round&&h("span",{className:"ex-round"},roundLabel(round)),
 kindNote&&own&&h("span",{className:"ex-kind"},kindNote),
 h("span",{className:"ex-tl-date"},row.holder?(row.to?dd(row.from)+' – '+dd(row.to):tx('מ־{d}',{d:dd(row.from)})):dd(row.from)),
@@ -5032,7 +5054,7 @@ const kindLabel=r=>r.kind==='open'?(item.type==='submittal'?'הגשה':'פתיח
 const kinds=new Map((item.responses||[]).map(r=>[r.id,kindLabel(r)]));
 const canEditR=r=>!ro&&(!r.byId||r.byId===CURRENT_USER.id||role==='admin'||role==='superadmin'||iManage(team));
 const delResponse=async r=>{if(!(await askConfirm(tx('למחוק את הרשומה מהרצף?'),{confirmLabel:'מחק'})))return;upd(x=>execDeleteResponse(x,r.id));};
-const tlRows=execThreadRows(item,today);
+const tlRows=execThreadRows(item,today);const trail=execStatusTrail(item);
 /* rounds: numbers, on a submittal its Rev letters; the list runs one past the highest round used */
 const isSub=item.type==='submittal';
 const roundLabel=n=>isSub?'Rev '+String.fromCharCode(64+n):tx('סבב {n}',{n});
@@ -5044,13 +5066,12 @@ const src=item.source;const srcMeeting=src&&src.kind==='meeting'&&src.ref?meetin
 const thread=React.createElement("div",{className:"ex-tl"},
 tlRows.map((row,i)=>{const r=row.r;
 if(r.kind==='status'||r.kind==='close'){const st=r.status&&T.statuses.find(x=>x.id===r.status);return React.createElement("div",{key:r.id,className:"ex-sys"},r.kind==='close'?'✓ '+EX_KIND_LABEL.close:React.createElement(React.Fragment,null,'⟳ ',st?React.createElement(React.Fragment,null,'סטטוס שונה ל־',React.createElement("b",null,st.label)):r.body),' · '+exDateTime(r.at));}
-const dec=r.kind==='decision'?(item.revisions||[]).find(v=>v.decidedAt===r.at):null;
-const extra=r.kind==='decision'?(item.type==='change'?React.createElement("div",{className:"ex-card-dec"},React.createElement(ExChgDecisionPill,{d:r.decision}),r.approvedText&&React.createElement("div",{className:"ex-muted ex-small",style:{marginTop:4}},'אושר בפועל: ',React.createElement("span",{"data-i18n-skip":""},r.approvedText))):
-React.createElement("div",{className:"ex-card-dec"},React.createElement(ExDecisionPill,{d:dec?dec.decision:null}))):null;
+/* the row's status tag already names the decision; a change adds what was approved in practice */
+const extra=r.kind==='decision'&&item.type==='change'&&r.approvedText?React.createElement("div",{className:"ex-muted ex-small"},'אושר בפועל: ',React.createElement("span",{"data-i18n-skip":""},r.approvedText)):null;
 const open=openRows[r.id]!==undefined?openRows[r.id]:i===0;
 const kn=r.kind==='reply'?null:kinds.get(r.id);
 return React.createElement("div",{key:r.id,className:"ex-tl-node"+(open?" is-expanded":""),style:{'--c':(exTagOf(row.holder||{party:r.party,name:r.name},disciplines)||{}).color}},
-React.createElement(ExThreadRow,{row,discs:disciplines,round:execRoundOf(item,r),roundLabel,roundSel:canEditR(r)?roundSel:null,open,onToggle:()=>setOpenRows(m=>({...m,[r.id]:!open})),kindNote:kn,extra,canEdit:canEditR(r),canDel:canEditR(r)&&EXEC_DELETABLE.includes(r.kind),onSave:p=>upd(x=>execEditResponse(x,r.id,p)),onDelete:()=>delResponse(r)}));}),
+React.createElement(ExThreadRow,{row,discs:disciplines,status:trail.has(r.id)?React.createElement(ExStatusPill,{item:{...item,status:trail.get(r.id)}}):null,round:execRoundOf(item,r),roundLabel,roundSel:canEditR(r)?roundSel:null,open,onToggle:()=>setOpenRows(m=>({...m,[r.id]:!open})),kindNote:kn,extra,canEdit:canEditR(r),canDel:canEditR(r)&&EXEC_DELETABLE.includes(r.kind),onSave:p=>upd(x=>execEditResponse(x,r.id,p)),onDelete:()=>delResponse(r)}));}),
 React.createElement("div",{className:"ex-tl-start"},'◎ '+tx('נפתח {d}',{d:exDateTime(item.createdAt)}),React.createElement(ExTag,{ball:item.openedBy,discs:disciplines}),src&&React.createElement("span",null,'· ',EX_SOURCE_LABEL[src.kind]||src.kind,srcMeeting&&React.createElement(React.Fragment,null,' · ',React.createElement("button",{type:"button",className:"ex-link","data-i18n-skip":"",onClick:()=>exGoHub({tab:'meetings',meetingId:srcMeeting.id})},(srcMeeting.title||tx('ישיבה'))+(srcMeeting.date?' '+exDdMm(srcMeeting.date):'')+' ↗')))));
 const tagOpts=exTagOptions(disciplines);
 const tagSel=(val,on,withKeep,label)=>{const t=exTagOf(val,disciplines);return React.createElement("select",{className:"ex-in ex-tag-sel","aria-label":label,value:exTagKey(val),onChange:e=>{const v=e.target.value;on(v==='keep'?null:((tagOpts.find(o=>o.key===v)||{}).ball||null));},style:t?{background:t.color,borderColor:t.color,color:'#fff'}:undefined},

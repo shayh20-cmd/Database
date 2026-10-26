@@ -8,7 +8,7 @@ const m = html.match(/\/\* ═══ exec-logic ═══ \*\/([\s\S]*?)\/\* ═
 if (!m) throw new Error('exec-logic block not found in project_hub_01.html');
 let n = 0;
 const uid = () => 'x' + ++n;
-const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories,finishNoteForChange,finishUnlinkItem,execSortToggle,execSortRows,FINISH_ZONES,finishZone,finishCat,finishGroups,execThreadRows,execEditResponse,execDeleteResponse,execRoundOf,execLastRound,execScheduleRange,execPhaseState,execScheduleProgress,execPlusDays};')(uid);
+const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories,finishNoteForChange,finishUnlinkItem,execSortToggle,execSortRows,FINISH_ZONES,finishZone,finishCat,finishGroups,execThreadRows,execEditResponse,execDeleteResponse,execRoundOf,execLastRound,execScheduleRange,execPhaseState,execScheduleProgress,execPlusDays,execStatusTrail};')(uid);
 
 const T0 = '2026-10-04T08:00:00.000Z'; // Sunday
 const mk = (over = {}) => L.execNewItem(over.items || [], { type: 'rfi', title: 'גובה תקרה', description: 'שאלה', openedBy: { party: 'contractor', name: 'דנה' }, ballTo: { party: 'architect', name: '' }, ...over }, T0);
@@ -484,4 +484,20 @@ test('execution schedule: a work is done, now or future; progress counts calenda
   assert.strictEqual(L.execScheduleProgress({ start: '2026-01-01', end: '2026-01-31' }, '2026-02-05').over, true);
   assert.strictEqual(L.execScheduleProgress({ start: '2026-01-01' }, '2026-01-11'), null);
   assert.strictEqual(L.execPlusDays('2026-01-31', 1), '2026-02-01');
+});
+
+test('status trail: each entry shows the status right after it; the newest shows the item\'s own', () => {
+  let i = L.execNewItem([], { type: 'issue', title: 'רטיבות', openedBy: { party: 'supervisor' }, ballTo: { party: 'architect' } }, T0);
+  i = L.execRespond(i, { party: 'architect', body: 'בודקים', ballTo: { party: 'contractor' } }, '2026-10-05T08:00:00.000Z');
+  i = L.execRespond(i, { party: 'contractor', kind: 'close' }, '2026-10-06T08:00:00.000Z');
+  const tr = L.execStatusTrail(i);
+  assert.deepStrictEqual(i.responses.map(r => tr.get(r.id)), ['open', 'in_progress', 'resolved']);
+  let s = mkSub();
+  s = L.execDecide(s, { decision: 'rejected', notes: 'עובי', name: 'שי' }, '2026-10-05T08:00:00.000Z');
+  s = L.execAddRevision(s, { body: 'Rev B', files: [] }, '2026-10-07T08:00:00.000Z');
+  const ts = L.execStatusTrail(s);
+  assert.deepStrictEqual(s.responses.map(r => ts.get(r.id)), ['submitted', 'rejected', 'submitted']);
+  // a status set outside the thread shows on the newest entry
+  const t2 = L.execStatusTrail({ ...i, status: 'in_progress' });
+  assert.strictEqual(t2.get(i.responses[2].id), 'in_progress');
 });
