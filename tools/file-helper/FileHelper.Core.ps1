@@ -45,6 +45,18 @@ function Write-HelperLog([string]$Text, [string]$Path = $script:LogPath) {
   } catch {}
 }
 
+function Format-ErrorDetail($ErrorRecord) {
+  # one log line for an error: the innermost message, its type and the script stack (lines joined with " | ")
+  $e = $ErrorRecord.Exception
+  while ($e -and $e.InnerException) { $e = $e.InnerException }
+  $msg = if ($e) { $e.Message } else { [string]$ErrorRecord }
+  $type = if ($e) { $e.GetType().Name } else { '' }
+  $stack = ''
+  try { $stack = [string]$ErrorRecord.ScriptStackTrace } catch {}
+  $stack = (($stack -split "`r?`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }) -join ' | ')
+  return ('{0} [{1}] stack: {2}' -f $msg, $type, $stack)
+}
+
 # ── paths inside the project ──
 function ConvertTo-RelPath([string]$Path) {
   # "a/b/c", '' for the project folder itself, or $null when the path could leave it

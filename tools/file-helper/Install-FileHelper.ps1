@@ -2,7 +2,8 @@
    Asks for the person's Outlook add-in key (the one pasted in the add-in's pane), checks it with the hub and keeps
    it with DPAPI; copies the helper to %LOCALAPPDATA%\ProjectHub\file-helper; lists the project roots this PC
    reaches (the "@<Name> Projects" folders at the top of its drives); adds a Startup shortcut that runs the background agent
-   at every Windows sign-in, and starts it now; makes the export inbox (Desktop\לתיוק unless -Inbox says otherwise).
+   at every Windows sign-in, registers the scheduled task "Project Hub filing helper" that starts it again every
+   5 minutes and at sign-in if it ever died (a start while it runs ends at once), and starts it now; makes the export inbox (Desktop\לתיוק unless -Inbox says otherwise).
    The inbox notification's "Open" is the hub's own https address (the default browser opens it); the quick-access
    window's "תיוק" tab is the way back to it. Run it again after an update or to replace the key.
    -Gui: asks for the key in a small window and ends with a message box — the one-click installer
@@ -104,9 +105,27 @@ $lnk = $shell.CreateShortcut((Join-Path $startup 'Project Hub filing helper.lnk'
 $lnk.TargetPath = 'wscript.exe'
 $lnk.Arguments = "//B //Nologo `"$dir\run-file-helper-agent.vbs`""
 $lnk.Save()
-Start-Process wscript.exe -ArgumentList '//B', '//Nologo', "`"$dir\run-file-helper-agent.vbs`""
 
-Say 'הותקן. עוזר התיוק פועל ברקע, ויופעל מחדש בכל כניסה ל-Windows.' 'Installed. The filing helper runs in the background and starts again at every Windows sign-in.'
+# the watchdog: the scheduled task starts the agent every 5 minutes, all day, and at sign-in. The vbs returns at once, so
+# the task ends at once; the agent's mutex makes a start while one runs exit by itself. Same shape as the mail scanner's.
+$taskName = 'Project Hub filing helper'
+$vbs = Join-Path $dir 'run-file-helper-agent.vbs'
+$action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument "//B //Nologo `"$vbs`""
+$every = New-ScheduledTaskTrigger -Daily -At '00:00'
+$every.Repetition = (New-ScheduledTaskTrigger -Once -At '00:00' -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration (New-TimeSpan -Days 1)).Repetition
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 1) -MultipleInstances IgnoreNew
+$desc = 'Keeps the Project Hub filing helper running: starts it again if it stopped'
+try {
+  $logon = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+  Register-ScheduledTask -TaskName $taskName -Action $action -Trigger @($every, $logon) -Settings $settings -Description $desc -Force | Out-Null
+} catch {
+  # a sign-in trigger can need admin rights on some machines; the 5-minute check (and the Startup shortcut) are enough
+  Register-ScheduledTask -TaskName $taskName -Action $action -Trigger @($every) -Settings $settings -Description $desc -Force | Out-Null
+  Say 'הערה: הפעלה בכניסה ל-Windows במשימה המתוזמנת לא נוספה (דורשת הרשאות); הבדיקה כל 5 דקות וקיצור ה-Startup פעילים.' 'Note: the sign-in trigger of the scheduled task was not added (it needs rights); the 5-minute check and the Startup shortcut are active.'
+}
+Start-Process wscript.exe -ArgumentList '//B', '//Nologo', "`"$vbs`""
+
+Say 'הותקן. עוזר התיוק פועל ברקע, ויופעל מחדש בכל כניסה ל-Windows, ובכל 5 דקות אם נעצר.' 'Installed. The filing helper runs in the background and starts again at every Windows sign-in, and every 5 minutes if it stopped.'
 Say "תיבת הייצוא: $($cfg.inbox) — קבצים שמייצאים אליה מוצעים לפרסום ב-PUBLISH של הפרויקט." "The export inbox: $($cfg.inbox) — files exported into it are offered for publishing to the project's PUBLISH."
 $roots = Get-ProjectRoots $cfg
 if ($roots.Count) {
@@ -116,11 +135,11 @@ if ($roots.Count) {
   Say 'לא נמצאו תיקיות פרויקטים (@... Projects) בכוננים של המחשב הזה. תיקייה שתבחר מהחלונית של Outlook תישמר עם תיקיית האב שלה.' 'No project folders (@... Projects) were found on this computer''s drives. A folder you choose from the Outlook pane is kept with its parent folder.'
 }
 if ($Gui) {
-  Show-Box ("עוזר התיוק הותקן. הוא פועל ברקע ויופעל מחדש בכל כניסה ל-Windows.`n`n" +
+  Show-Box ("עוזר התיוק הותקן. הוא פועל ברקע ויופעל מחדש בכל כניסה ל-Windows ובכל 5 דקות אם נעצר.`n`n" +
     "תיבת הייצוא: $($cfg.inbox)`n" +
     "קבצים שמייצאים אליה מוצעים לפרסום בחלון 'תיוק קבצים' של Project Hub.`n`n" +
     "סגור את Chrome ופתח אותו מחדש.`n`n" +
-    "The filing helper is installed. It runs in the background and starts again at every Windows sign-in.`n" +
+    "The filing helper is installed. It runs in the background and starts again at every Windows sign-in, and every 5 minutes if it stopped.`n" +
     "The export inbox: $($cfg.inbox)`n" +
     "Restart Chrome (close it and open it again).")
 }
