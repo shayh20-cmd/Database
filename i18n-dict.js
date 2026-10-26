@@ -3218,7 +3218,10 @@ Object.assign(HE_EN, {
 "בחר תכנית חדשה או מסמך של יועץ.": "Choose a new plan or a consultant document.",
 "בחר תיקייה.": "Choose a folder.",
 "שם תיקיית הגרסה לא תקין, או שתיקייה בשם הזה כבר קיימת.": "The version folder's name is not valid, or a folder of that name already exists.",
-"בתיקיית ה-@ver כבר יש תיקייה בשם הזה — הגרסה הקיימת תישאר במקומה.": "The @ver folder already holds a folder of that name — the current version stays where it is."
+"בתיקיית ה-@ver כבר יש תיקייה בשם הזה — הגרסה הקיימת תישאר במקומה.": "The @ver folder already holds a folder of that name — the current version stays where it is.",
+"קובץ אחד שאינו PDF לא יפורסם": "One file that is not a PDF will not be published",
+"{n} קבצים שאינם PDF לא יפורסמו": "{n} files that are not PDFs will not be published",
+"לא ניתן לבנות תוכנית — נסה \"הצע\"": "Could not build a plan — try \"Suggest\""
 });
 
 window.I18N_HE_EN = HE_EN;
