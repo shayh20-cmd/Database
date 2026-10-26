@@ -190,3 +190,22 @@ test('filing-ai: "הצע" on publish — the prompt carries the slots, and a rep
   assert.deepStrictEqual(out.plan.files.map(f => f.dests), [[{ path: 'P/U', replace: true }], [{ path: 'P/S', replace: false }]]);
   assert.strictEqual(out.replaceStripped, 'pdf_only');
 });
+
+test('filing-plan: receive — toVer follows the real plan (@ver already holds the name; v9999), and mixed stems', () => {
+  const base = ['C', 'C/4021-KONS', 'C/4021-KONS/4021-KONS-plans'];
+  const D = 'C/4021-KONS/4021-KONS-plans';
+  const from = { kind: 'consultant', folder: 'C/4021-KONS', name: 'x' };
+  // (a) the @ver folder already holds a folder named like the previous version: the move is not made
+  const a = plans.receivePlan({ tree: [...base, D + '/4021-KONS-plans-v03', D + '/4021-KONS-plans-@ver', D + '/4021-KONS-plans-@ver/4021-KONS-plans-v03'], code: '4021', from, doc: 'plan', toVer: true, files: PF });
+  assert.deepStrictEqual(a.plan.steps.map(s => s.op), ['mkdir']);
+  assert.strictEqual(a.version.toVer, false);
+  assert.strictEqual(a.version.verBlocked, true);
+  // (b) v9999 -> v10000 is no version name: no move and no empty @ver folder
+  const b = plans.receivePlan({ tree: [...base, D + '/4021-KONS-plans-v9999'], code: '4021', from, doc: 'plan', toVer: true, files: PF });
+  assert.deepStrictEqual(b.plan.steps.map(s => [s.op, s.path]), [['mkdir', D + '/4021-KONS-plans-v10000']]);
+  assert.strictEqual(b.version.toVer, false);
+  assert.strictEqual(b.version.verBlocked, undefined);
+  // versions named like the folder are the line; an old naming counts only when none is
+  const m = plans.nextVersion([...base, D + '/4021-KONS-plans-v03', D + '/old-v12'], 'C/4021-KONS', '4021');
+  assert.deepStrictEqual([m.name, m.prev], ['4021-KONS-plans-v04', D + '/4021-KONS-plans-v03']);
+});

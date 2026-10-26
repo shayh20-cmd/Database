@@ -124,7 +124,10 @@ function nextVersion(tree, folder, code) {
     const others = kids(tree, dir).filter(p => !/@ver/i.test(leafOf(p)));
     return { dir, make: false, name: `${leafOf(dir)}-v01`, editable: others.length > 0, prev: '', ver, verName: '' };
   }
-  const top = versions.map(p => ({ p, m: VERSION.exec(leafOf(p)) })).sort((a, b) => Number(b.m[3]) - Number(a.m[3]))[0];
+  // versions named like the folder are the line; others (an old naming) count only when none is
+  const all = versions.map(p => ({ p, m: VERSION.exec(leafOf(p)) }));
+  const own = all.filter(x => lc(x.m[1]) === lc(leafOf(dir)));
+  const top = (own.length ? own : all).sort((a, b) => Number(b.m[3]) - Number(a.m[3]))[0];
   const num = String(Number(top.m[3]) + 1).padStart(top.m[3].length, '0');
   return { dir, make: false, name: `${top.m[1]}-${top.m[2]}${num}`, editable: false, prev: top.p, ver, verName: ver ? leafOf(ver) : `${top.m[1]}-@ver` };
 }
@@ -159,13 +162,17 @@ function receivePlan({ tree, code, from, doc, versionName, toVer, files }) {
   const steps = [];
   if (v.make) steps.push({ op: 'mkdir', path: v.dir });
   steps.push({ op: 'mkdir', path: to });
-  const move = !!v.prev && !v.editable && (toVer === undefined ? !!v.ver : toVer === true);
+  const wanted = !!v.prev && !v.editable && (toVer === undefined ? !!v.ver : toVer === true);
+  // the sanitizer drops a move into a name already there, or to a name that is no version any more (v9999 -> v10000)
+  const verFolder = v.ver || `${v.dir}/${v.verName}`;
+  const blocked = wanted && !!v.ver && !!inTree(list, `${v.ver}/${leafOf(v.prev)}`);
+  const move = wanted && !blocked && VERSION.test(name);
   if (move) {
-    const ver = v.ver || `${v.dir}/${v.verName}`;
-    if (!v.ver) steps.push({ op: 'mkdir', path: ver });
-    steps.push({ op: 'move', from: v.prev, to: `${ver}/${leafOf(v.prev)}` });
+    if (!v.ver) steps.push({ op: 'mkdir', path: verFolder });
+    steps.push({ op: 'move', from: v.prev, to: `${verFolder}/${leafOf(v.prev)}` });
   }
-  return { plan: plan(steps, to), version: { ...version, toVer: move } };
+  const out = plan(steps, to);
+  return { plan: out, version: { ...version, toVer: out.steps.some(x => x.op === 'move'), ...(blocked ? { verBlocked: true } : {}) } };
 }
 
 /* The consultant the sender is: the register contact with the sender's address, and the consultant folder that contact

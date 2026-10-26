@@ -900,7 +900,7 @@ test('filing-ai: the inbox prompt — the publish area, the date, the files and 
   for (const tag of ['</guide>', '</map>']) assert.strictEqual(s.split(tag).length - 1, 1, tag);
   assert.match(ai.inboxContent({ ...x, text: '', lang: 'he' }), /^Language: Hebrew\n[\s\S]*\nInstruction: \(none\)$/);
   assert.match(ai.INBOX_SYSTEM, /CODE-pub-@sent\/CODE-pub-sent-YYYY\/CODE-pub-YYYY,MM,DD\/TYPE/);
-  assert.match(ai.INBOX_SYSTEM, /CODE-pub-updated\/CODE-pub-updated-TYPE/);
+  assert.match(ai.INBOX_SYSTEM, /CODE-pub-updated\/CODE-pub-updated-PDF/);
   assert.match(ai.INBOX_SYSTEM, /not uniform/);
   assert.deepStrictEqual(sent.output_config.format.schema.required.sort(), ['files', 'message', 'mode', 'steps']);
   await assert.rejects(ai.inboxProposal({ messages: { create: async () => ({ content: [], stop_reason: 'refusal' }) } }, 'test-model', x));
@@ -1562,6 +1562,9 @@ test('filing inbox: the window\'s plan in code — publish to SENT and UPDATED, 
   const israel = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date()).split('-');
   const p2 = await hub('inbox-plan', { id, projectId: 'pabc123', files: [1], sent: true, updated: false, date: 'yesterday' });
   assert.ok(p2.body.plan.files[0].dests[0].path.endsWith(`LDPB-pub-${israel.join(',')}/DWG`), JSON.stringify(p2.body.plan));
+  // a date that is not on the calendar is today's too
+  const p2b = await hub('inbox-plan', { id, projectId: 'pabc123', files: [1], sent: true, updated: false, date: '2026-02-30' });
+  assert.ok(p2b.body.plan.files[0].dests[0].path.endsWith(`LDPB-pub-${israel.join(',')}/DWG`), JSON.stringify(p2b.body.plan));
 
   // receive: a consultant's new version, the previous one to @ver (the default when an @ver folder is there)
   const V3 = SP + '/LDPB-structural-plans-v03', V4 = SP + '/LDPB-structural-plans-v04';

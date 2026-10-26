@@ -462,6 +462,7 @@ module.exports = function createFiling(ctx) {
         const no = await treeOf(f, pr, res, release, { filingId: f.id });
         if (no === 'gone') return;
         if (no) { sendJson(res, 200, no); return; }
+        if (over() || f.taskId) { sendJson(res, 410, { error: 'expired' }); return; }
         if (route === 'filing-options') {
           const contacts = contactsOf(f.person, f.projectId);
           const o = ai.receiveOptions({ map: ai.normalizeMap(pr.map), tree: f.tree, contacts, code: f.project.code });
@@ -884,15 +885,16 @@ module.exports = function createFiling(ctx) {
         if (no === 'gone') return;
         if (no) { sendJson(res, 200, no); return; }
         const files = ns.sort((x, y) => x - y).map(n => ({ n, name: fileOf(n).name }));
+        // a folder the page named that is not in the tree is not one
+        const inTree = from && from.folder && h.tree.find(q => q.toLowerCase() === from.folder.toLowerCase());
+        if (from) from.folder = inTree || '';
         if (route === 'inbox-plan') {
           let out;
           if (receive) {
-            const inTree = from && from.folder && h.tree.find(q => q.toLowerCase() === from.folder.toLowerCase());
-            if (from) from.folder = inTree || '';
-            out = plans.receivePlan({ tree: h.tree, code: project.code, from, doc, versionName: oneLine(body.versionName, 120), toVer: typeof body.toVer === 'boolean' ? body.toVer : undefined, files });
+            out =plans.receivePlan({ tree: h.tree, code: project.code, from, doc, versionName: oneLine(body.versionName, 120), toVer: typeof body.toVer === 'boolean' ? body.toVer : undefined, files });
             out.plan.from = (from && from.name) || '';
           } else {
-            const date = /^\d{4}-\d{2}-\d{2}$/.test(body.date) && !Number.isNaN(Date.parse(body.date)) ? body.date : israelToday();
+            const date = /^\d{4}-\d{2}-\d{2}$/.test(body.date) && !Number.isNaN(Date.parse(body.date)) && new Date(body.date + 'T00:00:00Z').toISOString().slice(0, 10) === body.date ? body.date : israelToday();
             const map = ai.normalizeMap(pr.map);
             out = plans.inboxPlan({ slots: map && map.slots, tree: h.tree, code: project.code, files, sent: body.sent === true, updated: body.updated === true, date });
           }
@@ -907,9 +909,6 @@ module.exports = function createFiling(ctx) {
         const guide = String(pr.guide || '').trim() || DEFAULT_GUIDE;
         try {
           if (receive) {
-            // a folder the page named that is not in the tree is not one
-            const inTree = from && from.folder && h.tree.find(q => q.toLowerCase() === from.folder.toLowerCase());
-            if (from) from.folder = inTree || '';
             out = await ai.receiveProposal(client, model, {
               project, map: ai.normalizeMap(pr.map), guide, tree: h.tree, contacts: contactsOf(p, project.id), files, from, doc, text: clip(body.text, 1000).trim(), lang
             });
