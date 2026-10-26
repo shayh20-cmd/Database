@@ -1101,24 +1101,20 @@ textarea.ex-in{resize:vertical;min-height:64px;}
 .exg-chip:hover{color:var(--accent);border-color:var(--accent);}
 .exg-body{overflow-x:auto;overflow-y:hidden;direction:ltr;margin-top:10px;position:relative;}
 .exg-inner{position:relative;padding-bottom:4px;}
-.exg-row{display:flex;align-items:center;min-height:26px;}
-.exg-lbl{flex-shrink:0;position:sticky;left:0;z-index:2;background:var(--surface);font-size:12px;padding-inline-end:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.exg-lbl-btn{border:none;background:none;padding:0;font-family:inherit;font-size:12px;color:var(--text);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.exg-lbl-btn:hover{color:var(--accent);text-decoration:underline;}
-.exg-track{position:relative;height:22px;flex-shrink:0;background:repeating-linear-gradient(90deg,transparent 0 63px,var(--border) 63px 64px);}
-.exg-months .exg-track{display:flex;background:none;height:20px;}
+.exg-months{display:flex;height:20px;}
 .exg-m{flex-shrink:0;text-align:center;font-size:10.5px;color:var(--text-3);border-inline-start:1px solid var(--border);line-height:20px;}
 .exg-m-y{color:var(--text-2);font-weight:600;}
-.exg-bar{position:absolute;top:3px;height:16px;border-radius:5px;font-size:10.5px;line-height:16px;color:#fff;padding:0 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;box-sizing:border-box;}
-.exg-bar.exg-done{background:#94A3B8;}
-.exg-bar.exg-now{background:var(--accent);}
-.exg-bar.exg-future{background:rgba(37,99,235,.35);color:var(--text);}
-.exg-dia{position:absolute;top:5px;width:12px;height:12px;transform:rotate(45deg);border-radius:2px;}
-.exg-dia.exg-done{background:#94A3B8;}.exg-dia.exg-now{background:var(--accent);}.exg-dia.exg-future{background:rgba(37,99,235,.45);}
-.exg-total .exg-lbl{font-weight:700;}
-.exg-span{position:absolute;top:6px;height:10px;border-radius:5px;background:var(--surface-2);border:1px solid var(--border-strong);overflow:hidden;box-sizing:border-box;}
+.exg-line{position:relative;height:24px;background:repeating-linear-gradient(90deg,transparent 0 63px,var(--border) 63px 64px);}
+.exg-span{position:absolute;top:8px;height:8px;border-radius:4px;background:var(--surface-2);border:1px solid var(--border-strong);overflow:hidden;box-sizing:border-box;}
 .exg-span i{display:block;height:100%;background:#1D9E75;}
-.exg-empty{display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--text-3);background:none;}
+.exg-dia{position:absolute;top:5px;width:14px;height:14px;padding:0;border:2px solid var(--surface);transform:rotate(45deg);border-radius:3px;cursor:pointer;z-index:2;}
+.exg-done{--exg-c:#94A3B8;}.exg-now{--exg-c:var(--accent);}.exg-future{--exg-c:#7FA7F0;}
+.exg-dia{background:var(--exg-c);}
+.exg-tags{position:relative;margin-top:2px;}
+.exg-tag{position:absolute;height:18px;border:none;background:none;padding:0 2px;font-family:inherit;font-size:11px;line-height:18px;color:var(--text);white-space:nowrap;cursor:pointer;border-inline-start:2px solid var(--exg-c);padding-inline-start:5px;}
+.exg-tag b{font-weight:400;color:var(--text-3);}
+.exg-tag:hover span{color:var(--accent);text-decoration:underline;}
+.exg-empty{font-size:12px;color:var(--text-3);padding:6px 0 2px;text-align:center;}
 .exg-today{position:absolute;top:0;bottom:0;width:2px;background:#E24B4A;z-index:1;pointer-events:none;}
 .ex-tag{display:inline-flex;align-items:center;font-size:10.5px;font-weight:700;padding:1px 8px;border-radius:999px;color:#fff;border:1px solid transparent;white-space:nowrap;flex-shrink:0;line-height:1.6;}
 .ex-tag-muted{background:transparent;}
@@ -4514,7 +4510,8 @@ const EXEC_PHASE_PRESETS=['חפירה','דיפון','ביסוס','שלד','אי�
 const EXG_MONTHS=['ינו','פבר','מרץ','אפר','מאי','יונ','יול','אוג','ספט','אוק','נוב','דצמ'];
 function ExecScheduleGantt({data,save,ro}){
 const h=React.createElement;const sc=data.execSchedule||{};const today=todayISO();
-const phases=(sc.phases||[]).slice().sort((a,b)=>(a.start||'9')<(b.start||'9')?-1:(a.start||'9')>(b.start||'9')?1:0);
+/* we don't run the site, so a work is one date on the line (when it happened or is expected), not a duration */
+const evs=(sc.phases||[]).filter(p=>p.start).slice().sort((x,y)=>x.start<y.start?-1:x.start>y.start?1:0);
 const key='pm_exgantt_'+ACTIVE_PROJECT_ID;
 const[open,setOpenRaw]=useState(()=>{try{return localStorage.getItem(key)!=='0';}catch{return true;}});
 const setOpen=v=>{setOpenRaw(v);try{localStorage.setItem(key,v?'1':'0');}catch{}};
@@ -4522,26 +4519,22 @@ const[ed,setEd]=useState(null);
 const bodyRef=useRef(null);
 const put=fn=>save({...data,execSchedule:fn({start:'',end:'',phases:[],...(data.execSchedule||{})})});
 const setField=(k,v)=>put(x=>({...x,[k]:v||''}));
-/* a new work starts where the last one ends (or at the start of execution) and runs a month */
-const newPhase=name=>{const last=phases.filter(p=>p.start).slice(-1)[0];const st=(last&&(last.end||last.start))||sc.start||today;setEd({id:null,name:name||'',start:st,end:execPlusDays(st,30)});};
-const savePhase=()=>{const e=ed;if(!e||!e.name.trim()||!e.start)return;const rec={id:e.id||uid(),name:e.name.trim(),start:e.start,end:e.end&&e.end>=e.start?e.end:''};
+/* a new event is dated today while the execution runs, otherwise at its start */
+const newEv=name=>setEd({id:null,name:name||'',start:sc.start&&today<sc.start?sc.start:today});
+const saveEv=()=>{const e=ed;if(!e||!e.name.trim()||!e.start)return;const rec={id:e.id||uid(),name:e.name.trim(),start:e.start};
 put(x=>({...x,phases:e.id?(x.phases||[]).map(p=>p.id===e.id?rec:p):[...(x.phases||[]),rec]}));setEd(null);};
-const delPhase=async()=>{const e=ed;if(!e||!e.id)return;if(!(await askConfirm(tx('למחוק את "{name}" מלוח הזמנים?',{name:asTyped(e.name)}),{confirmLabel:'מחק'})))return;put(x=>({...x,phases:(x.phases||[]).filter(p=>p.id!==e.id)}));setEd(null);};
-const rg=execScheduleRange(sc,today);const COL=64,LABEL=150;const W=rg.months.length*COL;
+const delEv=async()=>{const e=ed;if(!e||!e.id)return;if(!(await askConfirm(tx('למחוק את "{name}" מלוח הזמנים?',{name:asTyped(e.name)}),{confirmLabel:'מחק'})))return;put(x=>({...x,phases:(x.phases||[]).filter(p=>p.id!==e.id)}));setEd(null);};
+const editEv=p=>{if(!ro)setEd({id:p.id,name:p.name,start:p.start});};
+const rg=execScheduleRange(sc,today);const COL=64;const W=rg.months.length*COL;
 const t0=Date.parse(rg.from+'T00:00:00Z'),t1=Date.parse(rg.to+'T00:00:00Z');
 const xOf=iso=>Math.max(0,Math.min(1,(Date.parse(String(iso).slice(0,10)+'T00:00:00Z')-t0)/(t1-t0)))*W;
-const wOf=(a,b)=>Math.max(6,xOf(execPlusDays(b,1))-xOf(a));
 const todayIn=today>=rg.from&&today<rg.to;const tx0=xOf(today);
 const prog=execScheduleProgress(sc,today);
-const toToday=()=>requestAnimationFrame(()=>{const el=bodyRef.current;if(el)el.scrollLeft=Math.max(0,LABEL+tx0-el.clientWidth/2);});
+const toToday=()=>requestAnimationFrame(()=>{const el=bodyRef.current;if(el)el.scrollLeft=Math.max(0,tx0-el.clientWidth/2);});
 useEffect(()=>{if(open&&todayIn)toToday();},[open]);
-const label=(txt,onClick,extra)=>h("div",{className:"exg-lbl",style:{width:LABEL,direction:DOC_DIR()},...extra},onClick?h("button",{type:"button",className:"exg-lbl-btn",onClick,"data-i18n-skip":""},txt):h("span",null,txt));
-const bar=(p,i)=>{const st=execPhaseState(p,today);const one=!p.end;const nm=nameForLang(p.name);
-return h("div",{key:p.id,className:"exg-row"},
-label(nm,ro?null:()=>setEd({id:p.id,name:p.name,start:p.start,end:p.end||''}),{title:nm}),
-h("div",{className:"exg-track",style:{width:W}},
-p.start&&(one?h("span",{className:"exg-dia exg-"+st,style:{left:xOf(p.start)-6},title:nm+' · '+fmtDateFull(p.start)}):
-h("span",{className:"exg-bar exg-"+st,style:{left:xOf(p.start),width:wOf(p.start,p.end)},title:nm+' · '+fmtDateFull(p.start)+' – '+fmtDateFull(p.end),"data-i18n-skip":""},nm))));};
+/* names under the line, each starting at its marker; one that would run into the previous name drops to the next lane */
+const lanes=[];const tags=evs.map(p=>{const nm=nameForLang(p.name);const x=xOf(p.start);const w=nm.length*6.4+14;let ln=lanes.findIndex(end=>end<=x-4);if(ln<0){ln=lanes.length;lanes.push(0);}lanes[ln]=x+w;return{p,nm,x,ln};});
+const stCls=p=>'exg-'+execPhaseState(p,today);
 return h("section",{className:"exg"},
 h("div",{className:"exg-head"},
 h("button",{type:"button",className:"exg-toggle","aria-expanded":open,onClick:()=>setOpen(!open)},h("span",{"aria-hidden":"true"},open?'▾':'▸'),h("span",{className:"exg-title"},'לוח זמנים לביצוע')),
@@ -4549,27 +4542,27 @@ prog&&h("span",{className:"exg-prog"+(prog.over?" over":"")},!prog.started?tx('�
 h("span",{className:"exg-sp"}),
 h("label",{className:"exg-f"},h("span",null,'התחלה'),h(DateField,{value:sc.start||'',onChange:v=>setField('start',v),clearable:true,disabled:ro})),
 h("label",{className:"exg-f"},h("span",null,'צפי סיום'),h(DateField,{value:sc.end||'',min:sc.start||'',onChange:v=>setField('end',v),clearable:true,disabled:ro})),
-!ro&&h("button",{type:"button",className:"ex-btn ex-btn-sm ex-btn-pri",onClick:()=>newPhase('')},'+ עבודה'),
+!ro&&h("button",{type:"button",className:"ex-btn ex-btn-sm ex-btn-pri",onClick:()=>newEv('')},'+ אירוע'),
 open&&todayIn&&h("button",{type:"button",className:"ex-btn ex-btn-sm",onClick:toToday},'היום')),
 open&&h(React.Fragment,null,
 ed&&h("div",{className:"exg-edit"},
-h("input",{className:"ex-in",autoFocus:true,value:ed.name,placeholder:'שם העבודה — למשל שלד',"aria-label":'שם העבודה',onChange:e=>{const v=e.target.value;setEd(x=>({...x,name:v}));},onKeyDown:e=>{if(e.key==='Enter')savePhase();if(e.key==='Escape'){e.stopPropagation();setEd(null);}},style:{flex:'1 1 160px'}}),
-h("label",{className:"exg-f"},h("span",null,'מ־'),h(DateField,{value:ed.start||'',onChange:v=>setEd(x=>({...x,start:v||''}))})),
-h("label",{className:"exg-f"},h("span",null,'עד'),h(DateField,{value:ed.end||'',min:ed.start||'',clearable:true,placeholder:'יום אחד',onChange:v=>setEd(x=>({...x,end:v||''}))})),
+h("input",{className:"ex-in",autoFocus:true,value:ed.name,placeholder:'שם האירוע — למשל סיום שלד',"aria-label":'שם האירוע',onChange:e=>{const v=e.target.value;setEd(x=>({...x,name:v}));},onKeyDown:e=>{if(e.key==='Enter')saveEv();if(e.key==='Escape'){e.stopPropagation();setEd(null);}},style:{flex:'1 1 160px'}}),
+h("label",{className:"exg-f"},h("span",null,'תאריך'),h(DateField,{value:ed.start||'',onChange:v=>setEd(x=>({...x,start:v||''}))})),
 h("span",{className:"exg-sp"}),
-ed.id&&h("button",{type:"button",className:"ex-btn ex-btn-sm ex-btn-bad",onClick:delPhase},'מחק'),
+ed.id&&h("button",{type:"button",className:"ex-btn ex-btn-sm ex-btn-bad",onClick:delEv},'מחק'),
 h("button",{type:"button",className:"ex-btn ex-btn-sm",onClick:()=>setEd(null)},'ביטול'),
-h("button",{type:"button",className:"ex-btn ex-btn-sm ex-btn-pri",disabled:!ed.name.trim()||!ed.start,onClick:savePhase},'שמור')),
-!ro&&!ed&&h("div",{className:"exg-presets"},h("span",{className:"ex-muted ex-small"},phases.length?'הוסף:':'התחל מעבודה נפוצה:'),
-EXEC_PHASE_PRESETS.filter(n=>!phases.some(p=>p.name===n)).map(n=>h("button",{key:n,type:"button",className:"exg-chip",onClick:()=>newPhase(n)},'+ '+n))),
-h("div",{ref:bodyRef,className:"exg-body"},h("div",{className:"exg-inner",style:{width:LABEL+W}},
-h("div",{className:"exg-row exg-months"},label(''),h("div",{className:"exg-track",style:{width:W}},rg.months.map(m=>{const mo=+m.slice(5,7);return h("span",{key:m,className:"exg-m"+(mo===1?" exg-m-y":""),style:{width:COL}},tx(EXG_MONTHS[mo-1]),(mo===1||m===rg.months[0])&&h("b",null,' '+m.slice(2,4)));}))),
-sc.start&&h("div",{className:"exg-row exg-total"},label('ביצוע'),h("div",{className:"exg-track",style:{width:W}},
-h("span",{className:"exg-span",style:{left:xOf(sc.start),width:sc.end?wOf(sc.start,sc.end):6},title:fmtDateFull(sc.start)+(sc.end?' – '+fmtDateFull(sc.end):'')},
-prog&&prog.started&&h("i",{style:{width:Math.round(prog.gone/Math.max(1,prog.total)*100)+'%'}})))),
-phases.map(bar),
-phases.length===0&&h("div",{className:"exg-row"},label(''),h("div",{className:"exg-track exg-empty",style:{width:W}},h("span",null,ro?'אין עדיין עבודות בלוח הזמנים':'הוסף עבודות — חפירה, דיפון, שלד…'))),
-todayIn&&h("span",{className:"exg-today",style:{left:LABEL+tx0},title:tx('היום')})))));}
+h("button",{type:"button",className:"ex-btn ex-btn-sm ex-btn-pri",disabled:!ed.name.trim()||!ed.start,onClick:saveEv},'שמור')),
+!ro&&!ed&&h("div",{className:"exg-presets"},h("span",{className:"ex-muted ex-small"},evs.length?'הוסף:':'התחל מאירוע נפוץ:'),
+EXEC_PHASE_PRESETS.filter(n=>!evs.some(p=>p.name===n)).map(n=>h("button",{key:n,type:"button",className:"exg-chip",onClick:()=>newEv(n)},'+ '+n))),
+h("div",{ref:bodyRef,className:"exg-body"},h("div",{className:"exg-inner",style:{width:W}},
+h("div",{className:"exg-months"},rg.months.map(m=>{const mo=+m.slice(5,7);return h("span",{key:m,className:"exg-m"+(mo===1?" exg-m-y":""),style:{width:COL}},tx(EXG_MONTHS[mo-1]),(mo===1||m===rg.months[0])&&h("b",null,' '+m.slice(2,4)));})),
+h("div",{className:"exg-line"},
+sc.start&&h("span",{className:"exg-span",style:{left:xOf(sc.start),width:sc.end?Math.max(6,xOf(execPlusDays(sc.end,1))-xOf(sc.start)):6},title:fmtDateFull(sc.start)+(sc.end?' – '+fmtDateFull(sc.end):'')},
+prog&&prog.started&&h("i",{style:{width:Math.round(prog.gone/Math.max(1,prog.total)*100)+'%'}})),
+evs.map(p=>h("button",{key:p.id,type:"button",className:"exg-dia "+stCls(p),style:{left:xOf(p.start)-7},title:nameForLang(p.name)+' · '+fmtDateFull(p.start),"aria-label":nameForLang(p.name),onClick:()=>editEv(p)}))),
+evs.length>0&&h("div",{className:"exg-tags",style:{height:lanes.length*19}},tags.map(t=>h("button",{key:t.p.id,type:"button",className:"exg-tag "+stCls(t.p),style:{left:t.x-6,top:t.ln*19},onClick:()=>editEv(t.p),title:fmtDateFull(t.p.start)},h("span",{"data-i18n-skip":""},t.nm),h("b",null,' '+exDdMm(t.p.start))))),
+evs.length===0&&h("div",{className:"exg-empty"},ro?'אין עדיין אירועים בלוח הזמנים':'הוסף אירועים — חפירה, דיפון, שלד…'),
+todayIn&&h("span",{className:"exg-today",style:{left:tx0},title:tx('היום')})))));}
 function ExecutionView({data,save,openItemId=null,onConsumeOpen,onOpenTasks}){
 const items=data.execItems||[];const today=todayISO();const viewer=myOfficeRole()==='viewer';
 const[filter,setFilter]=useState('all');const[showClosed,setShowClosed]=useState(false);const[menu,setMenu]=useState(false);const[newType,setNewType]=useState(null);
