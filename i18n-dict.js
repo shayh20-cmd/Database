@@ -3031,8 +3031,6 @@ Object.assign(HE_EN, {
 "יום {d} מתוך {t} · נותרו {n}": "Day {d} of {t} · {n} left",
 "שם האירוע — למשל סיום שלד": "Event name — e.g. Structure complete",
 "שם האירוע": "Event name",
-"הוסף:": "Add:",
-"התחל מאירוע נפוץ:": "Start from a common event:",
 "אין עדיין אירועים בלוח הזמנים": "No events on the schedule yet",
 "הוסף אירועים — חפירה, דיפון, שלד…": "Add events — excavation, shoring, structure…",
 "למחוק את \"{name}\" מלוח הזמנים?": "Delete \"{name}\" from the schedule?",
@@ -3044,7 +3042,9 @@ Object.assign(HE_EN, {
 "אלומיניום וזכוכית": "Aluminium and glazing",
 "עבודות מערכות": "Building systems",
 "גמרים": "Finishes",
-"פיתוח": "Site development"
+"פיתוח": "Site development",
+"הגדר תאריכי ביצוע": "Set construction dates",
+"לחץ לעריכת התאריכים": "Click to edit the dates"
 });
 
 window.I18N_HE_EN = HE_EN;

@@ -1096,9 +1096,9 @@ textarea.ex-in{resize:vertical;min-height:64px;}
 .exg-sp{flex:1;}
 .exg-f{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--text-2);}
 .exg-edit{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;padding:8px 10px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface-2);}
-.exg-presets{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px;}
-.exg-chip{font-size:11.5px;padding:2px 9px;border:1px dashed var(--border-strong);border-radius:999px;background:none;color:var(--text-2);font-family:inherit;cursor:pointer;}
-.exg-chip:hover{color:var(--accent);border-color:var(--accent);}
+.exg-dates{display:inline-flex;align-items:center;gap:6px;font-family:inherit;font-size:12px;color:var(--text);padding:3px 10px;border:1px solid var(--border);border-radius:999px;background:var(--surface-2);cursor:pointer;font-variant-numeric:tabular-nums;}
+.exg-dates:hover,.exg-dates.on{border-color:var(--accent);}
+.exg-dates:disabled{cursor:default;}
 .exg-body{overflow-x:auto;overflow-y:hidden;direction:ltr;margin-top:10px;position:relative;}
 .exg-inner{position:relative;padding-bottom:4px;}
 .exg-months{display:flex;height:20px;}
@@ -4506,7 +4506,6 @@ function ExPartyChip({ball}){if(!ball||!ball.party)return React.createElement("s
 /* same text as execPartyLabel; only the name is skipped by the translator */
 return React.createElement("span",{className:"ex-chip"},React.createElement("i",{className:"ex-dot",style:{background:EX_PARTY_COLORS[ball.party]||'#888780'}}),p,nm&&ball.party!=='consultant'?'·':null,nm?React.createElement("span",{"data-i18n-skip":""},nm):null);}
 /* "לוח זמנים לביצוע": the execution track's start and expected end, and the works on it (חפירה, דיפון, שלד…) on a month axis */
-const EXEC_PHASE_PRESETS=['חפירה','דיפון','ביסוס','שלד','איטום','אלומיניום','עבודות מערכות','גמרים','פיתוח'];
 const EXG_MONTHS=['ינו','פבר','מרץ','אפר','מאי','יונ','יול','אוג','ספט','אוק','נוב','דצמ'];
 function ExecScheduleGantt({data,save,ro}){
 const h=React.createElement;const sc=data.execSchedule||{};const today=todayISO();
@@ -4515,7 +4514,7 @@ const evs=(sc.phases||[]).filter(p=>p.start).slice().sort((x,y)=>x.start<y.start
 const key='pm_exgantt_'+ACTIVE_PROJECT_ID;
 const[open,setOpenRaw]=useState(()=>{try{return localStorage.getItem(key)!=='0';}catch{return true;}});
 const setOpen=v=>{setOpenRaw(v);try{localStorage.setItem(key,v?'1':'0');}catch{}};
-const[ed,setEd]=useState(null);
+const[ed,setEd]=useState(null);const[datesOpen,setDatesOpen]=useState(false);
 const bodyRef=useRef(null);
 const put=fn=>save({...data,execSchedule:fn({start:'',end:'',phases:[],...(data.execSchedule||{})})});
 const setField=(k,v)=>put(x=>({...x,[k]:v||''}));
@@ -4540,11 +4539,16 @@ h("div",{className:"exg-head"},
 h("button",{type:"button",className:"exg-toggle","aria-expanded":open,onClick:()=>setOpen(!open)},h("span",{"aria-hidden":"true"},open?'▾':'▸'),h("span",{className:"exg-title"},'לוח זמנים לביצוע')),
 prog&&h("span",{className:"exg-prog"+(prog.over?" over":"")},!prog.started?tx('מתחיל בעוד {n} ימים',{n:Math.round((Date.parse(sc.start)-Date.parse(today))/86400000)}):prog.over?tx('עבר את הצפי ב־{n} ימים',{n:Math.round((Date.parse(today)-Date.parse(sc.end))/86400000)}):tx('יום {d} מתוך {t} · נותרו {n}',{d:prog.gone,t:prog.total,n:prog.left})),
 h("span",{className:"exg-sp"}),
-h("label",{className:"exg-f"},h("span",null,'התחלה'),h(DateField,{value:sc.start||'',onChange:v=>setField('start',v),clearable:true,disabled:ro})),
-h("label",{className:"exg-f"},h("span",null,'צפי סיום'),h(DateField,{value:sc.end||'',min:sc.start||'',onChange:v=>setField('end',v),clearable:true,disabled:ro})),
-!ro&&h("button",{type:"button",className:"ex-btn ex-btn-sm ex-btn-pri",onClick:()=>newEv('')},'+ אירוע'),
+h("button",{type:"button",className:"exg-dates"+(datesOpen?" on":""),disabled:ro&&!sc.start,"aria-expanded":datesOpen,title:ro?undefined:tx('לחץ לעריכת התאריכים'),onClick:()=>{if(!ro){setDatesOpen(!datesOpen);setEd(null);}}},
+h("span",{"aria-hidden":"true"},'🗓'),sc.start||sc.end?(sc.start?fmtDateFull(sc.start):'—')+' – '+(sc.end?fmtDateFull(sc.end):'—'):h("span",{className:"ex-muted"},'הגדר תאריכי ביצוע')),
+!ro&&h("button",{type:"button",className:"ex-btn ex-btn-sm ex-btn-pri",onClick:()=>{setDatesOpen(false);newEv('');}},'+ אירוע'),
 open&&todayIn&&h("button",{type:"button",className:"ex-btn ex-btn-sm",onClick:toToday},'היום')),
 open&&h(React.Fragment,null,
+datesOpen&&!ro&&h("div",{className:"exg-edit"},
+h("label",{className:"exg-f"},h("span",null,'התחלה'),h(DateField,{value:sc.start||'',onChange:v=>setField('start',v),clearable:true})),
+h("label",{className:"exg-f"},h("span",null,'צפי סיום'),h(DateField,{value:sc.end||'',min:sc.start||'',onChange:v=>setField('end',v),clearable:true})),
+h("span",{className:"exg-sp"}),
+h("button",{type:"button",className:"ex-btn ex-btn-sm",onClick:()=>setDatesOpen(false)},'סגור')),
 ed&&h("div",{className:"exg-edit"},
 h("input",{className:"ex-in",autoFocus:true,value:ed.name,placeholder:'שם האירוע — למשל סיום שלד',"aria-label":'שם האירוע',onChange:e=>{const v=e.target.value;setEd(x=>({...x,name:v}));},onKeyDown:e=>{if(e.key==='Enter')saveEv();if(e.key==='Escape'){e.stopPropagation();setEd(null);}},style:{flex:'1 1 160px'}}),
 h("label",{className:"exg-f"},h("span",null,'תאריך'),h(DateField,{value:ed.start||'',onChange:v=>setEd(x=>({...x,start:v||''}))})),
@@ -4552,8 +4556,6 @@ h("span",{className:"exg-sp"}),
 ed.id&&h("button",{type:"button",className:"ex-btn ex-btn-sm ex-btn-bad",onClick:delEv},'מחק'),
 h("button",{type:"button",className:"ex-btn ex-btn-sm",onClick:()=>setEd(null)},'ביטול'),
 h("button",{type:"button",className:"ex-btn ex-btn-sm ex-btn-pri",disabled:!ed.name.trim()||!ed.start,onClick:saveEv},'שמור')),
-!ro&&!ed&&h("div",{className:"exg-presets"},h("span",{className:"ex-muted ex-small"},evs.length?'הוסף:':'התחל מאירוע נפוץ:'),
-EXEC_PHASE_PRESETS.filter(n=>!evs.some(p=>p.name===n)).map(n=>h("button",{key:n,type:"button",className:"exg-chip",onClick:()=>newEv(n)},'+ '+n))),
 h("div",{ref:bodyRef,className:"exg-body"},h("div",{className:"exg-inner",style:{width:W}},
 h("div",{className:"exg-months"},rg.months.map(m=>{const mo=+m.slice(5,7);return h("span",{key:m,className:"exg-m"+(mo===1?" exg-m-y":""),style:{width:COL}},tx(EXG_MONTHS[mo-1]),(mo===1||m===rg.months[0])&&h("b",null,' '+m.slice(2,4)));})),
 h("div",{className:"exg-line"},
