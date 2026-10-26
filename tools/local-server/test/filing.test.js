@@ -1584,3 +1584,38 @@ test('filing inbox: the window\'s plan in code — publish to SENT and UPDATED, 
   const log = JSON.parse(fs.readFileSync(path.join(data, 'filing.json'), 'utf8')).projects.pabc123.log;
   assert.deepStrictEqual(log.map(l => [l.file, l.dest, l.mode, l.from]), [['LDPB-A-101.pdf', V4, 'receive', 'structural'], ['LDPB-A-101.dwg', V4, 'receive', 'structural']]);
 });
+
+test('filing: the pane\'s plan in code — who sent it (the sender\'s consultant first), the next version, confirmed and filed', async (t) => {
+  const { base, data, keyOf, call, agent, contacts } = await start(t, 4063, {}); // no Claude
+  const map = { ...RCV_MAP, slots: NC_SLOTS, updatedBy: 'דנה', updatedAt: 'T' };
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, root: ROOT, guide: '', log: [], map } } }));
+  assert.strictEqual((await contacts('dana@kkarc.com', 'reg-77', [{ name: 'Avi', role: 'Electric', firm: 'Volt', emails: ['avi@volt.co.il'] }])).status, 200);
+  const dana = await keyOf('dana@kkarc.com');
+  const mail = { ...MAIL, from: { name: 'Avi', email: 'Avi@Volt.co.il' } };
+  const f = (await call(dana, '/api/outlook/filing', { projectId: 'pabc123', mail, files: [{ name: 'E-1.pdf', size: 5 }, { name: 'E-2.pdf', size: 5 }] })).body.id;
+  assert.strictEqual((await call(dana, '/api/outlook/filing-options?id=' + f, null, 'GET')).status, 405);
+  // the options: the tree is read on the PC; the sender's address picks the electric consultant
+  const asking = call(dana, '/api/outlook/filing-options?id=' + f, {});
+  await (await agent(dana)).result({ tree: [...RCV_TREE, 'CONS/LDPB-electric/LDPB-electric-plans', 'CONS/LDPB-electric/LDPB-electric-plans/LDPB-electric-plans-v01'] });
+  const o = (await asking).body;
+  assert.deepStrictEqual(o.consultants.map(x => x.folder), ['CONS/LDPB-structural', 'CONS/LDPB-electric']);
+  assert.strictEqual(o.sender, 1);
+  // the plan: v02, nothing to move (no @ver there unless ticked); the pane's shape — one folder per file
+  const V2 = 'CONS/LDPB-electric/LDPB-electric-plans/LDPB-electric-plans-v02';
+  const p = (await call(dana, '/api/outlook/filing-plan?id=' + f, { from: { kind: 'consultant', folder: 'CONS/LDPB-electric', name: 'electric' }, doc: 'plan' })).body;
+  assert.deepStrictEqual(p, {
+    plan: { files: [{ n: 0, name: 'E-1.pdf', dest: V2 }, { n: 1, name: 'E-2.pdf', dest: V2 }], steps: [{ op: 'mkdir', path: V2, from: '', to: '' }], mode: 'new-version' },
+    version: { name: 'LDPB-electric-plans-v02', editable: false, prev: 'CONS/LDPB-electric/LDPB-electric-plans/LDPB-electric-plans-v01', hasVer: false, toVer: false }
+  });
+  const none = (await call(dana, '/api/outlook/filing-plan?id=' + f, { from: null })).body;
+  assert.deepStrictEqual([none.problem, none.plan.files.map(x => x.dest)], ['no_from', [null, null]]);
+  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-confirm?id=' + f, {})).body, { error: 'no_plan' });
+  // planned again and confirmed: the PC files the plan
+  await call(dana, '/api/outlook/filing-plan?id=' + f, { from: { kind: 'consultant', folder: 'CONS/LDPB-electric', name: 'electric' }, doc: 'plan' });
+  const task = (await call(dana, '/api/outlook/filing-confirm?id=' + f, {})).body.taskId;
+  const a = await agent(dana);
+  assert.deepStrictEqual([a.id, a.got.kind, a.got.plan.files.map(x => x.dest)], [task, 'file', [V2, V2]]);
+  await a.result({ files: [{ name: 'E-1.pdf', dest: V2, savedAs: 'E-1.pdf' }, { name: 'E-2.pdf', dest: V2, savedAs: 'E-2.pdf' }] });
+  const log = JSON.parse(fs.readFileSync(path.join(data, 'filing.json'), 'utf8')).projects.pabc123.log;
+  assert.deepStrictEqual(log.map(l => [l.file, l.dest, l.mode]), [['E-1.pdf', V2, 'new-version'], ['E-2.pdf', V2, 'new-version']]);
+});

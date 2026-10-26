@@ -448,6 +448,40 @@ module.exports = function createFiling(ctx) {
     if (over()) { sendJson(res, 410, { error: 'expired' }); return; }
     if (f.taskId) { sendJson(res, 409, { error: 'confirmed' }); return; }
 
+    /* filing without Claude: the choices of who sent the files (filing-options: the project's consultants and other
+       folders, and the consultant the sender is), and the plan built in code from them (filing-plan, filing-plan.js) —
+       in the pane's shape, one folder per file, as Claude's plan in the pane has. The tree is the filing's, read once. */
+    if (route === 'filing-options' || route === 'filing-plan') {
+      if (f.busy) { sendJson(res, 409, { error: 'busy' }); return; }
+      const mine = {};
+      f.busy = mine;
+      const release = () => { if (f.busy === mine) f.busy = false; };
+      try {
+        const pr = known(f.projectId);
+        if (!pr.folder) { sendJson(res, 200, { needsFolder: true }); return; }
+        const no = await treeOf(f, pr, res, release, { filingId: f.id });
+        if (no === 'gone') return;
+        if (no) { sendJson(res, 200, no); return; }
+        if (route === 'filing-options') {
+          const contacts = contactsOf(f.person, f.projectId);
+          const o = ai.receiveOptions({ map: ai.normalizeMap(pr.map), tree: f.tree, contacts, code: f.project.code });
+          sendJson(res, 200, { ...o, sender: plans.senderConsultant(o, contacts, f.mail.fromEmail) });
+          return;
+        }
+        const fr = body.from && typeof body.from === 'object' && (body.from.kind === 'consultant' || body.from.kind === 'other') ? body.from : null;
+        const from = fr ? { kind: fr.kind, folder: ai.relPath(fr.folder) || '', name: oneLine(fr.name, 120).trim() } : null;
+        const doc = body.doc === 'plan' || body.doc === 'doc' ? body.doc : '';
+        const out = plans.receivePlan({ tree: f.tree, code: f.project.code, from, doc, versionName: oneLine(body.versionName, 120), toVer: typeof body.toVer === 'boolean' ? body.toVer : undefined, files: f.files.map((x, n) => ({ n, name: x.name })) });
+        const raw = { files: out.plan.files.map(x => ({ name: x.name, dest: x.dests.length ? x.dests[0].path : null })), steps: out.plan.steps, mode: doc === 'plan' ? 'new-version' : 'existing' };
+        const { why, ...plan } = ai.sanitizePlan(raw, f.tree, f.files.map(x => x.name));
+        f.plan = plan;
+        sendJson(res, 200, { plan, ...(out.version ? { version: out.version } : {}), ...(out.problem ? { problem: out.problem } : {}) });
+      } finally {
+        release();
+      }
+      return;
+    }
+
     if (route === 'filing-propose') {
       if (f.busy) { sendJson(res, 409, { error: 'busy' }); return; }
       const text = clip(body.text, 1000).trim();
