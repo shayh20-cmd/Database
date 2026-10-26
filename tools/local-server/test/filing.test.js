@@ -1497,3 +1497,90 @@ test('filing inbox: received files — a move done and a copy failed leaves no s
   assert.deepStrictEqual(await late, { status: 409, body: { error: 'changed' } });
   assert.deepStrictEqual((await hub('inbox-confirm', { id })).body, { error: 'no_plan' }, 'no plan of the other project is confirmed');
 });
+
+/* ── filing without Claude (filing-plan.js): the map's slots, the convention filled in, the window's plans in code ── */
+const NC_TREE = [...PUB_TREE, 'PUBLISH/LDPB-pub-@sent/LDPB-pub-sent-2026/LDPB-pub-2026,10,01', 'PUBLISH/LDPB-pub-@sent/LDPB-pub-sent-2026/LDPB-pub-2026,10,01/PDF', ...RCV_TREE.filter(p => p !== 'PUBLISH'), 'EXEC', 'EXEC/LDPB-exec-rfi'];
+const NC_SLOTS = { sent: 'PUBLISH/LDPB-pub-@sent', sentSplit: true, updated: 'PUBLISH/LDPB-pub-updated/LDPB-pub-updated-PDF' };
+
+test('filing hub: the map keeps its slots; the convention is filled in from the tree, without Claude', async (t) => {
+  const { base, data, keyOf, agent } = await start(t, 4061, {});
+  const hub = async (route, body, method) => {
+    const r = await fetch(base + '/api/filing-hub/' + route, { method: method || (body ? 'POST' : 'GET'), headers: { 'x-ms-client-principal': principal('dana@kkarc.com'), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, root: ROOT, guide: '', log: [] } } }));
+  const dana = await keyOf('dana@kkarc.com');
+  // saved with the areas; read back by the Hub page and the pane
+  const saved = await hub('map', { projectId: 'pabc123', areas: { publish: { paths: ['PUBLISH'], note: '' } }, slots: { ...NC_SLOTS, sentSplit: false, updated: '..\\x' } }, 'PUT');
+  assert.strictEqual(saved.status, 200);
+  assert.deepStrictEqual(saved.body.map.slots, { sent: NC_SLOTS.sent, sentSplit: false, updated: '' });
+  assert.deepStrictEqual((await hub('project?project=pabc123')).body.map.slots, saved.body.map.slots);
+  // a save without slots (an older page) keeps them
+  const again = await hub('map', { projectId: 'pabc123', areas: { publish: { paths: ['PUBLISH'], note: 'x' } } }, 'PUT');
+  assert.deepStrictEqual(again.body.map.slots, saved.body.map.slots);
+  // the convention: a mapping session, the tree from the PC, no Claude (none is configured here)
+  const sid = (await hub('map-session', { projectId: 'pabc123' })).body.id;
+  assert.strictEqual((await hub('map-auto?id=nope', {})).status, 404);
+  const asking = hub('map-auto?id=' + sid, {});
+  const a = await agent(dana);
+  assert.strictEqual(a.got.kind, 'tree');
+  await a.result({ tree: NC_TREE });
+  const auto = (await asking).body;
+  assert.deepStrictEqual(auto.auto.slots, NC_SLOTS);
+  assert.deepStrictEqual(auto.auto.areas, { publish: ['PUBLISH'], receive: ['RECEIVE'], exec: ['EXEC'] });
+  assert.strictEqual(auto.tree.length, NC_TREE.length);
+});
+
+test('filing inbox: the window\'s plan in code — publish to SENT and UPDATED, receive a consultant\'s version; confirmed as Claude\'s', async (t) => {
+  const { base, data, keyOf, call, agent } = await start(t, 4062, {}); // no ANTHROPIC_API_KEY: Claude is not there at all
+  const hubAs = email => async (route, body) => {
+    const r = await fetch(base + '/api/filing-hub/' + route, { method: body ? 'POST' : 'GET', headers: { 'x-ms-client-principal': principal(email), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  const hub = hubAs('dana@kkarc.com');
+  const map = { ...RCV_MAP, areas: { ...RCV_MAP.areas, exec: { paths: ['EXEC'], note: '' } }, slots: NC_SLOTS, updatedBy: 'דנה', updatedAt: 'T' };
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, root: ROOT, guide: '', log: [], map } } }));
+  const dana = await keyOf('dana@kkarc.com'), ron = await keyOf('ron@kkarc.com');
+  const id = (await call(dana, '/api/outlook/inbox-batch', { pc: 'PC1', files: [{ name: 'LDPB-A-101.pdf', size: 1, mtime: '' }, { name: 'LDPB-A-101.dwg', size: 1, mtime: '' }] })).body.id;
+
+  // a viewer may not plan
+  const rb = (await call(ron, '/api/outlook/inbox-batch', { pc: 'PC5', files: [{ name: 'a.pdf', size: 1, mtime: '' }] })).body.id;
+  assert.strictEqual((await hubAs('ron@kkarc.com')('inbox-plan', { id: rb, projectId: 'pabc123', files: [0], sent: true })).status, 403);
+  // publish: the tree from the PC that announced the batch, then the plan; a bad date is today's
+  const planning = hub('inbox-plan', { id, projectId: 'pabc123', files: [0, 1], sent: true, updated: true, date: '2026-10-01' });
+  await (await agent(dana)).result({ tree: NC_TREE });
+  const p1 = await planning;
+  assert.strictEqual(p1.status, 200);
+  const D1 = 'PUBLISH/LDPB-pub-@sent/LDPB-pub-sent-2026/LDPB-pub-2026,10,01';
+  assert.deepStrictEqual(p1.body.plan, {
+    files: [
+      { n: 0, name: 'LDPB-A-101.pdf', dests: [{ path: D1 + '/PDF', replace: false }, { path: NC_SLOTS.updated, replace: true }] },
+      { n: 1, name: 'LDPB-A-101.dwg', dests: [{ path: D1 + '/DWG', replace: false }] }
+    ],
+    steps: [{ op: 'mkdir', path: D1 + '/DWG', from: '', to: '' }], mode: 'publish', projectId: 'pabc123'
+  });
+  const israel = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date()).split('-');
+  const p2 = await hub('inbox-plan', { id, projectId: 'pabc123', files: [1], sent: true, updated: false, date: 'yesterday' });
+  assert.ok(p2.body.plan.files[0].dests[0].path.endsWith(`LDPB-pub-${israel.join(',')}/DWG`), JSON.stringify(p2.body.plan));
+
+  // receive: a consultant's new version, the previous one to @ver (the default when an @ver folder is there)
+  const V3 = SP + '/LDPB-structural-plans-v03', V4 = SP + '/LDPB-structural-plans-v04';
+  const r1 = await hub('inbox-plan', { id, projectId: 'pabc123', files: [0, 1], mode: 'receive', from: { kind: 'consultant', folder: 'CONS/LDPB-structural', name: 'structural' }, doc: 'plan' });
+  assert.deepStrictEqual(r1.body.version, { name: 'LDPB-structural-plans-v04', editable: false, prev: V3, hasVer: true, toVer: true });
+  assert.deepStrictEqual(r1.body.plan.steps.map(s => s.op), ['mkdir', 'move']);
+  assert.strictEqual(r1.body.plan.from, 'structural');
+  const r2 = await hub('inbox-plan', { id, projectId: 'pabc123', files: [0], mode: 'receive', from: { kind: 'consultant', folder: 'CONS/LDPB-structural', name: 'structural' }, doc: 'plan', toVer: false });
+  assert.deepStrictEqual(r2.body.plan.steps.map(s => s.op), ['mkdir']);
+  const r3 = await hub('inbox-plan', { id, projectId: 'pabc123', files: [0], mode: 'receive', from: null });
+  assert.deepStrictEqual([r3.body.problem, r3.body.plan.files[0].dests], ['no_from', []]);
+  assert.deepStrictEqual((await hub('inbox-confirm', { id })).body, { error: 'no_plan' }, 'a plan with nothing to file is not confirmed');
+
+  // the plan again, confirmed: the PC gets it as it would get Claude's
+  const r4 = await hub('inbox-plan', { id, projectId: 'pabc123', files: [0, 1], mode: 'receive', from: { kind: 'consultant', folder: 'CONS/LDPB-structural', name: 'structural' }, doc: 'plan' });
+  const task = (await hub('inbox-confirm', { id })).body.taskId;
+  const a = await agent(dana);
+  assert.deepStrictEqual([a.id, a.got.kind, a.got.plan], [task, 'inbox', r4.body.plan]);
+  await a.result({ files: [{ name: 'LDPB-A-101.pdf', dests: ['LDPB-A-101.pdf'] }, { name: 'LDPB-A-101.dwg', dests: ['LDPB-A-101.dwg'] }], notInInbox: [], error: null });
+  const log = JSON.parse(fs.readFileSync(path.join(data, 'filing.json'), 'utf8')).projects.pabc123.log;
+  assert.deepStrictEqual(log.map(l => [l.file, l.dest, l.mode, l.from]), [['LDPB-A-101.pdf', V4, 'receive', 'structural'], ['LDPB-A-101.dwg', V4, 'receive', 'structural']]);
+});
