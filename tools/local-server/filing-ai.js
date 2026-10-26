@@ -37,10 +37,18 @@ function migrateAreas(raw) {
   delete r.export;
   return r;
 }
-/* A saved map as it is read today: old keys migrated, the seven areas cleaned (paths inside the project) */
+/* A saved map as it is read today: old keys migrated, the seven areas cleaned (paths inside the project), and the
+   slots that filing without Claude goes by (cleanSlots) */
 function normalizeMap(map) {
   if (!map || typeof map !== 'object' || !map.areas) return map || null;
-  return { ...map, areas: cleanAreas(map.areas, rel => rel || null) };
+  return { ...map, areas: cleanAreas(map.areas, rel => rel || null), slots: cleanSlots(map.slots) };
+}
+/* The map's slots for filing without Claude (filing-plan.js): the SENT archive, whether SENT is split into a folder per
+   file type, and the UPDATED folder of PDFs — paths inside the project, '' when not mapped. */
+function cleanSlots(raw) {
+  const r = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  const path = v => relPath(v) || '';
+  return { sent: path(r.sent), sentSplit: r.sentSplit !== false, updated: path(r.updated) };
 }
 
 const SYSTEM = [
@@ -432,9 +440,11 @@ const WORDS = v => String(v == null ? '' : v).toLowerCase().split(/[^\p{L}\p{N}]
 
 /* What the window offers for "who sent the files", from the project's map, its real tree and its register contacts:
    consultants = the folders directly under the consultants area, each with the contact whose discipline or firm names
-   it, and the contacts no folder matched (folder null); others = the folders directly under the receive and permit
+   it, and the contacts no folder matched (folder null); others = the folders directly under the receive, permit and exec
    areas (an area's own folder when it has none under it). An area that is not mapped: unmapped says so, and others are
    the tree's top folders. label: the folder's name without the project code in front. */
+/* A register contact as the window shows it: "role · firm", the name when there is no firm */
+const contactText = c => [String(c.role || '').trim(), String(c.firm || '').trim() || String(c.name || '').trim()].filter(Boolean).join(' · ').replace(/[\r\n]+/g, ' ').slice(0, 120);
 function receiveOptions({ map, tree, contacts, code }) {
   const areas = (normalizeMap(map) || {}).areas || {};
   const list = (tree || []).filter(Boolean);
@@ -453,7 +463,7 @@ function receiveOptions({ map, tree, contacts, code }) {
   const codeWords = new Set(WORDS(code));
   const people = [];
   for (const c of contacts || []) {
-    const text = [String(c.role || '').trim(), String(c.firm || '').trim() || String(c.name || '').trim()].filter(Boolean).join(' · ').replace(/[\r\n]+/g, ' ').slice(0, 120);
+    const text = contactText(c);
     if (text && !people.some(x => x.text.toLowerCase() === text.toLowerCase())) people.push({ text, words: new Set([...WORDS(c.role), ...WORDS(c.firm)]), used: false });
   }
   const consPaths = (areas.consultants && areas.consultants.paths) || [];
@@ -464,12 +474,13 @@ function receiveOptions({ map, tree, contacts, code }) {
     return { label: short(folder), folder, contact: who ? who.text : '' };
   });
   for (const x of people) if (!x.used) consultants.push({ label: x.text, folder: null, contact: x.text });
-  const rp = (areas.receive && areas.receive.paths) || [], pp = (areas.permit && areas.permit.paths) || [];
+  const rp = (areas.receive && areas.receive.paths) || [], pp = (areas.permit && areas.permit.paths) || [], ep = (areas.exec && areas.exec.paths) || [];
   const others = [
     ...under(rp).map(folder => ({ label: short(folder), folder, area: 'receive' })),
-    ...under(pp).map(folder => ({ label: short(folder), folder, area: 'permit' }))
+    ...under(pp).map(folder => ({ label: short(folder), folder, area: 'permit' })),
+    ...under(ep).map(folder => ({ label: short(folder), folder, area: 'exec' }))
   ].filter((x, i, a) => a.findIndex(y => y.folder.toLowerCase() === x.folder.toLowerCase()) === i);
-  const noOthers = !rp.length && !pp.length;
+  const noOthers = !rp.length && !pp.length && !ep.length;
   if (noOthers) for (const p of list) if (!p.includes('/')) others.push({ label: p, folder: p, area: 'top' });
   return { consultants, others, tree: list, unmapped: { consultants: !consPaths.length, others: noOthers } };
 }
@@ -617,5 +628,5 @@ async function receiveProposal(client, model, x) {
 
 module.exports = {
   SYSTEM, SCHEMA, MAP_SYSTEM, MAP_SCHEMA, INBOX_SYSTEM, INBOX_SCHEMA, RECEIVE_SYSTEM, RECEIVE_SCHEMA, AREAS, migrateAreas, normalizeMap, relPath, sanitizePlan, userContent, propose,
-  cleanAreas, mapContent, mapProposal, sanitizeInboxPlan, inboxContent, inboxProposal, receiveOptions, sanitizeReceivePlan, receiveContent, receiveProposal
+  cleanAreas, cleanSlots, contactText, mapContent, mapProposal, sanitizeInboxPlan, inboxContent, inboxProposal, receiveOptions, sanitizeReceivePlan, receiveContent, receiveProposal
 };

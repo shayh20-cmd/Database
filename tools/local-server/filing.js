@@ -961,9 +961,12 @@ module.exports = function createFiling(ctx) {
     if (!body.areas || typeof body.areas !== 'object' || Array.isArray(body.areas)) { sendJson(res, 400, { error: 'areas' }); return; }
     const areas = ai.cleanAreas(body.areas, rel => rel || false);
     if (!areas) { sendJson(res, 400, { error: 'path' }); return; }
-    const map = { areas, updatedBy: mcp.whoAmI(p.email, p.name).name, updatedAt: new Date().toISOString() };
     const d = load();
-    projectOf(d, project.id).map = map;
+    const pd = projectOf(d, project.id);
+    // the slots for filing without Claude: as sent, or kept when a page that does not know them saves the areas
+    const slots = ai.cleanSlots(body.slots !== undefined ? body.slots : (pd.map || {}).slots);
+    const map = { areas, slots, updatedBy: mcp.whoAmI(p.email, p.name).name, updatedAt: new Date().toISOString() };
+    pd.map = map;
     writeJsonAtomic(STORE, d);
     sendJson(res, 200, { map });
   }
