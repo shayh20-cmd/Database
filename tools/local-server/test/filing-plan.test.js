@@ -175,3 +175,18 @@ test('filing-plan: the sender\'s address picks the consultant whose folder match
   assert.strictEqual(plans.senderConsultant(options, contacts, 'nobody@x.com'), -1);
   assert.strictEqual(plans.senderConsultant(options, contacts, ''), -1);
 });
+
+test('filing-ai: "הצע" on publish — the prompt carries the slots, and a replace of a file that is not a PDF is dropped', async () => {
+  const x = {
+    project: { code: 'X', name: 'n' }, map: { areas: { publish: { paths: ['P'], note: '' } }, slots: { sent: 'P/S', sentSplit: false, updated: 'P/U' } },
+    guide: '', tree: ['P', 'P/S', 'P/U'], today: '2026-10-26', files: [{ n: 0, name: 'a.pdf' }, { n: 1, name: 'a.dwg' }], sent: true, updated: true, text: '', lang: 'he'
+  };
+  assert.match(ai.inboxContent(x), /\nSlots: SENT archive P\/S \(all files together\); UPDATED \(PDF only\) P\/U\n/);
+  assert.match(ai.inboxContent({ ...x, map: { areas: {} } }), /\nSlots: \(none\)\n/);
+  const client = { messages: { create: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({
+    message: 'm', mode: 'publish', steps: [], files: [{ name: 'a.pdf', dests: [{ path: 'P/U', replace: true }] }, { name: 'a.dwg', dests: [{ path: 'P/U', replace: true }, { path: 'P/S', replace: false }] }]
+  }) }] }) } };
+  const out = await ai.inboxProposal(client, 'claude-haiku-5-5', x);
+  assert.deepStrictEqual(out.plan.files.map(f => f.dests), [[{ path: 'P/U', replace: true }], [{ path: 'P/S', replace: false }]]);
+  assert.strictEqual(out.replaceStripped, 'pdf_only');
+});
