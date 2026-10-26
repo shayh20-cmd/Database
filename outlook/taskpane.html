@@ -541,6 +541,8 @@ var HE_EN = {
   'אין לך הרשאת כתיבה בפרויקט הזה.': 'You cannot make changes in this project.',
   'בקשה קודמת עדיין בטיפול. רגע…': 'The previous request is still being handled. One moment…',
   'אין עדיין מפת תיקיות לפרויקט — מפה אותה ב-Project Hub: הגדרות הפרויקט ← תיקיות הפרויקט': "The project has no folder map yet — map it in Project Hub: project settings → Project folders",
+  'אין מפת CONSULTANTS לפרויקט — מפה בהגדרות הפרויקט ← תיקיות הפרויקט': "No CONSULTANTS in the project's map — map it in Project settings → Project folders",
+  'לא כל הקבצים הועלו.': 'Not all the files were uploaded.',
   'English': 'English',
   'עברית': 'עברית'
 };
@@ -959,12 +961,14 @@ function where(dest) { return dest ? slash(dest) : (fProj && fProj.folder) || '\
 function fState(t) { $('fileState').textContent = t || ''; }
 function fHint(t) { $('fFolderHint').textContent = t || ''; }
 // the card closes (or another project comes): watchers stop and late answers are dropped
-function endFilingCard() { fGen++; fTimers.forEach(clearInterval); fTimers = []; fBusy = false; fFiling = false; }
+function endFilingCard() { fGen++; fTimers.forEach(clearInterval); fTimers = []; fBusy = false; fFiling = false; clearTimeout(fPlanTimer); fPlanAgain = false; fPlanBusyN = 0; }
 function filingKeys() { return [].slice.call($('fileList').querySelectorAll('input:checked')).map(function (cb) { return cb.value; }); }
 function keyLabel(k) { return k === 'mail' ? tx('המייל עצמו (‎.eml)') : ((currentMail.attachments || []).find(function (a) { return 'att:' + a.id === k; }) || {}).name; }
 /* ── filing without Claude: who sent the files (a consultant — plans or documents — or another party's folder), and the
    server builds the plan in code from the project's tree (filing-options, filing-plan); "הצע" (Claude) stays for the rest ── */
 var fOpts = null, fPlanTimer = null, fVerTouched = false;
+// one code plan at a time: a change while one runs (or while Claude works) asks again when it ends; 'busy' retries are capped
+var fPlanning = false, fPlanAgain = false, fPlanBusyN = 0;
 var F_PROBLEM = {
   no_from: 'בחר ממי הקבצים.',
   no_consultant: 'בחר יועץ.',
@@ -982,8 +986,10 @@ function fromChoice() {
   var folder = v.slice(2), x = (o.others || []).find(function (y) { return y.folder === folder; });
   return { kind: 'other', folder: folder, name: x ? x.label : folder };
 }
+// the project's map has no CONSULTANTS: the plan cannot find the consultants' folders by it
+function unmappedNote() { return fOpts && fOpts.unmapped && fOpts.unmapped.consultants ? tx('אין מפת CONSULTANTS לפרויקט — מפה בהגדרות הפרויקט ← תיקיות הפרויקט') : ''; }
 function fillFrom(o) {
-  var s = $('fFrom');
+  var s = $('fFrom'), was = s.value; // other ticked files make a new filing: the person's "ממי" stays
   s.innerHTML = '';
   s.appendChild(new Option(tx('בחר…'), ''));
   var g1 = document.createElement('optgroup'); g1.label = tx('יועצים');
@@ -996,8 +1002,11 @@ function fillFrom(o) {
   var g2 = document.createElement('optgroup'); g2.label = tx('רשות, קבלן ואחרים');
   (o.others || []).forEach(function (x) { g2.appendChild(new Option(x.label, 'o:' + x.folder)); });
   if (g2.children.length) s.appendChild(g2);
-  if (o.sender >= 0) s.value = 'c:' + o.sender;
+  var keep = was && [].some.call(s.options, function (x) { return x.value === was && !x.disabled; });
+  if (keep) s.value = was;
+  else if (o.sender >= 0) s.value = 'c:' + o.sender;
   $('fDocRow').hidden = !(fromChoice() && fromChoice().kind === 'consultant');
+  if (unmappedNote()) fFormState(unmappedNote());
 }
 // the tree's answers (as for a proposal): no folder, no helper, the folder not on this PC; true when the tree was read
 function treeOk(r) {
@@ -1012,18 +1021,32 @@ function treeOk(r) {
 function readyFiling() {
   var keys = filingKeys(), sig = keys.join('|');
   if (fJob && fJob.sig === sig) return Promise.resolve(fJob);
-  var named = keys.map(function (k) { var a = currentMail.attachments.find(function (x) { return 'att:' + x.id === k; }); return { name: a.name, size: a.size || 0, outlookId: a.id }; });
+  var gen = fGen;
+  // as in proposeFiling: only what classic Outlook on the PC can give is named (the server's files 0, 1, … — needUpload
+  // indexes fJob.local); the rest (the .eml, a cloud file) goes up now
+  var local = keys.filter(fromOutlook), rest = keys.filter(function (k) { return !fromOutlook(k); });
+  var named = local.map(function (k) { var a = currentMail.attachments.find(function (x) { return 'att:' + x.id === k; }); return { name: a.name, size: a.size || 0, outlookId: a.id }; });
   return api('/api/outlook/filing', { projectId: fProj.pid, mail: mailRef(currentMail, true), files: named, lang: lang }).then(function (j) {
-    fJob = { id: j.id, sig: sig, proposed: false, local: keys, pending: keys.length };
+    if (gen !== fGen) return fJob;
+    fJob = { id: j.id, sig: sig, proposed: false, local: local, pending: local.length };
     fTurns = []; fPlan = null; fGuideAdd = ''; fOpts = null;
-    return fJob;
+    renderConv();
+    if (!rest.length) return fJob;
+    var job = fJob;
+    return uploadFiling(j.id, rest, gen).then(function (sent) {
+      fState('');
+      job.upFailed = sent < rest.length; // what failed is listed in the conversation (uploadFiling)
+      return job;
+    });
   });
 }
 function schedulePlan() { clearTimeout(fPlanTimer); fPlanTimer = setTimeout(planFiling, 350); }
 function planFiling() {
-  if (!fProj || !fProj.canWrite || fBusy || fFiling) return;
+  if (!fProj || !fProj.canWrite || fFiling) return;
+  if (fBusy || fPlanning) { fPlanAgain = true; return; } // asked again when the running request ends
   var gen = fGen;
   if (!filingKeys().length) { fPlan = null; renderPlan(null); fFormState(tx('סמן קובץ')); renderConv(); return; }
+  fPlanning = true;
   fFormState(fOpts ? tx('בונה את התוכנית…') : tx('קורא את התיקיות במחשב…'));
   readyFiling().then(function (job) {
     if (gen !== fGen || fOpts) return true;
@@ -1040,19 +1063,29 @@ function planFiling() {
     if (fVerTouched) body.toVer = $('fToVer').checked;
     return api('/api/outlook/filing-plan?id=' + encodeURIComponent(fJob.id), body);
   }).then(function (r) {
+    fPlanBusyN = 0;
     if (!r || gen !== fGen || !treeOk(r)) return;
-    fFormState(r.problem ? tx(F_PROBLEM[r.problem] || r.problem) : '');
+    fFormState(r.problem ? tx(F_PROBLEM[r.problem] || r.problem) : fJob.upFailed ? tx('לא כל הקבצים הועלו.') : unmappedNote());
     fPlan = r.plan || null;
     fJob.proposed = true;
+    // the code's plan is the one that runs: Claude's proposal (and its fix row) leaves the screen; upload errors stay
+    fTurns = fTurns.filter(function (t) { return t.err; }); fGuideAdd = '';
     renderVersion(r.version);
     renderPlan(fPlan);
     renderConv();
   }).catch(function (e) {
     if (gen !== fGen) return;
     fFormState('');
-    if (e.message === 'busy') { schedulePlan(); return; }
+    if (e.message === 'busy') {
+      if (++fPlanBusyN >= 5) { fPlanBusyN = 0; fFormState(tx('בקשה קודמת עדיין בטיפול. רגע…')); return; }
+      schedulePlan(); return;
+    }
+    fPlanBusyN = 0;
     if (/^(expired|no_filing|confirmed)$/.test(e.message)) { fJob = null; fOpts = null; schedulePlan(); return; }
     fail(e);
+  }).then(function () {
+    fPlanning = false;
+    if (fPlanAgain) { fPlanAgain = false; schedulePlan(); }
   });
 }
 function renderVersion(v) {
@@ -1133,7 +1166,10 @@ function renderFolder() {
   $('fLearnGo').disabled = $('fGuideSave').disabled = !w;
   $('fGuide').readOnly = !w;
 }
-function setFBusy(on) { fBusy = on; renderFolder(); }
+function setFBusy(on) {
+  fBusy = on; renderFolder();
+  if (!on && fPlanAgain) { fPlanAgain = false; schedulePlan(); } // a change made while Claude worked gets its code plan
+}
 function needFolder() {
   if (fProj) { fProj.folder = ''; fProj.root = ''; }
   renderFolder();
@@ -1263,6 +1299,8 @@ function proposeFiling(fromFix) {
     if (text) fTurns.push({ me: text });
     fTurns.push({ ai: r.message || '', plan: r.plan });
     fPlan = r.plan || null;
+    // Claude's plan is the one that runs now: the code's plan and version row leave the screen
+    renderPlan(null); $('fVerRow').hidden = true;
     fGuideAdd = r.guideAdd || '';
     input.value = '';
     renderConv();
@@ -1319,7 +1357,7 @@ function renderConv() {
   });
   var open = !!(fJob && fJob.proposed && !fFiling);
   $('fConfirmRow').hidden = !(open && fPlan && (fPlan.files || []).some(function (f) { return f.dest !== null; }));
-  $('fFixRow').hidden = !(open && fTurns.length);
+  $('fFixRow').hidden = !(open && fTurns.some(function (t) { return !t.err; })); // corrections are for Claude's conversation, not for upload errors
   $('fLearn').hidden = !fGuideAdd;
   $('fLearnText').textContent = fGuideAdd ? tx('להוסיף להנחיה: „{g}”?', { g: iso(fGuideAdd) }) : '';
 }
