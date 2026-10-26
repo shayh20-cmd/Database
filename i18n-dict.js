@@ -3022,7 +3022,29 @@ Object.assign(HE_EN, {
 "כותרת — מה צריך לקרות עכשיו": "Title — what needs to happen now",
 "תיאור מלא…": "Full description…",
 "למחוק את הרשומה מהרצף?": "Delete this entry from the sequence?",
-"סבב {n}": "Round {n}"
+"סבב {n}": "Round {n}",
+"לוח זמנים לביצוע": "Construction schedule",
+"צפי סיום": "Expected end",
+"+ עבודה": "+ Work",
+"מתחיל בעוד {n} ימים": "Starts in {n} days",
+"עבר את הצפי ב־{n} ימים": "{n} days past the expected end",
+"יום {d} מתוך {t} · נותרו {n}": "Day {d} of {t} · {n} left",
+"שם העבודה — למשל שלד": "Work name — e.g. Structure",
+"שם העבודה": "Work name",
+"הוסף:": "Add:",
+"התחל מעבודה נפוצה:": "Start from a common work:",
+"אין עדיין עבודות בלוח הזמנים": "No works on the schedule yet",
+"הוסף עבודות — חפירה, דיפון, שלד…": "Add works — excavation, shoring, structure…",
+"למחוק את \"{name}\" מלוח הזמנים?": "Delete \"{name}\" from the schedule?",
+"חפירה": "Excavation",
+"דיפון": "Shoring",
+"ביסוס": "Foundations",
+"שלד": "Structure",
+"אלומיניום": "Aluminium",
+"אלומיניום וזכוכית": "Aluminium and glazing",
+"עבודות מערכות": "Building systems",
+"גמרים": "Finishes",
+"פיתוח": "Site development"
 });
 
 window.I18N_HE_EN = HE_EN;

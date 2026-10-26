@@ -8,7 +8,7 @@ const m = html.match(/\/\* ═══ exec-logic ═══ \*\/([\s\S]*?)\/\* ═
 if (!m) throw new Error('exec-logic block not found in project_hub_01.html');
 let n = 0;
 const uid = () => 'x' + ++n;
-const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories,finishNoteForChange,finishUnlinkItem,execSortToggle,execSortRows,FINISH_ZONES,finishZone,finishCat,finishGroups,execThreadRows,execEditResponse,execDeleteResponse,execRoundOf,execLastRound};')(uid);
+const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories,finishNoteForChange,finishUnlinkItem,execSortToggle,execSortRows,FINISH_ZONES,finishZone,finishCat,finishGroups,execThreadRows,execEditResponse,execDeleteResponse,execRoundOf,execLastRound,execScheduleRange,execPhaseState,execScheduleProgress,execPlusDays};')(uid);
 
 const T0 = '2026-10-04T08:00:00.000Z'; // Sunday
 const mk = (over = {}) => L.execNewItem(over.items || [], { type: 'rfi', title: 'גובה תקרה', description: 'שאלה', openedBy: { party: 'contractor', name: 'דנה' }, ballTo: { party: 'architect', name: '' }, ...over }, T0);
@@ -463,4 +463,25 @@ test('rounds on a submittal follow its revisions', () => {
   const rev = s.responses.find(r => r.kind === 'revision');
   assert.strictEqual(L.execRoundOf(s, rev), 2);
   assert.strictEqual(L.execLastRound(s), 2);
+});
+test('execution schedule: window in whole months around every date', () => {
+  const r = L.execScheduleRange({ start: '2026-03-15', end: '2027-01-10', phases: [{ start: '2026-02-20', end: '2026-04-01' }] }, '2026-10-26');
+  assert.strictEqual(r.from, '2026-01-01');
+  assert.strictEqual(r.to, '2027-03-01');
+  assert.strictEqual(r.months.length, 14);
+  const e = L.execScheduleRange({}, '2026-10-26');
+  assert.strictEqual(e.months.length, 12); // at least a year
+  assert.strictEqual(e.months[0], '2026-09');
+  assert.strictEqual(e.to, '2027-09-01');
+});
+
+test('execution schedule: a work is done, now or future; progress counts calendar days', () => {
+  assert.strictEqual(L.execPhaseState({ start: '2026-01-01', end: '2026-02-01' }, '2026-03-01'), 'done');
+  assert.strictEqual(L.execPhaseState({ start: '2026-01-01', end: '2026-04-01' }, '2026-03-01'), 'now');
+  assert.strictEqual(L.execPhaseState({ start: '2026-03-01' }, '2026-03-01'), 'now');
+  assert.strictEqual(L.execPhaseState({ start: '2026-05-01' }, '2026-03-01'), 'future');
+  assert.deepStrictEqual(L.execScheduleProgress({ start: '2026-01-01', end: '2026-01-31' }, '2026-01-11'), { total: 30, gone: 10, left: 20, started: true, over: false });
+  assert.strictEqual(L.execScheduleProgress({ start: '2026-01-01', end: '2026-01-31' }, '2026-02-05').over, true);
+  assert.strictEqual(L.execScheduleProgress({ start: '2026-01-01' }, '2026-01-11'), null);
+  assert.strictEqual(L.execPlusDays('2026-01-31', 1), '2026-02-01');
 });
