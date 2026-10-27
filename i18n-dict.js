@@ -3221,7 +3221,28 @@ Object.assign(HE_EN, {
 "בתיקיית ה-@ver כבר יש תיקייה בשם הזה — הגרסה הקיימת תישאר במקומה.": "The @ver folder already holds a folder of that name — the current version stays where it is.",
 "קובץ אחד שאינו PDF לא יפורסם": "One file that is not a PDF will not be published",
 "{n} קבצים שאינם PDF לא יפורסמו": "{n} files that are not PDFs will not be published",
-"לא ניתן לבנות תוכנית — נסה \"הצע\"": "Could not build a plan — try \"Suggest\""
+"לא ניתן לבנות תוכנית — נסה \"הצע\"": "Could not build a plan — try \"Suggest\"",
+"ייצוא הרשימה ל־Excel או ל־PDF": "Export the list to Excel or PDF",
+"ייצוא רשימה": "Export list",
+"פורמט": "Format",
+"קובץ xlsx לעריכה": "An .xlsx file you can edit",
+"הדפסה ← שמירה כ־PDF": "Print → Save as PDF",
+"דף A4": "A4 page",
+"לאורך": "Portrait",
+"לרוחב": "Landscape",
+"הרבה עמודות לדף לאורך — לרוחב הטקסט יהיה גדול וקריא יותר": "Many columns for a portrait page — in landscape the text stays larger and easier to read",
+"עמודות וסדר": "Columns and order",
+"גרור או השתמש בחצים כדי לסדר": "Drag or use the arrows to reorder",
+"כולל משימות שהושלמו": "Include completed tasks",
+"כולל תתי־משימות": "Include subtasks",
+"{n} משימות ייוצאו, כפי שהרשימה מסוננת וממוינת": "{n} tasks to export, filtered and sorted as on screen",
+"עמוד {p} מתוך {n}": "Page {p} of {n}",
+"הורד Excel": "Download Excel",
+"הדפס ל־PDF": "Print to PDF",
+"עד {d}": "Due {d}",
+"החל מ־{d}": "From {d}",
+"מבט: {name}": "View: {name}",
+"{n} משימות": "{n} tasks"
 });
 
 window.I18N_HE_EN = HE_EN;
