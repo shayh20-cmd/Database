@@ -74,6 +74,8 @@ test('mail: a key, an intake, suggestions for that person only, and accepting wr
   assert.strictEqual((await fetch(base + '/api/mail-suggestions')).status, 401, 'the page routes need sign-in');
 
   const { key } = await json(await fetch(base + '/api/mail-connection', { method: 'POST', headers: dana }));
+  // suggestions are off unless the person turns them on
+  await fetch(base + '/api/mail-connection/suggest', { method: 'PUT', headers: { ...dana, 'Content-Type': 'application/json' }, body: JSON.stringify({ suggest: true }) });
   assert.match(key, /^phm_/);
   const auth = { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' };
   const mails = [
@@ -131,6 +133,8 @@ test('mail: without a Claude key messages wait as pending and health says so', a
   const dana = { 'x-ms-client-principal': principal('dana@kkarc.com') };
   assert.strictEqual((await (await fetch(base + '/health')).json()).mailAi, 'no-key');
   const { key } = await (await fetch(base + '/api/mail-connection', { method: 'POST', headers: dana })).json();
+  // suggestions are off unless the person turns them on
+  await fetch(base + '/api/mail-connection/suggest', { method: 'PUT', headers: { ...dana, 'Content-Type': 'application/json' }, body: JSON.stringify({ suggest: true }) });
   const auth = { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' };
   await fetch(base + '/api/mail-intake', { method: 'POST', headers: auth, body: JSON.stringify({ mails: [{ id: '<a@x>', subject: 'חזית', body: 'x' }] }) });
   const page = await (await fetch(base + '/api/mail-suggestions', { headers: dana })).json();
@@ -154,6 +158,8 @@ test('mail: when Claude keeps failing the item ends failed, health says so, and 
   for (let i = 0; i < 50; i++) { try { await fetch(base + '/health'); break; } catch (e) { await wait(100); } }
   const dana = { 'x-ms-client-principal': principal('dana@kkarc.com') };
   const { key } = await (await fetch(base + '/api/mail-connection', { method: 'POST', headers: dana })).json();
+  // suggestions are off unless the person turns them on
+  await fetch(base + '/api/mail-connection/suggest', { method: 'PUT', headers: { ...dana, 'Content-Type': 'application/json' }, body: JSON.stringify({ suggest: true }) });
   const auth = { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' };
   const status = async () => (await fetch(base + '/api/mail-intake/status?wait=30', { headers: auth })).json();
 

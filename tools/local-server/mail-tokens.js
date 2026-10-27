@@ -1,12 +1,13 @@
 'use strict';
-/* The mail scanner's personal key. One per person: issuing a new one ends the old. The key is
-   shown once (Settings → גישה מהירה → סריקת מייל); the server keeps only its SHA-256. */
+/* A personal key: the mail scanner's (phm_) and the Outlook add-in's (pho_), each in its own file.
+   One per person: issuing a new one ends the old. The key is shown once (Settings → תוסף Outlook וסריקת מייל);
+   the server keeps only its SHA-256. */
 const crypto = require('crypto');
 
 const sha = s => crypto.createHash('sha256').update(String(s)).digest('hex');
 const personOf = email => String(email || 'local').trim().toLowerCase();
 
-module.exports = function createTokens(file, { readJson, writeJsonAtomic }) {
+module.exports = function createTokens(file, { readJson, writeJsonAtomic }, prefix = 'phm_') {
   const load = () => {
     const d = readJson(file);
     return d && d.keys ? d : { keys: {} };
@@ -17,7 +18,7 @@ module.exports = function createTokens(file, { readJson, writeJsonAtomic }) {
       const st = load();
       const who = personOf(email);
       drop(st, who);
-      const key = 'phm_' + crypto.randomBytes(24).toString('base64url');
+      const key = prefix + crypto.randomBytes(24).toString('base64url');
       st.keys[sha(key)] = { who, created: nowIso, lastUsed: null };
       writeJsonAtomic(file, st);
       return key;
@@ -47,3 +48,5 @@ module.exports = function createTokens(file, { readJson, writeJsonAtomic }) {
     }
   };
 };
+// the owner a key names: the address in lower case, 'local' on the local server (no address)
+module.exports.personOf = personOf;

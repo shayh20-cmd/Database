@@ -215,7 +215,7 @@ $key = Get-Key
 if (-not $key -and -not $DryRun) {
   Write-Log 'no key'
   if (-not $state.noKeyAlerted) {
-    Show-Toast $Title 'אין מפתח. הפק מפתח בהגדרות ← גישה מהירה ← סריקת מייל, והרץ שוב את ההתקנה.' "$Hub/project_hub_01"
+    Show-Toast $Title 'אין מפתח. הפק מפתח בהגדרות ← תוסף Outlook וסריקת מייל, והרץ שוב את ההתקנה.' "$Hub/project_hub_01"
     $state.noKeyAlerted = $true; Save-State $state
   }
   Stop-Scan 1
@@ -287,9 +287,18 @@ foreach ($m in $found) {
     if ($body.Length -gt $BodyChars) { $body = $body.Substring(0, $BodyChars) }
     $att = @()
     foreach ($a in $m.Attachments) { $att += [string]$a.FileName }
+    # the thread, so the server can log a message of a thread linked to a task (Outlook add-in): the conversation
+    # id, and the message ids it replies to for a reply that arrives with another conversation id
+    $conv = ''
+    try { $conv = [string]$m.ConversationID } catch { }
+    $inReplyTo = ''
+    if ($headers -match '(?im)^In-Reply-To:\s*(<[^>\s]+>)') { $inReplyTo = $Matches[1] }
+    $refs = @()
+    if ($headers -match '(?ims)^References:(.*?)(\r?\n(?![ \t])|\z)') { $refs = @([regex]::Matches($Matches[1], '<[^>\s]+>') | ForEach-Object { $_.Value } | Select-Object -Last 20) }
     [void]$mails.Add([ordered]@{
       id = $id; from = $from; fromName = [string]$m.SenderName; to = [string]$m.To; cc = [string]$m.CC
       subject = [string]$m.Subject; received = $received.ToString('yyyy-MM-ddTHH:mm:sszzz'); body = $body; attachments = $att
+      conversationId = $conv; inReplyTo = $inReplyTo; references = $refs
     })
   } catch { Write-Log "skip item: $($_.Exception.Message)"; continue }
 }
@@ -322,7 +331,7 @@ try {
     Write-Log 'key refused (401)'
     # once per key: cleared after the next successful send
     if (-not $state.keyAlerted) {
-      Show-Toast $Title 'המפתח בוטל או שגוי. הפק מפתח חדש בהגדרות ← גישה מהירה ← סריקת מייל, והרץ שוב את ההתקנה.' "$Hub/project_hub_01"
+      Show-Toast $Title 'המפתח בוטל או שגוי. הפק מפתח חדש בהגדרות ← תוסף Outlook וסריקת מייל, והרץ שוב את ההתקנה.' "$Hub/project_hub_01"
       $state.keyAlerted = $true; Save-State $state
     }
     Stop-Scan 1

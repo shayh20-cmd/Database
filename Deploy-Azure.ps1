@@ -346,7 +346,7 @@ $zip = "$stage.zip"
 try {
     Step "Packaging..."
     New-Item -ItemType Directory -Path (Join-Path $stage "tools/local-server") -Force | Out-Null
-    foreach ($f in "project_hub_01.html", "login.html", "i18n.js", "i18n-dict.js", "react-18.3.1.min.js", "react-dom-18.3.1.min.js", "supabase-js-2.112.4.min.js", "register-link.js", "register-link-ui.js", "register-directory-ui.js", "hub.webmanifest", "hub-sw.js", "icon-192.png", "icon-512.png", "icon-512-maskable.png", "icon-new-task-192.png") {
+    foreach ($f in "project_hub_01.html", "login.html", "i18n.js", "i18n-dict.js", "react-18.3.1.min.js", "react-dom-18.3.1.min.js", "supabase-js-2.112.4.min.js", "register-link.js", "register-link-ui.js", "register-directory-ui.js", "list-export.js", "hub.webmanifest", "hub-sw.js", "icon-192.png", "icon-512.png", "icon-512-maskable.png", "icon-new-task-192.png") {
         Copy-Item (Join-Path $root $f) $stage
     }
     # the quick-access installer and its icons, at the site's root under the names it downloads them by
@@ -355,7 +355,19 @@ try {
     Copy-Item (Join-Path $root "tools/quick-access/project-hub-cube-new-task.ico") (Join-Path $stage "qa-new-task.ico")
     # the "hub" Claude skill, offered for download in Settings ← Claude
     Copy-Item (Join-Path $root "tools/claude-skill/hub.zip") (Join-Path $stage "claude-hub-skill.zip")
-    foreach ($f in "server.js", "mcp.js", "history.js", "mail.js", "mail-store.js", "mail-ai.js", "mail-tokens.js", "package.json", "package-lock.json") {
+    # the Outlook add-in: its manifest, task pane and icons under outlook/, and the page that issues its key
+    Copy-Item (Join-Path $root "outlook") (Join-Path $stage "outlook") -Recurse
+    Copy-Item (Join-Path $root "outlook_connect.html") $stage
+    # the filing helper's and the mail scanner's files, which the server embeds in their one-click installers
+    # (installers.js; never served as they are: cloud mode serves only the root's pages)
+    New-Item -ItemType Directory -Path (Join-Path $stage "tools/file-helper"), (Join-Path $stage "tools/mail-scan") -Force | Out-Null
+    foreach ($f in "FileHelper.Core.ps1", "FileHelper-Agent.ps1", "Run-Task.ps1", "run-file-helper-agent.vbs", "Install-FileHelper.ps1", "Uninstall-FileHelper.ps1") {
+        Copy-Item (Join-Path $root "tools/file-helper/$f") (Join-Path $stage "tools/file-helper")
+    }
+    foreach ($f in "Scan-Mail.ps1", "run-hidden.vbs", "Install-MailScan.ps1", "Uninstall-MailScan.ps1") {
+        Copy-Item (Join-Path $root "tools/mail-scan/$f") (Join-Path $stage "tools/mail-scan")
+    }
+    foreach ($f in "server.js", "mcp.js", "history.js", "mail.js", "mail-store.js", "mail-ai.js", "mail-tokens.js", "outlook.js", "outlook-ai.js", "filing.js", "filing-ai.js", "filing-plan.js", "installers.js", "package.json", "package-lock.json") {
         Copy-Item (Join-Path $root "tools/local-server/$f") (Join-Path $stage "tools/local-server")
     }
     Copy-Item (Join-Path $root "tools/local-server/node_modules") (Join-Path $stage "tools/local-server/node_modules") -Recurse

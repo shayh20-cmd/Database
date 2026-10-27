@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Project Hub for Outlook. The server fills in the BASE placeholders with its own address when it serves
+     this file (/outlook/manifest.xml), so the copy downloaded from a server points back at it. -->
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+           xmlns:mailappor="http://schemas.microsoft.com/office/mailappversionoverrides/1.0"
+           xsi:type="MailApp">
+  <Id>6f3b2c1e-8a4d-4b7e-9c55-1d2e7a9b4f60</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>KKARC</ProviderName>
+  <DefaultLocale>he-IL</DefaultLocale>
+  <DisplayName DefaultValue="Project Hub">
+    <Override Locale="en-US" Value="Project Hub"/>
+  </DisplayName>
+  <Description DefaultValue="משימות ועדכונים ב-Project Hub מתוך המייל">
+    <Override Locale="en-US" Value="Tasks and updates in Project Hub, from the email you are reading"/>
+  </Description>
+  <IconUrl DefaultValue="{{BASE}}/outlook/icon-64.png"/>
+  <HighResolutionIconUrl DefaultValue="{{BASE}}/outlook/icon-128.png"/>
+  <SupportUrl DefaultValue="{{BASE}}/project_hub_01"/>
+  <AppDomains>
+    <AppDomain>{{BASE}}</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Mailbox"/>
+  </Hosts>
+  <Requirements>
+    <Sets>
+      <Set Name="Mailbox" MinVersion="1.8"/>
+    </Sets>
+  </Requirements>
+  <FormSettings>
+    <Form xsi:type="ItemRead">
+      <DesktopSettings>
+        <SourceLocation DefaultValue="{{BASE}}/outlook/taskpane"/>
+        <RequestedHeight>450</RequestedHeight>
+      </DesktopSettings>
+    </Form>
+  </FormSettings>
+  <Permissions>ReadItem</Permissions>
+  <Rule xsi:type="RuleCollection" Mode="Or">
+    <Rule xsi:type="ItemIs" ItemType="Message" FormType="Read"/>
+  </Rule>
+  <DisableEntityHighlighting>false</DisableEntityHighlighting>
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <VersionOverrides xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1" xsi:type="VersionOverridesV1_1">
+      <Requirements>
+        <bt:Sets DefaultMinVersion="1.8">
+          <bt:Set Name="Mailbox"/>
+        </bt:Sets>
+      </Requirements>
+      <Hosts>
+        <Host xsi:type="MailHost">
+          <DesktopFormFactor>
+            <ExtensionPoint xsi:type="MessageReadCommandSurface">
+              <OfficeTab id="TabDefault">
+                <Group id="phGroup">
+                  <Label resid="GroupLabel"/>
+                  <Control xsi:type="Button" id="phOpenPane">
+                    <Label resid="ButtonLabel"/>
+                    <Supertip>
+                      <Title resid="ButtonLabel"/>
+                      <Description resid="ButtonTip"/>
+                    </Supertip>
+                    <Icon>
+                      <bt:Image size="16" resid="Icon16"/>
+                      <bt:Image size="32" resid="Icon32"/>
+                      <bt:Image size="80" resid="Icon80"/>
+                    </Icon>
+                    <Action xsi:type="ShowTaskpane">
+                      <SourceLocation resid="TaskpaneUrl"/>
+                      <SupportsPinning>true</SupportsPinning>
+                    </Action>
+                  </Control>
+                </Group>
+              </OfficeTab>
+            </ExtensionPoint>
+          </DesktopFormFactor>
+        </Host>
+      </Hosts>
+      <Resources>
+        <bt:Images>
+          <bt:Image id="Icon16" DefaultValue="{{BASE}}/outlook/icon-16.png"/>
+          <bt:Image id="Icon32" DefaultValue="{{BASE}}/outlook/icon-32.png"/>
+          <bt:Image id="Icon80" DefaultValue="{{BASE}}/outlook/icon-80.png"/>
+        </bt:Images>
+        <bt:Urls>
+          <bt:Url id="TaskpaneUrl" DefaultValue="{{BASE}}/outlook/taskpane"/>
+        </bt:Urls>
+        <bt:ShortStrings>
+          <bt:String id="GroupLabel" DefaultValue="Project Hub">
+            <bt:Override Locale="en-US" Value="Project Hub"/>
+          </bt:String>
+          <bt:String id="ButtonLabel" DefaultValue="Project Hub">
+            <bt:Override Locale="en-US" Value="Project Hub"/>
+          </bt:String>
+        </bt:ShortStrings>
+        <bt:LongStrings>
+          <bt:String id="ButtonTip" DefaultValue="פתח את Project Hub ליד המייל: משימה חדשה, עדכון או צירוף">
+            <bt:Override Locale="en-US" Value="Open Project Hub beside this email: a new task, an update or an attachment"/>
+          </bt:String>
+        </bt:LongStrings>
+      </Resources>
+    </VersionOverrides>
+  </VersionOverrides>
+</OfficeApp>
