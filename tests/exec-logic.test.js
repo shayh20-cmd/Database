@@ -8,7 +8,7 @@ const m = html.match(/\/\* ═══ exec-logic ═══ \*\/([\s\S]*?)\/\* ═
 if (!m) throw new Error('exec-logic block not found in project_hub_01.html');
 let n = 0;
 const uid = () => 'x' + ++n;
-const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories,finishNoteForChange,finishUnlinkItem,execSortToggle,execSortRows,FINISH_ZONES,finishZone,finishCat,finishGroups};')(uid);
+const L = new Function('uid', m[1] + '\nreturn {EXEC_TYPES,EXEC_PARTIES,execIsClosed,execNextNumber,execWorkdays,execNewItem,execRespond,execSetBall,execAddRevision,execDecide,execWaiting,execBallDays,execCounts,execBallSplit,execForMe,execLogRows,execPartyLabel,execAddWorkdays,execBumpSeq,execSetStatus,execDecideChange,execChangeSummary,finishStatus,finishFromSubmittal,finishCategories,finishNoteForChange,finishUnlinkItem,execSortToggle,execSortRows,FINISH_ZONES,finishZone,finishCat,finishGroups,execThreadRows,execEditResponse,execDeleteResponse,execRoundOf,execLastRound,execScheduleRange,execPhaseState,execScheduleProgress,execPlusDays,execStatusTrail};')(uid);
 
 const T0 = '2026-10-04T08:00:00.000Z'; // Sunday
 const mk = (over = {}) => L.execNewItem(over.items || [], { type: 'rfi', title: 'גובה תקרה', description: 'שאלה', openedBy: { party: 'contractor', name: 'דנה' }, ballTo: { party: 'architect', name: '' }, ...over }, T0);
@@ -394,4 +394,110 @@ test('finishGroups: zone order, the zone\'s categories first, others after, unca
   assert.deepStrictEqual(g[0].groups.map(x => [x.category, x.rows.map(r => r.id)]), [['ריצוף', [5]], ['קירות', [3]]]);
   assert.deepStrictEqual(g[1].groups.map(x => [x.category, x.rows.map(r => r.id)]), [['ריצוף', [2, 6]], ['תאורה', [1]], ['', [4]]]);
   assert.deepStrictEqual(L.finishGroups([]), []);
+});
+
+// the ball sequence: each move opens a period for its new holder; the newest period is open until the next move
+const seq = () => {
+  let a = mk(); // contractor opens on Sun 04.10, ball to the architect
+  a = L.execRespond(a, { party: 'architect', title: 'חלופות', body: 'נבקש 3 חלופות', ballTo: { party: 'contractor', name: '' }, byId: 'u1' }, '2026-10-06T08:00:00.000Z');
+  a = L.execRespond(a, { party: 'architect', body: 'הערה בלי העברה' }, '2026-10-07T08:00:00.000Z');
+  a = L.execRespond(a, { party: 'contractor', body: 'מצורפות', ballTo: { party: 'consultant', name: 'HVAC' } }, '2026-10-11T08:00:00.000Z');
+  return a;
+};
+
+test('thread rows: newest first, one period per move, notes have no holder', () => {
+  const rows = L.execThreadRows(seq(), '2026-10-13');
+  assert.deepStrictEqual(rows.map(r => r.holder && r.holder.party), ['consultant', null, 'contractor', 'architect']);
+  assert.deepStrictEqual(rows.map(r => r.open || false), [true, false, false, false]);
+  assert.strictEqual(rows[0].days, 2); // Sun 11 → Tue 13
+  assert.strictEqual(rows[2].days, 3); // Tue 6 → Sun 11, the note does not end it
+  assert.strictEqual(rows[2].to, '2026-10-11T08:00:00.000Z');
+  assert.strictEqual(rows[2].r.title, 'חלופות');
+  assert.strictEqual(rows[2].r.byId, 'u1');
+});
+
+test('editing an entry changes its text and attachments only', () => {
+  const a = seq();
+  const id = a.responses[1].id;
+  const b = L.execEditResponse(a, id, { title: '', body: 'נבקש 2 חלופות', mail: { url: 'outlook:x' } }, '2026-10-12T09:00:00.000Z');
+  assert.strictEqual(b.responses[1].body, 'נבקש 2 חלופות');
+  assert.strictEqual(b.responses[1].title, undefined);
+  assert.deepStrictEqual(b.responses[1].mail, { url: 'outlook:x' });
+  assert.strictEqual(b.responses[1].editedAt, '2026-10-12T09:00:00.000Z');
+  assert.strictEqual(b.responses[1].at, a.responses[1].at);
+  assert.deepStrictEqual(b.ballHistory, a.ballHistory);
+  assert.strictEqual(L.execEditResponse(a, 'nope', { body: 'x' }), a);
+});
+
+test('deleting the newest move gives the ball back; the opening cannot be deleted', () => {
+  const a = seq();
+  const last = a.responses[3];
+  const b = L.execDeleteResponse(a, last.id);
+  assert.strictEqual(b.responses.length, 3);
+  assert.deepStrictEqual(b.ball, { party: 'contractor', name: '' });
+  assert.deepStrictEqual(b.ballHistory.map(h => h.party), ['architect', 'contractor']);
+  assert.strictEqual(L.execDeleteResponse(a, a.responses[0].id), a);
+  // deleting a move in the middle merges the periods around it
+  const c = L.execDeleteResponse(a, a.responses[1].id);
+  assert.deepStrictEqual(c.ballHistory.map(h => h.party), ['architect', 'consultant']);
+  assert.deepStrictEqual(c.ball, { party: 'consultant', name: 'HVAC' });
+});
+test('rounds: an entry keeps the round picked; the next entry starts on the last one picked', () => {
+  let a = mk();
+  assert.strictEqual(L.execLastRound(a), null);
+  a = L.execRespond(a, { party: 'architect', body: 'x', round: 2, ballTo: { party: 'contractor' } }, '2026-10-06T08:00:00.000Z');
+  a = L.execRespond(a, { party: 'contractor', body: 'y' }, '2026-10-07T08:00:00.000Z');
+  assert.strictEqual(a.responses[1].round, 2);
+  assert.strictEqual(a.responses[2].round, undefined);
+  assert.strictEqual(L.execLastRound(a), 2);
+  const b = L.execEditResponse(a, a.responses[1].id, { round: null });
+  assert.strictEqual(b.responses[1].round, undefined);
+  assert.strictEqual(L.execLastRound(b), null);
+});
+
+test('rounds on a submittal follow its revisions', () => {
+  let s = mkSub();
+  assert.strictEqual(L.execRoundOf(s, s.responses[0]), 1);
+  s = L.execDecide(s, { decision: 'rejected', notes: 'עובי', name: 'שי' }, '2026-10-05T08:00:00.000Z');
+  s = L.execAddRevision(s, { body: 'Rev B', files: [] }, '2026-10-07T08:00:00.000Z');
+  const rev = s.responses.find(r => r.kind === 'revision');
+  assert.strictEqual(L.execRoundOf(s, rev), 2);
+  assert.strictEqual(L.execLastRound(s), 2);
+});
+test('execution schedule: window in whole months around every date', () => {
+  const r = L.execScheduleRange({ start: '2026-03-15', end: '2027-01-10', phases: [{ start: '2026-02-20', end: '2026-04-01' }] }, '2026-10-26');
+  assert.strictEqual(r.from, '2026-01-01');
+  assert.strictEqual(r.to, '2027-03-01');
+  assert.strictEqual(r.months.length, 14);
+  const e = L.execScheduleRange({}, '2026-10-26');
+  assert.strictEqual(e.months.length, 12); // at least a year
+  assert.strictEqual(e.months[0], '2026-09');
+  assert.strictEqual(e.to, '2027-09-01');
+});
+
+test('execution schedule: a work is done, now or future; progress counts calendar days', () => {
+  assert.strictEqual(L.execPhaseState({ start: '2026-01-01', end: '2026-02-01' }, '2026-03-01'), 'done');
+  assert.strictEqual(L.execPhaseState({ start: '2026-01-01', end: '2026-04-01' }, '2026-03-01'), 'now');
+  assert.strictEqual(L.execPhaseState({ start: '2026-03-01' }, '2026-03-01'), 'now');
+  assert.strictEqual(L.execPhaseState({ start: '2026-05-01' }, '2026-03-01'), 'future');
+  assert.deepStrictEqual(L.execScheduleProgress({ start: '2026-01-01', end: '2026-01-31' }, '2026-01-11'), { total: 30, gone: 10, left: 20, started: true, over: false });
+  assert.strictEqual(L.execScheduleProgress({ start: '2026-01-01', end: '2026-01-31' }, '2026-02-05').over, true);
+  assert.strictEqual(L.execScheduleProgress({ start: '2026-01-01' }, '2026-01-11'), null);
+  assert.strictEqual(L.execPlusDays('2026-01-31', 1), '2026-02-01');
+});
+
+test('status trail: each entry shows the status right after it; the newest shows the item\'s own', () => {
+  let i = L.execNewItem([], { type: 'issue', title: 'רטיבות', openedBy: { party: 'supervisor' }, ballTo: { party: 'architect' } }, T0);
+  i = L.execRespond(i, { party: 'architect', body: 'בודקים', ballTo: { party: 'contractor' } }, '2026-10-05T08:00:00.000Z');
+  i = L.execRespond(i, { party: 'contractor', kind: 'close' }, '2026-10-06T08:00:00.000Z');
+  const tr = L.execStatusTrail(i);
+  assert.deepStrictEqual(i.responses.map(r => tr.get(r.id)), ['open', 'in_progress', 'resolved']);
+  let s = mkSub();
+  s = L.execDecide(s, { decision: 'rejected', notes: 'עובי', name: 'שי' }, '2026-10-05T08:00:00.000Z');
+  s = L.execAddRevision(s, { body: 'Rev B', files: [] }, '2026-10-07T08:00:00.000Z');
+  const ts = L.execStatusTrail(s);
+  assert.deepStrictEqual(s.responses.map(r => ts.get(r.id)), ['submitted', 'rejected', 'submitted']);
+  // a status set outside the thread shows on the newest entry
+  const t2 = L.execStatusTrail({ ...i, status: 'in_progress' });
+  assert.strictEqual(t2.get(i.responses[2].id), 'in_progress');
 });

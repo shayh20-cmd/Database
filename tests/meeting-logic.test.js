@@ -9,7 +9,7 @@ const m = html.match(/\/\* ═══ meeting-logic ═══ \*\/([\s\S]*?)\/\* 
 if (!m) throw new Error('meeting-logic block not found in project_hub_01.html');
 let n = 0;
 const uid = () => 'u' + ++n;
-const L = new Function('uid', m[1] + '\nreturn {migrateMeeting,meetingRows,indentItem,outdentItem,moveItem,moveSectionTo,followUpMeeting,prevMeetingOf,photoAppendix,assigneeText,mtgDate,mtgNewItem,mergeParticipants,orderItems,mtgPullOpenExec,mtgDaysSince};')(uid);
+const L = new Function('uid', m[1] + '\nreturn {migrateMeeting,meetingRows,indentItem,outdentItem,moveItem,moveSectionTo,followUpMeeting,prevMeetingOf,photoAppendix,assigneeText,mtgDate,mtgNewItem,mergeParticipants,orderItems,mtgPullOpenExec,mtgDaysSince,mtgTaskOf,mtgTaskChoices,mtgMeetingsOfTask};')(uid);
 
 const old = { id: 'M1', date: '2026-09-28', trackId: null, participants: [{ id: 'p', name: 'דנה' }], items: [
   { id: 'a', number: '1', topic: 'לוחות זמנים' },
@@ -273,4 +273,21 @@ test('only one migrateMeeting: the legacy normaliser is normalizeMeeting and mig
   assert.match(html, /function normalizeMeeting\(m\)\{return\{\.\.\.m,recordedBy:/);
   assert.ok(html.includes('d.meetings.map(normalizeMeeting)'));
   assert.ok(!html.includes('d.meetings.map(migrateMeeting)'));
+});
+
+test('task links: choices open first and filtered by title; meetings that link a task; migration keeps links', () => {
+  const sheets = [
+    { id: 's1', type: 'list', name: 'שוטף', tasks: [{ id: 'a', title: 'תיאום חשמל', done: true }, { id: 'b', title: 'תיאום מיזוג' }] },
+    { id: 's2', type: 'phase', tasks: [{ id: 'z', title: 'תיאום' }] },
+    { id: 's3', type: 'list', name: 'רישוי', tasks: [{ id: 'c', title: 'הגשה לוועדה' }] }
+  ];
+  assert.deepStrictEqual(L.mtgTaskChoices(sheets, '').map(c => c.taskId), ['b', 'c', 'a']);
+  assert.deepStrictEqual(L.mtgTaskChoices(sheets, 'תיאום').map(c => c.taskId), ['b', 'a']);
+  assert.strictEqual(L.mtgTaskChoices(sheets, '', { pathOf: s => 'מסלול › ' + s.name })[0].path, 'מסלול › שוטף');
+  const ms = [{ id: 'm1', items: [{ id: 'i1', linkedTaskId: 'b' }] }, { id: 'm2', items: [{ id: 'i2', createdTaskId: 'b' }, { id: 'i3', linkedTaskId: 'b' }] }, { id: 'm3', items: [] }];
+  assert.deepStrictEqual(L.mtgMeetingsOfTask(ms, 'b').map(m => m.id), ['m1', 'm2']);
+  assert.deepStrictEqual(L.mtgMeetingsOfTask(ms, null), []);
+  const old = { id: 'm', items: [{ id: 'x', number: '1', topic: 'נושא' }, { id: 'y', number: '1.1', topic: 'סעיף', linkedTaskId: 'b', itemType: 'update' }] };
+  const mig = L.migrateMeeting(old);
+  assert.strictEqual(mig.items.find(it => it.id === 'y').linkedTaskId, 'b');
 });
