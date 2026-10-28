@@ -16557,15 +16557,92 @@ const FM_DEFAULT_PATTERN = {
   day: '{code}-pub-{yyyy},{mm},{dd}'
 };
 const fmFill = (pattern, v) => ['code', 'type', 'yyyy', 'mm', 'dd'].reduce((s, k) => s.split('{' + k + '}').join(v[k] == null ? '' : String(v[k])), String(pattern || ''));
-// what is wrong with a level, said in the page ('' when nothing)
+// the office's list when the server sent none (as filing-layout.js's OFFICE_TYPES)
+const FM_OFFICE_TYPES_DEFAULT = [{
+  name: 'PDF',
+  ext: ['pdf']
+}, {
+  name: 'DWG',
+  ext: ['dwg', 'zip']
+}, {
+  name: 'DWF',
+  ext: ['dwf']
+}, {
+  name: 'DOCS',
+  ext: [],
+  rest: true
+}];
+// as the server's okName (filing-layout.js): the characters a folder name may not hold, and a name that is no good
+const FM_BAD_CHARS = '/:*?"<>|' + String.fromCharCode(92);
+const fmBadChar = v => [...String(v)].some(c => FM_BAD_CHARS.includes(c) || c.charCodeAt(0) < 32);
+const fmNameBad = v => {
+  const s = String(v == null ? '' : v);
+  return !s || s.length > 150 || fmBadChar(s) || [...s].every(c => c === '.') || s.endsWith('.') || s.endsWith(' ');
+};
+// what is wrong with a level, said in the page ('' when nothing) — the server's cleanLevels, in the page
 const fmLevelError = (lv, all) => {
-  if (!lv.pattern.trim()) return tx('תבנית ריקה');
-  const miss = FM_NEEDS[lv.kind].filter(t => !lv.pattern.includes(t));
+  const p = lv.pattern.trim();
+  if (!p) return tx('תבנית ריקה');
+  if (p.length > 120) return tx('התבנית ארוכה מ-120 תווים');
+  const miss = FM_NEEDS[lv.kind].filter(t => !p.includes(t));
   if (miss.length) return tx('לתבנית חסר {t}', {
     t: miss.join(' ')
   });
   if (all.filter(x => x.kind === lv.kind).length > 1) return tx('אותה רמה פעמיים');
-  if (/[/:*?"<>|]/.test(lv.pattern)) return tx('תו שאסור בשם תיקייה');
+  const name = fmFill(p, {
+    code: 'X',
+    type: 'PDF',
+    yyyy: '2026',
+    mm: '01',
+    dd: '02'
+  });
+  if (fmBadChar(name)) return tx('תו שאסור בשם תיקייה');
+  if (fmNameBad(name)) return tx('השם שנוצר אינו תקין כשם תיקייה: ארוך מדי, או נגמר בנקודה או ברווח');
+  return '';
+};
+// a type row's extensions as typed ("pdf, dwg"): lower case, no leading dot, no empties
+const fmExtParse = text => String(text || '').split(',').map(s => {
+  let x = s.trim().toLowerCase();
+  while (x.startsWith('.')) x = x.slice(1);
+  return x;
+}).filter(Boolean);
+// the type list as sent to the server: without the editor's raw text
+const fmTypesOut = list => list ? list.map(({
+  extText,
+  ...x
+}) => ({
+  ...x,
+  ext: x.rest ? [] : extText != null ? fmExtParse(extText) : x.ext
+})) : null;
+// what is wrong with a type list, said in the page ('' when nothing) — the server's cleanTypes, in the page
+const fmTypesError = list => {
+  const out = fmTypesOut(list) || [];
+  if (out.length > 12) return tx('עד 12 סוגים');
+  const names = new Set(),
+    exts = new Set();
+  for (const t of out) {
+    const name = String(t.name || '').trim();
+    if (!name) return tx('לכל סוג צריך שם');
+    if (name.length > 20) return tx('שם סוג ארוך מ-20 תווים: {n}', {
+      n: asTyped(name)
+    });
+    if (fmNameBad(name)) return tx('תו שאסור בשם הסוג {n}', {
+      n: asTyped(name)
+    });
+    if (names.has(name.toLowerCase())) return tx('הסוג {n} מופיע פעמיים', {
+      n: asTyped(name)
+    });
+    names.add(name.toLowerCase());
+    for (const x of new Set(t.ext)) {
+      if (x.length > 10 || fmNameBad(x)) return tx('סיומת לא תקינה: {e}', {
+        e: asTyped(x)
+      });
+      if (exts.has(x)) return tx('הסיומת {e} מופיעה ביותר מסוג אחד', {
+        e: asTyped(x)
+      });
+      exts.add(x);
+    }
+  }
   return '';
 };
 const fmTypesLine = types => (types || []).map(t => t.rest ? t.name + ': ' + tx('כל השאר') : t.name + ': ' + t.ext.join(', ')).join(' · ');
@@ -16581,6 +16658,9 @@ async function fmCall(route, body, method) {
   if (!r.ok) {
     const e = new Error(j && j.error || String(r.status));
     e.code = r.status;
+    // a layout the server refused says where: target ('sent' | 'updated' | 'types') and the level's index
+    if (j && j.target != null) e.target = j.target;
+    if (j && j.level != null) e.level = j.level;
     throw e;
   }
   return j;
@@ -17832,12 +17912,32 @@ function PublishLayoutBox({
   officeTypes,
   onOfficeTypes,
   open,
-  opening
+  opening,
+  serverErr,
+  legacy
 }) {
   const h = React.createElement;
   const [editOffice, setEditOffice] = useState(null); // the office's list while it is edited here
   const [officeMsg, setOfficeMsg] = useState('');
-  const types = value.types || officeTypes || [];
+  const [officeSaving, setOfficeSaving] = useState(false);
+  const live = useRef(true);
+  useEffect(() => {
+    live.current = true;
+    return () => {
+      live.current = false;
+    };
+  }, []);
+  const office = officeTypes && officeTypes.length ? officeTypes : FM_OFFICE_TYPES_DEFAULT;
+  const types = value.types || office;
+  // the editor's copy of a list: each row keeps its extensions as typed (extText), so "," and spaces can be typed
+  const editable = list => list.map(x => ({
+    ...x,
+    ext: x.ext.slice(),
+    extText: x.ext.join(', ')
+  }));
+  // the preview's file: the type that takes PDFs, else the rest type
+  const pdfType = types.find(x => !x.rest && x.ext.includes('pdf')) || types.find(x => x.rest);
+  const pdfName = pdfType && String(pdfType.name || '').trim() || 'PDF';
   const today = fmToday().split('-');
   const set = (key, x) => onChange({
     ...value,
@@ -17848,7 +17948,7 @@ function PublishLayoutBox({
     if (!t.base) return '—';
     const vals = {
       code,
-      type: 'PDF',
+      type: pdfName,
       yyyy: today[0],
       mm: today[1],
       dd: today[2]
@@ -17912,7 +18012,8 @@ function PublishLayoutBox({
       value: p,
       "data-i18n-skip": ""
     }, fmSlash(p)))) : null), t.levels.map((l, i) => {
-      const err = fmLevelError(l, t.levels);
+      // the page's own check, else the level the server refused on the last save
+      const err = fmLevelError(l, t.levels) || (serverErr && serverErr.target === key && serverErr.level === i ? tx('השרת דחה את הרמה הזו') : '');
       return h("div", {
         key: i,
         className: 'fm-level' + (err ? ' bad' : '')
@@ -17922,9 +18023,17 @@ function PublishLayoutBox({
         className: "fm-pick",
         value: l.kind,
         disabled: !w,
-        onChange: e => edit(i, {
-          kind: e.target.value
-        })
+        onChange: e => {
+          const kind = e.target.value;
+          // a pattern left as typed by default (or empty) follows the new kind's default
+          const dflt = !l.pattern.trim() || Object.values(FM_DEFAULT_PATTERN).includes(l.pattern.trim());
+          edit(i, dflt ? {
+            kind,
+            pattern: FM_DEFAULT_PATTERN[kind]
+          } : {
+            kind
+          });
+        }
       }, FM_KINDS.map(([k, lbl]) => h("option", {
         key: k,
         value: k
@@ -17955,7 +18064,8 @@ function PublishLayoutBox({
           levels: t.levels.filter((x, k) => k !== i)
         })
       }, "✕") : null, err ? h("div", {
-        className: "fm-level-err"
+        className: "fm-level-err",
+        "data-i18n-skip": ""
       }, err) : null);
     }), w && free.length ? h("button", {
       className: "np-btn fm-add-level",
@@ -17968,7 +18078,11 @@ function PublishLayoutBox({
       })
     }, "+ רמה") : null, h("div", {
       className: "fm-preview"
-    }, h("span", null, tx('קובץ PDF מהיום ←')), " ", h("span", {
+    }, h("span", {
+      "data-i18n-skip": ""
+    }, tx('קובץ {t} מהיום ←', {
+      t: asTyped(pdfName)
+    })), " ", h("span", {
       dir: "ltr",
       "data-i18n-skip": ""
     }, preview(key))));
@@ -17994,11 +18108,12 @@ function PublishLayoutBox({
     className: "af-input fm-type-ext",
     dir: "ltr",
     "data-i18n-skip": "",
-    value: t.ext.join(', '),
+    value: t.extText != null ? t.extText : t.ext.join(', '),
     placeholder: "pdf, dwg",
     onChange: e => change(list.map((x, k) => k === i ? {
       ...x,
-      ext: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
+      extText: e.target.value,
+      ext: fmExtParse(e.target.value)
     } : x))
   }), t.rest ? null : h("button", {
     className: "fm-ico fm-x",
@@ -18010,23 +18125,43 @@ function PublishLayoutBox({
     className: "np-btn",
     onClick: () => change([...list.filter(x => !x.rest), {
       name: '',
-      ext: []
+      ext: [],
+      extText: ''
     }, ...list.filter(x => x.rest)])
-  }, "+ סוג"), save || null));
+  }, "+ סוג"), save || null), fmTypesError(list) ? h("div", {
+    className: "fm-level-err",
+    "data-i18n-skip": ""
+  }, fmTypesError(list)) : null);
   const saveOffice = () => {
+    if (officeSaving || fmTypesError(editOffice)) return;
     setOfficeMsg('');
+    setOfficeSaving(true);
     fmCall('office-types', {
-      types: editOffice
+      types: fmTypesOut(editOffice)
     }, 'PUT').then(r => {
+      if (!live.current) return;
+      setOfficeSaving(false);
       onOfficeTypes(r.types);
       setEditOffice(null);
-    }).catch(e => setOfficeMsg(e.message === 'types' ? tx('הרשימה לא תקינה: שם לכל סוג, בלי כפילויות, וסיומת בסוג אחד בלבד') : e.message));
+    }).catch(e => {
+      if (!live.current) return;
+      setOfficeSaving(false);
+      setOfficeMsg(e.message === 'types' ? tx('הרשימה לא תקינה: שם לכל סוג, בלי כפילויות, וסיומת בסוג אחד בלבד') : e.message);
+    });
   };
+  const noLayout = !value.sent.base && !value.updated.base && !value.sent.levels.length && !value.updated.levels.length;
+  const legacyPath = p => p ? asTyped(fmSlash(p)) : '—';
   return h(React.Fragment, null, h("div", {
     className: "sp-sec-lbl fm-head"
   }, h("span", null, "פרסום")), h("div", {
     className: "fm-msg fm-slot-note"
-  }, "מבנה התיקיות של SENT ו-UPDATED בפרויקט הזה: התיקייה, ואחריה רמה לכל תיקייה בדרך — לפי סוג קובץ, שנה או יום. \"מלא אוטומטית\" מזהה אותו מהתיקיות הקיימות."), target('sent', 'SENT'), target('updated', 'UPDATED'), w && has && !tree ? h("div", {
+  }, "מבנה התיקיות של SENT ו-UPDATED בפרויקט הזה: התיקייה, ואחריה רמה לכל תיקייה בדרך — לפי סוג קובץ, שנה או יום. \"מלא אוטומטית\" מזהה אותו מהתיקיות הקיימות."), noLayout && legacy && (legacy.sent || legacy.updated) ? h("div", {
+    className: "fm-msg fm-slot-note",
+    "data-i18n-skip": ""
+  }, tx('עדיין לא נשמר מבנה. בינתיים התיוק מזהה אותו מהתיקיות (SENT: {s}, UPDATED: {u}). "מלא אוטומטית" ממלא אותו כאן לבדיקה ושמירה.', {
+    s: legacyPath(legacy.sent),
+    u: legacyPath(legacy.updated)
+  })) : null, target('sent', 'SENT'), target('updated', 'UPDATED'), w && has && !tree ? h("div", {
     className: "fm-msg fm-slot-note"
   }, "כדי לבחור מהעץ: מלא אוטומטית, או מפה עם Claude.") : null, h("div", {
     className: "fm-slot fm-types"
@@ -18044,24 +18179,25 @@ function PublishLayoutBox({
     onClick: () => set('types', null)
   }, "חזור לרשימת המשרד") : h("button", {
     className: "np-btn",
-    onClick: () => set('types', types.map(x => ({
-      ...x,
-      ext: x.ext.slice()
-    })))
+    onClick: () => set('types', editable(office))
   }, "התאם לפרויקט"), !editOffice ? h("button", {
     className: "np-btn",
-    onClick: () => setEditOffice((officeTypes || []).map(x => ({
-      ...x,
-      ext: x.ext.slice()
-    })))
+    onClick: () => {
+      setOfficeMsg('');
+      setEditOffice(editable(office));
+    }
   }, "ערוך את רשימת המשרד") : null) : null, w && value.types ? typeEditor(value.types, list => set('types', list)) : null, w && editOffice ? h(React.Fragment, null, h("div", {
     className: "fm-msg"
   }, "רשימת המשרד — לכל הפרויקטים שאין להם רשימה משלהם:"), typeEditor(editOffice, setEditOffice, h(React.Fragment, null, h("button", {
     className: "np-btn primary",
+    disabled: officeSaving || !!fmTypesError(editOffice),
     onClick: saveOffice
   }, "שמור את רשימת המשרד"), h("button", {
     className: "np-btn",
-    onClick: () => setEditOffice(null)
+    onClick: () => {
+      setEditOffice(null);
+      setOfficeMsg('');
+    }
   }, "ביטול"))), officeMsg ? h("div", {
     className: "fm-level-err",
     "data-i18n-skip": ""
@@ -18077,6 +18213,7 @@ function SettingsFoldersView({
   const publishRef = useRef(publish);
   publishRef.current = publish;
   const [officeTypes, setOfficeTypes] = useState(null);
+  const [pubErr, setPubErr] = useState(null); // the level the server refused on the last save: { target, level }
   // the map as it is now, for autoFill: its answer comes back after a while and must not undo edits made meanwhile
   const slotsRef = useRef(slots);
   slotsRef.current = slots;
@@ -18411,7 +18548,10 @@ function SettingsFoldersView({
       projectId,
       areas,
       slots,
-      publish: pubEmpty && !pubLoaded ? null : publish
+      publish: pubEmpty && !pubLoaded ? null : {
+        ...publish,
+        types: fmTypesOut(publish.types)
+      }
     }, 'PUT').then(r => {
       if (!live.current) return;
       setSaving(false);
@@ -18422,18 +18562,25 @@ function SettingsFoldersView({
       setAreas(fmAreasOf(r.map));
       setSlots(fmSlotsOf(r.map));
       setPublish(fmPublishOf(r.map));
+      setPubErr(null);
       setDirty(false);
       setMapMsg(say('המפה נשמרה'));
     }).catch(e => {
       if (!live.current) return;
       setSaving(false);
-      setMapMsg(e.message === 'layout' ? say('אחת הרמות בפרסום אינה תקינה — תקן את המסומן באדום.') : e.message === 'path' ? say('אחת התיקיות אינה בתוך תיקיית הפרויקט.') : failMsg(e));
+      const lay = e.message === 'layout';
+      if (lay && (e.target === 'sent' || e.target === 'updated') && typeof e.level === 'number' && e.level >= 0) setPubErr({
+        target: e.target,
+        level: e.level
+      });
+      setMapMsg(lay && e.target === 'types' ? say('רשימת סוגי הקבצים של הפרויקט לא תקינה: שם לכל סוג, בלי כפילויות, וסיומת בסוג אחד בלבד') : lay ? say('אחת הרמות בפרסום אינה תקינה — תקן את המסומן באדום.') : e.message === 'path' ? say('אחת התיקיות אינה בתוך תיקיית הפרויקט.') : failMsg(e));
     });
   };
   const discard = () => {
     setAreas(fmAreasOf(info && info.map));
     setSlots(fmSlotsOf(info && info.map));
     setPublish(fmPublishOf(info && info.map));
+    setPubErr(null);
     setDirty(false);
     setMapMsg(null);
   };
@@ -18587,6 +18734,7 @@ function SettingsFoldersView({
     value: publish,
     onChange: v => {
       setPublish(v);
+      setPubErr(null);
       setDirty(true);
     },
     w,
@@ -18596,7 +18744,9 @@ function SettingsFoldersView({
     officeTypes,
     onOfficeTypes: setOfficeTypes,
     open,
-    opening
+    opening,
+    serverErr: pubErr,
+    legacy: slots
   }), w && /*#__PURE__*/React.createElement("div", {
     className: "fm-actions"
   }, /*#__PURE__*/React.createElement("button", {
