@@ -99,3 +99,22 @@ test('safeFileName keeps Hebrew and drops what Windows refuses', () => {
   assert.strictEqual(LX.safeFileName('אולם: ספורט/לוד - רשימת משימות - 27.10.2026'), 'אולם ספורט לוד - רשימת משימות - 27.10.2026');
   assert.strictEqual(LX.safeFileName(''), 'export');
 });
+
+test('coloured cells: Excel gets a fill and font per colour pair, the print page a pill; empty and bad colours stay plain', () => {
+  const m = model();
+  m.rows[1].fills = [null, { bg: '#ef4444', fg: '#FFFFFF' }, { bg: 'red', fg: '#000000' }];
+  m.rows[2].fills = [{ bg: '#DBEAFE', fg: '#1E40AF' }, { bg: '#EF4444', fg: '#FFFFFF' }, { bg: '#EF4444', fg: '#FFFFFF' }];
+  const parts = unzip(LX.buildXlsx(m, 'portrait'));
+  const styles = parts['xl/styles.xml'].text, sheet = parts['xl/worksheets/sheet1.xml'].text;
+  assert.match(styles, /<cellXfs count="11">/, 'two colour pairs on centred and indented bases');
+  assert.ok(styles.includes('<fgColor rgb="FFEF4444"/>'));
+  assert.ok(styles.includes('<color rgb="FF1E40AF"/>'));
+  assert.match(sheet, /<c r="B6" s="9"/);
+  assert.match(sheet, /<c r="B7" s="9"/, 'the same pair reuses its style');
+  assert.match(sheet, /<c r="C6" s="4"/, 'a colour that is not hex is left out');
+  assert.match(sheet, /<c r="A7" s="10"/, 'a coloured subtask name keeps its indent');
+  assert.match(sheet, /<c r="C7" s="4"/, 'an empty cell is not filled');
+  const html = LX.buildPrintHtml(m, 'portrait');
+  assert.ok(html.includes('<span class="pl" style="background:#EF4444;color:#FFFFFF">בעבודה</span>'));
+  assert.ok(!html.includes('background:#red'));
+});
