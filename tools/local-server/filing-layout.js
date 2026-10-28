@@ -120,46 +120,63 @@ const leafOf = p => p.slice(p.lastIndexOf('/') + 1);
 // the folders directly inside dir
 const kids = (tree, dir) => tree.filter(p => lc(p).startsWith(lc(dir) + '/') && !p.slice(dir.length + 1).includes('/'));
 const DATE = /([0-9]{4}),([0-9]{2}),([0-9]{2})/;
-const YEAR = /(^|[^0-9])((19|20)[0-9]{2})([^0-9]|$)/;
 const SEP = ['-', '_', ' ', ','];
-/* a type name in a folder name as a whole word (between separators or the ends): the name with {type} in its place,
-   or null */
-function withTypeToken(leaf, names) {
-  const up = leaf.toUpperCase();
+/* the earliest type name in text as a whole word (between separators or the ends): the text with {type} in its
+   place, or null */
+function withTypeToken(text, names) {
+  const up = text.toUpperCase();
+  let best = null;
   for (const n of names) {
     const N = n.toUpperCase();
     let i = up.indexOf(N);
     while (i >= 0) {
-      const before = i === 0 || SEP.includes(leaf[i - 1]);
-      const after = i + N.length === leaf.length || SEP.includes(leaf[i + N.length]);
-      if (before && after) return leaf.slice(0, i) + '{type}' + leaf.slice(i + N.length);
+      const before = i === 0 || SEP.includes(text[i - 1]);
+      const after = i + N.length === text.length || SEP.includes(text[i + N.length]);
+      if (before && after) { if (!best || i < best.i) best = { i, len: N.length }; break; }
       i = up.indexOf(N, i + 1);
     }
   }
-  return null;
+  return best ? text.slice(0, best.i) + '{type}' + text.slice(best.i + best.len) : null;
 }
-/* what one folder name says: { kind, pattern } or null. A date first (YYYY,MM,DD — what follows it is a description
-   or a number and is not part of the pattern), then a year, then a type name; a type name inside a date or a year
-   name becomes {type} too */
+// the start of the last year (19xx or 20xx between non-digits) in text, or -1
+function lastYear(text) {
+  const dig = c => c >= '0' && c <= '9';
+  for (let i = text.length - 4; i >= 0; i--) {
+    const w = text.slice(i, i + 4);
+    if (!(w.startsWith('19') || w.startsWith('20')) || ![...w].every(dig)) continue;
+    if ((i > 0 && dig(text[i - 1])) || (i + 4 < text.length && dig(text[i + 4]))) continue;
+    return i;
+  }
+  return -1;
+}
+/* what one folder name says: { kind, pattern } or null. A date first, found on the raw name (YYYY,MM,DD — what
+   follows it is a description or a number and is not part of the pattern; a type name counts only before it), then
+   the last year, then a type name; a type name inside a date or a year name becomes {type} too */
 function readName(leaf, names) {
+  const d = DATE.exec(leaf);
+  if (d) {
+    const head = leaf.slice(0, d.index);
+    return { kind: 'day', pattern: (withTypeToken(head, names) || head) + '{yyyy},{mm},{dd}' };
+  }
   const typed = withTypeToken(leaf, names);
   const base = typed || leaf;
-  const d = DATE.exec(base);
-  if (d) return { kind: 'day', pattern: base.slice(0, d.index) + '{yyyy},{mm},{dd}' };
-  const y = YEAR.exec(base);
-  if (y) { const at = y.index + y[1].length; return { kind: 'year', pattern: base.slice(0, at) + '{yyyy}' + base.slice(at + 4) }; }
+  const y = lastYear(base);
+  if (y >= 0) return { kind: 'year', pattern: base.slice(0, y) + '{yyyy}' + base.slice(y + 4) };
   if (typed) return { kind: 'type', pattern: typed };
   return null;
 }
 /* The levels a SENT or UPDATED folder shows, read from the tree under base: at each level, the kind and pattern most
-   of its folders share (a kind already found is skipped); then down into the last folder of that pattern by name.
-   Stops at a day level with no type folders under it, after 4 levels, or where nothing is recognized.
+   common among its folders (a kind already found is skipped); then down into the fullest of the folders with that
+   pattern (the most folders under it in the tree; on a tie the last by name), so an empty sibling does not cut the
+   layout short. Stops at a day level with no type folders under it, after 4 levels, or where nothing is recognized.
    null when nothing is. */
 function detectLayout(tree, base, types) {
-  const names = types.map(t => t.name);
+  const names = (types || []).map(t => t.name);
   const list = (tree || []).filter(Boolean);
+  let dir = String(base || '');
+  while (dir.endsWith('/')) dir = dir.slice(0, -1);
   const levels = [], used = new Set();
-  let dir = base;
+  const size = p => list.filter(q => lc(q).startsWith(lc(p) + '/')).length;
   for (let depth = 0; depth < 4 && dir; depth++) {
     const counts = new Map();
     for (const p of kids(list, dir)) {
@@ -171,10 +188,12 @@ function detectLayout(tree, base, types) {
       counts.set(k, c);
     }
     if (!counts.size) break;
-    const best = [...counts.values()].sort((a, b) => b.paths.length - a.paths.length)[0];
+    const best = [...counts.values()].sort((x, y) => y.paths.length - x.paths.length)[0];
     levels.push(best.r);
     used.add(best.r.kind);
-    dir = best.paths.slice().sort().pop();
+    let next = null, most = -1;
+    for (const p of best.paths.slice().sort()) { const n = size(p); if (n >= most) { next = p; most = n; } }
+    dir = next;
   }
   return levels.length ? levels : null;
 }

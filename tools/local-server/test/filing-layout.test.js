@@ -103,3 +103,31 @@ test('filing-layout: detectLayout — the most common pattern wins; the updated 
   const U = 'P/X-pub-updated';
   assert.deepStrictEqual(L.detectLayout(['P', U, U + '/X-pub-updated-PDF', U + '/X-pub-updated-DWG', U + '/old-PDF'], U, L.OFFICE_TYPES), [{ kind: 'type', pattern: 'X-pub-updated-{type}' }]);
 });
+
+test('filing-layout: detectLayout — descends into the fullest folder, not the last empty one', () => {
+  const B = 'P/pub-@sent';
+  const T = L.OFFICE_TYPES;
+  const want = [{ kind: 'type', pattern: 'LDLI-pub-sent-{type}' }, { kind: 'year', pattern: 'LDLI-pub-{type}-{yyyy}' }, { kind: 'day', pattern: 'LDLI-pub-{type}-{yyyy},{mm},{dd}' }];
+  const a = ['P', B, B + '/LDLI-pub-sent-DWG', B + '/LDLI-pub-sent-DWG/LDLI-pub-DWG-2026', B + '/LDLI-pub-sent-DWG/LDLI-pub-DWG-2026/LDLI-pub-DWG-2026,10,25 - a', B + '/LDLI-pub-sent-PDF'];
+  assert.deepStrictEqual(L.detectLayout(a, B, T), want);
+  const P = B + '/LDLI-pub-sent-PDF';
+  const b = ['P', B, P, P + '/LDLI-pub-PDF-2025', P + '/LDLI-pub-PDF-2025/LDLI-pub-PDF-2025,03,01 - a', P + '/LDLI-pub-PDF-2026'];
+  assert.deepStrictEqual(L.detectLayout(b, B, T).map(l => l.kind), ['type', 'year', 'day']);
+});
+
+test('filing-layout: detectLayout — a type name in the description is not the type slot', () => {
+  const B = 'P/pub-@sent';
+  const D = B + '/LDLI-pub-DWG-2026,10,';
+  const tree = ['P', B, D + '25 - PDF ליועץ', D + '26 - PDF למזמין', D + '27 - x'];
+  assert.deepStrictEqual(L.detectLayout(tree, B, L.OFFICE_TYPES), [{ kind: 'day', pattern: 'LDLI-pub-{type}-{yyyy},{mm},{dd}' }]);
+  const E = B + '/X-DWG-PDF-2026';
+  assert.deepStrictEqual(L.detectLayout(['P', B, E], B, L.OFFICE_TYPES), [{ kind: 'year', pattern: 'X-{type}-PDF-{yyyy}' }], 'the earliest type name wins');
+});
+
+test('filing-layout: detectLayout — the last year in a name; a trailing slash; no types', () => {
+  const B = 'P/2024-20-pub-@sent';
+  const tree = ['P', B, B + '/2024-20-pub-sent-2025', B + '/2024-20-pub-sent-2026', B + '/2024-20-pub-sent-2026/2024-20-pub-2026,10,01'];
+  assert.deepStrictEqual(L.detectLayout(tree, B, L.OFFICE_TYPES), [{ kind: 'year', pattern: '2024-20-pub-sent-{yyyy}' }, { kind: 'day', pattern: '2024-20-pub-{yyyy},{mm},{dd}' }]);
+  assert.deepStrictEqual(L.detectLayout(tree, B + '/', L.OFFICE_TYPES).map(l => l.kind), ['year', 'day']);
+  assert.deepStrictEqual(L.detectLayout(tree, B).map(l => l.kind), ['year', 'day']);
+});
