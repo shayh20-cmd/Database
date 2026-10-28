@@ -6,6 +6,7 @@
    says in words what it will do, the person corrects it, and a correction that is a rule for next time comes
    back as a line for the project's guide.
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md */
+const layout = require('./filing-layout');
 
 /* The project's folder map: seven areas, each with folders (paths inside the project) and a short note on how
    they are built. Set in Project Hub, mapped with Claude from the real tree; filing goes by it. */
@@ -41,7 +42,7 @@ function migrateAreas(raw) {
    slots that filing without Claude goes by (cleanSlots) */
 function normalizeMap(map) {
   if (!map || typeof map !== 'object' || !map.areas) return map || null;
-  return { ...map, areas: cleanAreas(map.areas, rel => rel || null), slots: cleanSlots(map.slots) };
+  return { ...map, areas: cleanAreas(map.areas, rel => rel || null), slots: cleanSlots(map.slots), publish: layout.cleanPublish(map.publish, relPath).publish || null };
 }
 /* The map's slots for filing without Claude (filing-plan.js): the SENT archive, whether SENT is split into a folder per
    file type, and the UPDATED folder of PDFs — paths inside the project, '' when not mapped. */
@@ -319,8 +320,8 @@ const INBOX_SYSTEM = [
   NOT_UNIFORM,
   'Folders are paths relative to the project folder, with "/" between names. Use only folders from the list, or folders your own mkdir steps create (a folder\'s parent must exist or be created by an earlier step).',
   'The "Targets:" line says what the person chose. SENT: a copy of each file into a new folder of today\'s date (the "Today:" line) in the sent archive. UPDATED: a copy of each file into the folder of current files, replacing a file of the same name there (the old one is moved to an @ver folder next to it, never deleted). Give each file one dest per chosen target.',
-  'Unless the map, its note or the guide say otherwise, the office\'s convention (Folder Manager) is, with CODE the project code, YYYY, MM, DD today\'s date and TYPE by the file\'s extension (PDF, DWG, RVT, otherwise DOCS): SENT = <publish folder>/CODE-pub-@sent/CODE-pub-sent-YYYY/CODE-pub-YYYY,MM,DD/TYPE; UPDATED (PDF files only) = <publish folder>/CODE-pub-updated/CODE-pub-updated-PDF. When the project\'s real folders are built differently, follow them.',
-  'The "Slots:" line, when it names folders, is the office\'s own choice and wins over the convention: SENT goes into a day folder (CODE-pub-YYYY,MM,DD, inside a CODE-pub-sent-YYYY year folder when the archive has those) of the SENT archive it names, with a sub-folder per TYPE only when it says "by file type"; UPDATED is the one folder it names, and only PDF files go there (other files are not put in UPDATED at all).',
+  'Unless the map, its note or the guide say otherwise, the office\'s convention (Folder Manager) is, with CODE the project code, YYYY, MM, DD today\'s date and TYPE by the file\'s extension (PDF; DWG for dwg and zip; DWF; otherwise DOCS): SENT = <publish folder>/CODE-pub-@sent/CODE-pub-sent-YYYY/CODE-pub-YYYY,MM,DD/TYPE; UPDATED = <publish folder>/CODE-pub-updated/CODE-pub-updated-TYPE. When the project\'s real folders are built differently, follow them.',
+  'The "Slots:" line, when it names folders, is the office\'s own choice and wins over the convention: SENT goes into a day folder (CODE-pub-YYYY,MM,DD, inside a CODE-pub-sent-YYYY year folder when the archive has those) of the SENT archive it names, with a sub-folder per TYPE only when it says "by file type"; UPDATED is the folder it names, or, when that folder\'s name ends in a TYPE, the folder of each file\'s own TYPE next to it.',
   'files: for each file, dests = [{path, replace}]: replace is true for an UPDATED dest and false for any other. A file you cannot place gets [].',
   'steps: mkdir {path} only, in order, for the folders the dests need that are not in the list. You never move or delete anything.',
   'mode: "publish".',
@@ -394,7 +395,7 @@ function sanitizeInboxPlan(raw, tree, files, publish, notes) {
 function slotsLine(map) {
   const s = cleanSlots(map && map.slots);
   if (!s.sent && !s.updated) return '(none)';
-  return [s.sent ? `SENT archive ${strip(s.sent)} (${s.sentSplit ? 'by file type' : 'all files together'})` : '', s.updated ? `UPDATED (PDF only) ${strip(s.updated)}` : ''].filter(Boolean).join('; ');
+  return [s.sent ? `SENT archive ${strip(s.sent)} (${s.sentSplit ? 'by file type' : 'all files together'})` : '', s.updated ? `UPDATED ${strip(s.updated)}` : ''].filter(Boolean).join('; ');
 }
 
 /* x: { project {code, name}, map {areas} (only publish is given), guide, tree [paths], today 'YYYY-MM-DD',
@@ -436,12 +437,6 @@ async function inboxProposal(client, model, x) {
   const message = String(raw && raw.message != null ? raw.message : '').trim().slice(0, 600).trim();
   const notes = {};
   const plan = sanitizeInboxPlan(raw, x.tree, x.files, publish, notes);
-  // UPDATED is for PDFs only: a replace of any other file goes (the window says so under Claude's words)
-  for (const f of plan.files) {
-    if (/\.pdf$/i.test(f.name) || !f.dests.some(d => d.replace)) continue;
-    f.dests = f.dests.filter(d => !d.replace);
-    notes.replaceStripped = 'pdf_only';
-  }
   if (!plan.files.some(f => f.dests.length)) plan.steps = [];
   return { message, plan, ...(notes.replaceStripped ? { replaceStripped: notes.replaceStripped } : {}) };
 }

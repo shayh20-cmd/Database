@@ -760,8 +760,8 @@ test('filing hub: the folder map in Project Hub — sign-in, writers, mapping wi
   assert.deepStrictEqual(map.areas.consultants.paths, ['CONS/LDPB-structural']);
   assert.strictEqual(map.areas.consultants.note.length, 300);
   assert.deepStrictEqual([map.updatedBy, typeof map.updatedAt], ['דנה', 'string']);
-  assert.deepStrictEqual((await hub('ron@kkarc.com', 'project?project=pabc123')).body.map, map);
-  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-project?project=pabc123')).body.map, map);
+  assert.deepStrictEqual((await hub('ron@kkarc.com', 'project?project=pabc123')).body.map, { ...map, publish: null });
+  assert.deepStrictEqual((await call(dana, '/api/outlook/filing-project?project=pabc123')).body.map, { ...map, publish: null });
   assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(data, 'filing.json'), 'utf8')).projects.pabc123.map, map);
 
   // the guide
@@ -900,7 +900,7 @@ test('filing-ai: the inbox prompt — the publish area, the date, the files and 
   for (const tag of ['</guide>', '</map>']) assert.strictEqual(s.split(tag).length - 1, 1, tag);
   assert.match(ai.inboxContent({ ...x, text: '', lang: 'he' }), /^Language: Hebrew\n[\s\S]*\nInstruction: \(none\)$/);
   assert.match(ai.INBOX_SYSTEM, /CODE-pub-@sent\/CODE-pub-sent-YYYY\/CODE-pub-YYYY,MM,DD\/TYPE/);
-  assert.match(ai.INBOX_SYSTEM, /CODE-pub-updated\/CODE-pub-updated-PDF/);
+  assert.match(ai.INBOX_SYSTEM, /CODE-pub-updated\/CODE-pub-updated-TYPE/);
   assert.match(ai.INBOX_SYSTEM, /not uniform/);
   assert.deepStrictEqual(sent.output_config.format.schema.required.sort(), ['files', 'message', 'mode', 'steps']);
   await assert.rejects(ai.inboxProposal({ messages: { create: async () => ({ content: [], stop_reason: 'refusal' }) } }, 'test-model', x));

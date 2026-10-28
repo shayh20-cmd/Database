@@ -177,19 +177,23 @@ test('filing-plan: the sender\'s address picks the consultant whose folder match
   assert.strictEqual(plans.senderConsultant(options, contacts, ''), -1);
 });
 
-test('filing-ai: "הצע" on publish — the prompt carries the slots, and a replace of a file that is not a PDF is dropped', async () => {
+test('filing-ai: "הצע" on publish — the prompt carries the slots; UPDATED takes every type; the map keeps its layout', async () => {
   const x = {
     project: { code: 'X', name: 'n' }, map: { areas: { publish: { paths: ['P'], note: '' } }, slots: { sent: 'P/S', sentSplit: false, updated: 'P/U' } },
     guide: '', tree: ['P', 'P/S', 'P/U'], today: '2026-10-26', files: [{ n: 0, name: 'a.pdf' }, { n: 1, name: 'a.dwg' }], sent: true, updated: true, text: '', lang: 'he'
   };
-  assert.match(ai.inboxContent(x), /\nSlots: SENT archive P\/S \(all files together\); UPDATED \(PDF only\) P\/U\n/);
-  assert.match(ai.inboxContent({ ...x, map: { areas: {} } }), /\nSlots: \(none\)\n/);
+  assert.match(ai.inboxContent(x), /\nSlots: SENT archive P[/]S [(]all files together[)]; UPDATED P[/]U\n/);
+  assert.match(ai.inboxContent({ ...x, map: { areas: {} } }), /\nSlots: [(]none[)]\n/);
   const client = { messages: { create: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({
     message: 'm', mode: 'publish', steps: [], files: [{ name: 'a.pdf', dests: [{ path: 'P/U', replace: true }] }, { name: 'a.dwg', dests: [{ path: 'P/U', replace: true }, { path: 'P/S', replace: false }] }]
   }) }] }) } };
   const out = await ai.inboxProposal(client, 'claude-haiku-5-5', x);
-  assert.deepStrictEqual(out.plan.files.map(f => f.dests), [[{ path: 'P/U', replace: true }], [{ path: 'P/S', replace: false }]]);
-  assert.strictEqual(out.replaceStripped, 'pdf_only');
+  assert.deepStrictEqual(out.plan.files.map(f => f.dests), [[{ path: 'P/U', replace: true }], [{ path: 'P/U', replace: true }, { path: 'P/S', replace: false }]]);
+  assert.strictEqual(out.replaceStripped, undefined);
+  const lay = { sent: { base: 'P/S', levels: [{ kind: 'day', pattern: 'X-pub-{yyyy},{mm},{dd}' }] }, updated: { base: '', levels: [] }, types: null };
+  assert.deepStrictEqual(ai.normalizeMap({ areas: {}, publish: lay }).publish, lay);
+  assert.strictEqual(ai.normalizeMap({ areas: {}, publish: { sent: { base: 'P', levels: [{ kind: 'day', pattern: 'bad' }] } } }).publish, null);
+  assert.strictEqual(ai.normalizeMap({ areas: {} }).publish, null);
 });
 
 test('filing-plan: receive — toVer follows the real plan (@ver already holds the name; v9999), and mixed stems', () => {
