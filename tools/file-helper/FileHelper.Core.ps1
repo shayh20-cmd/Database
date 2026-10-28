@@ -323,15 +323,19 @@ function Get-ProjectDir([string]$ProjectsRoot, [string]$Folder) {
   if (Test-Path -LiteralPath $full -PathType Container) { return $full }
   return $null
 }
-function Resolve-ProjectDir($Config, [string]$Root, [string]$Folder, [string[]]$Drives = $null) {
+function Resolve-ProjectDir($Config, [string]$Root, [string]$Folder, [string[]]$Drives = $null, [string]$Share = '') {
   # the project's folder on this PC, or $null: in the root of that name; a project stored before roots (no root) in the
   # legacy projectsRoot, else in the one root that has a folder of that name — only when every drive answered (a drive
-  # that did not could hold another one); none, two, or not sure: $null
+  # that did not could hold another one); none, two, or not sure: $null. $Share: the root's network share path another
+  # PC reported (the server keeps it with the project), tried when no drive of this PC holds the root
   $f = ConvertTo-RelPath $Folder
   if (-not $f -or $f.Contains('/')) { return $null }
   if ($Root) {
     $roots = Get-ProjectRoots $Config $Drives -Want $Root
-    if (-not $roots.Contains($Root)) { return $null }
+    if (-not $roots.Contains($Root)) {
+      if ($Share -and [IO.Path]::GetFileName($Share.TrimEnd([char]92)) -ieq $Root) { return (Get-ProjectDir $Share $f) }
+      return $null
+    }
     return (Get-ProjectDir $roots[$Root] $f)
   }
   $legacy = if ($Config -and $Config.projectsRoot) { [string]$Config.projectsRoot } else { '' }
@@ -355,6 +359,21 @@ function ConvertTo-SharePath([string]$Path) {
     if ($d.drive -and ($p -ieq $d.drive -or $p.StartsWith($d.drive + '\', [StringComparison]::OrdinalIgnoreCase))) { return $d.share + $p.Substring($d.drive.Length) }
   }
   return $p
+}
+function Get-RootShare([string]$Path) {
+  # a root as other PCs reach it: on a mapped network drive, the share's own path (ConvertTo-SharePath); in a folder
+  # this PC shares, this PC's share path; '' otherwise (a local disk nobody shares, or the shares cannot be read)
+  if (-not $Path) { return '' }
+  $unc = [string]::new([char]92, 2)
+  try { $p = ConvertTo-SharePath ([IO.Path]::GetFullPath($Path)) } catch { return '' }
+  if ($p.StartsWith($unc)) { return $p }
+  try {
+    foreach ($s in @(Get-CimInstance Win32_Share -Filter 'Type = 0' -ErrorAction Stop)) {
+      $sp = ([string]$s.Path).TrimEnd([char]92)
+      if ($sp -and ($p -ieq $sp -or $p.StartsWith($sp + [char]92, [StringComparison]::OrdinalIgnoreCase))) { return $unc + $env:COMPUTERNAME + [char]92 + $s.Name + $p.Substring($sp.Length) }
+    }
+  } catch { }
+  return ''
 }
 function Test-SameFolder([string]$A, [string]$B) {
   try { return (ConvertTo-SharePath ([IO.Path]::GetFullPath($A))) -ieq (ConvertTo-SharePath ([IO.Path]::GetFullPath($B))) } catch { return $false }
@@ -396,9 +415,11 @@ function Invoke-PickTask($Config, $Task, [scriptblock]$Picker, [string]$Projects
   # folder on this PC (a found root or a saved one), the pick is refused as a cancel, with a line in the log.
   $start = ''
   if ($Task.root) { $rs = Get-ProjectRoots $Config $Drives -Want $Task.root; if ($rs.Contains($Task.root)) { $start = $rs[$Task.root] } }
+  # no drive holds the root: the share another PC reported for it
+  if (-not $start -and $Task.share -and [IO.Path]::GetFileName(([string]$Task.share).TrimEnd([char]92)) -ieq [string]$Task.root -and (Test-Path -LiteralPath ([string]$Task.share) -PathType Container)) { $start = [string]$Task.share }
   if (-not $start -and $Config.projectsRoot -and (Test-Path -LiteralPath $Config.projectsRoot -PathType Container)) { $start = [string]$Config.projectsRoot }
   if (-not $start) { $rs = Get-ProjectRoots $Config $Drives; foreach ($k in $rs.Keys) { $start = $rs[$k]; break } }
-  $suggested = Resolve-ProjectDir $Config ([string]$Task.root) ([string]$Task.folder) $Drives
+  $suggested = Resolve-ProjectDir $Config ([string]$Task.root) ([string]$Task.folder) $Drives -Share ([string]$Task.share)
   if (-not $suggested -and $start) {
     $cands = Find-ProjectFolder $start $Task.project.code $Task.project.name $ProjectsJson
     $guess = @($cands | Where-Object { Get-ProjectDir $start $_ })
@@ -435,7 +456,8 @@ function Invoke-PickTask($Config, $Task, [scriptblock]$Picker, [string]$Projects
     else { $Config | Add-Member -NotePropertyName roots -NotePropertyValue $saved }
     Save-HelperConfig $Config $ConfigPath
   }
-  return @{ picked = $picked; root = $name }
+  # rootShare: where other PCs reach the root without a drive letter for it ('' when none is known)
+  return @{ picked = $picked; root = $name; rootShare = (Get-RootShare $rootPath) }
 }
 function Get-TreeResult([string]$Dir) {
   # $Dir: the project's folder (Resolve-ProjectDir), $null when it is not on this PC
