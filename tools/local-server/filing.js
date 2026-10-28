@@ -1001,8 +1001,9 @@ module.exports = function createFiling(ctx) {
             // who sent them, for the project's history: as the person chose it, else as Claude guessed
             out.plan.from = (from && from.name) || (out.guess && out.guess.name) || '';
           } else {
+            const map = ai.normalizeMap(pr.map);
             out = await ai.inboxProposal(client, model, {
-              project, map: ai.normalizeMap(pr.map), guide, tree: h.tree, today: israelToday(), files,
+              project, map, types: typesOf(map), guide, tree: h.tree, today: israelToday(), files,
               sent: body.sent === true, updated: body.updated === true, text: clip(body.text, 1000).trim(), lang
             });
           }

@@ -196,6 +196,28 @@ test('filing-ai: "הצע" on publish — the prompt carries the slots; UPDATED t
   assert.strictEqual(ai.normalizeMap({ areas: {} }).publish, null);
 });
 
+test('filing-ai: "הצע" on publish — the Layout line follows the saved layout, the Types line the list in use', () => {
+  const x = {
+    project: { code: 'X', name: 'n' }, guide: '', tree: ['P', 'P/S', 'P/U'], today: '2026-10-28', files: [{ n: 0, name: 'a.pdf' }], sent: true, updated: true, text: '', lang: 'he',
+    map: { areas: { publish: { paths: ['P'], note: '' } }, slots: { sent: 'P/S', sentSplit: true, updated: '' }, publish: {
+      sent: { base: 'P/S', levels: [{ kind: 'type', pattern: '{code}-sent-{type}' }, { kind: 'day', pattern: '{code}-pub-{yyyy},{mm},{dd}' }] },
+      updated: { base: 'P/U', levels: [{ kind: 'type', pattern: '{type}' }] }, types: null } }
+  };
+  const text = ai.inboxContent({ ...x, types: [{ name: 'PDF', ext: ['pdf'] }, { name: 'CAD', ext: ['dwg', 'dxf'] }, { name: 'OTHER', ext: [], rest: true }] });
+  const lines = text.split(String.fromCharCode(10));
+  assert.ok(lines.includes('Layout: SENT P/S/{code}-sent-{type}/{code}-pub-{yyyy},{mm},{dd}; UPDATED P/U/{type}'), text);
+  assert.ok(lines.includes('Types: PDF = pdf; CAD = dwg, dxf; OTHER = every other extension'), text);
+  assert.ok(lines.includes('Slots: SENT archive P/S (by file type)'), 'the Slots line stays');
+  const sentOnly = ai.inboxContent({ ...x, map: { ...x.map, publish: { ...x.map.publish, updated: { base: '', levels: [] } } } }).split(String.fromCharCode(10));
+  assert.ok(sentOnly.includes('Layout: SENT P/S/{code}-sent-{type}/{code}-pub-{yyyy},{mm},{dd}'), 'a target without a saved base is left out');
+  const none = ai.inboxContent({ ...x, map: { ...x.map, publish: null } }).split(String.fromCharCode(10));
+  assert.ok(!none.some(l => l.startsWith('Layout:')), 'no saved layout: no Layout line');
+  assert.ok(none.includes('Types: PDF = pdf; DWG = dwg, zip; DWF = dwf; DOCS = every other extension'), 'no types passed: the office default');
+  const own = ai.inboxContent({ ...x, map: { ...x.map, publish: { ...x.map.publish, types: [{ name: 'A', ext: ['pdf'] }, { name: 'B', ext: [], rest: true }] } } }).split(String.fromCharCode(10));
+  assert.ok(own.includes('Types: A = pdf; B = every other extension'), 'no types passed: the project own list');
+  assert.match(ai.INBOX_SYSTEM, /"Layout:" line, when present/);
+});
+
 test('filing-plan: receive — toVer follows the real plan (@ver already holds the name; v9999), and mixed stems', () => {
   const base = ['C', 'C/4021-KONS', 'C/4021-KONS/4021-KONS-plans'];
   const D = 'C/4021-KONS/4021-KONS-plans';
