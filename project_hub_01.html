@@ -16724,6 +16724,7 @@ function InboxBatch({
   const [picking, setPicking] = useState(null); // n of the file whose folder is being chosen
   // the SENT folders of the tree (up to 800 paths) come with the plan only once the person first asks (שנה תיקייה) to change a file's folder
   const [wantFolders, setWantFolders] = useState(false);
+  const [lastFolders, setLastFolders] = useState(null); // the last SENT folder list a plan carried: Claude's answer has none, the picker keeps this
   const [draft, setDraft] = useState(''); // the instruction being typed
   const [prop, setProp] = useState(null); // { message, plan }
   const [msg, setMsg] = useState(null); // { s, v }
@@ -16897,6 +16898,7 @@ function InboxBatch({
           problem: x.problem || '',
           gen: w.gen
         });
+        if (Array.isArray(x.folders)) setLastFolders(x.folders);
         if (x.version) setLastVer(x.version);
         setMsg(null);
         if (w.mode === 'receive' && x.guess && !touched.current) applyGuess(x.guess, w);
@@ -16989,6 +16991,7 @@ function InboxBatch({
     touched.current = false;
     setDesc('');
     setWantFolders(false);
+    setLastFolders(null);
     setTypeOf({});
     setOverrides({});
     setPicking(null);
@@ -17724,13 +17727,13 @@ function InboxBatch({
     }
   }, h("option", {
     value: ""
-  }, tx('בחר תיקייה ל-SENT של הקובץ הזה')), prop.folders && prop.folders.length ? prop.folders.map(p => h("option", {
+  }, tx('בחר תיקייה ל-SENT של הקובץ הזה')), (prop.folders || lastFolders) && (prop.folders || lastFolders).length ? (prop.folders || lastFolders).map(p => h("option", {
     key: p,
     value: p
   }, fmSlash(p))) : h("option", {
     value: "-",
     disabled: true
-  }, prop.folders ? tx('אין תיקיות מתחת ל-SENT') : tx('טוען תיקיות…'))) : null, f.problem === 'dest' ? h("div", {
+  }, prop.folders || lastFolders ? tx('אין תיקיות מתחת ל-SENT') : tx('טוען תיקיות…'))) : null, f.problem === 'dest' ? h("div", {
     className: "ib-hint ib-warn"
   }, tx('התיקייה שנבחרה כבר לא נמצאת — בחר שוב')) : f.problem === 'steps' ? h("div", {
     className: "ib-hint ib-warn"
