@@ -16617,8 +16617,10 @@ const fmNameBad = v => {
 };
 /* The layout engine's naming rules, in the page, for the type rows' "תיווצר" marker and SENT's example line. MIRROR of
    tools/local-server/filing-layout.js (typeSpan, renameType, readName, detectLayout) and filing-plan.js (typeDirOf,
-   dateLevels, the path publishPlan walks): keep in sync. */
-const fmLc = s => String(s == null ? '' : s).toLowerCase();
+   dateLevels, the path publishPlan walks): keep in sync. tests/folders-mirror.test.js runs this block against the
+   server's publishPlan. */
+/* ═══ folders-layout ═══ */
+const fmLc =s => String(s == null ? '' : s).toLowerCase();
 const fmLeaf = p => String(p).slice(String(p).lastIndexOf('/') + 1);
 // the folders directly inside dir ('' is the project's top), and every folder below dir
 const fmKids = (tree, dir) => tree.filter(p => dir === '' ? !p.includes('/') : fmLc(p).startsWith(fmLc(dir) + '/') && !p.slice(dir.length + 1).includes('/'));
@@ -16728,12 +16730,23 @@ const fmDetect = (tree, base, types) => {
   }
   return levels.length ? levels : null;
 };
-// a v2 target's folder for one type: the picked one when in the tree, else named like another picked folder, else <base>/<type>
+// a v2 target's folder for one type: the picked one when in the tree or inside the base (made when missing), else
+// named like another picked folder, else <base>/<type>
 const fmTypeDirOf = (list, t, type, types) => {
   if (!t.byType) return fmInTree(list, t.base) || t.base;
   const dirs = t.typeDirs || {};
   const own = dirs[type] && fmInTree(list, dirs[type]);
   if (own) return own;
+  const base = fmInTree(list, t.base) || t.base;
+  const want = dirs[type] ? String(dirs[type]) : '';
+  if (want && base && fmLc(want).startsWith(fmLc(base) + '/')) {
+    let dir = base;
+    for (const part of want.slice(base.length + 1).split('/').filter(Boolean)) {
+      const p = dir + '/' + part;
+      dir = fmInTree(list, p) || p;
+    }
+    return dir;
+  }
   for (const o of types) {
     if (o.name === type || !dirs[o.name]) continue;
     const p = fmInTree(list, dirs[o.name]);
@@ -16808,6 +16821,7 @@ const fmTopVersion = (tree, folder) => {
   const num = l => Number(/([0-9]{1,4})$/.exec(l)[1]);
   return vs.sort((a, b) => num(b) - num(a))[0] || '';
 };
+/* ═══ /folders-layout ═══ */
 // a type row's extensions as typed ("pdf, dwg"): lower case, no leading dot, no empties
 const fmExtParse = text => String(text || '').split(',').map(s => {
   let x = s.trim().toLowerCase();
@@ -18331,13 +18345,14 @@ function PublishFoldersBox({
     disabled: !w,
     onChange: () => on(k)
   }), lbl)));
-  const typeRow = (key, t, ty, typeList) => {
+  const typeRow = (key, t, ty, typeList, i) => {
     const name = ty.name;
     const own = t.typeDirs[name] || '';
     const id = key + ':type:' + name;
     let shown = pathSpan(own, t.base);
-    if (!own && t.base && tree) {
-      // the folder the server will use: one already there ("נמצאה"), or one it makes ("תיווצר")
+    if (t.base && tree && !(own && fmInTree(list, own))) {
+      // the folder the server will use when the picked one is not in the tree, or none is picked: the picked one when
+      // inside the base, else one already there ("נמצאה"), or one it makes ("תיווצר")
       const d = fmTypeDirOf(list, t, name, types);
       shown = h("span", {
         className: "fm-mark",
@@ -18348,7 +18363,7 @@ function PublishFoldersBox({
       }));
     }
     return h(React.Fragment, {
-      key: name
+      key: i
     }, h("div", {
       className: "fm-prow fm-trow"
     }, h("span", {
@@ -18446,7 +18461,7 @@ function PublishFoldersBox({
       typeAt: k
     })))) : null, t.byType && !inDay ? h("div", {
       className: "fm-in"
-    }, types.map(ty => typeRow(key, t, ty, typeList))) : null, sent ? h("div", {
+    }, types.map((ty, i) => typeRow(key, t, ty, typeList, i))) : null, sent ? h("div", {
       className: "fm-prow"
     }, h("span", {
       className: "fm-slot-l"
@@ -18776,11 +18791,16 @@ function SettingsFoldersView({
       note(s, v);
     };
     note('בורר התיקיות ייפתח במחשב שלך בעוד רגע…');
-    fmCall('pick-sub', {
+    // a stored path the server refuses as the start (400 'start'): the picker opens at the project folder instead
+    const ask = from => fmCall('pick-sub', {
       projectId,
-      start: start || '',
+      start: from,
       lang: fmLang()
-    }).then(j => {
+    }).catch(e => {
+      if (e.message === 'start' && from) return ask('');
+      throw e;
+    });
+    ask(start || '').then(j => {
       if (!live.current) return;
       const started = Date.now();
       let handedAt = 0,
@@ -18812,11 +18832,13 @@ function SettingsFoldersView({
           if (r && r.outside) return stop('התיקייה שנבחרה לא בתוך תיקיית הפרויקט');
           if (r && r.missing) return stop(FM_NOT_HERE);
           if (r && r.cancelled) return stop(null);
-          if (s.cancelled) return stop(!s.opened || Date.now() - handedAt < 3000 ? FM_HELPER_OLD : null);
+          // cancelled before it was opened: a helper that could not run it; after: nothing to say
+          if (s.cancelled) return stop(!s.opened ? FM_HELPER_OLD : null);
           if (s.expired) return stop('הבקשה פגה. אפשר לנסות שוב.');
           if (s.handed) {
-            if (!s.opened && Date.now() - handedAt > 12000) return stop(FM_HELPER_OLD);
-            note('בורר התיקיות נפתח ב-{pc}…', {
+            // not opened 12 s after it was handed: likely a helper from before pick-sub — said, while the polling goes on
+            // (a slow current helper's choice still arrives)
+            if (!s.opened && Date.now() - handedAt > 12000) note(FM_HELPER_OLD);else note('בורר התיקיות נפתח ב-{pc}…', {
               pc: s.handed.pc || '?'
             });
           } else if (Date.now() - started > 15000) note(FM_HELPER_OFF);
@@ -19000,12 +19022,29 @@ function SettingsFoldersView({
         code: info && info.code || '',
         types: pb.types ? fmTypesOut(pb.types) : info && info.types || officeTypes || FM_OFFICE_TYPES_DEFAULT
       };
+      /* merged into a target whose folder is empty: the folder, and what the person has not set — a value equal to the
+         empty default (not split, typeAt 'top', date 'year-day') counts as not set, and a type folder already picked
+         stays */
       ['sent', 'updated'].forEach(k => {
         const got = a.publish && a.publish[k];
-        if (got && got.base && !pb[k].base) {
-          pb[k] = fmTargetOf(got, k === 'sent', ctx);
-          n++;
+        const cur = pb[k];
+        if (!got || !got.base || cur.base) return;
+        const v = fmTargetOf(got, k === 'sent', ctx);
+        const next = {
+          ...cur,
+          base: v.base,
+          byType: cur.byType || v.byType,
+          typeDirs: {
+            ...v.typeDirs,
+            ...cur.typeDirs
+          }
+        };
+        if (k === 'sent') {
+          if (!cur.typeAt || cur.typeAt === 'top') next.typeAt = v.typeAt;
+          if (!cur.date || cur.date === 'year-day') next.date = v.date;
         }
+        pb[k] = next;
+        n++;
       });
       const ar = {
         ...areasRef.current
@@ -19114,6 +19153,7 @@ function SettingsFoldersView({
     setDirty(false);
     setMapMsg(null);
     setSaveMsg(null);
+    if (!browsingRef.current) setBrowseMsg(null);
   };
   const saveGuide = () => {
     if (!w) return;
@@ -19281,9 +19321,19 @@ function SettingsFoldersView({
         ...o,
         paths: [v, ...o.paths.slice(1).filter(q => fmLc(q) !== fmLc(v))]
       })),
-      onClear: () => edit(a.key, o => ({
+      // with more folders stored than the one shown, ✕ clears them all, after asking
+      onClear: () => more.length ? askConfirm(tx('להסיר את כל התיקיות של {a}?', {
+        a: asTyped(a.name)
+      }), {
+        confirmLabel: 'הסר'
+      }).then(ok => {
+        if (ok && live.current) edit(a.key, o => ({
+          ...o,
+          paths: []
+        }));
+      }) : edit(a.key, o => ({
         ...o,
-        paths: o.paths.slice(1)
+        paths: []
       }))
     })), msg(id)));
   }), publishPath || publish.sent.base || publish.updated.base ? h(PublishFoldersBox, {
