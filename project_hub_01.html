@@ -17048,7 +17048,8 @@ function InboxBatch({
       desc,
       typeOf,
       dests: overrides,
-      folders: wantFolders
+      // the folder list once per project: asked for after the first "שנה תיקייה" until one has arrived (lastFolders is no dependency, so its arrival plans nothing)
+      folders: wantFolders && !lastFolders
     };
     const prev = wish.current;
     // the choices Claude's guess just filled in: the plan shown is already theirs (its generation stays)
