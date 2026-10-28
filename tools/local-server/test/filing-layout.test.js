@@ -135,7 +135,7 @@ test('filing-layout: detectLayout — the last year in a name; a trailing slash;
 test('filing-layout: cleanPublish — the v2 shape per target: byType, typeDirs, a date choice for SENT', () => {
   const S = 'P/S', U = 'P/U';
   const raw = {
-    sent: { base: S, byType: true, typeDirs: { PDF: S + '/X-sent-PDF', DWG: S + '/X-sent-DWG' }, date: 'day' },
+    sent: { base: S, byType: true, typeDirs: { PDF: S + '/X-sent-PDF', DWG: S + '/X-sent-DWG' }, typeAt: 'top', date: 'day' },
     updated: { base: U, byType: false, typeDirs: {} },
     types: null
   };
@@ -146,7 +146,11 @@ test('filing-layout: cleanPublish — the v2 shape per target: byType, typeDirs,
   // a bad or missing date falls back to year then day; UPDATED has no date; byType a boolean
   assert.strictEqual(L.cleanPublish({ ...raw, sent: { ...raw.sent, date: 'month' } }, rel).publish.sent.date, 'year-day');
   assert.strictEqual(L.cleanPublish({ ...raw, sent: { base: S, byType: true } }, rel).publish.sent.date, 'year-day');
-  assert.deepStrictEqual(L.cleanPublish({ ...raw, sent: { base: S, byType: false, date: 'none' } }, rel).publish.sent, { base: S, byType: false, typeDirs: {}, date: 'none' });
+  assert.deepStrictEqual(L.cleanPublish({ ...raw, sent: { base: S, byType: false, date: 'none' } }, rel).publish.sent, { base: S, byType: false, typeDirs: {}, typeAt: 'top', date: 'none' });
+  // the type folder inside the day folder (the convention): typeAt 'day'; anything else is 'top'
+  assert.strictEqual(L.cleanPublish({ ...raw, sent: { ...raw.sent, typeAt: 'day' } }, rel).publish.sent.typeAt, 'day');
+  assert.strictEqual(L.cleanPublish({ ...raw, sent: { ...raw.sent, typeAt: 'month' } }, rel).publish.sent.typeAt, 'top');
+  assert.strictEqual('typeAt' in L.cleanPublish({ ...raw, updated: { ...raw.updated, typeAt: 'day' } }, rel).publish.updated, false, 'UPDATED has no typeAt');
   assert.deepStrictEqual(L.cleanPublish({ ...raw, updated: { base: U, byType: true, date: 'day', typeDirs: null } }, rel).publish.updated, { base: U, byType: true, typeDirs: {} });
   // v2 wins over levels sent with it; the old shape (levels, no byType) is cleaned as before, side by side with v2
   assert.deepStrictEqual(L.cleanPublish({ ...raw, sent: { ...raw.sent, levels: [{ kind: 'year', pattern: 'nope' }] } }, rel).publish.sent, raw.sent);

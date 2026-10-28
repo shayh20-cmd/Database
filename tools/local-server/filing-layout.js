@@ -98,6 +98,7 @@ function cleanLevels(raw) {
   return { levels };
 }
 const DATES = ['year-day', 'day', 'none'];
+const TYPE_AT = ['top', 'day'];
 /* a v2 target's folder per type: { <type name>: <path inside the project> }, at most 12; an entry whose name is no
    folder name of at most 20 characters, or whose path is empty or leaves the project, is dropped */
 function cleanTypeDirs(raw, relPath) {
@@ -114,8 +115,10 @@ function cleanTypeDirs(raw, relPath) {
 /* is a saved target in the v2 shape (folders picked: { base, byType, typeDirs, date }) rather than PR #50's levels */
 const isV2 = t => !!t && typeof t === 'object' && t.byType != null;
 /* the project's publish layout as saved: { sent, updated, types: [..] | null }, each target either v2
-   ({ base, byType, typeDirs, date } — date on SENT only: 'year-day' (the default) | 'day' | 'none') or, as saved before
-   v2 (levels and no byType), { base, levels }.
+   ({ base, byType, typeDirs, typeAt, date } — typeAt and date on SENT only: typeAt 'top' (the default: the type folder
+   under the base, the date folders in it) | 'day' (the date folders under the base, a folder per type inside the day
+   folder: the convention); date 'year-day' (the default) | 'day' | 'none') or, as saved before v2 (levels and no
+   byType), { base, levels }.
    relPath: filing-ai's (a path inside the project, '' for none, null when it leaves it). { publish } or
    { error: 'layout', target: 'sent' | 'updated' | 'types', level } */
 function cleanPublish(raw, relPath) {
@@ -126,7 +129,7 @@ function cleanPublish(raw, relPath) {
     const t = raw[key] && typeof raw[key] === 'object' ? raw[key] : {};
     if (isV2(t)) {
       out[key] = { base: relPath(t.base) || '', byType: t.byType === true, typeDirs: cleanTypeDirs(t.typeDirs, relPath) };
-      if (key === 'sent') out[key].date = DATES.includes(t.date) ? t.date : 'year-day';
+      if (key === 'sent') Object.assign(out[key], { typeAt: TYPE_AT.includes(t.typeAt) ? t.typeAt : 'top', date: DATES.includes(t.date) ? t.date : 'year-day' });
       continue;
     }
     const lv = cleanLevels(t.levels);
@@ -235,4 +238,4 @@ function detectLayout(tree, base, types) {
   return levels.length ? levels : null;
 }
 
-module.exports = { OFFICE_TYPES, KINDS, NEEDS, DATES, okName, cleanDesc, fill, cleanTypes, typeOfName, cleanLevels, cleanTypeDirs, isV2, cleanPublish, typeSpan, renameType, detectLayout };
+module.exports = { OFFICE_TYPES, KINDS, NEEDS, DATES, TYPE_AT, okName, cleanDesc, fill, cleanTypes, typeOfName, cleanLevels, cleanTypeDirs, isV2, cleanPublish, typeSpan, renameType, detectLayout };

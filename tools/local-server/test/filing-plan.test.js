@@ -250,7 +250,7 @@ const LIB_LAYOUT = {
 };
 // what layoutFor reads from the Library's tree when nothing is saved (v2)
 const LIB_V2 = {
-  sent: { base: SENT, byType: true, typeDirs: { PDF: SENT + '/LDLI-pub-sent-PDF', DWG: SENT + '/LDLI-pub-sent-DWG' }, date: 'year-day' },
+  sent: { base: SENT, byType: true, typeDirs: { PDF: SENT + '/LDLI-pub-sent-PDF', DWG: SENT + '/LDLI-pub-sent-DWG' }, typeAt: 'top', date: 'year-day' },
   updated: { base: UPD, byType: true, typeDirs: { PDF: UPD + '/LDLI-pub-updated-PDF', DWG: UPD + '/LDLI-pub-updated-DWG' } }
 };
 const lib = over => plans.publishPlan({ layout: LIB_LAYOUT, types: L.OFFICE_TYPES, tree: LIB_TREE, code: 'LDLI', files: [{ n: 0, name: 'K-0.pdf' }, { n: 1, name: 'Sheet.zip' }, { n: 2, name: 'notes.pptx' }], sent: true, updated: false, date: '2026-10-28', desc: '', ...over });
@@ -312,7 +312,7 @@ test('filing-plan: layoutFor — saved, recognized from the tree, the convention
   assert.deepStrictEqual(plans.layoutFor({ ...map, publish: { ...LIB_LAYOUT, types: null } }, [], L.OFFICE_TYPES).from, 'saved');
   const conv = plans.layoutFor({ areas: {}, slots: { sent: 'P/X-pub-@sent', sentSplit: false, updated: '' } }, ['P', 'P/X-pub-@sent'], L.OFFICE_TYPES);
   assert.strictEqual(conv.from, 'convention');
-  assert.deepStrictEqual(conv.layout.sent, { base: 'P/X-pub-@sent', byType: false, typeDirs: {}, date: 'year-day' }, 'together: v2, the convention dates');
+  assert.deepStrictEqual(conv.layout.sent, { base: 'P/X-pub-@sent', byType: false, typeDirs: {}, typeAt: 'top', date: 'year-day' }, 'together: v2, the convention dates');
   const empty = plans.layoutFor({ areas: {} }, LIB_TREE, L.OFFICE_TYPES);
   assert.strictEqual(empty.layout.sent.base, SENT, 'no slots: the convention\'s folder names found in the tree (autoSlots)');
 });
@@ -430,25 +430,27 @@ test('filing-plan: publishPlan v2 — UPDATED: the type folder only, replacing; 
   assert.deepStrictEqual(paths(mixed)[0], [SENT + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2026/LDLI-pub-PDF-2026,10,28', UPD + '/LDLI-pub-updated-PDF']);
 });
 
-test('filing-plan: layoutFor v2 — a saved v2 target kept; day folders only; what v2 cannot say stays in levels', () => {
+test('filing-plan: layoutFor v2 — a saved v2 target kept; day folders only; the type inside the day (typeAt day)', () => {
   const saved = { sent: { ...LIB_V2.sent, date: 'none' }, updated: { base: UPD, byType: false, typeDirs: {} }, types: null };
   const got = plans.layoutFor({ areas: {}, publish: saved }, LIB_TREE, L.OFFICE_TYPES);
   assert.deepStrictEqual([got.from, got.layout.sent, got.layout.updated], ['saved', saved.sent, saved.updated]);
   // day folders right under the type folders: 'day'; type folders with nothing under them: 'year-day'
   const B = 'P/S';
   const days = plans.layoutFor({ areas: {}, slots: { sent: B, sentSplit: true, updated: '' } }, ['P', B, B + '/S-PDF', B + '/S-PDF/X-2026,10,01'], L.OFFICE_TYPES);
-  assert.deepStrictEqual(days.layout.sent, { base: B, byType: true, typeDirs: { PDF: B + '/S-PDF' }, date: 'day' });
+  assert.deepStrictEqual(days.layout.sent, { base: B, byType: true, typeDirs: { PDF: B + '/S-PDF' }, typeAt: 'top', date: 'day' });
   const bare = plans.layoutFor({ areas: {}, slots: { sent: B, sentSplit: true, updated: '' } }, ['P', B, B + '/S-PDF', B + '/S-DWG'], L.OFFICE_TYPES);
-  assert.deepStrictEqual(bare.layout.sent, { base: B, byType: true, typeDirs: { PDF: B + '/S-PDF', DWG: B + '/S-DWG' }, date: 'year-day' });
+  assert.deepStrictEqual(bare.layout.sent, { base: B, byType: true, typeDirs: { PDF: B + '/S-PDF', DWG: B + '/S-DWG' }, typeAt: 'top', date: 'year-day' });
   // unified year and day folders: v2 together
   const flat = plans.layoutFor({ areas: {}, slots: { sent: B, sentSplit: true, updated: '' } }, ['P', B, B + '/X-pub-sent-2026', B + '/X-pub-sent-2026/X-pub-2026,10,01'], L.OFFICE_TYPES);
-  assert.deepStrictEqual(flat.layout.sent, { base: B, byType: false, typeDirs: {}, date: 'year-day' });
-  // the convention's type folders inside the day: levels, as before; an empty archive split by type too
+  assert.deepStrictEqual(flat.layout.sent, { base: B, byType: false, typeDirs: {}, typeAt: 'top', date: 'year-day' });
+  // the convention's type folders inside the day: v2, typeAt 'day'; an empty archive split by type too (from 'convention')
   const conv = plans.layoutFor({ areas: {}, slots: SLOTS }, CONV, L.OFFICE_TYPES);
-  assert.deepStrictEqual(conv.layout.sent, { base: SLOTS.sent, levels: [{ kind: 'year', pattern: '4021-pub-sent-{yyyy}' }, { kind: 'day', pattern: '4021-pub-{yyyy},{mm},{dd}' }, { kind: 'type', pattern: '{type}' }] });
+  assert.deepStrictEqual(conv.layout.sent, { base: SLOTS.sent, byType: true, typeDirs: {}, typeAt: 'day', date: 'year-day' });
   assert.deepStrictEqual(conv.layout.updated, { base: 'PUBLISH/4021-pub-updated', byType: true, typeDirs: { PDF: 'PUBLISH/4021-pub-updated/4021-pub-updated-PDF' } });
   const empty = plans.layoutFor({ areas: {}, slots: { sent: 'P/X-pub-@sent', sentSplit: true, updated: '' } }, ['P', 'P/X-pub-@sent'], L.OFFICE_TYPES);
-  assert.deepStrictEqual([empty.from, empty.layout.sent.levels.map(l => l.kind)], ['convention', ['year', 'day', 'type']]);
+  assert.deepStrictEqual([empty.from, empty.layout.sent], ['convention', { base: 'P/X-pub-@sent', byType: true, typeDirs: {}, typeAt: 'day', date: 'year-day' }]);
+  const flatDays = plans.layoutFor({ areas: {}, slots: { sent: B, sentSplit: true, updated: '' } }, ['P', B, B + '/X-2026,10,01', B + '/X-2026,10,01/PDF'], L.OFFICE_TYPES);
+  assert.deepStrictEqual(flatDays.layout.sent, { base: B, byType: true, typeDirs: {}, typeAt: 'day', date: 'day' });
   // an UPDATED folder named …-PDF in the tree, kids by type under a plain one, none
   const u = (slot, tree) => plans.layoutFor({ areas: {}, slots: { sent: '', sentSplit: true, updated: slot } }, tree, L.OFFICE_TYPES).layout.updated;
   assert.deepStrictEqual(u('P/U', ['P', 'P/U', 'P/U/U-DWG']), { base: 'P/U', byType: true, typeDirs: { DWG: 'P/U/U-DWG' } });
@@ -471,4 +473,37 @@ test('filing-ai: "הצע" on publish — the Layout line describes a v2 layout: 
   assert.strictEqual(line({ updated: { base: 'P/U', levels: [{ kind: 'type', pattern: '{type}' }] } }), 'Layout: SENT P/S (by type: PDF → P/S/X-sent-PDF, DWG → P/S/X-sent-DWG; date: year then day); UPDATED P/U/{type}');
   assert.match(ai.INBOX_SYSTEM, /never add a description/i);
   assert.match(ai.INBOX_SYSTEM, /date folders already in the tree/);
+});
+
+test('filing-plan: publishPlan v2 typeAt day — the convention: date folders under the base, a folder per type inside the day', () => {
+  const C = { base: SLOTS.sent, byType: true, typeDirs: { PDF: 'ignored/for/SENT' }, typeAt: 'day', date: 'year-day' };
+  const D = Y + '/4021-pub-2026,10,01';
+  const r = plans.publishPlan({ layout: { sent: C, updated: { base: '', levels: [] } }, types: L.OFFICE_TYPES, tree: CONV, code: '4021', files: F, sent: true, updated: false, date: '2026-10-01', desc: '' });
+  assert.deepStrictEqual(r.plan.files.map(f => f.dests.map(d => d.path)), [[D + '/PDF'], [D + '/PDF'], [D + '/DWG'], [D + '/DOCS']]);
+  assert.deepStrictEqual(r.plan.steps.map(s => s.path), [D + '/DWG', D + '/DOCS']);
+  // the same plan the old levels gave, for a new day with a description
+  const old = { base: SLOTS.sent, levels: [{ kind: 'year', pattern: '4021-pub-sent-{yyyy}' }, { kind: 'day', pattern: '4021-pub-{yyyy},{mm},{dd}' }, { kind: 'type', pattern: '{type}' }] };
+  const run = sent => plans.publishPlan({ layout: { sent, updated: { base: '', levels: [] } }, types: L.OFFICE_TYPES, tree: CONV, code: '4021', files: F, sent: true, updated: false, date: '2027-01-05', desc: 'x' });
+  assert.deepStrictEqual(run(C).plan, run(old).plan);
+  assert.strictEqual(run(C).plan.files[0].dests[0].path, 'PUBLISH/4021-pub-@sent/4021-pub-sent-2027/4021-pub-2027,01,05 - x/PDF');
+  // day only: the day folder right under the base; an empty archive: the convention's names, <type> inside
+  const day = plans.publishPlan({ layout: { sent: { ...C, base: 'P/S', date: 'day' }, updated: { base: '', levels: [] } }, types: L.OFFICE_TYPES, tree: ['P', 'P/S'], code: 'X', files: F.slice(2, 3), sent: true, updated: false, date: '2026-10-28', desc: '' });
+  assert.deepStrictEqual(day.plan.files[0].dests[0].path, 'P/S/X-pub-2026,10,28/DWG');
+  const empty = plans.publishPlan({ layout: { sent: { ...C, base: 'P/S' }, updated: { base: '', levels: [] } }, types: L.OFFICE_TYPES, tree: ['P', 'P/S'], code: 'X', files: F.slice(0, 1), sent: true, updated: false, date: '2026-10-28', desc: '' });
+  assert.deepStrictEqual(empty.plan.steps.map(s => s.path), ['P/S/X-pub-sent-2026', 'P/S/X-pub-sent-2026/X-pub-2026,10,28', 'P/S/X-pub-sent-2026/X-pub-2026,10,28/PDF']);
+  // the type folder named as the tree's day folders name it
+  const T = ['P', 'P/S', 'P/S/X-2026,10,01', 'P/S/X-2026,10,01/X-PDF-files'];
+  const named = plans.publishPlan({ layout: { sent: { ...C, base: 'P/S', date: 'day' }, updated: { base: '', levels: [] } }, types: L.OFFICE_TYPES, tree: T, code: 'X', files: F.slice(2, 3), sent: true, updated: false, date: '2026-10-28', desc: '' });
+  assert.strictEqual(named.plan.files[0].dests[0].path, 'P/S/X-2026,10,28/X-DWG-files');
+  // date 'none': typeAt does not matter, the type folders sit under the base
+  const none = v2({ ...V2_SENT, typeAt: 'day', date: 'none' });
+  assert.deepStrictEqual(paths(none), [[SENT + '/LDLI-pub-sent-PDF'], [SENT + '/LDLI-pub-sent-DWG'], [SENT + '/LDLI-pub-sent-DOCS']]);
+});
+
+test('filing-ai: the Layout line — the type folder inside the day folder', () => {
+  const x = { project: { code: 'X', name: 'n' }, guide: '', tree: ['P', 'P/S'], today: '2026-10-28', files: [{ n: 0, name: 'a.pdf' }], sent: true, updated: false, text: '', lang: 'he',
+    map: { areas: { publish: { paths: ['P'], note: '' } }, publish: { sent: { base: 'P/S', byType: true, typeDirs: {}, typeAt: 'day', date: 'year-day' }, updated: { base: '', byType: false, typeDirs: {} }, types: null } } };
+  const line = ai.inboxContent(x).split(String.fromCharCode(10)).find(l => l.startsWith('Layout:'));
+  assert.strictEqual(line, 'Layout: SENT P/S (by type inside the day folder; date: year then day)');
+  assert.match(ai.INBOX_SYSTEM, /"by type inside the day folder"/);
 });
