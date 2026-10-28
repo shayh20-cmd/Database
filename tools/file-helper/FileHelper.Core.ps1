@@ -31,6 +31,7 @@ $script:EN = @{
   'פתח' = 'Open'
   'בחר תיקייה עם קבצים לפרסום בפרויקט' = 'Choose a folder with files to publish to a project'
   'אחר כך' = 'Later'
+  'בחר את תיבת הייצוא: התיקייה שממנה מתייקים קבצים לפרויקטים' = 'Choose the export inbox: the folder files are filed to projects from'
 }
 function T([string]$He, [hashtable]$Slots) {
   $s = if ($script:Lang -eq 'en' -and $script:EN.ContainsKey($He)) { $script:EN[$He] } else { $He }
@@ -189,7 +190,7 @@ function Test-HelperToken([string]$Token) {
   return [bool]($Token -match '^[A-Za-z0-9_-]{20,80}$')
 }
 function Save-HelperKey([string]$Key, [string]$Path = $script:KeyPath) {
-  # the person's Outlook add-in key, readable only by this Windows user (DPAPI), like the mail scanner's
+  # the person's quick-filing key (an install of an earlier version: the Outlook add-in key), readable only by this Windows user (DPAPI), like the mail scanner's
   New-Item -ItemType Directory -Force -Path (Split-Path $Path -Parent) | Out-Null
   ConvertTo-SecureString $Key -AsPlainText -Force | ConvertFrom-SecureString | Set-Content -LiteralPath $Path
 }
@@ -227,7 +228,18 @@ function Save-HelperConfig($Config, [string]$Path = $script:ConfigPath) {
 }
 
 # ── the tasks the server hands this PC (Run-Task.ps1 does the network and the window) ──
-function Test-TaskKind([string]$Kind) { return $Kind -in @('pick', 'tree', 'open', 'file', 'inbox', 'pick-source') }
+function Test-TaskKind([string]$Kind) { return $Kind -in @('pick', 'tree', 'open', 'file', 'inbox', 'pick-source', 'pick-inbox') }
+function Set-HelperInbox($Config, [string]$Picked, [string]$ConfigPath = $script:ConfigPath) {
+  # another export inbox, chosen in a folder picker the Hub asked for (Settings → תיוק מהיר): kept in the config, where
+  # the agent reads it at its next round; the result is its full path, to show on the Hub page. Cancelled: no folder
+  if (-not $Picked) { return @{ cancelled = $true } }
+  $full = [IO.Path]::GetFullPath($Picked).TrimEnd('\')
+  if ($full -match '^[A-Za-z]:$') { $full += '\' }
+  New-Item -ItemType Directory -Force -Path $full | Out-Null
+  $Config.inbox = $full
+  Save-HelperConfig $Config $ConfigPath
+  return @{ inbox = $full }
+}
 # ── the project roots: the office keeps projects on many computers, each sharing a drive whose top holds a folder
 #    named "@<Name> Projects" (any case). Drive letters differ between PCs; the root's folder name is what the server
 #    keeps with each project's folder. ──

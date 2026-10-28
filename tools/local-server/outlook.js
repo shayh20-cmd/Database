@@ -76,6 +76,10 @@ const mailNote = mail => 'מהמייל: ' + [mail.from.name || mail.from.email, 
 module.exports = function createOutlook(ctx) {
   const { DATA_DIR, STATIC_ROOT, SITE_MODE, LOCAL_USER_NAME, readJson, writeJsonAtomic, sendJson, readRequestBody, readRequestBuffer, saveAttachment, mcp } = ctx;
   const tokens = createTokens(path.join(DATA_DIR, 'outlook_tokens.json'), { readJson, writeJsonAtomic }, 'pho_');
+  // the filing helper's own key (Settings → תיוק מהיר), apart from the add-in's: issuing one never ends the other. It
+  // opens only what the helper calls; a helper installed with the add-in's key goes on working with it.
+  const helperTokens = createTokens(path.join(DATA_DIR, 'filing_helper_tokens.json'), { readJson, writeJsonAtomic }, 'phf_');
+  const HELPER_ROUTES = ['/api/outlook/me', '/api/outlook/filing-next', '/api/outlook/inbox-batch'];
   const LINKS = path.join(DATA_DIR, 'outlook_links.json');
   const now = () => new Date().toISOString();
   // a key names a person by address ("local" on the local server, where there is none)
@@ -284,8 +288,11 @@ module.exports = function createOutlook(ctx) {
 
   async function run(req, res, url) {
     const m = String(req.headers.authorization || '').match(/^Bearer\s+(.+)$/i);
-    const who = tokens.check(m ? m[1].trim() : null, now());
+    const bearer = m ? m[1].trim() : null;
+    const helperKey = /^phf_/.test(bearer || '');
+    const who = (helperKey ? helperTokens : tokens).check(bearer, now());
     if (!who) { sendJson(res, 401, { error: 'invalid_key' }); return; }
+    if (helperKey && !HELPER_ROUTES.includes(url.pathname)) { sendJson(res, 403, { error: 'helper_key' }); return; }
     const p = personOfKey(who);
     const base = baseOf(req);
     const method = GET_ROUTES.includes(url.pathname) ? 'GET' : PUT_ROUTES.includes(url.pathname) ? 'PUT' : 'POST';
@@ -512,6 +519,15 @@ module.exports = function createOutlook(ctx) {
     sendJson(res, 405, { error: 'Method not allowed' });
   }
 
+  /* the filing helper's key, for the signed-in person */
+  function handleHelperConnection(req, res, user) {
+    const email = user.email ? String(user.email).trim().toLowerCase() : null;
+    if (req.method === 'GET') { sendJson(res, 200, { key: helperTokens.status(email) }); return; }
+    if (req.method === 'POST') { sendJson(res, 200, { key: helperTokens.issue(email, now()) }); return; }
+    if (req.method === 'DELETE') { helperTokens.revoke(email); sendJson(res, 200, { ok: true }); return; }
+    sendJson(res, 405, { error: 'Method not allowed' });
+  }
+
   /* the Hub page's snapshot of a project's register contacts, for the filing (signed in; see filing.js) */
   const handleContacts = (req, res, url, user) => filing.handleContacts(req, res, url, user);
 
@@ -525,7 +541,7 @@ module.exports = function createOutlook(ctx) {
     });
   }
 
-  return { handlePublic, handleConnection, handleContacts, handleHub, health, logScanned };
+  return { handlePublic, handleConnection, handleHelperConnection, handleContacts, handleHub, health, logScanned };
 };
 module.exports.threadKeyOf = threadKeyOf;
 module.exports.guessProject = guessProject;

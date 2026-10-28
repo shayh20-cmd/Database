@@ -3,7 +3,7 @@
    work (pick the project folder / read its tree / open it / file / choose a folder to publish from / publish from the
    export inbox or that folder; the project's folder is found by its root's name,
    Resolve-ProjectDir), posts the result and ends. The pane shows the result;
-   the only window here is the folder picker of a "pick" or "pick-source" task. On any failure the task is cancelled (best effort), so
+   the only window here is the folder picker of a "pick", "pick-source" or "pick-inbox" task. On any failure the task is cancelled (best effort), so
    the pane does not wait for it, and the error goes to the log. The logic is in FileHelper.Core.ps1.
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md
    Saved as UTF-8 with BOM. #>
@@ -31,7 +31,7 @@ function StatusOf($Err) { try { return [int]$Err.Exception.Response.StatusCode }
 # The agent runs in the background, so Windows may keep a new window behind Outlook (the foreground lock): the picker is
 # owned by an invisible, always-on-top window that activates itself when shown. The owner sits at the centre of the
 # primary screen (the dialog opens near its owner, so an owner off-screen would take the dialog with it).
-function Show-FolderPicker([string]$Start, [string]$Suggested, [string]$Description) {
+function Show-FolderPicker([string]$Start, [string]$Suggested, [string]$Description, [switch]$NewFolder) {
   Add-Type -AssemblyName System.Windows.Forms, System.Drawing
   [Windows.Forms.Application]::EnableVisualStyles()
   $wa = [Windows.Forms.Screen]::PrimaryScreen.WorkingArea
@@ -43,7 +43,7 @@ function Show-FolderPicker([string]$Start, [string]$Suggested, [string]$Descript
   try {
     $d = New-Object Windows.Forms.FolderBrowserDialog
     $d.Description = $Description
-    $d.ShowNewFolderButton = $false
+    $d.ShowNewFolderButton = [bool]$NewFolder
     if ($Suggested) { $d.SelectedPath = $Suggested } elseif ($Start) { $d.SelectedPath = $Start }
     if ($d.ShowDialog($owner) -eq [Windows.Forms.DialogResult]::OK -and $d.SelectedPath) { return $d.SelectedPath }
     return $null
@@ -220,6 +220,10 @@ try {
       $picked = Show-FolderPicker ([Environment]::GetFolderPath('Desktop')) '' (T 'בחר תיקייה עם קבצים לפרסום בפרויקט')
       if (-not $picked) { $res = @{ cancelled = $true } }
       else { $res = ConvertTo-SourceBatch $picked (Save-HelperSource $picked) }
+    }
+    'pick-inbox' {
+      # another export inbox for this PC, asked for on the Hub page; the agent watches it from its next round
+      $res = Set-HelperInbox $cfg (Show-FolderPicker '' $cfg.inbox (T 'בחר את תיבת הייצוא: התיקייה שממנה מתייקים קבצים לפרויקטים') -NewFolder)
     }
     'inbox' {
       # publishing from the export inbox (this PC's own folder, from the config: what was copied everywhere leaves it) or
