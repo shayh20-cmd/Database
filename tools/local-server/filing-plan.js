@@ -196,7 +196,9 @@ const CONVENTION_SENT = [{ kind: 'year', pattern: '{code}-pub-sent-{yyyy}' }, { 
 function layoutFor(map, tree, types) {
   const list = (tree || []).filter(Boolean);
   const saved = map && map.publish;
-  if (saved && (saved.sent.base || saved.updated.base)) return { layout: { sent: saved.sent, updated: saved.updated }, from: 'saved' };
+  const part = x => (x && typeof x === 'object' ? { base: x.base || '', levels: Array.isArray(x.levels) ? x.levels : [] } : { base: '', levels: [] });
+  const savedSent = part(saved && saved.sent), savedUpd = part(saved && saved.updated);
+  if (saved && (savedSent.base || savedUpd.base)) return { layout: { sent: savedSent, updated: savedUpd }, from: 'saved' };
   const s = (map && map.slots) || {};
   const auto = autoSlots(list).slots;
   const sentBase = s.sent || auto.sent;
@@ -207,7 +209,7 @@ function layoutFor(map, tree, types) {
   let updated = { base: upd, levels: [] };
   if (upd && upd.includes('/')) {
     const leaf = leafOf(upd);
-    const hit = types.map(t => t.name).find(n => lc(leaf).endsWith('-' + lc(n)));
+    const hit = types.map(t => t.name).find(n => ['-', '_', ' '].some(sep => lc(leaf).endsWith(sep + lc(n))));
     if (hit) updated = { base: upd.slice(0, upd.lastIndexOf('/')), levels: [{ kind: 'type', pattern: leaf.slice(0, leaf.length - hit.length) + '{type}' }] };
   }
   return { layout: { sent: { base: sentBase, levels }, updated }, from };
@@ -276,7 +278,11 @@ function publishPlan({ layout, types, tree, code, files, sent, updated, date, de
     kinds.push(type);
   }
   const plan = ai.sanitizeInboxPlan(raw, list, files, updDirs, null);
-  plan.files.forEach((f, i) => { f.type = kinds[i]; if (problems[f.n]) f.problem = problems[f.n]; });
+  plan.files.forEach((f, i) => {
+    f.type = kinds[i];
+    if (problems[f.n]) f.problem = problems[f.n];
+    else if (f.dests.length < raw.files[i].dests.length) f.problem = 'steps';
+  });
   return { plan, days: [...days].sort(), ...(Object.keys(missing).length ? { slotsMissing: missing } : {}) };
 }
 

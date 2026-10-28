@@ -287,3 +287,30 @@ test('filing-plan: layoutFor — saved, recognized from the tree, the convention
   const empty = plans.layoutFor({ areas: {} }, LIB_TREE, L.OFFICE_TYPES);
   assert.strictEqual(empty.layout.sent.base, SENT, 'no slots: the convention\'s folder names found in the tree (autoSlots)');
 });
+
+test('filing-plan: layoutFor — a saved layout missing a part is tolerated; _ or a space before the UPDATED type', () => {
+  const part = plans.layoutFor({ areas: {}, publish: { types: null } }, LIB_TREE, L.OFFICE_TYPES);
+  assert.notStrictEqual(part.from, 'saved', 'both bases empty: falls through to detection');
+  assert.strictEqual(part.layout.sent.base, SENT);
+  const only = plans.layoutFor({ areas: {}, publish: { sent: { base: SENT, levels: [] } } }, LIB_TREE, L.OFFICE_TYPES);
+  assert.strictEqual(only.from, 'saved');
+  assert.deepStrictEqual(only.layout.updated, { base: '', levels: [] });
+  for (const sep of ['_', ' ']) {
+    const tree = ['P', 'P/X_pub_sent', 'P/X_pub_updated'.replace('_updated', sep + 'updated')];
+    const got = plans.layoutFor({ areas: {}, slots: { sent: 'P/X_pub_sent', sentSplit: false, updated: 'P/X' + sep + 'pub' + sep + 'updated' + sep + 'PDF' } }, tree, L.OFFICE_TYPES);
+    assert.strictEqual(got.layout.updated.base, 'P');
+    assert.deepStrictEqual(got.layout.updated.levels, [{ kind: 'type', pattern: 'X' + sep + 'pub' + sep + 'updated' + sep + '{type}' }]);
+  }
+});
+
+test('filing-plan: publishPlan — dests cut by the 30-step limit are said (problem steps); no file is left without dests and without a problem', () => {
+  const types = L.cleanTypes([...'ABCDEFGHIJK'].map(c => ({ name: 'T' + c, ext: ['e' + c.toLowerCase()] })).concat([{ name: 'REST', ext: [], rest: true }]));
+  assert.ok(types && types.length === 12);
+  const layout = { sent: { base: 'P/S', levels: [{ kind: 'type', pattern: '{type}' }, { kind: 'year', pattern: 'Y-{yyyy}' }, { kind: 'day', pattern: 'D-{yyyy},{mm},{dd}' }] }, updated: { base: '', levels: [] } };
+  const files = types.map((t, i) => ({ n: i, name: 'f' + i + '.' + (t.ext[0] || 'zzz') }));
+  const r = plans.publishPlan({ layout, types, tree: ['P', 'P/S'], code: 'X', files, sent: true, updated: false, date: '2026-10-28', desc: '' });
+  assert.ok(r.plan.steps.length <= 30);
+  const cut = r.plan.files.filter(f => f.problem === 'steps');
+  assert.ok(cut.length > 0, 'some files lost their folders');
+  for (const f of r.plan.files) assert.ok(f.dests.length || f.problem, f.name + ' has dests or a problem');
+});
