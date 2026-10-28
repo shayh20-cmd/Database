@@ -1765,5 +1765,18 @@ test("filing hub: the office type list, the layout in the map, map-auto, and the
   const ms = (await hub('map-session', { projectId: 'pabc123' })).body.id;
   const auto = hub('map-auto?id=' + ms, {});
   await (await agent(dana)).result({ tree });
-  assert.deepStrictEqual((await auto).body.auto.publish.sent.levels.map(l => l.kind), ['type', 'year', 'day']);
+  assert.deepStrictEqual((await auto).body.auto.publish, {
+    sent: { base: S, byType: true, typeDirs: { PDF: S + '/LDPB-pub-sent-PDF' }, date: 'year-day' },
+    updated: { base: U, byType: true, typeDirs: { PDF: U + '/LDPB-pub-updated-PDF' } }
+  }, 'the v2 shape: a folder per type and the date choice');
+
+  // a v2 layout saved in the map: kept, and the window files by it
+  const v2 = { sent: { base: S, byType: true, typeDirs: { PDF: S + '/LDPB-pub-sent-PDF' }, date: 'day' }, updated: { base: U, byType: true, typeDirs: { PDF: U + '/LDPB-pub-updated-PDF' } }, types: null };
+  assert.deepStrictEqual((await hub('map', { projectId: 'pabc123', areas, publish: v2 }, 'PUT')).body.map.publish, v2);
+  const p4 = (await hub('inbox-plan', { id, projectId: 'pabc123', files: [0, 1], sent: true, updated: true, date: '2026-10-28', desc: '' })).body;
+  assert.strictEqual(p4.layoutFrom, 'saved');
+  assert.deepStrictEqual(p4.plan.files.map(f => f.dests.map(d => d.path)), [
+    [S + '/LDPB-pub-sent-PDF/LDPB-pub-PDF-2026,10,28', U + '/LDPB-pub-updated-PDF'],
+    [S + '/LDPB-pub-sent-CAD/LDPB-pub-CAD-2026,10,28', U + '/LDPB-pub-updated-CAD']
+  ]);
 });

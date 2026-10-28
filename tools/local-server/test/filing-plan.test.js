@@ -248,6 +248,11 @@ const LIB_LAYOUT = {
   sent: { base: SENT, levels: [{ kind: 'type', pattern: 'LDLI-pub-sent-{type}' }, { kind: 'year', pattern: 'LDLI-pub-{type}-{yyyy}' }, { kind: 'day', pattern: 'LDLI-pub-{type}-{yyyy},{mm},{dd}' }] },
   updated: { base: UPD, levels: [{ kind: 'type', pattern: 'LDLI-pub-updated-{type}' }] }
 };
+// what layoutFor reads from the Library's tree when nothing is saved (v2)
+const LIB_V2 = {
+  sent: { base: SENT, byType: true, typeDirs: { PDF: SENT + '/LDLI-pub-sent-PDF', DWG: SENT + '/LDLI-pub-sent-DWG' }, date: 'year-day' },
+  updated: { base: UPD, byType: true, typeDirs: { PDF: UPD + '/LDLI-pub-updated-PDF', DWG: UPD + '/LDLI-pub-updated-DWG' } }
+};
 const lib = over => plans.publishPlan({ layout: LIB_LAYOUT, types: L.OFFICE_TYPES, tree: LIB_TREE, code: 'LDLI', files: [{ n: 0, name: 'K-0.pdf' }, { n: 1, name: 'Sheet.zip' }, { n: 2, name: 'notes.pptx' }], sent: true, updated: false, date: '2026-10-28', desc: '', ...over });
 
 test('filing-plan: publishPlan — the Library\'s layout, a description, the folders made once', () => {
@@ -300,12 +305,14 @@ test('filing-plan: layoutFor — saved, recognized from the tree, the convention
   const map = { areas: {}, slots: { sent: SENT, sentSplit: true, updated: UPD + '/LDLI-pub-updated-PDF' }, publish: null };
   const got = plans.layoutFor(map, LIB_TREE, L.OFFICE_TYPES);
   assert.strictEqual(got.from, 'detected');
-  assert.deepStrictEqual(got.layout.sent, LIB_LAYOUT.sent);
-  assert.deepStrictEqual(got.layout.updated, LIB_LAYOUT.updated);
+  assert.deepStrictEqual(got.layout.sent, LIB_V2.sent);
+  assert.deepStrictEqual(got.layout.updated, LIB_V2.updated);
+  // the paths it gives are the ones the old levels gave
+  for (const updated of [false, true]) assert.deepStrictEqual(lib({ layout: got.layout, updated, desc: 'x' }).plan, lib({ updated, desc: 'x' }).plan);
   assert.deepStrictEqual(plans.layoutFor({ ...map, publish: { ...LIB_LAYOUT, types: null } }, [], L.OFFICE_TYPES).from, 'saved');
   const conv = plans.layoutFor({ areas: {}, slots: { sent: 'P/X-pub-@sent', sentSplit: false, updated: '' } }, ['P', 'P/X-pub-@sent'], L.OFFICE_TYPES);
   assert.strictEqual(conv.from, 'convention');
-  assert.deepStrictEqual(conv.layout.sent.levels, [{ kind: 'year', pattern: '{code}-pub-sent-{yyyy}' }, { kind: 'day', pattern: '{code}-pub-{yyyy},{mm},{dd}' }]);
+  assert.deepStrictEqual(conv.layout.sent, { base: 'P/X-pub-@sent', byType: false, typeDirs: {}, date: 'year-day' }, 'together: v2, the convention dates');
   const empty = plans.layoutFor({ areas: {} }, LIB_TREE, L.OFFICE_TYPES);
   assert.strictEqual(empty.layout.sent.base, SENT, 'no slots: the convention\'s folder names found in the tree (autoSlots)');
 });
@@ -316,7 +323,7 @@ test('filing-plan: layoutFor — a saved layout missing a part is tolerated; _ o
   assert.strictEqual(part.layout.sent.base, SENT);
   const only = plans.layoutFor({ areas: {}, publish: { sent: { base: SENT, levels: [] } } }, LIB_TREE, L.OFFICE_TYPES);
   assert.strictEqual(only.from, 'saved');
-  assert.deepStrictEqual(only.layout.updated, LIB_LAYOUT.updated, 'UPDATED not saved: the convention …-updated-PDF found in the tree, by type');
+  assert.deepStrictEqual(only.layout.updated, LIB_V2.updated, 'UPDATED not saved: the convention …-updated-PDF found in the tree, by type');
   for (const sep of ['_', ' ']) {
     const tree = ['P', 'P/X_pub_sent', 'P/X_pub_updated'.replace('_updated', sep + 'updated')];
     const got = plans.layoutFor({ areas: {}, slots: { sent: 'P/X_pub_sent', sentSplit: false, updated: 'P/X' + sep + 'pub' + sep + 'updated' + sep + 'PDF' } }, tree, L.OFFICE_TYPES);
@@ -332,7 +339,7 @@ test('filing-plan: layoutFor — each target falls back on its own', () => {
   assert.deepStrictEqual(sentOnly.layout.updated, { base: 'P/U', levels: [{ kind: 'type', pattern: 'X-pub-updated-{type}' }] }, 'UPDATED from the legacy slot');
   const updOnly = plans.layoutFor({ areas: {}, slots: { sent: SENT, sentSplit: true, updated: '' }, publish: { sent: { base: '', levels: [] }, updated: { base: 'P/U', levels: [] }, types: null } }, LIB_TREE, L.OFFICE_TYPES);
   assert.strictEqual(updOnly.from, 'detected', 'from tells about SENT');
-  assert.deepStrictEqual(updOnly.layout.sent, LIB_LAYOUT.sent);
+  assert.deepStrictEqual(updOnly.layout.sent, LIB_V2.sent);
   assert.deepStrictEqual(updOnly.layout.updated, { base: 'P/U', levels: [] });
 });
 
@@ -421,4 +428,47 @@ test('filing-plan: publishPlan v2 — UPDATED: the type folder only, replacing; 
   // an old-shaped SENT next to a v2 UPDATED: each on its own path
   const mixed = lib({ layout: { sent: LIB_LAYOUT.sent, updated: V2_UPD }, updated: true });
   assert.deepStrictEqual(paths(mixed)[0], [SENT + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2026/LDLI-pub-PDF-2026,10,28', UPD + '/LDLI-pub-updated-PDF']);
+});
+
+test('filing-plan: layoutFor v2 — a saved v2 target kept; day folders only; what v2 cannot say stays in levels', () => {
+  const saved = { sent: { ...LIB_V2.sent, date: 'none' }, updated: { base: UPD, byType: false, typeDirs: {} }, types: null };
+  const got = plans.layoutFor({ areas: {}, publish: saved }, LIB_TREE, L.OFFICE_TYPES);
+  assert.deepStrictEqual([got.from, got.layout.sent, got.layout.updated], ['saved', saved.sent, saved.updated]);
+  // day folders right under the type folders: 'day'; type folders with nothing under them: 'year-day'
+  const B = 'P/S';
+  const days = plans.layoutFor({ areas: {}, slots: { sent: B, sentSplit: true, updated: '' } }, ['P', B, B + '/S-PDF', B + '/S-PDF/X-2026,10,01'], L.OFFICE_TYPES);
+  assert.deepStrictEqual(days.layout.sent, { base: B, byType: true, typeDirs: { PDF: B + '/S-PDF' }, date: 'day' });
+  const bare = plans.layoutFor({ areas: {}, slots: { sent: B, sentSplit: true, updated: '' } }, ['P', B, B + '/S-PDF', B + '/S-DWG'], L.OFFICE_TYPES);
+  assert.deepStrictEqual(bare.layout.sent, { base: B, byType: true, typeDirs: { PDF: B + '/S-PDF', DWG: B + '/S-DWG' }, date: 'year-day' });
+  // unified year and day folders: v2 together
+  const flat = plans.layoutFor({ areas: {}, slots: { sent: B, sentSplit: true, updated: '' } }, ['P', B, B + '/X-pub-sent-2026', B + '/X-pub-sent-2026/X-pub-2026,10,01'], L.OFFICE_TYPES);
+  assert.deepStrictEqual(flat.layout.sent, { base: B, byType: false, typeDirs: {}, date: 'year-day' });
+  // the convention's type folders inside the day: levels, as before; an empty archive split by type too
+  const conv = plans.layoutFor({ areas: {}, slots: SLOTS }, CONV, L.OFFICE_TYPES);
+  assert.deepStrictEqual(conv.layout.sent, { base: SLOTS.sent, levels: [{ kind: 'year', pattern: '4021-pub-sent-{yyyy}' }, { kind: 'day', pattern: '4021-pub-{yyyy},{mm},{dd}' }, { kind: 'type', pattern: '{type}' }] });
+  assert.deepStrictEqual(conv.layout.updated, { base: 'PUBLISH/4021-pub-updated', byType: true, typeDirs: { PDF: 'PUBLISH/4021-pub-updated/4021-pub-updated-PDF' } });
+  const empty = plans.layoutFor({ areas: {}, slots: { sent: 'P/X-pub-@sent', sentSplit: true, updated: '' } }, ['P', 'P/X-pub-@sent'], L.OFFICE_TYPES);
+  assert.deepStrictEqual([empty.from, empty.layout.sent.levels.map(l => l.kind)], ['convention', ['year', 'day', 'type']]);
+  // an UPDATED folder named …-PDF in the tree, kids by type under a plain one, none
+  const u = (slot, tree) => plans.layoutFor({ areas: {}, slots: { sent: '', sentSplit: true, updated: slot } }, tree, L.OFFICE_TYPES).layout.updated;
+  assert.deepStrictEqual(u('P/U', ['P', 'P/U', 'P/U/U-DWG']), { base: 'P/U', byType: true, typeDirs: { DWG: 'P/U/U-DWG' } });
+  assert.deepStrictEqual(u('P/U', ['P', 'P/U', 'P/U/misc']), { base: 'P/U', byType: false, typeDirs: {} });
+  assert.deepStrictEqual(u('', ['P']), { base: '', byType: false, typeDirs: {} });
+});
+
+test('filing-ai: "הצע" on publish — the Layout line describes a v2 layout: the folder per type and the date choice', () => {
+  const x = {
+    project: { code: 'X', name: 'n' }, guide: '', tree: ['P', 'P/S', 'P/U'], today: '2026-10-28', files: [{ n: 0, name: 'a.pdf' }], sent: true, updated: true, text: '', lang: 'he',
+    map: { areas: { publish: { paths: ['P'], note: '' } }, slots: { sent: '', sentSplit: true, updated: '' }, publish: {
+      sent: { base: 'P/S', byType: true, typeDirs: { PDF: 'P/S/X-sent-PDF', DWG: 'P/S/X-sent-DWG' }, date: 'year-day' },
+      updated: { base: 'P/U', byType: true, typeDirs: { PDF: 'P/U/X-updated-PDF' } }, types: null } }
+  };
+  const line = m => ai.inboxContent({ ...x, map: { ...x.map, publish: { ...x.map.publish, ...m } } }).split(String.fromCharCode(10)).find(l => l.startsWith('Layout:'));
+  assert.strictEqual(line({}), 'Layout: SENT P/S (by type: PDF → P/S/X-sent-PDF, DWG → P/S/X-sent-DWG; date: year then day); UPDATED P/U (by type: PDF → P/U/X-updated-PDF)');
+  assert.strictEqual(line({ sent: { base: 'P/S', byType: false, typeDirs: {}, date: 'day' }, updated: { base: '', byType: false, typeDirs: {} } }), 'Layout: SENT P/S (all types together; date: day only)');
+  assert.strictEqual(line({ sent: { base: 'P/S', byType: true, typeDirs: {}, date: 'none' } }), 'Layout: SENT P/S (by type; date: none); UPDATED P/U (by type: PDF → P/U/X-updated-PDF)');
+  // an old-shaped target next to a v2 one: its patterns, as before
+  assert.strictEqual(line({ updated: { base: 'P/U', levels: [{ kind: 'type', pattern: '{type}' }] } }), 'Layout: SENT P/S (by type: PDF → P/S/X-sent-PDF, DWG → P/S/X-sent-DWG; date: year then day); UPDATED P/U/{type}');
+  assert.match(ai.INBOX_SYSTEM, /never add a description/i);
+  assert.match(ai.INBOX_SYSTEM, /date folders already in the tree/);
 });

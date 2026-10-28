@@ -3,7 +3,9 @@
    (a folder per file type, per year, per day), each with a name pattern, and the type list that names the type
    folders. Pure: no file, no network, no other module. filing-plan.js builds the paths; filing.js keeps the layout in
    the project's map (map.publish) and the office's type list in filing.json (office.types).
-   Spec: docs/superpowers/specs/2026-10-28-publish-layout-design.md */
+   Since v2 a target is saved as folders picked instead (base, a folder per type, a date choice); the levels shape
+   keeps working.
+   Spec: docs/superpowers/specs/2026-10-28-publish-layout-design.md, v2: 2026-10-28-folders-page-v2-design.md */
 
 const OFFICE_TYPES = [
   { name: 'PDF', ext: ['pdf'] },

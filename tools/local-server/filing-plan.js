@@ -196,17 +196,30 @@ function senderConsultant(options, contacts, email) {
 }
 
 /* The publish layout to build with, each target on its own: SENT (or UPDATED) as saved in the map (map.publish) when
-   its base is saved; else the one the tree shows under the map's SENT / UPDATED folder (filing-layout.detectLayout;
-   that folder found by the convention's names when the map has none), else the convention (year, day, then a folder
-   per type unless the map says "together"). An UPDATED folder whose name ends in a type name (…-updated-PDF, from
-   before layouts) stands for its parent with a level per type.
+   its base is saved, in either shape (v2 or levels); else what the tree shows under the map's SENT / UPDATED folder
+   (that folder found by the convention's names when the map has none), in the v2 shape:
+   - SENT: by type when the layout the tree shows (filing-layout.detectLayout) starts with type folders, typeDirs the
+     folders right under the base that name a type; date by the year / day levels found ('day' with days only, else
+     'year-day'). Nothing found and the map says "together": the base, by the convention's dates.
+   - What v2 cannot say stays in the levels shape: type folders inside the date folders (the convention, Folder
+     Manager), found in the tree or, nothing found and not "together", the convention itself.
+   - UPDATED: by type when folders right under it name a type; a folder of the tree whose name ends in a type name
+     (…-updated-PDF, from before layouts) stands for its parent, by type. Such a folder not in the tree keeps the
+     levels shape (a level per type named like it).
    { layout: { sent, updated }, from } — from describes SENT, the target the window's note is about: 'saved' when SENT
    is the saved one, else 'detected' or 'convention' (a saved UPDATED alone does not make it 'saved'). */
+// the folders right under dir that name a type as a whole word: { <type>: <folder> }, the first one per type
+function typeDirsUnder(list, dir, types) {
+  const names = types.map(t => t.name), out = {};
+  if (!dir) return out;
+  for (const p of kids(list, dir)) { const b = L.typeSpan(leafOf(p), names); if (b && !out[b.name]) out[b.name] = p; }
+  return out;
+}
 const CONVENTION_SENT = [{ kind: 'year', pattern: '{code}-pub-sent-{yyyy}' }, { kind: 'day', pattern: '{code}-pub-{yyyy},{mm},{dd}' }, { kind: 'type', pattern: '{type}' }];
 function layoutFor(map, tree, types) {
   const list = (tree || []).filter(Boolean);
   const saved = (map && map.publish) || {};
-  const part = x => (x && typeof x === 'object' ? { base: x.base || '', levels: Array.isArray(x.levels) ? x.levels : [] } : { base: '', levels: [] });
+  const part = x => (L.isV2(x) ? { ...x, base: x.base || '' } : x && typeof x === 'object' ? { base: x.base || '', levels: Array.isArray(x.levels) ? x.levels : [] } : { base: '', levels: [] });
   const savedSent = part(saved.sent), savedUpd = part(saved.updated);
   const s = (map && map.slots) || {};
   let auto = null;
@@ -214,19 +227,29 @@ function layoutFor(map, tree, types) {
   let sent, from;
   if (savedSent.base) { sent = savedSent; from = 'saved'; } else {
     const sentBase = s.sent || autoOf().sent;
-    let levels = sentBase ? L.detectLayout(list, inTree(list, sentBase) || sentBase, types) : null;
+    const at = sentBase ? inTree(list, sentBase) || sentBase : '';
+    const levels = at ? L.detectLayout(list, at, types) : null;
     from = levels ? 'detected' : 'convention';
-    if (!levels) levels = s.sent && s.sentSplit === false ? CONVENTION_SENT.slice(0, 2) : CONVENTION_SENT.slice();
-    sent = { base: sentBase, levels };
+    const typeAt = levels ? levels.findIndex(l => l.kind === 'type') : -1;
+    if (levels && typeAt <= 0) {
+      const byType = typeAt === 0, kinds = levels.map(l => l.kind);
+      sent = { base: sentBase, byType, typeDirs: byType ? typeDirsUnder(list, at, types) : {}, date: kinds.includes('day') && !kinds.includes('year') ? 'day' : 'year-day' };
+    } else if (levels) sent = { base: sentBase, levels };
+    else if (s.sent && s.sentSplit === false) sent = { base: sentBase, byType: false, typeDirs: {}, date: 'year-day' };
+    else sent = { base: sentBase, levels: CONVENTION_SENT.slice() };
   }
   let updated = savedUpd;
   if (!savedUpd.base) {
     const upd = s.updated || autoOf().updated;
-    updated = { base: upd, levels: [] };
-    if (upd && upd.includes('/')) {
-      const leaf = leafOf(upd);
-      const hit = types.map(t => t.name).find(n => ['-', '_', ' '].some(sep => lc(leaf).endsWith(sep + lc(n))));
-      if (hit) updated = { base: upd.slice(0, upd.lastIndexOf('/')), levels: [{ kind: 'type', pattern: leaf.slice(0, leaf.length - hit.length) + '{type}' }] };
+    const leaf = upd ? leafOf(upd) : '';
+    const hit = upd && upd.includes('/') ? types.map(t => t.name).find(n => ['-', '_', ' '].some(sep => lc(leaf).endsWith(sep + lc(n)))) : null;
+    const here = upd ? inTree(list, upd) : null;
+    if (hit && !here) updated = { base: upd.slice(0, upd.lastIndexOf('/')), levels: [{ kind: 'type', pattern: leaf.slice(0, leaf.length - hit.length) + '{type}' }] };
+    else {
+      const base = hit ? here.slice(0, here.lastIndexOf('/')) : upd || '';
+      const typeDirs = typeDirsUnder(list, base && (inTree(list, base) || base), types);
+      if (hit && !typeDirs[hit]) typeDirs[hit] = here;
+      updated = { base, byType: Object.keys(typeDirs).length > 0, typeDirs };
     }
   }
   return { layout: { sent, updated }, from };
