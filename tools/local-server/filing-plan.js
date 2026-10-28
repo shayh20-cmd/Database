@@ -5,6 +5,7 @@
    sanitizeReceivePlan), so the PC runs it exactly as it runs Claude's. Claude stays behind "הצע".
    Spec: docs/superpowers/specs/2026-10-26-filing-without-ai-design.md */
 const ai = require('./filing-ai');
+const L = require('./filing-layout');
 
 const lc = s => String(s == null ? '' : s).toLowerCase();
 const leafOf = p => p.slice(p.lastIndexOf('/') + 1);
@@ -186,4 +187,97 @@ function senderConsultant(options, contacts, email) {
   return options.consultants.findIndex(x => x.folder && x.contact && lc(x.contact) === text);
 }
 
-module.exports = { autoSlots, sentFolder, inboxPlan, nextVersion, receivePlan, senderConsultant };
+/* The publish layout to build with: the one saved in the map (map.publish), else the one the tree shows under the
+   map's SENT / UPDATED folders (filing-layout.detectLayout; those folders found by the convention's names when the
+   map has none), else the convention (year, day, then a folder per type unless the map says "together").
+   An UPDATED folder whose name ends in a type name (…-updated-PDF, from before layouts) stands for its parent with a
+   level per type. { layout: { sent, updated }, from: 'saved' | 'detected' | 'convention' } */
+const CONVENTION_SENT = [{ kind: 'year', pattern: '{code}-pub-sent-{yyyy}' }, { kind: 'day', pattern: '{code}-pub-{yyyy},{mm},{dd}' }, { kind: 'type', pattern: '{type}' }];
+function layoutFor(map, tree, types) {
+  const list = (tree || []).filter(Boolean);
+  const saved = map && map.publish;
+  if (saved && (saved.sent.base || saved.updated.base)) return { layout: { sent: saved.sent, updated: saved.updated }, from: 'saved' };
+  const s = (map && map.slots) || {};
+  const auto = autoSlots(list).slots;
+  const sentBase = s.sent || auto.sent;
+  let levels = sentBase ? L.detectLayout(list, inTree(list, sentBase) || sentBase, types) : null;
+  const from = levels ? 'detected' : 'convention';
+  if (!levels) levels = s.sent && s.sentSplit === false ? CONVENTION_SENT.slice(0, 2) : CONVENTION_SENT.slice();
+  const upd = s.updated || auto.updated;
+  let updated = { base: upd, levels: [] };
+  if (upd && upd.includes('/')) {
+    const leaf = leafOf(upd);
+    const hit = types.map(t => t.name).find(n => lc(leaf).endsWith('-' + lc(n)));
+    if (hit) updated = { base: upd.slice(0, upd.lastIndexOf('/')), levels: [{ kind: 'type', pattern: leaf.slice(0, leaf.length - hit.length) + '{type}' }] };
+  }
+  return { layout: { sent: { base: sentBase, levels }, updated }, from };
+}
+
+/* The publish plan from a layout: each file into SENT (base, then a folder per level, the day's with " - <desc>" when
+   one was typed; existing folders of the same name used as they are, the missing ones made once, in order) and into
+   UPDATED (its levels, replacing a file of the same name — the PC moves the old one to @ver). typeOf { n: type }
+   changes one file's type; dests { n: path } puts one file's SENT copy into a folder of the tree instead (not in the
+   tree: problem 'dest'). Returns { plan, days, slotsMissing? } — days: the descriptions of the date's day folders that
+   are there already, of every type, for the window to offer. */
+function publishPlan({ layout, types, tree, code, files, sent, updated, date, desc, typeOf = {}, dests = {} }) {
+  const list = (tree || []).filter(Boolean);
+  const [yyyy, mm, dd] = date.split('-');
+  const missing = {};
+  const baseOf = (on, key) => {
+    if (!on) return null;
+    const b = layout[key] && layout[key].base;
+    if (!b) { missing[key] = 'unmapped'; return null; }
+    const p = inTree(list, b);
+    if (!p) missing[key] = 'gone';
+    return p;
+  };
+  const sentBase = baseOf(sent, 'sent'), updBase = baseOf(updated, 'updated');
+  const steps = [], made = new Set();
+  const mk = p => { if (!inTree(list, p) && !made.has(lc(p))) { made.add(lc(p)); steps.push({ op: 'mkdir', path: p }); } };
+  const walk = (base, levels, type, withDesc) => {
+    let dir = base;
+    for (const lv of levels) {
+      let name = L.fill(lv.pattern, { code, type, yyyy, mm, dd });
+      if (lv.kind === 'day' && withDesc && desc) name += ' - ' + desc;
+      const p = dir + '/' + name;
+      dir = inTree(list, p) || p;
+      mk(dir);
+    }
+    return dir;
+  };
+  const days = new Set();
+  if (sentBase) for (const t of types) {
+    let dir = sentBase;
+    for (const lv of layout.sent.levels) {
+      const name = L.fill(lv.pattern, { code, type: t.name, yyyy, mm, dd });
+      if (lv.kind === 'day') {
+        for (const k of kids(list, dir)) { const l = leafOf(k); if (lc(l).startsWith(lc(name) + ' - ')) days.add(l.slice(name.length + 3)); }
+        break;
+      }
+      const p = inTree(list, dir + '/' + name);
+      if (!p) break;
+      dir = p;
+    }
+  }
+  const raw = { steps, files: [] }, kinds = [], problems = {}, updDirs = [];
+  for (const f of files || []) {
+    const type = typeOf[f.n] && types.some(t => t.name === typeOf[f.n]) ? typeOf[f.n] : L.typeOfName(f.name, types);
+    const ds = [];
+    if (sent && dests[f.n] != null) {
+      const p = inTree(list, dests[f.n]);
+      if (p) ds.push({ path: p, replace: false }); else problems[f.n] = 'dest';
+    } else if (sentBase) ds.push({ path: walk(sentBase, layout.sent.levels, type, true), replace: false });
+    if (updBase) {
+      const p = walk(updBase, layout.updated.levels, type, false);
+      ds.push({ path: p, replace: true });
+      if (!updDirs.some(x => lc(x) === lc(p))) updDirs.push(p);
+    }
+    raw.files.push({ name: f.name, dests: ds });
+    kinds.push(type);
+  }
+  const plan = ai.sanitizeInboxPlan(raw, list, files, updDirs, null);
+  plan.files.forEach((f, i) => { f.type = kinds[i]; if (problems[f.n]) f.problem = problems[f.n]; });
+  return { plan, days: [...days].sort(), ...(Object.keys(missing).length ? { slotsMissing: missing } : {}) };
+}
+
+module.exports = { autoSlots, sentFolder, inboxPlan, nextVersion, receivePlan, senderConsultant, layoutFor, publishPlan };
