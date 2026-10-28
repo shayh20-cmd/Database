@@ -314,3 +314,10 @@ test('filing-plan: publishPlan — dests cut by the 30-step limit are said (prob
   assert.ok(cut.length > 0, 'some files lost their folders');
   for (const f of r.plan.files) assert.ok(f.dests.length || f.problem, f.name + ' has dests or a problem');
 });
+
+test('filing-plan: publishPlan — SENT and UPDATED in one folder: the file goes there once, and no problem is said', () => {
+  const layout = { sent: { base: 'P/U', levels: [] }, updated: { base: 'P/U', levels: [] } };
+  const r = plans.publishPlan({ layout, types: L.OFFICE_TYPES, tree: ['P', 'P/U'], code: 'X', files: [{ n: 0, name: 'a.pdf' }], sent: true, updated: true, date: '2026-10-28', desc: '' });
+  assert.strictEqual(r.plan.files[0].dests.length, 1);
+  assert.strictEqual(r.plan.files[0].problem, undefined);
+});

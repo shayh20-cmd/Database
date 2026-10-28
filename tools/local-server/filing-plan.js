@@ -281,7 +281,8 @@ function publishPlan({ layout, types, tree, code, files, sent, updated, date, de
   plan.files.forEach((f, i) => {
     f.type = kinds[i];
     if (problems[f.n]) f.problem = problems[f.n];
-    else if (f.dests.length < raw.files[i].dests.length) f.problem = 'steps';
+    // SENT and UPDATED in one folder are one dest after sanitizing: count the distinct folders asked for
+    else if (f.dests.length < new Set(raw.files[i].dests.map(d => lc(d.path))).size) f.problem = 'steps';
   });
   return { plan, days: [...days].sort(), ...(Object.keys(missing).length ? { slotsMissing: missing } : {}) };
 }

@@ -45,7 +45,7 @@ function normalizeMap(map) {
   return { ...map, areas: cleanAreas(map.areas, rel => rel || null), slots: cleanSlots(map.slots), publish: layout.cleanPublish(map.publish, relPath).publish || null };
 }
 /* The map's slots for filing without Claude (filing-plan.js): the SENT archive, whether SENT is split into a folder per
-   file type, and the UPDATED folder of PDFs — paths inside the project, '' when not mapped. */
+   file type, and the UPDATED folder — paths inside the project, '' when not mapped. */
 function cleanSlots(raw) {
   const r = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
   const path = v => relPath(v) || '';
