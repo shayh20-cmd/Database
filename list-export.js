@@ -5,7 +5,8 @@
 
      { title, date, subtitle, sheetName, rtl,
        columns: [{ label, kind }],            kind sets the width: name, comment, updates, ...
-       rows: [{ type: 'section', label, depth } | { type: 'task', cells: [text], sub }] }
+       rows: [{ type: 'section', label, depth } | { type: 'task', cells: [text], sub, fills: [{ bg, fg } | null] }] }
+     fills is optional: the cell's colours as '#RRGGBB', as on screen.
 
    The .xlsx is written by hand (a stored zip of a few XML parts) so it carries what the
    community builds of the usual libraries leave out: bold header, wrapped text, section
@@ -80,28 +81,36 @@
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const colName = i => { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+  /* { bg, fg } as 'RRGGBB' each, or null when either isn't a plain hex colour */
+  const hexPair = f => {
+    const hx = v => { const m = /^#?([0-9a-f]{6})$/i.exec(String(v || '').trim()); return m ? m[1].toUpperCase() : null; };
+    const bg = f && hx(f.bg), fg = f && hx(f.fg);
+    return bg && fg ? { bg, fg } : null;
+  };
   const sheetNameOf = s => (String(s || 'Sheet').replace(/[\[\]:*?\/\\']/g, ' ').trim() || 'Sheet').slice(0, 31);
 
   /* cellXfs: 0 plain · 1 title · 2 subtitle · 3 header · 4 body · 5 body centred ·
      6 section · 7 inner section · 8 subtask name. Text keeps to the reading side even when
      a cell holds only Latin letters, which Excel would otherwise push to the other side. */
-  function stylesXml(rtl) {
+  /* a coloured cell is one of the body styles (4, 5, 8) with its own fill and font colour; extras lists them from index 9 */
+  function stylesXml(rtl, extras = []) {
     /* an explicit reading order: left on 'context', Excel mirrors the alignment of a cell that starts in the other script */
     const ro = rtl ? ' readingOrder="2"' : ' readingOrder="1"';
     const side = rtl ? 'right' : 'left';
     const font = (sz, extra = '') => `<font>${extra}<sz val="${sz}"/><name val="Arial"/><family val="2"/></font>`;
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
       + '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
-      + '<fonts count="6">' + font(10) + font(16, '<b/>') + font(10, '<color rgb="FF5B616D"/>') + font(10, '<b/>')
-      + font(11, '<b/>') + font(10, '<color rgb="FF3F4651"/>') + '</fonts>'
-      + '<fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'
+      + `<fonts count="${6 + extras.length}">` + font(10) + font(16, '<b/>') + font(10, '<color rgb="FF5B616D"/>') + font(10, '<b/>')
+      + font(11, '<b/>') + font(10, '<color rgb="FF3F4651"/>') + extras.map(x => font(10, `<color rgb="FF${x.fg}"/>`)).join('') + '</fonts>'
+      + `<fills count="${5 + extras.length}">` + '<fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'
       + '<fill><patternFill patternType="solid"><fgColor rgb="FFE7ECF3"/><bgColor indexed="64"/></patternFill></fill>'
       + '<fill><patternFill patternType="solid"><fgColor rgb="FFD9E4F2"/><bgColor indexed="64"/></patternFill></fill>'
-      + '<fill><patternFill patternType="solid"><fgColor rgb="FFF0F3F8"/><bgColor indexed="64"/></patternFill></fill></fills>'
+      + '<fill><patternFill patternType="solid"><fgColor rgb="FFF0F3F8"/><bgColor indexed="64"/></patternFill></fill>'
+      + extras.map(x => `<fill><patternFill patternType="solid"><fgColor rgb="FF${x.bg}"/><bgColor indexed="64"/></patternFill></fill>`).join('') + '</fills>'
       + '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>'
       + '<border>' + ['left', 'right', 'top', 'bottom'].map(s => `<${s} style="thin"><color rgb="FFC5CDD8"/></${s}>`).join('') + '<diagonal/></border></borders>'
       + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
-      + '<cellXfs count="9">'
+      + `<cellXfs count="${9 + extras.length}">`
       + '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
       + `<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center"${ro}/></xf>`
       + `<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="center"${ro}/></xf>`
@@ -111,11 +120,12 @@
       + `<xf numFmtId="0" fontId="4" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"${ro}/></xf>`
       + `<xf numFmtId="0" fontId="3" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="${side}" vertical="center" indent="1"${ro}/></xf>`
       + `<xf numFmtId="0" fontId="5" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="${side}" vertical="top" wrapText="1" indent="2"${ro}/></xf>`
+      + extras.map((x, k) => `<xf numFmtId="0" fontId="${6 + k}" fillId="${5 + k}" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="${x.base === 5 ? 'center' : side}" vertical="top" wrapText="1"${x.base === 8 ? ' indent="2"' : ''}${ro}/></xf>`).join('')
       + '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
       + '</styleSheet>';
   }
 
-  function sheetXml(model, orientation) {
+  function sheetXml(model, orientation, extras = []) {
     const cols = model.columns;
     const last = colName(Math.max(0, cols.length - 1));
     const HEAD = 4;
@@ -134,7 +144,14 @@
         rows.push(`<row r="${r}" ht="${row.depth > 0 ? 18 : 20}" customHeight="1">${cell(r, 0, label, s)}${cols.slice(1).map((_, i) => `<c r="${colName(i + 1)}${r}" s="${s}"/>`).join('')}</row>`);
         if (cols.length > 1) merges.push(`A${r}:${last}${r}`);
       } else {
-        rows.push(`<row r="${r}">${cols.map((c, i) => cell(r, i, row.cells[i], c.kind === 'name' && row.sub ? 8 : CENTER.has(c.kind) ? 5 : 4)).join('')}</row>`);
+        rows.push(`<row r="${r}">${cols.map((c, i) => {
+          const base = c.kind === 'name' && row.sub ? 8 : CENTER.has(c.kind) ? 5 : 4;
+          const fill = hexPair(row.fills && row.fills[i]);
+          if (!fill || !String(row.cells[i] || '').trim()) return cell(r, i, row.cells[i], base);
+          let k = extras.findIndex(x => x.base === base && x.bg === fill.bg && x.fg === fill.fg);
+          if (k < 0) k = extras.push({ base, ...fill }) - 1;
+          return cell(r, i, row.cells[i], 9 + k);
+        }).join('')}</row>`);
       }
     }
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -155,6 +172,8 @@
 
   function buildXlsx(model, orientation) {
     const name = sheetNameOf(model.sheetName);
+    const extras = [];
+    const sheet = sheetXml(model, orientation, extras);
     return zip([
       { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>' },
       { name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
@@ -163,8 +182,8 @@
         + `<sheets><sheet name="${xmlEsc(name)}" sheetId="1" r:id="rId1"/></sheets>`
         + `<definedNames><definedName name="_xlnm.Print_Titles" localSheetId="0">'${xmlEsc(name)}'!$4:$4</definedName></definedNames></workbook>` },
       { name: 'xl/_rels/workbook.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
-      { name: 'xl/styles.xml', data: stylesXml(model.rtl) },
-      { name: 'xl/worksheets/sheet1.xml', data: sheetXml(model, orientation) },
+      { name: 'xl/styles.xml', data: stylesXml(model.rtl, extras) },
+      { name: 'xl/worksheets/sheet1.xml', data: sheet },
     ]);
   }
 
@@ -185,7 +204,11 @@
       if (row.type === 'section') {
         return `<tr class="sec d${Math.min(row.depth || 0, 2)}"><td colspan="${cols.length}">${htmlEsc(row.label)}${row.count != null ? ` <span class="n">(${row.count})</span>` : ''}</td></tr>`;
       }
-      return `<tr${row.sub ? ' class="sub"' : ''}>${cols.map((c, i) => `<td class="k-${c.kind}${CENTER.has(c.kind) ? ' c' : ''}">${htmlEsc(row.cells[i])}</td>`).join('')}</tr>`;
+      return `<tr${row.sub ? ' class="sub"' : ''}>${cols.map((c, i) => {
+        const fill = hexPair(row.fills && row.fills[i]);
+        const text = htmlEsc(row.cells[i]);
+        return `<td class="k-${c.kind}${CENTER.has(c.kind) ? ' c' : ''}">${fill && text.trim() ? `<span class="pl" style="background:#${fill.bg};color:#${fill.fg}">${text}</span>` : text}</td>`;
+      }).join('')}</tr>`;
     }).join('');
     return `<!doctype html><html lang="${rtl ? 'he' : 'en'}" dir="${rtl ? 'rtl' : 'ltr'}"><head><meta charset="utf-8"><title>${htmlEsc(model.fileName || model.title)}</title><style>
 @page{size:A4 ${portrait ? 'portrait' : 'landscape'};margin:12mm 10mm 14mm;@bottom-center{content:${pageContent(model.pageLabel)};font:8pt Arial,sans-serif;color:#6b7280}}
@@ -210,6 +233,7 @@ tr.sec .n{font-weight:400;color:#5b616d}
 tr.sub td{color:#3f4651}
 tr.sub td.k-name{padding-${rtl ? 'right' : 'left'}:6mm}
 tr.sub td.k-name::before{content:"↳";float:${side};margin-${rtl ? 'left' : 'right'}:1.5mm;color:#9ca3af}
+.pl{display:inline-block;border-radius:2.4mm;padding:0.3mm 2mm;font-weight:600;max-width:100%}
 .empty{padding:6mm 0;color:#6b7280}
 </style></head><body>
 <div class="hd"><h1>${htmlEsc(model.title)}</h1><span class="dt">${htmlEsc(model.date || '')}</span></div>
@@ -324,6 +348,7 @@ ${model.rows.length ? '' : `<div class="empty">${htmlEsc(model.emptyText || '')}
     const [orient, setOrient] = useState(prefs0.orient === 'portrait' ? 'portrait' : 'landscape');
     const [subs, setSubs] = useState(!!prefs0.subtasks);
     const [done, setDone] = useState(prefs0.done !== false);
+    const [colors, setColors] = useState(prefs0.colors !== false);
     const [cols, setCols] = useState(() => initialCols(columns, prefs0.cols));
     const [dragI, setDragI] = useState(null);
     const [overI, setOverI] = useState(null);
@@ -342,8 +367,8 @@ ${model.rows.length ? '' : `<div class="empty">${htmlEsc(model.emptyText || '')}
     const toggle = id => setCols(cols.map(c => c.id === id ? { ...c, on: !c.on } : c));
     const setAll = on => setCols(cols.map(c => ({ ...c, on })));
     const go = () => {
-      savePrefs({ fmt, orient, subtasks: subs, done, cols });
-      const model = build(onIds, { subtasks: subs, done }).model;
+      savePrefs({ fmt, orient, subtasks: subs, done, colors, cols });
+      const model = build(onIds, { subtasks: subs, done, colors }).model;
       if (fmt === 'xlsx') download(buildXlsx(model, orient), model.fileName + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       else printHtml(buildPrintHtml(model, orient), model.fileName);
       onClose();
@@ -385,7 +410,8 @@ ${model.rows.length ? '' : `<div class="empty">${htmlEsc(model.emptyText || '')}
               }))),
           h('div', null, h('div', { className: 'lx-lbl' }, 'שורות'),
             h('label', { className: 'lx-chk' }, h('input', { type: 'checkbox', checked: done, onChange: () => setDone(!done) }), 'כולל משימות שהושלמו'),
-            h('label', { className: 'lx-chk' }, h('input', { type: 'checkbox', checked: subs, onChange: () => setSubs(!subs) }), 'כולל תתי־משימות'))),
+            h('label', { className: 'lx-chk' }, h('input', { type: 'checkbox', checked: subs, onChange: () => setSubs(!subs) }), 'כולל תתי־משימות'),
+            h('label', { className: 'lx-chk' }, h('input', { type: 'checkbox', checked: colors, onChange: () => setColors(!colors) }), 'בצבעים, כמו במסך'))),
         h('div', { className: 'lx-ft' },
           h('span', { className: 'lx-count' }, T('{n} משימות ייוצאו, כפי שהרשימה מסוננת וממוינת', { n: preview.count })),
           h('button', { type: 'button', className: 'lx-btn', onClick: onClose }, 'ביטול'),

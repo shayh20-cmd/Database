@@ -3301,7 +3301,9 @@ Object.assign(HE_EN, {
 "עד {d}": "Due {d}",
 "החל מ־{d}": "From {d}",
 "מבט: {name}": "View: {name}",
-"{n} משימות": "{n} tasks"
+"{n} משימות": "{n} tasks",
+"בצבעים, כמו במסך": "In colour, as on screen",
+"{n} ליקויים": "{n} issues"
 });
 
 window.I18N_HE_EN = HE_EN;
