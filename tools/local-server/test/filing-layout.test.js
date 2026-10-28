@@ -62,3 +62,44 @@ test('filing-layout: cleanPublish — both targets, the types, the first bad lev
   assert.deepStrictEqual(L.cleanPublish({ ...raw, types: [{ name: 'PDF', ext: ['pdf'] }] }, rel), { error: 'layout', target: 'types', level: -1 });
   assert.deepStrictEqual(L.cleanPublish({ ...raw, types: L.OFFICE_TYPES }, rel).publish.types, L.OFFICE_TYPES);
 });
+
+test('filing-layout: cleanTypes ignores a rest type\'s extensions; cleanDesc cuts by code points', () => {
+  assert.deepStrictEqual(L.cleanTypes([{ name: 'R', ext: ['pdf'], rest: true }, { name: 'A', ext: ['pdf'] }]), [{ name: 'R', ext: [], rest: true }, { name: 'A', ext: ['pdf'] }]);
+  assert.strictEqual([...L.cleanDesc('a' + String.fromCodePoint(0x1F600).repeat(80))].length, 60);
+});
+
+const LDLI = 'LDLI-work/LDLI-publish/LDLI-pub-@sent';
+const LDLI_TREE = [
+  'LDLI-work', 'LDLI-work/LDLI-publish', LDLI,
+  LDLI + '/LDLI-pub-sent-DOCS', LDLI + '/LDLI-pub-sent-DOCS/LDLI-pub-DOCS-2026', LDLI + '/LDLI-pub-sent-DOCS/LDLI-pub-DOCS-2026/LDLI-pub-DOCS-2026,10,19 - חניה זמנית',
+  LDLI + '/LDLI-pub-sent-DWG', LDLI + '/LDLI-pub-sent-DWG/LDLI-pub-DWG-2026', LDLI + '/LDLI-pub-sent-DWG/LDLI-pub-DWG-2026/LDLI-pub-DWG-2026,10,25 - גרמושקה ליועץ בטיחות',
+  LDLI + '/LDLI-pub-sent-PDF', LDLI + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2025', LDLI + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2026',
+  LDLI + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2026/LDLI-pub-PDF-2026,01,12-01 - A4', LDLI + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2026/LDLI-pub-PDF-2026,10,19 - חניה זמנית'
+];
+
+test('filing-layout: detectLayout — the Library\'s type, year, day', () => {
+  assert.deepStrictEqual(L.detectLayout(LDLI_TREE, LDLI, L.OFFICE_TYPES), [
+    { kind: 'type', pattern: 'LDLI-pub-sent-{type}' },
+    { kind: 'year', pattern: 'LDLI-pub-{type}-{yyyy}' },
+    { kind: 'day', pattern: 'LDLI-pub-{type}-{yyyy},{mm},{dd}' }
+  ]);
+});
+
+test('filing-layout: detectLayout — the convention\'s year, day, type; unified; empty', () => {
+  const S = 'PUBLISH/LDPB-pub-@sent';
+  const conv = ['PUBLISH', S, S + '/LDPB-pub-sent-2026', S + '/LDPB-pub-sent-2026/LDPB-pub-2026,10,01', S + '/LDPB-pub-sent-2026/LDPB-pub-2026,10,01/PDF', S + '/LDPB-pub-sent-2026/LDPB-pub-2026,10,01/DWG'];
+  assert.deepStrictEqual(L.detectLayout(conv, S, L.OFFICE_TYPES), [
+    { kind: 'year', pattern: 'LDPB-pub-sent-{yyyy}' },
+    { kind: 'day', pattern: 'LDPB-pub-{yyyy},{mm},{dd}' },
+    { kind: 'type', pattern: '{type}' }
+  ]);
+  const unified = conv.slice(0, 4);
+  assert.deepStrictEqual(L.detectLayout(unified, S, L.OFFICE_TYPES).map(l => l.kind), ['year', 'day']);
+  assert.strictEqual(L.detectLayout(['PUBLISH', S], S, L.OFFICE_TYPES), null, 'an empty archive shows nothing');
+  assert.strictEqual(L.detectLayout(['PUBLISH', S, S + '/misc'], S, L.OFFICE_TYPES), null, 'names that say nothing');
+});
+
+test('filing-layout: detectLayout — the most common pattern wins; the updated folders by type', () => {
+  const U = 'P/X-pub-updated';
+  assert.deepStrictEqual(L.detectLayout(['P', U, U + '/X-pub-updated-PDF', U + '/X-pub-updated-DWG', U + '/old-PDF'], U, L.OFFICE_TYPES), [{ kind: 'type', pattern: 'X-pub-updated-{type}' }]);
+});

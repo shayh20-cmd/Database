@@ -30,7 +30,8 @@ function okName(s) {
 /* the day folder's description as typed in the window: reserved characters dropped, at most 60 characters, no dot or
    space at its end; '' when nothing is left */
 function cleanDesc(v) {
-  let s = [...String(v == null ? '' : v)].filter(c => !BAD.has(c) && c.charCodeAt(0) >= 32).join('').trim().slice(0, 60);
+  let s = [...String(v == null ? '' : v)].filter(c => !BAD.has(c) && c.charCodeAt(0) >= 32).join('').trim();
+  s = [...s].slice(0, 60).join('');
   while (s.endsWith('.') || s.endsWith(' ')) s = s.slice(0, -1);
   return s;
 }
@@ -53,7 +54,7 @@ function cleanTypes(raw) {
     if (!okName(name) || name.length > 20 || names.has(lc(name))) return null;
     names.add(lc(name));
     const ext = [];
-    for (const e of Array.isArray(t.ext) ? t.ext : []) {
+    for (const e of t.rest === true ? [] : Array.isArray(t.ext) ? t.ext : []) {
       let x = lc(String(e == null ? '' : e).trim());
       while (x.startsWith('.')) x = x.slice(1);
       if (!x) continue;
@@ -115,4 +116,67 @@ function cleanPublish(raw, relPath) {
   return { publish: out };
 }
 
-module.exports = { OFFICE_TYPES, KINDS, NEEDS, okName, cleanDesc, fill, cleanTypes, typeOfName, cleanLevels, cleanPublish };
+const leafOf = p => p.slice(p.lastIndexOf('/') + 1);
+// the folders directly inside dir
+const kids = (tree, dir) => tree.filter(p => lc(p).startsWith(lc(dir) + '/') && !p.slice(dir.length + 1).includes('/'));
+const DATE = /([0-9]{4}),([0-9]{2}),([0-9]{2})/;
+const YEAR = /(^|[^0-9])((19|20)[0-9]{2})([^0-9]|$)/;
+const SEP = ['-', '_', ' ', ','];
+/* a type name in a folder name as a whole word (between separators or the ends): the name with {type} in its place,
+   or null */
+function withTypeToken(leaf, names) {
+  const up = leaf.toUpperCase();
+  for (const n of names) {
+    const N = n.toUpperCase();
+    let i = up.indexOf(N);
+    while (i >= 0) {
+      const before = i === 0 || SEP.includes(leaf[i - 1]);
+      const after = i + N.length === leaf.length || SEP.includes(leaf[i + N.length]);
+      if (before && after) return leaf.slice(0, i) + '{type}' + leaf.slice(i + N.length);
+      i = up.indexOf(N, i + 1);
+    }
+  }
+  return null;
+}
+/* what one folder name says: { kind, pattern } or null. A date first (YYYY,MM,DD — what follows it is a description
+   or a number and is not part of the pattern), then a year, then a type name; a type name inside a date or a year
+   name becomes {type} too */
+function readName(leaf, names) {
+  const typed = withTypeToken(leaf, names);
+  const base = typed || leaf;
+  const d = DATE.exec(base);
+  if (d) return { kind: 'day', pattern: base.slice(0, d.index) + '{yyyy},{mm},{dd}' };
+  const y = YEAR.exec(base);
+  if (y) { const at = y.index + y[1].length; return { kind: 'year', pattern: base.slice(0, at) + '{yyyy}' + base.slice(at + 4) }; }
+  if (typed) return { kind: 'type', pattern: typed };
+  return null;
+}
+/* The levels a SENT or UPDATED folder shows, read from the tree under base: at each level, the kind and pattern most
+   of its folders share (a kind already found is skipped); then down into the last folder of that pattern by name.
+   Stops at a day level with no type folders under it, after 4 levels, or where nothing is recognized.
+   null when nothing is. */
+function detectLayout(tree, base, types) {
+  const names = types.map(t => t.name);
+  const list = (tree || []).filter(Boolean);
+  const levels = [], used = new Set();
+  let dir = base;
+  for (let depth = 0; depth < 4 && dir; depth++) {
+    const counts = new Map();
+    for (const p of kids(list, dir)) {
+      const r = readName(leafOf(p), names);
+      if (!r || used.has(r.kind)) continue;
+      const k = r.kind + '|' + r.pattern;
+      const c = counts.get(k) || { r, paths: [] };
+      c.paths.push(p);
+      counts.set(k, c);
+    }
+    if (!counts.size) break;
+    const best = [...counts.values()].sort((a, b) => b.paths.length - a.paths.length)[0];
+    levels.push(best.r);
+    used.add(best.r.kind);
+    dir = best.paths.slice().sort().pop();
+  }
+  return levels.length ? levels : null;
+}
+
+module.exports = { OFFICE_TYPES, KINDS, NEEDS, okName, cleanDesc, fill, cleanTypes, typeOfName, cleanLevels, cleanPublish, detectLayout };
