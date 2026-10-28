@@ -900,7 +900,7 @@ test('filing-ai: the inbox prompt — the publish area, the date, the files and 
   for (const tag of ['</guide>', '</map>']) assert.strictEqual(s.split(tag).length - 1, 1, tag);
   assert.match(ai.inboxContent({ ...x, text: '', lang: 'he' }), /^Language: Hebrew\n[\s\S]*\nInstruction: \(none\)$/);
   assert.match(ai.INBOX_SYSTEM, /CODE-pub-@sent\/CODE-pub-sent-YYYY\/CODE-pub-YYYY,MM,DD\/TYPE/);
-  assert.match(ai.INBOX_SYSTEM, /CODE-pub-updated\/CODE-pub-updated-PDF/);
+  assert.match(ai.INBOX_SYSTEM, /CODE-pub-updated\/CODE-pub-updated-TYPE/);
   assert.match(ai.INBOX_SYSTEM, /not uniform/);
   assert.deepStrictEqual(sent.output_config.format.schema.required.sort(), ['files', 'message', 'mode', 'steps']);
   await assert.rejects(ai.inboxProposal({ messages: { create: async () => ({ content: [], stop_reason: 'refusal' }) } }, 'test-model', x));
@@ -1552,12 +1552,13 @@ test('filing inbox: the window\'s plan in code — publish to SENT and UPDATED, 
   const p1 = await planning;
   assert.strictEqual(p1.status, 200);
   const D1 = 'PUBLISH/LDPB-pub-@sent/LDPB-pub-sent-2026/LDPB-pub-2026,10,01';
+  const U1 = 'PUBLISH/LDPB-pub-updated';
   assert.deepStrictEqual(p1.body.plan, {
     files: [
-      { n: 0, name: 'LDPB-A-101.pdf', dests: [{ path: D1 + '/PDF', replace: false }, { path: NC_SLOTS.updated, replace: true }] },
-      { n: 1, name: 'LDPB-A-101.dwg', dests: [{ path: D1 + '/DWG', replace: false }] }
+      { n: 0, name: 'LDPB-A-101.pdf', type: 'PDF', dests: [{ path: D1 + '/PDF', replace: false }, { path: NC_SLOTS.updated, replace: true }] },
+      { n: 1, name: 'LDPB-A-101.dwg', type: 'DWG', dests: [{ path: D1 + '/DWG', replace: false }, { path: U1 + '/LDPB-pub-updated-DWG', replace: true }] }
     ],
-    steps: [{ op: 'mkdir', path: D1 + '/DWG', from: '', to: '' }], mode: 'publish', projectId: 'pabc123'
+    steps: [{ op: 'mkdir', path: D1 + '/DWG', from: '', to: '' }, { op: 'mkdir', path: U1 + '/LDPB-pub-updated-DWG', from: '', to: '' }], mode: 'publish', projectId: 'pabc123'
   });
   const israel = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date()).split('-');
   const p2 = await hub('inbox-plan', { id, projectId: 'pabc123', files: [1], sent: true, updated: false, date: 'yesterday' });
@@ -1709,4 +1710,60 @@ test('filing: a root\'s network share, reported by a helper, is kept and sent wi
   assert.deepStrictEqual([stored().root, stored().share], ['@Xi Projects', unc('Xi', 'x', '@Xi Projects')]);
   await run('pick', {}, { picked: FOLDER, root: ROOT, rootShare: '' });
   assert.deepStrictEqual([stored().root, stored().share], [ROOT, '']);
+});
+
+test("filing hub: the office type list, the layout in the map, map-auto, and the window's plan by layout", async (t) => {
+  const { base, data, keyOf, call, agent } = await start(t, 4066, {});
+  const as = email => async (route, body, method) => {
+    const r = await fetch(base + '/api/filing-hub/' + route, { method: method || (body ? 'POST' : 'GET'), headers: { 'x-ms-client-principal': principal(email), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  const hub = as('dana@kkarc.com');
+  const S = 'PUBLISH/LDPB-pub-@sent', U = 'PUBLISH/LDPB-pub-updated';
+  const tree = ['PUBLISH', S, S + '/LDPB-pub-sent-PDF', S + '/LDPB-pub-sent-PDF/LDPB-pub-PDF-2026', S + '/LDPB-pub-sent-PDF/LDPB-pub-PDF-2026/LDPB-pub-PDF-2026,10,19 - חניה', U, U + '/LDPB-pub-updated-PDF'];
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, root: ROOT, guide: '', log: [], map: { areas: { publish: { paths: ['PUBLISH'], note: '' } }, slots: { sent: S, sentSplit: true, updated: U + '/LDPB-pub-updated-PDF' } } } } }));
+  const dana = await keyOf('dana@kkarc.com');
+
+  // the office's list: the default, kept by a writer only, checked
+  assert.deepStrictEqual((await hub('office-types')).body.types.map(x => x.name), ['PDF', 'DWG', 'DWF', 'DOCS']);
+  const mine = [{ name: 'PDF', ext: ['pdf'] }, { name: 'CAD', ext: ['dwg', 'zip'] }, { name: 'OTHER', ext: [], rest: true }];
+  assert.strictEqual((await as('ron@kkarc.com')('office-types', { types: mine }, 'PUT')).status, 403);
+  assert.deepStrictEqual((await hub('office-types', { types: [{ name: 'PDF', ext: ['pdf'] }] }, 'PUT')).body, { error: 'types' });
+  assert.deepStrictEqual((await hub('office-types', { types: mine }, 'PUT')).body.types, mine);
+  assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(data, 'filing.json'), 'utf8')).office.types, mine);
+  const pr = (await hub('project?project=pabc123')).body;
+  assert.deepStrictEqual([pr.code, pr.types.map(x => x.name), pr.officeTypes.map(x => x.name)], ['LDPB', ['PDF', 'CAD', 'OTHER'], ['PDF', 'CAD', 'OTHER']]);
+
+  // the window, with no layout saved: recognized from the tree; a description; the days of the date; the type names
+  const id = (await call(dana, '/api/outlook/inbox-batch', { pc: 'PC1', files: [{ name: 'LDPB-A-1.pdf', size: 1, mtime: '' }, { name: 'LDPB-A-1.zip', size: 1, mtime: '' }] })).body.id;
+  const planning = hub('inbox-plan', { id, projectId: 'pabc123', files: [0, 1], sent: true, updated: true, date: '2026-10-19', desc: 'חניה', folders: true });
+  await (await agent(dana)).result({ tree });
+  const p1 = (await planning).body;
+  assert.strictEqual(p1.layoutFrom, 'detected');
+  assert.deepStrictEqual(p1.days, ['חניה']);
+  assert.deepStrictEqual(p1.types, ['PDF', 'CAD', 'OTHER']);
+  assert.deepStrictEqual(p1.plan.files.map(f => [f.type, f.dests.map(d => d.path)]), [
+    ['PDF', [S + '/LDPB-pub-sent-PDF/LDPB-pub-PDF-2026/LDPB-pub-PDF-2026,10,19 - חניה', U + '/LDPB-pub-updated-PDF']],
+    ['CAD', [S + '/LDPB-pub-sent-CAD/LDPB-pub-CAD-2026/LDPB-pub-CAD-2026,10,19 - חניה', U + '/LDPB-pub-updated-CAD']]
+  ]);
+  assert.ok(Array.isArray(p1.folders) && p1.folders.includes(S + '/LDPB-pub-sent-PDF'), 'the SENT folders, for "שנה"');
+  // one file's type and one file's folder changed in the window
+  const p2 = (await hub('inbox-plan', { id, projectId: 'pabc123', files: [0, 1], sent: true, updated: false, date: '2026-10-19', desc: '', typeOf: { 1: 'PDF' }, dests: { 0: S + '/LDPB-pub-sent-PDF' } })).body;
+  assert.ok(!('folders' in p2), 'a plan the window did not ask the folders for has none');
+  assert.deepStrictEqual(p2.plan.files.map(f => f.dests[0].path), [S + '/LDPB-pub-sent-PDF', S + '/LDPB-pub-sent-PDF/LDPB-pub-PDF-2026/LDPB-pub-PDF-2026,10,19']);
+
+  // the layout saved in the map: checked, kept, used
+  const lay = { sent: { base: S, levels: [{ kind: 'day', pattern: 'LDPB-{yyyy},{mm},{dd}' }] }, updated: { base: U, levels: [{ kind: 'type', pattern: 'LDPB-pub-updated-{type}' }] }, types: null };
+  const areas = { publish: { paths: ['PUBLISH'], note: '' } };
+  assert.deepStrictEqual((await hub('map', { projectId: 'pabc123', areas, publish: { ...lay, sent: { base: S, levels: [{ kind: 'year', pattern: 'nope' }] } } }, 'PUT')).body, { error: 'layout', target: 'sent', level: 0 });
+  assert.deepStrictEqual((await hub('map', { projectId: 'pabc123', areas, publish: lay }, 'PUT')).body.map.publish, lay);
+  assert.deepStrictEqual((await hub('map', { projectId: 'pabc123', areas }, 'PUT')).body.map.publish, lay, 'a save without publish keeps it');
+  const p3 = (await hub('inbox-plan', { id, projectId: 'pabc123', files: [0], sent: true, updated: false, date: '2026-10-28', desc: '' })).body;
+  assert.deepStrictEqual([p3.layoutFrom, p3.plan.files[0].dests[0].path], ['saved', S + '/LDPB-2026,10,28']);
+
+  // map-auto: the layout the tree shows, for the page to fill in
+  const ms = (await hub('map-session', { projectId: 'pabc123' })).body.id;
+  const auto = hub('map-auto?id=' + ms, {});
+  await (await agent(dana)).result({ tree });
+  assert.deepStrictEqual((await auto).body.auto.publish.sent.levels.map(l => l.kind), ['type', 'year', 'day']);
 });

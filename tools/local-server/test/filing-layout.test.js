@@ -1,0 +1,133 @@
+'use strict';
+// The publish layout of a project (filing-layout.js): the type list, patterns, levels, and what the tree shows.
+// Run: node --test tools/local-server/test/filing-layout.test.js
+const test = require('node:test');
+const assert = require('node:assert');
+const L = require('../filing-layout');
+const rel = v => { const s = String(v == null ? '' : v).trim(); return s === '' ? '' : s.includes('..') ? null : s; };
+
+test('filing-layout: the office type list, a file\'s type by extension, the rest type for the others', () => {
+  assert.deepStrictEqual(L.OFFICE_TYPES.map(t => t.name), ['PDF', 'DWG', 'DWF', 'DOCS']);
+  assert.strictEqual(L.typeOfName('A-101.pdf', L.OFFICE_TYPES), 'PDF');
+  assert.strictEqual(L.typeOfName('Garmoshka.ZIP', L.OFFICE_TYPES), 'DWG');
+  assert.strictEqual(L.typeOfName('a.dwf', L.OFFICE_TYPES), 'DWF');
+  assert.strictEqual(L.typeOfName('notes.pptx', L.OFFICE_TYPES), 'DOCS');
+  assert.strictEqual(L.typeOfName('no-extension', L.OFFICE_TYPES), 'DOCS');
+});
+
+test('filing-layout: cleanTypes — one rest type, names and extensions unique, bad lists refused', () => {
+  const ok = L.cleanTypes([{ name: 'PDF', ext: ['PDF', '.pdf'] }, { name: 'CAD', ext: ['dwg', 'dxf'] }, { name: 'OTHER', ext: [], rest: true }]);
+  assert.deepStrictEqual(ok, [{ name: 'PDF', ext: ['pdf'] }, { name: 'CAD', ext: ['dwg', 'dxf'] }, { name: 'OTHER', ext: [], rest: true }]);
+  assert.strictEqual(L.cleanTypes([{ name: 'PDF', ext: ['pdf'] }]), null, 'no rest type');
+  assert.strictEqual(L.cleanTypes([{ name: 'A', ext: [], rest: true }, { name: 'B', ext: [], rest: true }]), null, 'two rest types');
+  assert.strictEqual(L.cleanTypes([{ name: 'PDF', ext: ['pdf'] }, { name: 'pdf', ext: ['x'] }, { name: 'R', ext: [], rest: true }]), null, 'same name twice');
+  assert.strictEqual(L.cleanTypes([{ name: 'A', ext: ['pdf'] }, { name: 'B', ext: ['pdf'] }, { name: 'R', ext: [], rest: true }]), null, 'an extension in two types');
+  assert.strictEqual(L.cleanTypes([{ name: 'A/B', ext: ['x'] }, { name: 'R', ext: [], rest: true }]), null, 'not a folder name');
+  assert.strictEqual(L.cleanTypes('nope'), null);
+});
+
+test('filing-layout: fill, okName, cleanDesc', () => {
+  assert.strictEqual(L.fill('{code}-pub-{type}-{yyyy},{mm},{dd}', { code: 'LDLI', type: 'PDF', yyyy: '2026', mm: '10', dd: '28' }), 'LDLI-pub-PDF-2026,10,28');
+  assert.strictEqual(L.okName('LDLI-pub-PDF-2026'), true);
+  for (const bad of ['', 'a/b', 'a:b', 'a?', 'a.', 'a ', '..', 'x'.repeat(151)]) assert.strictEqual(L.okName(bad), false, bad);
+  assert.strictEqual(L.cleanDesc('  חניה זמנית  '), 'חניה זמנית');
+  assert.strictEqual(L.cleanDesc('a/b:c*d'), 'abcd');
+  assert.strictEqual(L.cleanDesc('x'.repeat(80)).length, 60);
+  assert.strictEqual(L.cleanDesc('trailing dots...'), 'trailing dots');
+  assert.strictEqual(L.cleanDesc(null), '');
+});
+
+test('filing-layout: cleanLevels — each kind once, its tokens in the pattern, a folder name after filling', () => {
+  const lv = [{ kind: 'type', pattern: 'LDLI-pub-sent-{type}' }, { kind: 'year', pattern: 'LDLI-pub-{type}-{yyyy}' }, { kind: 'day', pattern: 'LDLI-pub-{type}-{yyyy},{mm},{dd}' }];
+  assert.deepStrictEqual(L.cleanLevels(lv), { levels: lv });
+  assert.deepStrictEqual(L.cleanLevels([]), { levels: [] });
+  assert.deepStrictEqual(L.cleanLevels(null), { levels: [] });
+  assert.deepStrictEqual(L.cleanLevels([{ kind: 'year', pattern: 'X-pub-sent' }]), { error: 0 }, 'no {yyyy}');
+  assert.deepStrictEqual(L.cleanLevels([{ kind: 'day', pattern: 'X-{yyyy},{mm}' }]), { error: 0 }, 'no {dd}');
+  assert.deepStrictEqual(L.cleanLevels([{ kind: 'type', pattern: '{type}' }, { kind: 'type', pattern: 'x-{type}' }]), { error: 1 }, 'type twice');
+  assert.deepStrictEqual(L.cleanLevels([{ kind: 'type', pattern: 'a/{type}' }]), { error: 0 }, 'not a folder name');
+  assert.deepStrictEqual(L.cleanLevels([{ kind: 'month', pattern: '{mm}' }]), { error: 0 }, 'unknown kind');
+});
+
+test('filing-layout: cleanPublish — both targets, the types, the first bad level named', () => {
+  const raw = {
+    sent: { base: 'P/S', levels: [{ kind: 'day', pattern: 'X-pub-{yyyy},{mm},{dd}' }] },
+    updated: { base: 'P/U', levels: [{ kind: 'type', pattern: 'X-pub-updated-{type}' }] },
+    types: null
+  };
+  assert.deepStrictEqual(L.cleanPublish(raw, rel), { publish: raw });
+  assert.deepStrictEqual(L.cleanPublish(null, rel), { publish: null });
+  assert.deepStrictEqual(L.cleanPublish({ ...raw, sent: { base: '../x', levels: [] } }, rel).publish.sent.base, '');
+  assert.deepStrictEqual(L.cleanPublish({ ...raw, updated: { base: 'P/U', levels: [{ kind: 'year', pattern: 'nope' }] } }, rel), { error: 'layout', target: 'updated', level: 0 });
+  assert.deepStrictEqual(L.cleanPublish({ ...raw, types: [{ name: 'PDF', ext: ['pdf'] }] }, rel), { error: 'layout', target: 'types', level: -1 });
+  assert.deepStrictEqual(L.cleanPublish({ ...raw, types: L.OFFICE_TYPES }, rel).publish.types, L.OFFICE_TYPES);
+});
+
+test('filing-layout: cleanTypes ignores a rest type\'s extensions; cleanDesc cuts by code points', () => {
+  assert.deepStrictEqual(L.cleanTypes([{ name: 'R', ext: ['pdf'], rest: true }, { name: 'A', ext: ['pdf'] }]), [{ name: 'R', ext: [], rest: true }, { name: 'A', ext: ['pdf'] }]);
+  assert.strictEqual([...L.cleanDesc('a' + String.fromCodePoint(0x1F600).repeat(80))].length, 60);
+});
+
+const LDLI = 'LDLI-work/LDLI-publish/LDLI-pub-@sent';
+const LDLI_TREE = [
+  'LDLI-work', 'LDLI-work/LDLI-publish', LDLI,
+  LDLI + '/LDLI-pub-sent-DOCS', LDLI + '/LDLI-pub-sent-DOCS/LDLI-pub-DOCS-2026', LDLI + '/LDLI-pub-sent-DOCS/LDLI-pub-DOCS-2026/LDLI-pub-DOCS-2026,10,19 - חניה זמנית',
+  LDLI + '/LDLI-pub-sent-DWG', LDLI + '/LDLI-pub-sent-DWG/LDLI-pub-DWG-2026', LDLI + '/LDLI-pub-sent-DWG/LDLI-pub-DWG-2026/LDLI-pub-DWG-2026,10,25 - גרמושקה ליועץ בטיחות',
+  LDLI + '/LDLI-pub-sent-PDF', LDLI + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2025', LDLI + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2026',
+  LDLI + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2026/LDLI-pub-PDF-2026,01,12-01 - A4', LDLI + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2026/LDLI-pub-PDF-2026,10,19 - חניה זמנית'
+];
+
+test('filing-layout: detectLayout — the Library\'s type, year, day', () => {
+  assert.deepStrictEqual(L.detectLayout(LDLI_TREE, LDLI, L.OFFICE_TYPES), [
+    { kind: 'type', pattern: 'LDLI-pub-sent-{type}' },
+    { kind: 'year', pattern: 'LDLI-pub-{type}-{yyyy}' },
+    { kind: 'day', pattern: 'LDLI-pub-{type}-{yyyy},{mm},{dd}' }
+  ]);
+});
+
+test('filing-layout: detectLayout — the convention\'s year, day, type; unified; empty', () => {
+  const S = 'PUBLISH/LDPB-pub-@sent';
+  const conv = ['PUBLISH', S, S + '/LDPB-pub-sent-2026', S + '/LDPB-pub-sent-2026/LDPB-pub-2026,10,01', S + '/LDPB-pub-sent-2026/LDPB-pub-2026,10,01/PDF', S + '/LDPB-pub-sent-2026/LDPB-pub-2026,10,01/DWG'];
+  assert.deepStrictEqual(L.detectLayout(conv, S, L.OFFICE_TYPES), [
+    { kind: 'year', pattern: 'LDPB-pub-sent-{yyyy}' },
+    { kind: 'day', pattern: 'LDPB-pub-{yyyy},{mm},{dd}' },
+    { kind: 'type', pattern: '{type}' }
+  ]);
+  const unified = conv.slice(0, 4);
+  assert.deepStrictEqual(L.detectLayout(unified, S, L.OFFICE_TYPES).map(l => l.kind), ['year', 'day']);
+  assert.strictEqual(L.detectLayout(['PUBLISH', S], S, L.OFFICE_TYPES), null, 'an empty archive shows nothing');
+  assert.strictEqual(L.detectLayout(['PUBLISH', S, S + '/misc'], S, L.OFFICE_TYPES), null, 'names that say nothing');
+});
+
+test('filing-layout: detectLayout — the most common pattern wins; the updated folders by type', () => {
+  const U = 'P/X-pub-updated';
+  assert.deepStrictEqual(L.detectLayout(['P', U, U + '/X-pub-updated-PDF', U + '/X-pub-updated-DWG', U + '/old-PDF'], U, L.OFFICE_TYPES), [{ kind: 'type', pattern: 'X-pub-updated-{type}' }]);
+});
+
+test('filing-layout: detectLayout — descends into the fullest folder, not the last empty one', () => {
+  const B = 'P/pub-@sent';
+  const T = L.OFFICE_TYPES;
+  const want = [{ kind: 'type', pattern: 'LDLI-pub-sent-{type}' }, { kind: 'year', pattern: 'LDLI-pub-{type}-{yyyy}' }, { kind: 'day', pattern: 'LDLI-pub-{type}-{yyyy},{mm},{dd}' }];
+  const a = ['P', B, B + '/LDLI-pub-sent-DWG', B + '/LDLI-pub-sent-DWG/LDLI-pub-DWG-2026', B + '/LDLI-pub-sent-DWG/LDLI-pub-DWG-2026/LDLI-pub-DWG-2026,10,25 - a', B + '/LDLI-pub-sent-PDF'];
+  assert.deepStrictEqual(L.detectLayout(a, B, T), want);
+  const P = B + '/LDLI-pub-sent-PDF';
+  const b = ['P', B, P, P + '/LDLI-pub-PDF-2025', P + '/LDLI-pub-PDF-2025/LDLI-pub-PDF-2025,03,01 - a', P + '/LDLI-pub-PDF-2026'];
+  assert.deepStrictEqual(L.detectLayout(b, B, T).map(l => l.kind), ['type', 'year', 'day']);
+});
+
+test('filing-layout: detectLayout — a type name in the description is not the type slot', () => {
+  const B = 'P/pub-@sent';
+  const D = B + '/LDLI-pub-DWG-2026,10,';
+  const tree = ['P', B, D + '25 - PDF ליועץ', D + '26 - PDF למזמין', D + '27 - x'];
+  assert.deepStrictEqual(L.detectLayout(tree, B, L.OFFICE_TYPES), [{ kind: 'day', pattern: 'LDLI-pub-{type}-{yyyy},{mm},{dd}' }]);
+  const E = B + '/X-DWG-PDF-2026';
+  assert.deepStrictEqual(L.detectLayout(['P', B, E], B, L.OFFICE_TYPES), [{ kind: 'year', pattern: 'X-{type}-PDF-{yyyy}' }], 'the earliest type name wins');
+});
+
+test('filing-layout: detectLayout — the last year in a name; a trailing slash; no types', () => {
+  const B = 'P/2024-20-pub-@sent';
+  const tree = ['P', B, B + '/2024-20-pub-sent-2025', B + '/2024-20-pub-sent-2026', B + '/2024-20-pub-sent-2026/2024-20-pub-2026,10,01'];
+  assert.deepStrictEqual(L.detectLayout(tree, B, L.OFFICE_TYPES), [{ kind: 'year', pattern: '2024-20-pub-sent-{yyyy}' }, { kind: 'day', pattern: '2024-20-pub-{yyyy},{mm},{dd}' }]);
+  assert.deepStrictEqual(L.detectLayout(tree, B + '/', L.OFFICE_TYPES).map(l => l.kind), ['year', 'day']);
+  assert.deepStrictEqual(L.detectLayout(tree, B).map(l => l.kind), ['year', 'day']);
+});

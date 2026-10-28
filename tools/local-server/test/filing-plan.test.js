@@ -4,6 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const ai = require('../filing-ai');
+const L = require('../filing-layout');
 
 test('filing-ai: the map keeps its slots — paths inside the project, SENT split by type unless said otherwise', () => {
   assert.deepStrictEqual(ai.cleanSlots(null), { sent: '', sentSplit: true, updated: '' });
@@ -176,19 +177,45 @@ test('filing-plan: the sender\'s address picks the consultant whose folder match
   assert.strictEqual(plans.senderConsultant(options, contacts, ''), -1);
 });
 
-test('filing-ai: "הצע" on publish — the prompt carries the slots, and a replace of a file that is not a PDF is dropped', async () => {
+test('filing-ai: "הצע" on publish — the prompt carries the slots; UPDATED takes every type; the map keeps its layout', async () => {
   const x = {
     project: { code: 'X', name: 'n' }, map: { areas: { publish: { paths: ['P'], note: '' } }, slots: { sent: 'P/S', sentSplit: false, updated: 'P/U' } },
     guide: '', tree: ['P', 'P/S', 'P/U'], today: '2026-10-26', files: [{ n: 0, name: 'a.pdf' }, { n: 1, name: 'a.dwg' }], sent: true, updated: true, text: '', lang: 'he'
   };
-  assert.match(ai.inboxContent(x), /\nSlots: SENT archive P\/S \(all files together\); UPDATED \(PDF only\) P\/U\n/);
-  assert.match(ai.inboxContent({ ...x, map: { areas: {} } }), /\nSlots: \(none\)\n/);
+  assert.match(ai.inboxContent(x), /\nSlots: SENT archive P[/]S [(]all files together[)]; UPDATED P[/]U\n/);
+  assert.match(ai.inboxContent({ ...x, map: { areas: {} } }), /\nSlots: [(]none[)]\n/);
   const client = { messages: { create: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({
     message: 'm', mode: 'publish', steps: [], files: [{ name: 'a.pdf', dests: [{ path: 'P/U', replace: true }] }, { name: 'a.dwg', dests: [{ path: 'P/U', replace: true }, { path: 'P/S', replace: false }] }]
   }) }] }) } };
   const out = await ai.inboxProposal(client, 'claude-haiku-5-5', x);
-  assert.deepStrictEqual(out.plan.files.map(f => f.dests), [[{ path: 'P/U', replace: true }], [{ path: 'P/S', replace: false }]]);
-  assert.strictEqual(out.replaceStripped, 'pdf_only');
+  assert.deepStrictEqual(out.plan.files.map(f => f.dests), [[{ path: 'P/U', replace: true }], [{ path: 'P/U', replace: true }, { path: 'P/S', replace: false }]]);
+  assert.strictEqual(out.replaceStripped, undefined);
+  const lay = { sent: { base: 'P/S', levels: [{ kind: 'day', pattern: 'X-pub-{yyyy},{mm},{dd}' }] }, updated: { base: '', levels: [] }, types: null };
+  assert.deepStrictEqual(ai.normalizeMap({ areas: {}, publish: lay }).publish, lay);
+  assert.strictEqual(ai.normalizeMap({ areas: {}, publish: { sent: { base: 'P', levels: [{ kind: 'day', pattern: 'bad' }] } } }).publish, null);
+  assert.strictEqual(ai.normalizeMap({ areas: {} }).publish, null);
+});
+
+test('filing-ai: "הצע" on publish — the Layout line follows the saved layout, the Types line the list in use', () => {
+  const x = {
+    project: { code: 'X', name: 'n' }, guide: '', tree: ['P', 'P/S', 'P/U'], today: '2026-10-28', files: [{ n: 0, name: 'a.pdf' }], sent: true, updated: true, text: '', lang: 'he',
+    map: { areas: { publish: { paths: ['P'], note: '' } }, slots: { sent: 'P/S', sentSplit: true, updated: '' }, publish: {
+      sent: { base: 'P/S', levels: [{ kind: 'type', pattern: '{code}-sent-{type}' }, { kind: 'day', pattern: '{code}-pub-{yyyy},{mm},{dd}' }] },
+      updated: { base: 'P/U', levels: [{ kind: 'type', pattern: '{type}' }] }, types: null } }
+  };
+  const text = ai.inboxContent({ ...x, types: [{ name: 'PDF', ext: ['pdf'] }, { name: 'CAD', ext: ['dwg', 'dxf'] }, { name: 'OTHER', ext: [], rest: true }] });
+  const lines = text.split(String.fromCharCode(10));
+  assert.ok(lines.includes('Layout: SENT P/S/{code}-sent-{type}/{code}-pub-{yyyy},{mm},{dd}; UPDATED P/U/{type}'), text);
+  assert.ok(lines.includes('Types: PDF = pdf; CAD = dwg, dxf; OTHER = every other extension'), text);
+  assert.ok(lines.includes('Slots: SENT archive P/S (by file type)'), 'the Slots line stays');
+  const sentOnly = ai.inboxContent({ ...x, map: { ...x.map, publish: { ...x.map.publish, updated: { base: '', levels: [] } } } }).split(String.fromCharCode(10));
+  assert.ok(sentOnly.includes('Layout: SENT P/S/{code}-sent-{type}/{code}-pub-{yyyy},{mm},{dd}'), 'a target without a saved base is left out');
+  const none = ai.inboxContent({ ...x, map: { ...x.map, publish: null } }).split(String.fromCharCode(10));
+  assert.ok(!none.some(l => l.startsWith('Layout:')), 'no saved layout: no Layout line');
+  assert.ok(none.includes('Types: PDF = pdf; DWG = dwg, zip; DWF = dwf; DOCS = every other extension'), 'no types passed: the office default');
+  const own = ai.inboxContent({ ...x, map: { ...x.map, publish: { ...x.map.publish, types: [{ name: 'A', ext: ['pdf'] }, { name: 'B', ext: [], rest: true }] } } }).split(String.fromCharCode(10));
+  assert.ok(own.includes('Types: A = pdf; B = every other extension'), 'no types passed: the project own list');
+  assert.match(ai.INBOX_SYSTEM, /"Layout:" line, when present/);
 });
 
 test('filing-plan: receive — toVer follows the real plan (@ver already holds the name; v9999), and mixed stems', () => {
@@ -208,4 +235,129 @@ test('filing-plan: receive — toVer follows the real plan (@ver already holds t
   // versions named like the folder are the line; an old naming counts only when none is
   const m = plans.nextVersion([...base, D + '/4021-KONS-plans-v03', D + '/old-v12'], 'C/4021-KONS', '4021');
   assert.deepStrictEqual([m.name, m.prev], ['4021-KONS-plans-v04', D + '/4021-KONS-plans-v03']);
+});
+
+const P = 'LDLI-work/LDLI-publish';
+const SENT = P + '/LDLI-pub-@sent', UPD = P + '/LDLI-pub-updated';
+const LIB_TREE = ['LDLI-work', P, SENT, SENT + '/LDLI-pub-sent-PDF', SENT + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2026',
+  SENT + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2026/LDLI-pub-PDF-2026,10,19 - חניה זמנית',
+  SENT + '/LDLI-pub-sent-DWG', SENT + '/LDLI-pub-sent-DWG/LDLI-pub-DWG-2026',
+  SENT + '/LDLI-pub-sent-DWG/LDLI-pub-DWG-2026/LDLI-pub-DWG-2026,10,19 - חניה זמנית',
+  UPD, UPD + '/LDLI-pub-updated-PDF', UPD + '/LDLI-pub-updated-DWG'];
+const LIB_LAYOUT = {
+  sent: { base: SENT, levels: [{ kind: 'type', pattern: 'LDLI-pub-sent-{type}' }, { kind: 'year', pattern: 'LDLI-pub-{type}-{yyyy}' }, { kind: 'day', pattern: 'LDLI-pub-{type}-{yyyy},{mm},{dd}' }] },
+  updated: { base: UPD, levels: [{ kind: 'type', pattern: 'LDLI-pub-updated-{type}' }] }
+};
+const lib = over => plans.publishPlan({ layout: LIB_LAYOUT, types: L.OFFICE_TYPES, tree: LIB_TREE, code: 'LDLI', files: [{ n: 0, name: 'K-0.pdf' }, { n: 1, name: 'Sheet.zip' }, { n: 2, name: 'notes.pptx' }], sent: true, updated: false, date: '2026-10-28', desc: '', ...over });
+
+test('filing-plan: publishPlan — the Library\'s layout, a description, the folders made once', () => {
+  const D = SENT + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2026/LDLI-pub-PDF-2026,10,28 - לוחות';
+  const out = lib({ desc: 'לוחות' });
+  assert.deepStrictEqual(out.plan.files.map(f => [f.type, f.dests.map(d => d.path)]), [
+    ['PDF', [D]],
+    ['DWG', [SENT + '/LDLI-pub-sent-DWG/LDLI-pub-DWG-2026/LDLI-pub-DWG-2026,10,28 - לוחות']],
+    ['DOCS', [SENT + '/LDLI-pub-sent-DOCS/LDLI-pub-DOCS-2026/LDLI-pub-DOCS-2026,10,28 - לוחות']]
+  ]);
+  assert.deepStrictEqual(out.plan.steps.map(s => s.path), [
+    D,
+    SENT + '/LDLI-pub-sent-DWG/LDLI-pub-DWG-2026/LDLI-pub-DWG-2026,10,28 - לוחות',
+    SENT + '/LDLI-pub-sent-DOCS', SENT + '/LDLI-pub-sent-DOCS/LDLI-pub-DOCS-2026', SENT + '/LDLI-pub-sent-DOCS/LDLI-pub-DOCS-2026/LDLI-pub-DOCS-2026,10,28 - לוחות'
+  ]);
+  assert.deepStrictEqual(out.days, []);
+  assert.strictEqual(lib({}).plan.files[0].dests[0].path, SENT + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2026/LDLI-pub-PDF-2026,10,28', 'no description: the date only');
+});
+
+test('filing-plan: publishPlan — an existing day folder by its description; the days offered', () => {
+  const out = lib({ date: '2026-10-19', desc: 'חניה זמנית', files: [{ n: 0, name: 'K-0.pdf' }] });
+  assert.deepStrictEqual(out.plan.files[0].dests, [{ path: SENT + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2026/LDLI-pub-PDF-2026,10,19 - חניה זמנית', replace: false }]);
+  assert.deepStrictEqual(out.plan.steps, []);
+  assert.deepStrictEqual(lib({ date: '2026-10-19' }).days, ['חניה זמנית']);
+});
+
+test('filing-plan: publishPlan — a type changed for one file, a folder of the tree for one file, a folder that is not there', () => {
+  const out = lib({ typeOf: { 0: 'DWG' }, dests: { 2: SENT + '/LDLI-pub-sent-PDF' } });
+  assert.strictEqual(out.plan.files[0].type, 'DWG');
+  assert.ok(out.plan.files[0].dests[0].path.startsWith(SENT + '/LDLI-pub-sent-DWG/'));
+  assert.deepStrictEqual(out.plan.files[2].dests, [{ path: SENT + '/LDLI-pub-sent-PDF', replace: false }]);
+  const bad = lib({ dests: { 1: 'NOT/THERE' } });
+  assert.deepStrictEqual([bad.plan.files[1].dests, bad.plan.files[1].problem], [[], 'dest']);
+  assert.strictEqual(lib({ typeOf: { 0: 'NOPE' } }).plan.files[0].type, 'PDF', 'a type not in the list is ignored');
+});
+
+test('filing-plan: publishPlan — UPDATED by type, replacing; a missing target said', () => {
+  const out = lib({ sent: false, updated: true });
+  assert.deepStrictEqual(out.plan.files.map(f => f.dests), [
+    [{ path: UPD + '/LDLI-pub-updated-PDF', replace: true }],
+    [{ path: UPD + '/LDLI-pub-updated-DWG', replace: true }],
+    [{ path: UPD + '/LDLI-pub-updated-DOCS', replace: true }]
+  ]);
+  assert.deepStrictEqual(out.plan.steps.map(s => s.path), [UPD + '/LDLI-pub-updated-DOCS']);
+  const none = plans.publishPlan({ layout: { sent: { base: '', levels: [] }, updated: { base: 'GONE', levels: [] } }, types: L.OFFICE_TYPES, tree: LIB_TREE, code: 'LDLI', files: [{ n: 0, name: 'a.pdf' }], sent: true, updated: true, date: '2026-10-28', desc: '' });
+  assert.deepStrictEqual(none.slotsMissing, { sent: 'unmapped', updated: 'gone' });
+});
+
+test('filing-plan: layoutFor — saved, recognized from the tree, the convention; UPDATED by type from an old slot', () => {
+  const map = { areas: {}, slots: { sent: SENT, sentSplit: true, updated: UPD + '/LDLI-pub-updated-PDF' }, publish: null };
+  const got = plans.layoutFor(map, LIB_TREE, L.OFFICE_TYPES);
+  assert.strictEqual(got.from, 'detected');
+  assert.deepStrictEqual(got.layout.sent, LIB_LAYOUT.sent);
+  assert.deepStrictEqual(got.layout.updated, LIB_LAYOUT.updated);
+  assert.deepStrictEqual(plans.layoutFor({ ...map, publish: { ...LIB_LAYOUT, types: null } }, [], L.OFFICE_TYPES).from, 'saved');
+  const conv = plans.layoutFor({ areas: {}, slots: { sent: 'P/X-pub-@sent', sentSplit: false, updated: '' } }, ['P', 'P/X-pub-@sent'], L.OFFICE_TYPES);
+  assert.strictEqual(conv.from, 'convention');
+  assert.deepStrictEqual(conv.layout.sent.levels, [{ kind: 'year', pattern: '{code}-pub-sent-{yyyy}' }, { kind: 'day', pattern: '{code}-pub-{yyyy},{mm},{dd}' }]);
+  const empty = plans.layoutFor({ areas: {} }, LIB_TREE, L.OFFICE_TYPES);
+  assert.strictEqual(empty.layout.sent.base, SENT, 'no slots: the convention\'s folder names found in the tree (autoSlots)');
+});
+
+test('filing-plan: layoutFor — a saved layout missing a part is tolerated; _ or a space before the UPDATED type', () => {
+  const part = plans.layoutFor({ areas: {}, publish: { types: null } }, LIB_TREE, L.OFFICE_TYPES);
+  assert.notStrictEqual(part.from, 'saved', 'both bases empty: falls through to detection');
+  assert.strictEqual(part.layout.sent.base, SENT);
+  const only = plans.layoutFor({ areas: {}, publish: { sent: { base: SENT, levels: [] } } }, LIB_TREE, L.OFFICE_TYPES);
+  assert.strictEqual(only.from, 'saved');
+  assert.deepStrictEqual(only.layout.updated, LIB_LAYOUT.updated, 'UPDATED not saved: the convention …-updated-PDF found in the tree, by type');
+  for (const sep of ['_', ' ']) {
+    const tree = ['P', 'P/X_pub_sent', 'P/X_pub_updated'.replace('_updated', sep + 'updated')];
+    const got = plans.layoutFor({ areas: {}, slots: { sent: 'P/X_pub_sent', sentSplit: false, updated: 'P/X' + sep + 'pub' + sep + 'updated' + sep + 'PDF' } }, tree, L.OFFICE_TYPES);
+    assert.strictEqual(got.layout.updated.base, 'P');
+    assert.deepStrictEqual(got.layout.updated.levels, [{ kind: 'type', pattern: 'X' + sep + 'pub' + sep + 'updated' + sep + '{type}' }]);
+  }
+});
+
+test('filing-plan: layoutFor — each target falls back on its own', () => {
+  const sentOnly = plans.layoutFor({ areas: {}, slots: { sent: '', sentSplit: true, updated: 'P/U/X-pub-updated-PDF' }, publish: { sent: LIB_LAYOUT.sent, updated: { base: '', levels: [] }, types: null } }, LIB_TREE, L.OFFICE_TYPES);
+  assert.strictEqual(sentOnly.from, 'saved');
+  assert.deepStrictEqual(sentOnly.layout.sent, LIB_LAYOUT.sent);
+  assert.deepStrictEqual(sentOnly.layout.updated, { base: 'P/U', levels: [{ kind: 'type', pattern: 'X-pub-updated-{type}' }] }, 'UPDATED from the legacy slot');
+  const updOnly = plans.layoutFor({ areas: {}, slots: { sent: SENT, sentSplit: true, updated: '' }, publish: { sent: { base: '', levels: [] }, updated: { base: 'P/U', levels: [] }, types: null } }, LIB_TREE, L.OFFICE_TYPES);
+  assert.strictEqual(updOnly.from, 'detected', 'from tells about SENT');
+  assert.deepStrictEqual(updOnly.layout.sent, LIB_LAYOUT.sent);
+  assert.deepStrictEqual(updOnly.layout.updated, { base: 'P/U', levels: [] });
+});
+
+test('filing-plan: withAuto — the stored folders win, the convention finds fill the rest', () => {
+  const auto = { sent: 'A/S', sentSplit: true, updated: 'A/U' };
+  assert.deepStrictEqual(plans.withAuto({ sent: 'M/S', sentSplit: false, updated: '' }, auto), { sent: 'M/S', sentSplit: false, updated: 'A/U' });
+  assert.deepStrictEqual(plans.withAuto({ sent: '', sentSplit: true, updated: 'M/U' }, { ...auto, sentSplit: false }), { sent: 'A/S', sentSplit: false, updated: 'M/U' });
+  assert.deepStrictEqual(plans.withAuto(null, { sent: '', sentSplit: true, updated: '' }), { sent: '', sentSplit: true, updated: '' });
+});
+
+test('filing-plan: publishPlan — dests cut by the 30-step limit are said (problem steps); no file is left without dests and without a problem', () => {
+  const types = L.cleanTypes([...'ABCDEFGHIJK'].map(c => ({ name: 'T' + c, ext: ['e' + c.toLowerCase()] })).concat([{ name: 'REST', ext: [], rest: true }]));
+  assert.ok(types && types.length === 12);
+  const layout = { sent: { base: 'P/S', levels: [{ kind: 'type', pattern: '{type}' }, { kind: 'year', pattern: 'Y-{yyyy}' }, { kind: 'day', pattern: 'D-{yyyy},{mm},{dd}' }] }, updated: { base: '', levels: [] } };
+  const files = types.map((t, i) => ({ n: i, name: 'f' + i + '.' + (t.ext[0] || 'zzz') }));
+  const r = plans.publishPlan({ layout, types, tree: ['P', 'P/S'], code: 'X', files, sent: true, updated: false, date: '2026-10-28', desc: '' });
+  assert.ok(r.plan.steps.length <= 30);
+  const cut = r.plan.files.filter(f => f.problem === 'steps');
+  assert.ok(cut.length > 0, 'some files lost their folders');
+  for (const f of r.plan.files) assert.ok(f.dests.length || f.problem, f.name + ' has dests or a problem');
+});
+
+test('filing-plan: publishPlan — SENT and UPDATED in one folder: the file goes there once, and no problem is said', () => {
+  const layout = { sent: { base: 'P/U', levels: [] }, updated: { base: 'P/U', levels: [] } };
+  const r = plans.publishPlan({ layout, types: L.OFFICE_TYPES, tree: ['P', 'P/U'], code: 'X', files: [{ n: 0, name: 'a.pdf' }], sent: true, updated: true, date: '2026-10-28', desc: '' });
+  assert.strictEqual(r.plan.files[0].dests.length, 1);
+  assert.strictEqual(r.plan.files[0].problem, undefined);
 });
