@@ -1085,7 +1085,9 @@ module.exports = function createFiling(ctx) {
         if (no === 'gone') return;
         if (no) { sendJson(res, 200, no); return; }
         const a = plans.autoSlots(m.tree);
-        const lay = plans.layoutFor({ slots: a.slots }, m.tree, typesOf(ai.normalizeMap(pr.map))).layout;
+        // the layout from the folders the map already holds, the convention's finds filling the rest
+        const stored = ai.normalizeMap(pr.map);
+        const lay = plans.layoutFor({ slots: plans.withAuto(ai.cleanSlots(stored && stored.slots), a.slots) }, m.tree, typesOf(stored)).layout;
         sendJson(res, 200, { auto: { ...a, publish: lay }, tree: m.tree });
       } finally {
         release();

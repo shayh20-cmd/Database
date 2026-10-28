@@ -41,6 +41,13 @@ function autoSlots(tree) {
   return { slots: { sent, sentSplit, updated }, areas };
 }
 
+/* The map's stored slots (map.slots) with the convention's finds (autoSlots) where nothing is stored: a stored folder
+   wins, and its "together / by type" with it. */
+function withAuto(stored, auto) {
+  const s = stored || {}, a = auto || {};
+  return { sent: s.sent || a.sent || '', sentSplit: s.sent ? s.sentSplit !== false : a.sentSplit !== false, updated: s.updated || a.updated || '' };
+}
+
 const pre = code => (code ? code + '-' : '');
 const typeOf = name => { const m = /\.([^.]+)$/.exec(name); const x = m ? m[1].toUpperCase() : ''; return x === 'PDF' || x === 'DWG' || x === 'RVT' ? x : 'DOCS'; };
 const isPdf = name => /\.pdf$/i.test(name);
@@ -187,32 +194,41 @@ function senderConsultant(options, contacts, email) {
   return options.consultants.findIndex(x => x.folder && x.contact && lc(x.contact) === text);
 }
 
-/* The publish layout to build with: the one saved in the map (map.publish), else the one the tree shows under the
-   map's SENT / UPDATED folders (filing-layout.detectLayout; those folders found by the convention's names when the
-   map has none), else the convention (year, day, then a folder per type unless the map says "together").
-   An UPDATED folder whose name ends in a type name (…-updated-PDF, from before layouts) stands for its parent with a
-   level per type. { layout: { sent, updated }, from: 'saved' | 'detected' | 'convention' } */
+/* The publish layout to build with, each target on its own: SENT (or UPDATED) as saved in the map (map.publish) when
+   its base is saved; else the one the tree shows under the map's SENT / UPDATED folder (filing-layout.detectLayout;
+   that folder found by the convention's names when the map has none), else the convention (year, day, then a folder
+   per type unless the map says "together"). An UPDATED folder whose name ends in a type name (…-updated-PDF, from
+   before layouts) stands for its parent with a level per type.
+   { layout: { sent, updated }, from } — from describes SENT, the target the window's note is about: 'saved' when SENT
+   is the saved one, else 'detected' or 'convention' (a saved UPDATED alone does not make it 'saved'). */
 const CONVENTION_SENT = [{ kind: 'year', pattern: '{code}-pub-sent-{yyyy}' }, { kind: 'day', pattern: '{code}-pub-{yyyy},{mm},{dd}' }, { kind: 'type', pattern: '{type}' }];
 function layoutFor(map, tree, types) {
   const list = (tree || []).filter(Boolean);
-  const saved = map && map.publish;
+  const saved = (map && map.publish) || {};
   const part = x => (x && typeof x === 'object' ? { base: x.base || '', levels: Array.isArray(x.levels) ? x.levels : [] } : { base: '', levels: [] });
-  const savedSent = part(saved && saved.sent), savedUpd = part(saved && saved.updated);
-  if (saved && (savedSent.base || savedUpd.base)) return { layout: { sent: savedSent, updated: savedUpd }, from: 'saved' };
+  const savedSent = part(saved.sent), savedUpd = part(saved.updated);
   const s = (map && map.slots) || {};
-  const auto = autoSlots(list).slots;
-  const sentBase = s.sent || auto.sent;
-  let levels = sentBase ? L.detectLayout(list, inTree(list, sentBase) || sentBase, types) : null;
-  const from = levels ? 'detected' : 'convention';
-  if (!levels) levels = s.sent && s.sentSplit === false ? CONVENTION_SENT.slice(0, 2) : CONVENTION_SENT.slice();
-  const upd = s.updated || auto.updated;
-  let updated = { base: upd, levels: [] };
-  if (upd && upd.includes('/')) {
-    const leaf = leafOf(upd);
-    const hit = types.map(t => t.name).find(n => ['-', '_', ' '].some(sep => lc(leaf).endsWith(sep + lc(n))));
-    if (hit) updated = { base: upd.slice(0, upd.lastIndexOf('/')), levels: [{ kind: 'type', pattern: leaf.slice(0, leaf.length - hit.length) + '{type}' }] };
+  let auto = null;
+  const autoOf = () => auto || (auto = autoSlots(list).slots);
+  let sent, from;
+  if (savedSent.base) { sent = savedSent; from = 'saved'; } else {
+    const sentBase = s.sent || autoOf().sent;
+    let levels = sentBase ? L.detectLayout(list, inTree(list, sentBase) || sentBase, types) : null;
+    from = levels ? 'detected' : 'convention';
+    if (!levels) levels = s.sent && s.sentSplit === false ? CONVENTION_SENT.slice(0, 2) : CONVENTION_SENT.slice();
+    sent = { base: sentBase, levels };
   }
-  return { layout: { sent: { base: sentBase, levels }, updated }, from };
+  let updated = savedUpd;
+  if (!savedUpd.base) {
+    const upd = s.updated || autoOf().updated;
+    updated = { base: upd, levels: [] };
+    if (upd && upd.includes('/')) {
+      const leaf = leafOf(upd);
+      const hit = types.map(t => t.name).find(n => ['-', '_', ' '].some(sep => lc(leaf).endsWith(sep + lc(n))));
+      if (hit) updated = { base: upd.slice(0, upd.lastIndexOf('/')), levels: [{ kind: 'type', pattern: leaf.slice(0, leaf.length - hit.length) + '{type}' }] };
+    }
+  }
+  return { layout: { sent, updated }, from };
 }
 
 /* The publish plan from a layout: each file into SENT (base, then a folder per level, the day's with " - <desc>" when
@@ -287,4 +303,4 @@ function publishPlan({ layout, types, tree, code, files, sent, updated, date, de
   return { plan, days: [...days].sort(), ...(Object.keys(missing).length ? { slotsMissing: missing } : {}) };
 }
 
-module.exports = { autoSlots, sentFolder, inboxPlan, nextVersion, receivePlan, senderConsultant, layoutFor, publishPlan };
+module.exports = { autoSlots, withAuto, sentFolder, inboxPlan, nextVersion, receivePlan, senderConsultant, layoutFor, publishPlan };

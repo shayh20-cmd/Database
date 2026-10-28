@@ -294,13 +294,31 @@ test('filing-plan: layoutFor — a saved layout missing a part is tolerated; _ o
   assert.strictEqual(part.layout.sent.base, SENT);
   const only = plans.layoutFor({ areas: {}, publish: { sent: { base: SENT, levels: [] } } }, LIB_TREE, L.OFFICE_TYPES);
   assert.strictEqual(only.from, 'saved');
-  assert.deepStrictEqual(only.layout.updated, { base: '', levels: [] });
+  assert.deepStrictEqual(only.layout.updated, LIB_LAYOUT.updated, 'UPDATED not saved: the convention …-updated-PDF found in the tree, by type');
   for (const sep of ['_', ' ']) {
     const tree = ['P', 'P/X_pub_sent', 'P/X_pub_updated'.replace('_updated', sep + 'updated')];
     const got = plans.layoutFor({ areas: {}, slots: { sent: 'P/X_pub_sent', sentSplit: false, updated: 'P/X' + sep + 'pub' + sep + 'updated' + sep + 'PDF' } }, tree, L.OFFICE_TYPES);
     assert.strictEqual(got.layout.updated.base, 'P');
     assert.deepStrictEqual(got.layout.updated.levels, [{ kind: 'type', pattern: 'X' + sep + 'pub' + sep + 'updated' + sep + '{type}' }]);
   }
+});
+
+test('filing-plan: layoutFor — each target falls back on its own', () => {
+  const sentOnly = plans.layoutFor({ areas: {}, slots: { sent: '', sentSplit: true, updated: 'P/U/X-pub-updated-PDF' }, publish: { sent: LIB_LAYOUT.sent, updated: { base: '', levels: [] }, types: null } }, LIB_TREE, L.OFFICE_TYPES);
+  assert.strictEqual(sentOnly.from, 'saved');
+  assert.deepStrictEqual(sentOnly.layout.sent, LIB_LAYOUT.sent);
+  assert.deepStrictEqual(sentOnly.layout.updated, { base: 'P/U', levels: [{ kind: 'type', pattern: 'X-pub-updated-{type}' }] }, 'UPDATED from the legacy slot');
+  const updOnly = plans.layoutFor({ areas: {}, slots: { sent: SENT, sentSplit: true, updated: '' }, publish: { sent: { base: '', levels: [] }, updated: { base: 'P/U', levels: [] }, types: null } }, LIB_TREE, L.OFFICE_TYPES);
+  assert.strictEqual(updOnly.from, 'detected', 'from tells about SENT');
+  assert.deepStrictEqual(updOnly.layout.sent, LIB_LAYOUT.sent);
+  assert.deepStrictEqual(updOnly.layout.updated, { base: 'P/U', levels: [] });
+});
+
+test('filing-plan: withAuto — the stored folders win, the convention finds fill the rest', () => {
+  const auto = { sent: 'A/S', sentSplit: true, updated: 'A/U' };
+  assert.deepStrictEqual(plans.withAuto({ sent: 'M/S', sentSplit: false, updated: '' }, auto), { sent: 'M/S', sentSplit: false, updated: 'A/U' });
+  assert.deepStrictEqual(plans.withAuto({ sent: '', sentSplit: true, updated: 'M/U' }, { ...auto, sentSplit: false }), { sent: 'A/S', sentSplit: false, updated: 'M/U' });
+  assert.deepStrictEqual(plans.withAuto(null, { sent: '', sentSplit: true, updated: '' }), { sent: '', sentSplit: true, updated: '' });
 });
 
 test('filing-plan: publishPlan — dests cut by the 30-step limit are said (problem steps); no file is left without dests and without a problem', () => {
