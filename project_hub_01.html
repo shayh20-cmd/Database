@@ -18197,12 +18197,12 @@ function PublishLayoutBox({
         })
       }), w ? h("button", {
         className: "fm-ico",
-        title: "למעלה",
+        title: tx('הזז למעלה'),
         disabled: i === 0,
         onClick: () => move(i, -1)
       }, "↑") : null, w ? h("button", {
         className: "fm-ico",
-        title: "למטה",
+        title: tx('הזז למטה'),
         disabled: i === t.levels.length - 1,
         onClick: () => move(i, 1)
       }, "↓") : null, w ? h("button", {
@@ -18321,7 +18321,7 @@ function PublishLayoutBox({
     dir: "ltr"
   }, fmTypesLine(types)), h("span", {
     className: "fm-types-src"
-  }, value.types ? tx('של הפרויקט') : tx('של המשרד'))), w ? h("div", {
+  }, value.types ? tx('רשימת הסוגים של הפרויקט') : tx('רשימת הסוגים של המשרד'))), w ? h("div", {
     className: "fm-types-act"
   }, value.types ? h("button", {
     className: "np-btn",
