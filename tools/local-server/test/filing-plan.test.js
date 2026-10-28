@@ -507,3 +507,38 @@ test('filing-ai: the Layout line — the type folder inside the day folder', () 
   assert.strictEqual(line, 'Layout: SENT P/S (by type inside the day folder; date: year then day)');
   assert.match(ai.INBOX_SYSTEM, /"by type inside the day folder"/);
 });
+
+test('filing-plan: layoutFor v2 — the mapped UPDATED folder wins its type; the type folder in use wins over a stray one', () => {
+  const U = 'W/P/U';
+  const tree = ['W', 'W/P', U, U + '/LDLI-pub-updated-A1-PDF', U + '/LDLI-pub-updated-PDF'];
+  const got = plans.layoutFor({ areas: {}, slots: { sent: '', sentSplit: true, updated: U + '/LDLI-pub-updated-PDF' } }, tree, L.OFFICE_TYPES).layout.updated;
+  assert.deepStrictEqual(got, { base: U, byType: true, typeDirs: { PDF: U + '/LDLI-pub-updated-PDF' } });
+  const out = plans.publishPlan({ layout: { sent: { base: '', levels: [] }, updated: got }, types: L.OFFICE_TYPES, tree, code: 'LDLI', files: [{ n: 0, name: 'a.pdf' }, { n: 1, name: 'a.dwg' }], sent: false, updated: true, date: '2026-10-28', desc: '' });
+  assert.deepStrictEqual(out.plan.files.map(f => f.dests[0].path), [U + '/LDLI-pub-updated-PDF', U + '/LDLI-pub-updated-DWG']);
+  // SENT: a stray …-A3-PDF before the folder that holds the years and days
+  const S = 'W/P/S';
+  const st = ['W', 'W/P', S, S + '/LDLI-pub-sent-A3-PDF', S + '/LDLI-pub-sent-PDF', S + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2026', S + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2026/LDLI-pub-PDF-2026,10,01'];
+  assert.strictEqual(plans.layoutFor({ areas: {}, slots: { sent: S, sentSplit: true, updated: '' } }, st, L.OFFICE_TYPES).layout.sent.typeDirs.PDF, S + '/LDLI-pub-sent-PDF');
+  // no dates anywhere: the one named by the pattern the tree shows (…-sent-{type}, as the DWG and DOCS folders are)
+  const nt = ['W', 'W/P', S, S + '/LDLI-pub-sent-A3-PDF', S + '/LDLI-pub-sent-DOCS', S + '/LDLI-pub-sent-DWG', S + '/LDLI-pub-sent-PDF'];
+  assert.strictEqual(plans.layoutFor({ areas: {}, slots: { sent: S, sentSplit: true, updated: '' } }, nt, L.OFFICE_TYPES).layout.sent.typeDirs.PDF, S + '/LDLI-pub-sent-PDF');
+});
+
+test('filing-plan: publishPlan v2 — a together archive keeps its date names, type names in them and all', () => {
+  const types = L.cleanTypes([{ name: 'PUB', ext: ['pdf'] }, { name: 'SENT', ext: ['dwg'] }, { name: 'DOCS', ext: [], rest: true }]);
+  const S = 'P/S', tree = ['P', S, S + '/LDLI-pub-sent-2025', S + '/LDLI-pub-sent-2025/LDLI-pub-2025,03,01'];
+  const out = plans.publishPlan({ layout: { sent: { base: S, byType: false, typeDirs: {}, typeAt: 'top', date: 'year-day' }, updated: { base: '', levels: [] } }, types, tree, code: 'LDLI', files: [{ n: 0, name: 'a.pdf' }, { n: 1, name: 'a.dwg' }, { n: 2, name: 'a.txt' }], sent: true, updated: false, date: '2026-10-28', desc: '' });
+  assert.deepStrictEqual(out.plan.files.map(f => f.dests[0].path), Array(3).fill(S + '/LDLI-pub-sent-2026/LDLI-pub-2026,10,28'));
+  // the type inside the day: the date names kept too, the type folder by the type
+  const inDay = plans.publishPlan({ layout: { sent: { base: S, byType: true, typeDirs: {}, typeAt: 'day', date: 'year-day' }, updated: { base: '', levels: [] } }, types, tree, code: 'LDLI', files: [{ n: 0, name: 'a.pdf' }], sent: true, updated: false, date: '2026-10-28', desc: '' });
+  assert.strictEqual(inDay.plan.files[0].dests[0].path, S + '/LDLI-pub-sent-2026/LDLI-pub-2026,10,28/PUB');
+});
+
+test('filing-plan: layoutFor — a type level between the year and the day stays in levels', () => {
+  const S = 'P/S', Y = S + '/X-sent-2026';
+  const tree = ['P', S, Y, Y + '/PDF', Y + '/PDF/X-2026,10,01', Y + '/DWG'];
+  const got = plans.layoutFor({ areas: {}, slots: { sent: S, sentSplit: true, updated: '' } }, tree, L.OFFICE_TYPES).layout.sent;
+  assert.deepStrictEqual(got, { base: S, levels: [{ kind: 'year', pattern: 'X-sent-{yyyy}' }, { kind: 'type', pattern: '{type}' }, { kind: 'day', pattern: 'X-{yyyy},{mm},{dd}' }] });
+  const out = plans.publishPlan({ layout: { sent: got, updated: { base: '', levels: [] } }, types: L.OFFICE_TYPES, tree, code: 'X', files: [{ n: 0, name: 'a.pdf' }], sent: true, updated: false, date: '2026-10-28', desc: '' });
+  assert.strictEqual(out.plan.files[0].dests[0].path, Y + '/PDF/X-2026,10,28');
+});
