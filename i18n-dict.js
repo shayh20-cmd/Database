@@ -3377,7 +3377,8 @@ Object.assign(HE_EN, {
 "אין תיקיות מתחת ל-SENT": "There are no folders under SENT",
 "חלק מהתיקיות של הקובץ הזה לא ייווצרו — הוא לא יגיע לכל היעדים": "Some of this file's folders will not be created — it will not reach every destination",
 "התיקייה שתויקו אליה הקבצים:": "The folder the files were filed to:",
-"התיקיות שתויקו אליהן הקבצים:": "The folders the files were filed to:"
+"התיקיות שתויקו אליהן הקבצים:": "The folders the files were filed to:",
+"לא זוהה מבנה בתיקיות — לפי המוסכמה. להגדרה: הגדרות הפרויקט ← תיקיות הפרויקט ← פרסום": "No layout was recognized in the folders — using the convention. To set it: Project settings → Project folders → Publishing"
 });
 
 window.I18N_HE_EN = HE_EN;

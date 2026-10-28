@@ -17636,7 +17636,7 @@ function InboxBatch({
     onChange: e => setUpdated(e.target.checked)
   }), h("span", null, "UPDATED (מחליף קובץ באותו שם)")) : null, mode === 'publish' ? slotHint('updated') : null, mode === 'publish' && prop && (prop.layoutFrom === 'detected' || prop.layoutFrom === 'convention') ? h("div", {
     className: "ib-hint"
-  }, "המבנה זוהה מהתיקיות. לשמירה: הגדרות הפרויקט ← תיקיות הפרויקט ← פרסום") : null, mode === 'publish' && updated ? h("div", {
+  }, prop.layoutFrom === 'convention' ? "לא זוהה מבנה בתיקיות — לפי המוסכמה. להגדרה: הגדרות הפרויקט ← תיקיות הפרויקט ← פרסום" : "המבנה זוהה מהתיקיות. לשמירה: הגדרות הפרויקט ← תיקיות הפרויקט ← פרסום") : null, mode === 'publish' && updated ? h("div", {
     className: "ib-hint"
   }, "קובץ ישן באותו שם עובר ל-@ver ולא נמחק") : null, mode === 'receive' ? h("div", {
     className: "ib-hint"
