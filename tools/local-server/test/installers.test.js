@@ -51,6 +51,16 @@ function start(t, { port, env, root }) {
 function principal(claims) {
   return Buffer.from(JSON.stringify({ auth_typ: 'aad', claims: Object.entries(claims).map(([typ, val]) => ({ typ, val })) })).toString('base64');
 }
+// Windows Script Host reads a .vbs as ANSI: a UTF-8 BOM (or any non-ASCII byte) is a compilation error on line 1, and
+// run //B it fails silently — the helper never starts (2026-10-28)
+test('the .vbs launchers are plain ASCII, with no BOM', () => {
+  for (const f of ['tools/file-helper/run-file-helper-agent.vbs', 'tools/mail-scan/run-hidden.vbs', 'tools/quick-access/keepalive.vbs']) {
+    const b = fs.readFileSync(path.join(REPO, f));
+    assert.ok(!(b[0] === 0xEF && b[1] === 0xBB && b[2] === 0xBF), f + ' has no BOM');
+    assert.ok(b.every(x => x < 0x80), f + ' is ASCII only');
+  }
+});
+
 function blocksOf(text) {
   const out = {};
   for (const m of text.matchAll(/^ {2}'([^']+)' = '([A-Za-z0-9+/=]+)'\r?$/gm)) out[m[1]] = Buffer.from(m[2], 'base64');
