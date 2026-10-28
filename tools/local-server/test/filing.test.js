@@ -1780,3 +1780,54 @@ test("filing hub: the office type list, the layout in the map, map-auto, and the
     [S + '/LDPB-pub-sent-CAD/LDPB-pub-CAD-2026,10,28', U + '/LDPB-pub-updated-CAD']
   ]);
 });
+
+test('filing hub: pick-sub — a folder inside the project, picked on the PC, comes back relative to the project', async (t) => {
+  const { base, keyOf, agent } = await start(t, 4067, {});
+  const hub = async (email, route, body) => {
+    const r = await fetch(base + '/api/filing-hub/' + route, { method: body ? 'POST' : 'GET', headers: { 'x-ms-client-principal': principal(email), 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  const dana = await keyOf('dana@kkarc.com');
+  const BS = String.fromCharCode(92);
+  // writers only; GET is not the route's method; a start that leaves the project is refused
+  assert.deepStrictEqual(await hub('ron@kkarc.com', 'pick-sub', { projectId: 'pabc123' }), { status: 403, body: { error: 'viewer' } });
+  assert.strictEqual((await hub('dana@kkarc.com', 'pick-sub')).status, 405);
+  assert.deepStrictEqual(await hub('dana@kkarc.com', 'pick-sub', { projectId: 'pabc123', start: '../x' }), { status: 400, body: { error: 'start' } });
+
+  // the task carries the start; opening it gives the person time to choose
+  const ask = async start => {
+    const r = await hub('dana@kkarc.com', 'pick-sub', { projectId: 'pabc123', start, lang: 'en' });
+    assert.deepStrictEqual(Object.keys(r.body), ['taskId']);
+    const a = await agent(dana);
+    assert.strictEqual(a.id, r.body.taskId);
+    return { id: r.body.taskId, a };
+  };
+  const s1 = await ask('PUBLISH' + BS + 'SENT');
+  assert.deepStrictEqual([s1.a.kind, s1.a.got.kind, s1.a.got.lang, s1.a.got.start], ['pick-sub', 'pick-sub', 'en', 'PUBLISH/SENT']);
+  const st1 = (await hub('dana@kkarc.com', 'task?id=' + s1.id)).body;
+  assert.deepStrictEqual([st1.kind, !!st1.handed, st1.opened, st1.result, st1.expired], ['pick-sub', true, true, null, false]);
+  // a bad rel is refused and the task stays open; a good one is the result
+  assert.deepStrictEqual(await s1.a.result({ rel: '../evil' }), { status: 400, body: { error: 'rel' } });
+  assert.deepStrictEqual(await s1.a.result({ rel: 'C:/x' }), { status: 400, body: { error: 'rel' } });
+  assert.deepStrictEqual(await s1.a.result({}), { status: 400, body: { error: 'rel' } });
+  assert.strictEqual((await s1.a.result({ rel: ['PUBLISH', 'SENT', 'PDF'].join(BS) })).status, 200);
+  assert.deepStrictEqual((await hub('dana@kkarc.com', 'task?id=' + s1.id)).body.result, { rel: 'PUBLISH/SENT/PDF' });
+
+  // no start: the project folder; '' as the answer is the project folder itself
+  const s2 = await ask(undefined);
+  assert.strictEqual(s2.a.got.start, '');
+  await s2.a.result({ rel: '' });
+  assert.deepStrictEqual((await hub('dana@kkarc.com', 'task?id=' + s2.id)).body.result, { rel: '' });
+
+  // outside the project folder, cancelled, the project folder not on the PC
+  for (const [sent, want] of [[{ outside: true }, { outside: true }], [{ cancelled: true }, { cancelled: true }], [{ missing: true }, { missing: true }]]) {
+    const s = await ask('');
+    assert.strictEqual((await s.a.result(sent)).status, 200);
+    assert.deepStrictEqual((await hub('dana@kkarc.com', 'task?id=' + s.id)).body.result, want);
+  }
+  // other kinds do not get a start
+  const p = await hub('dana@kkarc.com', 'pick', { projectId: 'pabc123' });
+  const pa = await agent(dana);
+  assert.strictEqual(pa.id, p.body.taskId);
+  assert.ok(!('start' in pa.got));
+});

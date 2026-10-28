@@ -593,11 +593,13 @@ module.exports = function createFiling(ctx) {
     if (!what) {
       t.opened = true;
       // the folder picker is open on the PC from now on: the person's choice may take a while
-      if (t.kind === 'pick' || t.kind === 'pick-source' || t.kind === 'pick-inbox') t.exp = Math.max(t.exp, Date.now() + PICK);
+      if (t.kind === 'pick' || t.kind === 'pick-source' || t.kind === 'pick-inbox' || t.kind === 'pick-sub') t.exp = Math.max(t.exp, Date.now() + PICK);
       if (t.kind === 'inbox') t.exp = Math.max(t.exp, Date.now() + INBOX_TTL);
       sendJson(res, 200, {
         kind: t.kind, lang: t.lang, project: t.project, folder: t.folder, root: t.root, share: t.projectId ? known(t.projectId).share || '' : '',
         ...(t.kind === 'open' && t.rel ? { rel: t.rel } : {}),
+        // pick-sub: where the picker starts, relative to the project folder ('': the project folder)
+        ...(t.kind === 'pick-sub' ? { start: t.start || '' } : {}),
         // the files to take from the PC's own inbox (or from the folder it keeps under source), and where each goes;
         // move: only the export inbox's files leave it, a chosen folder's are copied
         ...(t.kind === 'inbox' ? { files: t.plan.files.filter(x => x.dests.length).map(x => ({ n: x.n, name: x.name })), plan: t.plan, source: t.source || '', move: !t.source } : {}),
@@ -682,6 +684,15 @@ module.exports = function createFiling(ctx) {
         if (!inbox) { sendJson(res, 400, { error: 'inbox' }); return; }
         seenPc(t.who, t.pc, inbox);
         t.result = { inbox };
+      }
+    } else if (t.kind === 'pick-sub') {
+      // a folder picked inside the project (the settings page's "סייר"): relative to the project folder, or outside it
+      if (body.cancelled === true) t.result = { cancelled: true };
+      else if (body.outside === true) t.result = { outside: true };
+      else {
+        const rel = typeof body.rel === 'string' ? ai.relPath(body.rel) : null;
+        if (rel == null) { sendJson(res, 400, { error: 'rel' }); return; }
+        t.result = { rel };
       }
     } else if (t.kind === 'tree') {
       if (!Array.isArray(body.tree)) { sendJson(res, 400, { error: 'tree' }); return; }
@@ -801,7 +812,7 @@ module.exports = function createFiling(ctx) {
      key names its owner: the address in lower case, 'local' on the local server). base: the site, for the tools. */
   const HUB_METHOD = {
     project: 'GET', task: 'GET', 'office-types': 'GET', pick: 'POST', open: 'POST', 'map-session': 'POST', 'map-propose': 'POST', 'map-auto': 'POST', map: 'PUT', guide: 'PUT',
-    inbox: 'GET', 'inbox-options': 'GET', 'inbox-latest': 'GET', 'inbox-open': 'GET', 'pick-source': 'POST', pcs: 'GET', 'pick-inbox': 'POST', 'inbox-propose': 'POST', 'inbox-plan': 'POST', 'inbox-confirm': 'POST', 'inbox-dismiss': 'POST'
+    inbox: 'GET', 'inbox-options': 'GET', 'inbox-latest': 'GET', 'inbox-open': 'GET', 'pick-source': 'POST', pcs: 'GET', 'pick-inbox': 'POST', 'pick-sub': 'POST', 'inbox-propose': 'POST', 'inbox-plan': 'POST', 'inbox-confirm': 'POST', 'inbox-dismiss': 'POST'
   };
   const israelToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
   async function handleHub(req, res, url, user, base) {
@@ -1102,6 +1113,13 @@ module.exports = function createFiling(ctx) {
     const pr = known(project.id);
     const x = { who, person: p, base, project, folder: pr.folder || '', root: pr.root || '', lang: body.lang };
     if (route === 'pick') { sendJson(res, 200, { taskId: makeTask('pick', x).id }); return; }
+    if (route === 'pick-sub') {
+      // the Windows folder picker inside the project, starting at start (relative to the project folder)
+      const start = ai.relPath(body.start);
+      if (start == null) { sendJson(res, 400, { error: 'start' }); return; }
+      sendJson(res, 200, { taskId: makeTask('pick-sub', { ...x, extra: { start } }).id });
+      return;
+    }
     if (route === 'open') {
       const rel = ai.relPath(body.rel);
       if (rel == null) { sendJson(res, 400, { error: 'rel' }); return; }
