@@ -38,8 +38,9 @@ function migrateAreas(raw) {
   delete r.export;
   return r;
 }
-/* A saved map as it is read today: old keys migrated, the seven areas cleaned (paths inside the project), and the
-   slots that filing without Claude goes by (cleanSlots) */
+/* A saved map as it is read today: old keys migrated, the seven areas cleaned (paths inside the project), the slots
+   that filing without Claude fell back on before layouts (cleanSlots), and the publish layout (map.publish, through
+   filing-layout.cleanPublish; null when there is none or it does not pass) */
 function normalizeMap(map) {
   if (!map || typeof map !== 'object' || !map.areas) return map || null;
   return { ...map, areas: cleanAreas(map.areas, rel => rel || null), slots: cleanSlots(map.slots), publish: layout.cleanPublish(map.publish, relPath).publish || null };

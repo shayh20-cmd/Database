@@ -1,6 +1,7 @@
 'use strict';
 /* Filing without Claude: the plans the export inbox window and the Outlook pane build in code, from the project's
-   saved folder map (map.slots and its areas), its real tree (read by the helper on the PC) and the person's choices.
+   saved folder map (its publish layout map.publish, else the older map.slots, and its areas), its real tree (read by
+   the helper on the PC) and the person's choices.
    Each plan has the shape Claude's plans have and goes through the same checks (sanitizeInboxPlan /
    sanitizeReceivePlan), so the PC runs it exactly as it runs Claude's. Claude stays behind "הצע".
    Spec: docs/superpowers/specs/2026-10-26-filing-without-ai-design.md */
