@@ -320,6 +320,17 @@ try {
   Check 'config: the inbox by default on the desktop' ((Get-HelperConfig (Join-Path $root 'cfg\none.json')).inbox -eq (Join-Path ([Environment]::GetFolderPath('Desktop')) 'לתיוק'))
   $c3 = Get-HelperConfig $cfgPath; $c3.inbox = 'D:\Out'; Save-HelperConfig $c3 $cfgPath
   Check 'config: the inbox saved' ((Get-HelperConfig $cfgPath).inbox -eq 'D:\Out')
+  # another inbox chosen from the Hub (pick-inbox): made if missing, kept in the config, its full path the result
+  Check 'kind: pick-inbox' (Test-TaskKind 'pick-inbox')
+  $c4 = Get-HelperConfig $cfgPath
+  Check 'inbox picked: cancelled' ((Set-HelperInbox $c4 '' $cfgPath).cancelled -eq $true)
+  Check 'inbox picked: cancelled leaves the config' ((Get-HelperConfig $cfgPath).inbox -eq $c3.inbox)
+  $newIb = Join-Path $root 'Exports new'
+  $r4 = Set-HelperInbox $c4 ($newIb + [IO.Path]::DirectorySeparatorChar) $cfgPath
+  Check 'inbox picked: the full path, no trailing separator' ($r4.inbox -eq $newIb)
+  Check 'inbox picked: made' (Test-Path -LiteralPath $newIb -PathType Container)
+  Check 'inbox picked: saved' ((Get-HelperConfig $cfgPath).inbox -eq $newIb)
+  Check 'inbox picked: the roots stay' ((Get-HelperConfig $cfgPath).roots.Contains('@Nu Projects'))
 
   $ib = Join-Path $root 'inbox'
   New-Item -ItemType Directory -Force -Path (Join-Path $ib 'a folder') | Out-Null

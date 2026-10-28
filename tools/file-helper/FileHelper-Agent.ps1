@@ -1,6 +1,6 @@
 ﻿<# Project Hub — filing helper: the background agent. Started hidden at Windows sign-in (Startup shortcut,
    run-file-helper-agent.vbs). It keeps one request open to the hub (/api/outlook/filing-next, up to 25 seconds,
-   with the person's Outlook add-in key) and receives the person's next task from the Outlook pane or the hub — pick
+   with the person's quick-filing key) and receives the person's next task from the Outlook pane or the hub — pick
    the project folder, read its tree, open it, file, or publish from the export inbox — with its one-time token, and
    runs it in Run-Task.ps1.
    While that request is open it looks at the export inbox (config "inbox", Desktop\לתיוק) every 3 seconds: once new
@@ -122,7 +122,8 @@ try {
       $cfg = Get-HelperConfig
       $key = Read-HelperKey
       if (-not $key) { Log 'no key: run Install-FileHelper.ps1'; Start-Sleep -Seconds 300; continue }
-      $uri = $cfg.hub.TrimEnd('/') + '/api/outlook/filing-next?pc=' + [uri]::EscapeDataString($env:COMPUTERNAME)
+      # the inbox goes along, so the Hub's settings show where this PC's export inbox is
+      $uri = $cfg.hub.TrimEnd('/') + '/api/outlook/filing-next?pc=' + [uri]::EscapeDataString($env:COMPUTERNAME) + '&inbox=' + [uri]::EscapeDataString($cfg.inbox)
       $req = New-Object Net.Http.HttpRequestMessage([Net.Http.HttpMethod]::Get, $uri)
       $req.Headers.Authorization = New-Object Net.Http.Headers.AuthenticationHeaderValue('Bearer', $key)
       $pending = $http.SendAsync($req)

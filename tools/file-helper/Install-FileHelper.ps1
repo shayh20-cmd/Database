@@ -1,5 +1,5 @@
 ﻿<# Project Hub — filing helper: install for the current Windows user (no admin rights).
-   Asks for the person's Outlook add-in key (the one pasted in the add-in's pane), checks it with the hub and keeps
+   Asks for the person's quick-filing key (Settings → תיוק מהיר in the hub; an add-in key of an earlier install still works), checks it with the hub and keeps
    it with DPAPI; copies the helper to %LOCALAPPDATA%\ProjectHub\file-helper; lists the project roots this PC
    reaches (the "@<Name> Projects" folders at the top of its drives); adds a Startup shortcut that runs the background agent
    at every Windows sign-in, registers the scheduled task "Project Hub filing helper" that starts it again every
@@ -63,8 +63,8 @@ if ($Inbox) { $cfg.inbox = [IO.Path]::GetFullPath($Inbox).TrimEnd('\') }
 Save-HelperConfig $cfg
 
 # the key: checked with the hub before it is kept
-$askHe = 'הדבק את המפתח האישי של תוסף ה-Outlook (אותו מפתח שמודבק בחלונית של התוסף; ב-Project Hub: הגדרות ← תיוק מהיר).'
-$askEn = 'Paste your personal Outlook add-in key (the one pasted in the add-in''s pane; in Project Hub: Settings → Quick filing).'
+$askHe = 'הדבק את מפתח התיוק המהיר שלך (ב-Project Hub: הגדרות ← תיוק מהיר ← הנפק מפתח).'
+$askEn = 'Paste your quick-filing key (in Project Hub: Settings → Quick filing → Issue a key).'
 while ($true) {
   if ($Gui) {
     $key = Read-KeyBox $askHe $askEn

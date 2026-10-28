@@ -40,6 +40,7 @@ const { personOf } = require('./mail-tokens');
 
 const TTL = Number(process.env.FILING_TTL_MS) || 15 * 60 * 1000;            // a filing's (and its file task's) life
 const QUICK = Number(process.env.FILING_QUICK_TTL_MS) || 2 * 60 * 1000;     // a pick, tree or open task's life
+const ACTIVE = 90 * 1000; // a PC whose agent asked for a task within this long is on (it asks again at least every POLL)
 const PICK = Number(process.env.FILING_PICK_TTL_MS) || 10 * 60 * 1000;      // … a pick's, from when the agent opens it (a person is choosing)
 const POLL = Number(process.env.FILING_POLL_MS) || 25 * 1000;               // how long the agent's request waits for a task
 const TREE_WAIT = Number(process.env.FILING_TREE_WAIT_MS) || 20 * 1000;     // how long a proposal waits for the tree
@@ -105,6 +106,15 @@ module.exports = function createFiling(ctx) {
   const byToken = new Map(); // sha(token) → task id
   const waiting = new Map(); // who → Set of wake-ups of agents waiting for a task
   const batches = new Map(); // id → an export inbox batch, announced by the agent on a PC
+  // the person's PCs as their agents last asked for a task: who|pc → { pc, inbox (the export inbox's path there), at }.
+  // Kept in memory only: the agents ask again within POLL, so a restart of the server is forgotten in seconds
+  const pcs = new Map();
+  const seenPc = (who, pc, inbox) => {
+    if (!pc) return;
+    const k = who + '|' + pc.toLowerCase();
+    const o = pcs.get(k) || { pc, inbox: '' };
+    pcs.set(k, { ...o, pc, inbox: inbox || o.inbox, at: Date.now() });
+  };
   // the language each person last used on the Hub page (requests that carry lang), for the agent's inbox toast; 'he' until then
   const langs = new Map();
   const noteLang = (who, lang) => { if (lang === 'he' || lang === 'en') langs.set(who, lang); };
@@ -297,6 +307,9 @@ module.exports = function createFiling(ctx) {
     /* the agent on the PC: this person's next task, handed out once; waits up to POLL for one */
     if (route === 'filing-next') {
       const pc = clip(url.searchParams.get('pc'), 60);
+      // an agent of the first version sends no inbox: its PC still shows, without the folder
+      const inbox = clip(url.searchParams.get('inbox'), 400).replace(/[\u0000-\u001f]/g, '');
+      seenPc(who, pc, inbox);
       let t = nextFor(who, pc);
       if (!t) {
         await new Promise(resolve => {
@@ -315,6 +328,7 @@ module.exports = function createFiling(ctx) {
           res.on('close', done);
         });
         if (res.writableEnded || res.destroyed) return;
+        seenPc(who, pc, inbox);
         t = nextFor(who, pc);
       }
       if (!t) { sendJson(res, 200, { task: null }); return; }
@@ -563,7 +577,7 @@ module.exports = function createFiling(ctx) {
     if (!what) {
       t.opened = true;
       // the folder picker is open on the PC from now on: the person's choice may take a while
-      if (t.kind === 'pick' || t.kind === 'pick-source') t.exp = Math.max(t.exp, Date.now() + PICK);
+      if (t.kind === 'pick' || t.kind === 'pick-source' || t.kind === 'pick-inbox') t.exp = Math.max(t.exp, Date.now() + PICK);
       if (t.kind === 'inbox') t.exp = Math.max(t.exp, Date.now() + INBOX_TTL);
       sendJson(res, 200, {
         kind: t.kind, lang: t.lang, project: t.project, folder: t.folder, root: t.root,
@@ -636,6 +650,15 @@ module.exports = function createFiling(ctx) {
         const files = batchFiles(body.files);
         const b = files.length ? addBatch(t.who, t.person, t.base, t.handed ? t.handed.pc : '', files, source, folder) : null;
         t.result = { id: b ? b.id : null, files: files.length, folder };
+      }
+    } else if (t.kind === 'pick-inbox') {
+      // the PC's export inbox, chosen there and already in its helper's settings: its path, to show on the Hub page
+      if (body.cancelled === true) t.result = { cancelled: true };
+      else {
+        const inbox = typeof body.inbox === 'string' ? clip(body.inbox, 400).replace(/[\u0000-\u001f]/g, '').trim() : '';
+        if (!inbox) { sendJson(res, 400, { error: 'inbox' }); return; }
+        seenPc(t.who, t.pc, inbox);
+        t.result = { inbox };
       }
     } else if (t.kind === 'tree') {
       if (!Array.isArray(body.tree)) { sendJson(res, 400, { error: 'tree' }); return; }
@@ -755,7 +778,7 @@ module.exports = function createFiling(ctx) {
      key names its owner: the address in lower case, 'local' on the local server). base: the site, for the tools. */
   const HUB_METHOD = {
     project: 'GET', task: 'GET', pick: 'POST', open: 'POST', 'map-session': 'POST', 'map-propose': 'POST', 'map-auto': 'POST', map: 'PUT', guide: 'PUT',
-    inbox: 'GET', 'inbox-options': 'GET', 'inbox-latest': 'GET', 'inbox-open': 'GET', 'pick-source': 'POST', 'inbox-propose': 'POST', 'inbox-plan': 'POST', 'inbox-confirm': 'POST', 'inbox-dismiss': 'POST'
+    inbox: 'GET', 'inbox-options': 'GET', 'inbox-latest': 'GET', 'inbox-open': 'GET', 'pick-source': 'POST', pcs: 'GET', 'pick-inbox': 'POST', 'inbox-propose': 'POST', 'inbox-plan': 'POST', 'inbox-confirm': 'POST', 'inbox-dismiss': 'POST'
   };
   const israelToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
   async function handleHub(req, res, url, user, base) {
@@ -801,6 +824,23 @@ module.exports = function createFiling(ctx) {
       noteLang(who, body.lang);
       if (!writer(p)) { sendJson(res, 403, { error: 'viewer' }); return; }
       const t = makeTask('pick-source', { who, person: p, base, project: { id: '', code: '', name: '' }, lang: body.lang });
+      sendJson(res, 200, { taskId: t.id });
+      return;
+    }
+    // Settings → תיוק מהיר: the person's PCs whose helper asked for a task lately, each with its export inbox
+    if (route === 'pcs') {
+      const list = [...pcs.entries()].filter(([k]) => k.startsWith(who + '|')).map(([, o]) => ({ pc: o.pc, inbox: o.inbox, at: iso(o.at), active: Date.now() - o.at < ACTIVE }));
+      list.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+      sendJson(res, 200, list);
+      return;
+    }
+    // … and another export inbox for one of them: that PC's helper (only that PC's) opens a folder picker
+    if (route === 'pick-inbox') {
+      const body = await json(req);
+      noteLang(who, body.lang);
+      const o = pcs.get(who + '|' + clip(body.pc, 60).toLowerCase());
+      if (!o || Date.now() - o.at >= ACTIVE) { sendJson(res, 409, { error: 'pc_off' }); return; }
+      const t = makeTask('pick-inbox', { who, person: p, base, project: { id: '', code: '', name: '' }, lang: body.lang, extra: { pc: o.pc } });
       sendJson(res, 200, { taskId: t.id });
       return;
     }

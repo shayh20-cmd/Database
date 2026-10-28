@@ -1622,3 +1622,48 @@ test('filing: the pane\'s plan in code — who sent it (the sender\'s consultant
   const log = JSON.parse(fs.readFileSync(path.join(data, 'filing.json'), 'utf8')).projects.pabc123.log;
   assert.deepStrictEqual(log.map(l => [l.file, l.dest, l.mode]), [['E-1.pdf', V2, 'new-version'], ['E-2.pdf', V2, 'new-version']]);
 });
+
+test("filing helper: its own key, each person's PCs with their inbox, and another inbox chosen on one PC", async (t) => {
+  const { base, keyOf, call } = await start(t, 4064, {});
+  const as = email => ({ 'x-ms-client-principal': principal(email), 'Content-Type': 'application/json' });
+  const hub = async (route, body, email = 'dana@kkarc.com') => {
+    const r = await fetch(base + '/api/filing-hub/' + route, { method: body ? 'POST' : 'GET', headers: as(email), body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  const helperKey = async email => (await (await fetch(base + '/api/filing-helper-connection', { method: 'POST', headers: as(email) })).json()).key;
+  const pane = await keyOf('dana@kkarc.com');
+  const key = await helperKey('dana@kkarc.com');
+  assert.match(key, /^phf_/);
+  // the two keys live apart: a new add-in key does not end the helper's, and the helper's opens only what the helper calls
+  await keyOf('dana@kkarc.com');
+  assert.strictEqual((await call(pane, '/api/outlook/me')).status, 401);
+  assert.strictEqual((await call(key, '/api/outlook/me')).body.email, 'dana@kkarc.com');
+  assert.strictEqual((await call(key, '/api/outlook/projects')).status, 403);
+  const st = await (await fetch(base + '/api/filing-helper-connection', { headers: as('dana@kkarc.com') })).json();
+  assert.ok(st.key && st.key.created);
+
+  // the PCs whose helper asked for a task, with the inbox each sends; another person's are not listed
+  assert.deepStrictEqual((await hub('pcs')).body, []);
+  const poll = (k, pc, inbox) => call(k, '/api/outlook/filing-next?pc=' + pc + (inbox ? '&inbox=' + encodeURIComponent(inbox) : ''));
+  await poll(key, 'PC1', 'C:/Users/dana/Desktop/לתיוק');
+  await poll(key, 'PC2', '');
+  await poll(await helperKey('ron@kkarc.com'), 'PC9', 'D:/x');
+  const list = (await hub('pcs')).body;
+  assert.deepStrictEqual(list.map(x => [x.pc, x.inbox, x.active]).sort(), [['PC1', 'C:/Users/dana/Desktop/לתיוק', true], ['PC2', '', true]]);
+
+  // another inbox for PC2: only PC2's helper gets the picker; a PC never seen is refused
+  assert.deepStrictEqual((await hub('pick-inbox', { pc: 'PC7' })).body, { error: 'pc_off' });
+  const id = (await hub('pick-inbox', { pc: 'pc2', lang: 'en' })).body.taskId;
+  assert.strictEqual((await poll(key, 'PC1', 'C:/a')).body.task, null);
+  const task = (await poll(key, 'PC2', '')).body.task;
+  assert.deepStrictEqual([task.id, task.kind], [id, 'pick-inbox']);
+  const got = (await call(null, '/api/filing/' + task.token)).body;
+  assert.deepStrictEqual([got.kind, got.lang], ['pick-inbox', 'en']);
+  assert.strictEqual((await call(null, '/api/filing/' + task.token + '/result', { inbox: '' })).status, 400);
+  assert.strictEqual((await call(null, '/api/filing/' + task.token + '/result', { inbox: 'E:/Exports' })).status, 200);
+  assert.deepStrictEqual((await hub('task?id=' + id)).body.result, { inbox: 'E:/Exports' });
+  assert.strictEqual((await hub('pcs')).body.find(x => x.pc === 'PC2').inbox, 'E:/Exports');
+  // a helper of the first version (no inbox in its request) keeps the folder last reported
+  await poll(key, 'PC2', '');
+  assert.strictEqual((await hub('pcs')).body.find(x => x.pc === 'PC2').inbox, 'E:/Exports');
+});
