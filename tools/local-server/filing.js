@@ -135,6 +135,17 @@ module.exports = function createFiling(ctx) {
     writeJsonAtomic(STORE, d);
   }
   const known = id => load().projects[id] || { folder: '', root: '', guide: '', log: [] };
+  /* A project root's network share path as a helper reports it — the host, the share, any folders, the root last:
+     kept with the project, and sent with its tasks, so a PC that has no drive mapped to that share still finds the root.
+     Only a share path whose last folder is the root's name; anything else is ''. */
+  const BS = String.fromCharCode(92);
+  const shareFor = (v, root) => {
+    const s = typeof v === 'string' ? v.trim() : '';
+    if (!root || s.length > 300 || !s.startsWith(BS + BS)) return '';
+    const parts = s.slice(2).split(BS);
+    if (parts.length < 2 || parts.some(x => folderName(x) !== x)) return '';
+    return parts[parts.length - 1].toLowerCase() === String(root).toLowerCase() ? s : '';
+  };
   const projectOf = (d, id) => d.projects[id] || (d.projects[id] = { folder: '', root: '', guide: '', log: [] });
   const writer = person => WRITERS.includes(mcp.whoAmI(person.email, person.name).role);
   // a task with a pc goes only to the agent on that PC (an inbox's files are on the PC that announced them)
@@ -580,7 +591,7 @@ module.exports = function createFiling(ctx) {
       if (t.kind === 'pick' || t.kind === 'pick-source' || t.kind === 'pick-inbox') t.exp = Math.max(t.exp, Date.now() + PICK);
       if (t.kind === 'inbox') t.exp = Math.max(t.exp, Date.now() + INBOX_TTL);
       sendJson(res, 200, {
-        kind: t.kind, lang: t.lang, project: t.project, folder: t.folder, root: t.root,
+        kind: t.kind, lang: t.lang, project: t.project, folder: t.folder, root: t.root, share: t.projectId ? known(t.projectId).share || '' : '',
         ...(t.kind === 'open' && t.rel ? { rel: t.rel } : {}),
         // the files to take from the PC's own inbox (or from the folder it keeps under source), and where each goes;
         // move: only the export inbox's files leave it, a chosen folder's are copied
@@ -611,7 +622,14 @@ module.exports = function createFiling(ctx) {
       return;
     }
 
-    // result: checked by kind, then its side effects
+    // result: checked by kind, then its side effects. A helper that found the project's root on a network share says
+    // where (rootShare): kept for the PCs that do not map it (a pick keeps it with the folder it saves)
+    const rootShare = t.kind !== 'pick' && t.projectId && t.root ? shareFor(body.rootShare, t.root) : '';
+    if (rootShare && known(t.projectId).root === t.root && known(t.projectId).share !== rootShare) {
+      const d = load();
+      projectOf(d, t.projectId).share = rootShare;
+      writeJsonAtomic(STORE, d);
+    }
     if (body.missing === true) {
       t.result = { missing: true };
       if (t.kind === 'file' && f && f.taskId === t.id) f.taskId = null;
@@ -635,7 +653,7 @@ module.exports = function createFiling(ctx) {
         if (!writer(t.person)) { sendJson(res, 403, { error: 'viewer' }); return; }
         mcp.runToolAs(t.person.email, t.person.name, t.base, 'get_project', { project: t.projectId }); // still open to this person
         const d = load();
-        Object.assign(projectOf(d, t.projectId), { folder, root, updatedBy: t.by, updatedAt: new Date().toISOString() });
+        Object.assign(projectOf(d, t.projectId), { folder, root, share: shareFor(body.rootShare, root) || (known(t.projectId).root === root ? known(t.projectId).share || '' : ''), updatedBy: t.by, updatedAt: new Date().toISOString() });
         writeJsonAtomic(STORE, d);
         t.result = { picked: folder, root };
       }
@@ -936,7 +954,11 @@ module.exports = function createFiling(ctx) {
           } else {
             const date = /^\d{4}-\d{2}-\d{2}$/.test(body.date) && !Number.isNaN(Date.parse(body.date)) && new Date(body.date + 'T00:00:00Z').toISOString().slice(0, 10) === body.date ? body.date : israelToday();
             const map = ai.normalizeMap(pr.map);
-            out = plans.inboxPlan({ slots: map && map.slots, tree: h.tree, code: project.code, files, sent: body.sent === true, updated: body.updated === true, date });
+            // SENT / UPDATED left empty in the map (saved without "מלא אוטומטית"): found in the tree by the same convention
+            const set = (map && map.slots) || {};
+            const auto = plans.autoSlots(h.tree).slots;
+            const slots = { sent: set.sent || auto.sent, sentSplit: set.sent || !auto.sent ? set.sentSplit !== false : auto.sentSplit, updated: set.updated || auto.updated };
+            out = plans.inboxPlan({ slots, tree: h.tree, code: project.code, files, sent: body.sent === true, updated: body.updated === true, date });
           }
           if (b.status !== 'new' || b.taskId || b.h !== h) { sendJson(res, 409, { error: 'changed' }); return; }
           out.plan.projectId = project.id;

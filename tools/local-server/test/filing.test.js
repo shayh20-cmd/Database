@@ -267,7 +267,7 @@ test('filing: the folder is picked on the PC, Claude proposes from the real tree
   const a1 = await agent(dana);
   assert.deepStrictEqual([a1.id, a1.kind], [pick.body.taskId, 'pick']);
   assert.match(a1.token, /^[A-Za-z0-9_-]{43}$/);
-  assert.deepStrictEqual(a1.got, { kind: 'pick', lang: 'en', project: { id: 'pabc123', code: 'LDPB', name: 'מגרש 4021' }, folder: '', root: '', by: 'דנה' });
+  assert.deepStrictEqual(a1.got, { kind: 'pick', lang: 'en', project: { id: 'pabc123', code: 'LDPB', name: 'מגרש 4021' }, folder: '', root: '', share: '', by: 'דנה' });
   assert.deepStrictEqual((await call(dana, '/api/outlook/filing-next?pc=PC2')).body, { task: null }, 'a task is handed out once');
   assert.strictEqual((await call(null, '/api/filing/' + 'x'.repeat(43))).status, 410);
   assert.strictEqual((await a1.result({ picked: '../x' })).status, 400);
@@ -1007,7 +1007,7 @@ test('filing inbox: the agent announces a batch, the Hub window proposes, confir
   assert.deepStrictEqual((await call(dana, '/api/outlook/filing-next?pc=PC9')).body, { task: null });
   const a2 = await agent(dana);
   assert.strictEqual(a2.id, conf.body.taskId);
-  assert.deepStrictEqual(a2.got, { kind: 'inbox', lang: 'en', project: { id: 'pabc123', code: 'LDPB', name: 'מגרש 4021' }, folder: FOLDER, root: ROOT, files: [{ n: 0, name: 'LDPB-A-101.pdf' }, { n: 1, name: 'LDPB-A-102.dwg' }], plan: PLAN, source: '', move: true, by: 'דנה' });
+  assert.deepStrictEqual(a2.got, { kind: 'inbox', lang: 'en', project: { id: 'pabc123', code: 'LDPB', name: 'מגרש 4021' }, folder: FOLDER, root: ROOT, share: '', files: [{ n: 0, name: 'LDPB-A-101.pdf' }, { n: 1, name: 'LDPB-A-102.dwg' }], plan: PLAN, source: '', move: true, by: 'דנה' });
   // what the agent did: the file names it saved in each dest, in the plan's order
   const did = await a2.result({ files: [{ name: 'LDPB-A-101.pdf', dests: ['LDPB-A-101.pdf', 'LDPB-A-101.pdf'] }, { name: 'LDPB-A-102.dwg', dests: ['LDPB-A-102 (2).dwg', 'extra.dwg'] }, { name: 'ghost.pdf', dests: ['ghost.pdf'] }], error: null });
   assert.strictEqual(did.status, 200);
@@ -1565,6 +1565,11 @@ test('filing inbox: the window\'s plan in code — publish to SENT and UPDATED, 
   // a date that is not on the calendar is today's too
   const p2b = await hub('inbox-plan', { id, projectId: 'pabc123', files: [1], sent: true, updated: false, date: '2026-02-30' });
   assert.ok(p2b.body.plan.files[0].dests[0].path.endsWith(`LDPB-pub-${israel.join(',')}/DWG`), JSON.stringify(p2b.body.plan));
+  // a map saved without SENT / UPDATED (no "מלא אוטומטית"): the window finds them in the tree by the convention
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, root: ROOT, guide: '', log: [], map: { ...map, slots: { sent: '', sentSplit: true, updated: '' } } } } }));
+  const p3 = await hub('inbox-plan', { id, projectId: 'pabc123', files: [0, 1], sent: true, updated: true, date: '2026-10-01' });
+  assert.deepStrictEqual([p3.body.plan, p3.body.slotsMissing], [p1.body.plan, undefined]);
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, root: ROOT, guide: '', log: [], map } } }));
 
   // receive: a consultant's new version, the previous one to @ver (the default when an @ver folder is there)
   const V3 = SP + '/LDPB-structural-plans-v03', V4 = SP + '/LDPB-structural-plans-v04';
@@ -1666,4 +1671,42 @@ test("filing helper: its own key, each person's PCs with their inbox, and anothe
   // a helper of the first version (no inbox in its request) keeps the folder last reported
   await poll(key, 'PC2', '');
   assert.strictEqual((await hub('pcs')).body.find(x => x.pc === 'PC2').inbox, 'E:/Exports');
+});
+
+test('filing: a root\'s network share, reported by a helper, is kept and sent with the project\'s tasks', async (t) => {
+  const { base, data, keyOf, call } = await start(t, 4065, {});
+  const hub = async (route, body) => {
+    const r = await fetch(base + '/api/filing-hub/' + route, { method: 'POST', headers: { 'x-ms-client-principal': principal('dana@kkarc.com'), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+  const BS = String.fromCharCode(92);
+  const unc = (...parts) => BS + BS + parts.join(BS);
+  const stored = () => JSON.parse(fs.readFileSync(path.join(data, 'filing.json'), 'utf8')).projects.pabc123;
+  fs.writeFileSync(path.join(data, 'filing.json'), JSON.stringify({ projects: { pabc123: { folder: FOLDER, root: ROOT, guide: '', log: [] } } }));
+  const key = await keyOf('dana@kkarc.com');
+  // one task of the project, taken by the helper of PC1: what it reads, and what it answers
+  const run = async (route, body, result) => {
+    const id = (await hub(route, { projectId: 'pabc123', ...body })).body.taskId;
+    const task = (await call(key, '/api/outlook/filing-next?pc=PC1')).body.task;
+    assert.strictEqual(task.id, id);
+    const got = (await call(null, '/api/filing/' + task.token)).body;
+    assert.strictEqual((await call(null, '/api/filing/' + task.token + '/result', result)).status, 200);
+    return got;
+  };
+
+  // no share known yet; a share whose last folder is not the root's, or not a share path, is not kept
+  assert.strictEqual((await run('open', { rel: '' }, { opened: true, rootShare: unc('Kappa', 'k', 'other') })).share, '');
+  await run('open', { rel: '' }, { opened: true, rootShare: 'K:' + BS + ROOT });
+  assert.strictEqual(stored().share, undefined);
+  // a helper that found the root on a mapped drive says where the share is: kept, and sent with the next task
+  await run('open', { rel: '' }, { opened: true, rootShare: unc('Kappa', 'k', ROOT) });
+  assert.strictEqual(stored().share, unc('Kappa', 'k', ROOT));
+  assert.strictEqual((await run('open', { rel: '' }, { opened: true })).share, unc('Kappa', 'k', ROOT));
+  // a pick on a local disk (no share) keeps the share of the same root; a pick in another root takes that root's
+  await run('pick', {}, { picked: FOLDER, root: ROOT, rootShare: '' });
+  assert.strictEqual(stored().share, unc('Kappa', 'k', ROOT));
+  await run('pick', {}, { picked: FOLDER, root: '@Xi Projects', rootShare: unc('Xi', 'x', '@Xi Projects') });
+  assert.deepStrictEqual([stored().root, stored().share], ['@Xi Projects', unc('Xi', 'x', '@Xi Projects')]);
+  await run('pick', {}, { picked: FOLDER, root: ROOT, rootShare: '' });
+  assert.deepStrictEqual([stored().root, stored().share], [ROOT, '']);
 });

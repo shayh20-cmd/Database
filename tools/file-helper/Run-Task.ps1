@@ -26,6 +26,10 @@ function Api([string]$Method, [string]$Sub, $Body) {
   if ($text.Trim()) { return ($text | ConvertFrom-Json) }
   return $null
 }
+# the project's folder on this PC (by its root's name, else by the share another PC reported for the root), kept for the
+# rootShare that goes with the result
+$script:ProjectDir = $null
+function Resolve-TaskDir { $script:ProjectDir = Resolve-ProjectDir $cfg ([string]$task.root) ([string]$task.folder) -Share ([string]$task.share); return $script:ProjectDir }
 function StatusOf($Err) { try { return [int]$Err.Exception.Response.StatusCode } catch { return 0 } }
 
 # The agent runs in the background, so Windows may keep a new window behind Outlook (the foreground lock): the picker is
@@ -189,14 +193,14 @@ try {
       $desc = T 'בחר את התיקייה הראשית של הפרויקט {p}' @{ p = $label }
       $res = Invoke-PickTask $cfg $task { param($Start, $Suggested) Show-FolderPicker $Start $Suggested $desc }
     }
-    'tree' { $res = Get-TreeResult (Resolve-ProjectDir $cfg ([string]$task.root) ([string]$task.folder)) }
+    'tree' { $res = Get-TreeResult (Resolve-TaskDir) }
     'open' {
-      $target = Get-OpenTarget (Resolve-ProjectDir $cfg ([string]$task.root) ([string]$task.folder)) ([string]$task.rel)
+      $target = Get-OpenTarget (Resolve-TaskDir) ([string]$task.rel)
       if ($target) { Show-FolderInFront $target; $res = @{ opened = $true } }
       else { $res = @{ missing = $true } }
     }
     'file' {
-      $dir = Resolve-ProjectDir $cfg ([string]$task.root) ([string]$task.folder)
+      $dir = Resolve-TaskDir
       if (-not $dir) { $res = @{ missing = $true } }
       else {
         # only the files the plan files, each as "<n>": from Outlook on this PC first; what it cannot give is asked of
@@ -229,8 +233,13 @@ try {
       # publishing from the export inbox (this PC's own folder, from the config: what was copied everywhere leaves it) or
       # from a folder the person chose (source: only copied, nothing leaves it)
       $from = Get-InboxTaskSource $cfg $task
-      $res = Invoke-InboxTask (Resolve-ProjectDir $cfg ([string]$task.root) ([string]$task.folder)) $from.dir $task $from.move
+      $res = Invoke-InboxTask (Resolve-TaskDir) $from.dir $task $from.move
     }
+  }
+  # where this PC found the project's root, as other PCs can reach it: the server keeps it for those without a drive for it
+  if ($script:ProjectDir -and $res -is [hashtable] -and -not $res.ContainsKey('rootShare')) {
+    $share = Get-RootShare (Split-Path $script:ProjectDir -Parent)
+    if ($share) { $res.rootShare = $share }
   }
   [void](Api 'POST' '/result' $res)
   $keys = if ($res -is [hashtable]) { $res.Keys } else { $res.PSObject.Properties.Name }

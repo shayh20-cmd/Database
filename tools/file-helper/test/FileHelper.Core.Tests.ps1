@@ -614,6 +614,21 @@ try {
   } else { Check 'link: mklink /J made a junction' $false }
   Remove-Item -LiteralPath $outside -Recurse -Force
 
+  # a root's network share: reported from a mapped drive, and used by a PC that has no drive for it
+  $bs = [string][char]92
+  $script:ShareMap = @([pscustomobject]@{ drive = 'Q:'; share = ($bs + $bs + 'Kappa' + $bs + 'k') })
+  Check 'share: a root on a mapped drive' ((Get-RootShare ('Q:' + $bs + '@Kappa projects')) -eq ($bs + $bs + 'Kappa' + $bs + 'k' + $bs + '@Kappa projects'))
+  $script:ShareMap = $null
+  Check 'share: none for nothing' ((Get-RootShare '') -eq '')
+  $shareRoot = Join-Path $root '@Share projects'
+  New-Item -ItemType Directory -Force -Path (Join-Path $shareRoot 'P-01 Library') | Out-Null
+  $none = Get-HelperConfig (Join-Path $root 'cfg' | Join-Path -ChildPath 'none.json')
+  Reset-ProjectRoots
+  Check 'share: no drive holds the root, no share: not found' ($null -eq (Resolve-ProjectDir $none '@Share projects' 'P-01 Library' @()))
+  Check 'share: found through the share reported for the root' ((Resolve-ProjectDir $none '@Share projects' 'P-01 Library' @() -Share $shareRoot) -eq (Join-Path $shareRoot 'P-01 Library'))
+  Check 'share: a share of another root is not used' ($null -eq (Resolve-ProjectDir $none '@Other projects' 'P-01 Library' @() -Share $shareRoot))
+  Check 'share: a folder that is not there' ($null -eq (Resolve-ProjectDir $none '@Share projects' 'P-02' @() -Share $shareRoot))
+  Reset-ProjectRoots
   # texts
   $script:Lang = 'en'
   Check 'text: English' ((T 'בחר את התיקייה הראשית של הפרויקט {p}' @{ p = 'TASC' }) -eq 'Choose the main folder of project TASC')
