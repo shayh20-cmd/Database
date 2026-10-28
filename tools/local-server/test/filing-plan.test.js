@@ -391,11 +391,26 @@ test('filing-plan: publishPlan v2 — by type: the picked folders, a derived one
   assert.strictEqual(paths(v2(V2_SENT, { desc: 'לוחות' }))[0][0], SENT + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2026/LDLI-pub-PDF-2026,10,28 - לוחות');
   const old = v2(V2_SENT, { date: '2026-10-19', desc: 'חניה זמנית', files: [{ n: 0, name: 'K.pdf' }, { n: 1, name: 'a.zip' }] });
   assert.deepStrictEqual([old.plan.steps, old.days], [[], ['חניה זמנית']]);
-  // no picked folder names a type: <base>/<type>; a picked folder that is gone is not used
-  const plain = v2({ ...V2_SENT, typeDirs: { PDF: SENT + '/LDLI-pub-sent-PDF', DWG: SENT + '/gone-DWG' } }, { files: [{ n: 0, name: 'a.zip' }] });
-  assert.strictEqual(paths(plain)[0][0], SENT + '/LDLI-pub-sent-DWG/LDLI-pub-DWG-2026/LDLI-pub-DWG-2026,10,28', 'gone: named like the PDF folder (and that one is there)');
+  // a picked folder outside the base and not in the tree is not used: named like the PDF folder (and that one is there)
+  const plain = v2({ ...V2_SENT, typeDirs: { PDF: SENT + '/LDLI-pub-sent-PDF', DWG: P + '/elsewhere-DWG' } }, { files: [{ n: 0, name: 'a.zip' }] });
+  assert.strictEqual(paths(plain)[0][0], SENT + '/LDLI-pub-sent-DWG/LDLI-pub-DWG-2026/LDLI-pub-DWG-2026,10,28', 'outside the base: not used');
   const bare = v2({ ...V2_SENT, typeDirs: {} }, { files: [{ n: 0, name: 'a.zip' }], tree: ['LDLI-work', P, SENT] });
   assert.deepStrictEqual(paths(bare)[0], [SENT + '/DWG/LDLI-pub-sent-2026/LDLI-pub-2026,10,28'], 'nothing picked, nothing in the tree: base/<type>, the convention dates');
+});
+
+test('filing-plan: publishPlan v2 — a picked type folder not in the tree is used and made, with the folders on the way', () => {
+  const gone = v2({ ...V2_SENT, typeDirs: { PDF: SENT + '/LDLI-pub-sent-PDF', DWG: SENT + '/gone-DWG' } }, { files: [{ n: 0, name: 'a.zip' }] });
+  const D = SENT + '/gone-DWG';
+  assert.deepStrictEqual(paths(gone)[0], [D + '/LDLI-pub-DWG-2026/LDLI-pub-DWG-2026,10,28'], 'the date names the tree uses');
+  assert.deepStrictEqual(gone.plan.steps.map(x => x.path), [D, D + '/LDLI-pub-DWG-2026', D + '/LDLI-pub-DWG-2026/LDLI-pub-DWG-2026,10,28']);
+  // deeper, in another case: the base in the tree's spelling, every missing folder made in order
+  const deep = v2({ ...V2_SENT, typeDirs: { PDF: SENT.toUpperCase() + '/new/PDF-here' }, date: 'none' }, { files: [{ n: 0, name: 'K.pdf' }] });
+  assert.deepStrictEqual(paths(deep)[0], [SENT + '/new/PDF-here']);
+  assert.deepStrictEqual(deep.plan.steps.map(x => x.path), [SENT + '/new', SENT + '/new/PDF-here']);
+  // UPDATED the same
+  const upd = v2(V2_SENT, { sent: false, updated: true, layout: { sent: V2_SENT, updated: { base: UPD, byType: true, typeDirs: { PDF: UPD + '/fresh-PDF' } } }, files: [{ n: 0, name: 'K.pdf' }] });
+  assert.deepStrictEqual(upd.plan.files[0].dests, [{ path: UPD + '/fresh-PDF', replace: true }]);
+  assert.deepStrictEqual(upd.plan.steps.map(x => x.path), [UPD + '/fresh-PDF']);
 });
 
 test('filing-plan: publishPlan v2 — the date choice: day only, none; unified; the convention on an empty archive', () => {

@@ -267,14 +267,24 @@ function layoutFor(map, tree, types) {
 }
 
 /* A v2 target's folder for one type (spec 2026-10-28-folders-page-v2-design.md, "בניית הנתיב"): without byType the
-   base; with it the folder picked for the type when it is in the tree, else one named like another picked folder of
-   the tree whose name holds that type's name as a whole word (LDLI-pub-sent-PDF -> LDLI-pub-sent-DOCS, next to it),
-   else <base>/<type>. In the tree's spelling when there; a path to make otherwise. */
+   base; with it the folder picked for the type when it is in the tree, or when it is inside the base (then made, with
+   any missing folder on the way: the page shows the picked folder, so filing goes there); a picked folder outside the
+   base and not in the tree is not used. Else one named like another picked folder of the tree whose name holds that
+   type's name as a whole word (LDLI-pub-sent-PDF -> LDLI-pub-sent-DOCS, next to it), else <base>/<type>. In the tree's
+   spelling where there; a path to make otherwise. */
 function typeDirOf(list, t, type, types) {
   if (!t.byType) return inTree(list, t.base) || t.base;
   const dirs = t.typeDirs || {};
   const own = dirs[type] && inTree(list, dirs[type]);
   if (own) return own;
+  const base = inTree(list, t.base) || t.base;
+  const want = dirs[type] ? String(dirs[type]) : '';
+  if (want && base && lc(want).startsWith(lc(base) + '/')) {
+    // under the base, each folder on the way in the tree's spelling where it is there
+    let dir = base;
+    for (const part of want.slice(base.length + 1).split('/').filter(Boolean)) { const p = dir + '/' + part; dir = inTree(list, p) || p; }
+    return dir;
+  }
   for (const o of types) {
     if (o.name === type || !dirs[o.name]) continue;
     const p = inTree(list, dirs[o.name]);
@@ -352,6 +362,12 @@ function publishPlan({ layout, types, tree, code, files, sent, updated, date, de
   const walk = (key, type, withDesc) => {
     const { start, levels } = route(key, type);
     let dir = start;
+    // a picked type folder may be missing with folders on the way to it from the base: each missing one made, in order
+    const base = key === 'sent' ? sentBase : updBase;
+    if (base && lc(dir).startsWith(lc(base) + '/')) {
+      const parts = dir.slice(base.length + 1).split('/');
+      for (let i = 1; i < parts.length; i++) mk(base + '/' + parts.slice(0, i).join('/'));
+    }
     mk(dir);
     for (const lv of levels) {
       let name = L.fill(lv.pattern, { code, type, yyyy, mm, dd });
