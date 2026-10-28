@@ -981,12 +981,13 @@ module.exports = function createFiling(ctx) {
             for (const [k, v] of Object.entries(obj(body.dests))) { const q = ai.relPath(v); if (/^[0-9]{1,3}$/.test(k) && q) dests[k] = q; }
             out = plans.publishPlan({ layout: lay, types, tree: h.tree, code: project.code, files, sent: body.sent === true, updated: body.updated === true, date, desc: layout.cleanDesc(body.desc), typeOf, dests });
             const under = b => (b ? h.tree.filter(q => q.toLowerCase() === b.toLowerCase() || q.toLowerCase().startsWith(b.toLowerCase() + '/')) : []);
-            Object.assign(out, { layoutFrom, types: types.map(x => x.name), folders: under(lay.sent.base).slice(0, 800) });
+            // the SENT folders (up to 800 paths) only when the window asks for them: the first time the person changes a file's folder
+            Object.assign(out, { layoutFrom, types: types.map(x => x.name), ...(body.folders === true ? { folders: under(lay.sent.base).slice(0, 800) } : {}) });
           }
           if (b.status !== 'new' || b.taskId || b.h !== h) { sendJson(res, 409, { error: 'changed' }); return; }
           out.plan.projectId = project.id;
           b.plan = out.plan;
-          sendJson(res, 200, { plan: out.plan, ...(out.version ? { version: out.version } : {}), ...(out.slotsMissing ? { slotsMissing: out.slotsMissing } : {}), ...(out.problem ? { problem: out.problem } : {}), ...(out.layoutFrom ? { layoutFrom: out.layoutFrom, days: out.days, types: out.types, folders: out.folders } : {}) });
+          sendJson(res, 200, { plan: out.plan, ...(out.version ? { version: out.version } : {}), ...(out.slotsMissing ? { slotsMissing: out.slotsMissing } : {}), ...(out.problem ? { problem: out.problem } : {}), ...(out.layoutFrom ? { layoutFrom: out.layoutFrom, days: out.days, types: out.types, ...(out.folders ? { folders: out.folders } : {}) } : {}) });
           return;
         }
         if (!client) { sendJson(res, 200, { ai: 'unavailable' }); return; }

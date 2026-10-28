@@ -1736,7 +1736,7 @@ test("filing hub: the office type list, the layout in the map, map-auto, and the
 
   // the window, with no layout saved: recognized from the tree; a description; the days of the date; the type names
   const id = (await call(dana, '/api/outlook/inbox-batch', { pc: 'PC1', files: [{ name: 'LDPB-A-1.pdf', size: 1, mtime: '' }, { name: 'LDPB-A-1.zip', size: 1, mtime: '' }] })).body.id;
-  const planning = hub('inbox-plan', { id, projectId: 'pabc123', files: [0, 1], sent: true, updated: true, date: '2026-10-19', desc: 'חניה' });
+  const planning = hub('inbox-plan', { id, projectId: 'pabc123', files: [0, 1], sent: true, updated: true, date: '2026-10-19', desc: 'חניה', folders: true });
   await (await agent(dana)).result({ tree });
   const p1 = (await planning).body;
   assert.strictEqual(p1.layoutFrom, 'detected');
@@ -1749,6 +1749,7 @@ test("filing hub: the office type list, the layout in the map, map-auto, and the
   assert.ok(Array.isArray(p1.folders) && p1.folders.includes(S + '/LDPB-pub-sent-PDF'), 'the SENT folders, for "שנה"');
   // one file's type and one file's folder changed in the window
   const p2 = (await hub('inbox-plan', { id, projectId: 'pabc123', files: [0, 1], sent: true, updated: false, date: '2026-10-19', desc: '', typeOf: { 1: 'PDF' }, dests: { 0: S + '/LDPB-pub-sent-PDF' } })).body;
+  assert.ok(!('folders' in p2), 'a plan the window did not ask the folders for has none');
   assert.deepStrictEqual(p2.plan.files.map(f => f.dests[0].path), [S + '/LDPB-pub-sent-PDF', S + '/LDPB-pub-sent-PDF/LDPB-pub-PDF-2026/LDPB-pub-PDF-2026,10,19']);
 
   // the layout saved in the map: checked, kept, used
