@@ -36,6 +36,7 @@ const path = require('path');
 const crypto = require('crypto');
 const ai = require('./filing-ai');
 const plans = require('./filing-plan');
+const layout = require('./filing-layout');
 const { personOf } = require('./mail-tokens');
 
 const TTL = Number(process.env.FILING_TTL_MS) || 15 * 60 * 1000;            // a filing's (and its file task's) life
@@ -123,6 +124,7 @@ module.exports = function createFiling(ctx) {
     const d = readJson(STORE);
     const o = d && typeof d === 'object' ? { projects: d.projects || {}, contacts: d.contacts || {} } : { projects: {}, contacts: {} };
     if (d && d.budget && typeof d.budget === 'object') o.budget = d.budget;
+    if (d && d.office && typeof d.office === 'object') o.office = d.office;
     return o;
   };
   /* The day's planned sends to the agents: the bytes uploaded for filing today (UTC), each sent once to the agent. */
@@ -147,6 +149,9 @@ module.exports = function createFiling(ctx) {
     return parts[parts.length - 1].toLowerCase() === String(root).toLowerCase() ? s : '';
   };
   const projectOf = (d, id) => d.projects[id] || (d.projects[id] = { folder: '', root: '', guide: '', log: [] });
+  // the office's type list (Settings → the publish section of a project): filing.json's office.types, else the default
+  const officeTypes = () => layout.cleanTypes((load().office || {}).types) || layout.OFFICE_TYPES;
+  const typesOf = map => (map && map.publish && map.publish.types) || officeTypes();
   const writer = person => WRITERS.includes(mcp.whoAmI(person.email, person.name).role);
   // a task with a pc goes only to the agent on that PC (an inbox's files are on the PC that announced them)
   const samePc = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
@@ -795,7 +800,7 @@ module.exports = function createFiling(ctx) {
      The person is the signed-in user; the tasks go to the agent running with the same person's key (who, as the
      key names its owner: the address in lower case, 'local' on the local server). base: the site, for the tools. */
   const HUB_METHOD = {
-    project: 'GET', task: 'GET', pick: 'POST', open: 'POST', 'map-session': 'POST', 'map-propose': 'POST', 'map-auto': 'POST', map: 'PUT', guide: 'PUT',
+    project: 'GET', task: 'GET', 'office-types': 'GET', pick: 'POST', open: 'POST', 'map-session': 'POST', 'map-propose': 'POST', 'map-auto': 'POST', map: 'PUT', guide: 'PUT',
     inbox: 'GET', 'inbox-options': 'GET', 'inbox-latest': 'GET', 'inbox-open': 'GET', 'pick-source': 'POST', pcs: 'GET', 'pick-inbox': 'POST', 'inbox-propose': 'POST', 'inbox-plan': 'POST', 'inbox-confirm': 'POST', 'inbox-dismiss': 'POST'
   };
   const israelToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date());
@@ -803,7 +808,9 @@ module.exports = function createFiling(ctx) {
     sweep();
     const route = url.pathname.slice('/api/filing-hub/'.length);
     if (!HUB_METHOD[route]) { sendJson(res, 404, { error: 'Not found' }); return; }
-    if (req.method !== HUB_METHOD[route]) { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+    // office-types: GET reads the list, PUT keeps it
+    const allowed = route === 'office-types' && req.method === 'PUT' ? 'PUT' : HUB_METHOD[route];
+    if (req.method !== allowed) { sendJson(res, 405, { error: 'Method not allowed' }); return; }
     const p = { email: user.email || null, name: user.name };
     const who = personOf(user.email);
     const getProject = ref => mcp.runToolAs(p.email, p.name, base, 'get_project', { project: String(ref || '') }); // ToolError when not visible
@@ -811,13 +818,25 @@ module.exports = function createFiling(ctx) {
     if (route === 'project') {
       const g = getProject(url.searchParams.get('project'));
       const pr = known(g.project.id);
-      sendJson(res, 200, { folder: pr.folder || '', root: pr.root || '', map: ai.normalizeMap(pr.map), guide: pr.guide || '', defaultGuide: DEFAULT_GUIDE, canWrite: writer(p) });
+      const map = ai.normalizeMap(pr.map);
+      sendJson(res, 200, { folder: pr.folder || '', root: pr.root || '', code: g.project.code || '', map, types: typesOf(map), officeTypes: officeTypes(), guide: pr.guide || '', defaultGuide: DEFAULT_GUIDE, canWrite: writer(p) });
       return;
     }
     if (route === 'task') {
       const t = tasks.get(url.searchParams.get('id') || '');
       if (!t || t.who !== who) { sendJson(res, 404, { error: 'no_task' }); return; }
       sendJson(res, 200, taskState(t));
+      return;
+    }
+    if (route === 'office-types') {
+      if (req.method === 'GET') { sendJson(res, 200, { types: officeTypes(), canWrite: writer(p) }); return; }
+      if (!writer(p)) { sendJson(res, 403, { error: 'viewer' }); return; }
+      const types = layout.cleanTypes((await json(req)).types);
+      if (!types) { sendJson(res, 400, { error: 'types' }); return; }
+      const d = load();
+      d.office = { ...(d.office || {}), types };
+      writeJsonAtomic(STORE, d);
+      sendJson(res, 200, { types });
       return;
     }
 
@@ -954,16 +973,20 @@ module.exports = function createFiling(ctx) {
           } else {
             const date = /^\d{4}-\d{2}-\d{2}$/.test(body.date) && !Number.isNaN(Date.parse(body.date)) && new Date(body.date + 'T00:00:00Z').toISOString().slice(0, 10) === body.date ? body.date : israelToday();
             const map = ai.normalizeMap(pr.map);
-            // SENT / UPDATED left empty in the map (saved without "מלא אוטומטית"): found in the tree by the same convention
-            const set = (map && map.slots) || {};
-            const auto = plans.autoSlots(h.tree).slots;
-            const slots = { sent: set.sent || auto.sent, sentSplit: set.sent || !auto.sent ? set.sentSplit !== false : auto.sentSplit, updated: set.updated || auto.updated };
-            out = plans.inboxPlan({ slots, tree: h.tree, code: project.code, files, sent: body.sent === true, updated: body.updated === true, date });
+            const types = typesOf(map);
+            const { layout: lay, from: layoutFrom } = plans.layoutFor(map, h.tree, types);
+            const obj = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+            const typeOf = {}, dests = {};
+            for (const [k, v] of Object.entries(obj(body.typeOf))) if (/^[0-9]{1,3}$/.test(k) && typeof v === 'string') typeOf[k] = v;
+            for (const [k, v] of Object.entries(obj(body.dests))) { const q = ai.relPath(v); if (/^[0-9]{1,3}$/.test(k) && q) dests[k] = q; }
+            out = plans.publishPlan({ layout: lay, types, tree: h.tree, code: project.code, files, sent: body.sent === true, updated: body.updated === true, date, desc: layout.cleanDesc(body.desc), typeOf, dests });
+            const under = b => (b ? h.tree.filter(q => q.toLowerCase() === b.toLowerCase() || q.toLowerCase().startsWith(b.toLowerCase() + '/')) : []);
+            Object.assign(out, { layoutFrom, types: types.map(x => x.name), folders: under(lay.sent.base).slice(0, 800) });
           }
           if (b.status !== 'new' || b.taskId || b.h !== h) { sendJson(res, 409, { error: 'changed' }); return; }
           out.plan.projectId = project.id;
           b.plan = out.plan;
-          sendJson(res, 200, { plan: out.plan, ...(out.version ? { version: out.version } : {}), ...(out.slotsMissing ? { slotsMissing: out.slotsMissing } : {}), ...(out.problem ? { problem: out.problem } : {}) });
+          sendJson(res, 200, { plan: out.plan, ...(out.version ? { version: out.version } : {}), ...(out.slotsMissing ? { slotsMissing: out.slotsMissing } : {}), ...(out.problem ? { problem: out.problem } : {}), ...(out.layoutFrom ? { layoutFrom: out.layoutFrom, days: out.days, types: out.types, folders: out.folders } : {}) });
           return;
         }
         if (!client) { sendJson(res, 200, { ai: 'unavailable' }); return; }
@@ -1060,7 +1083,9 @@ module.exports = function createFiling(ctx) {
         const no = await treeOf(m, pr, res, release, { mapId: m.id });
         if (no === 'gone') return;
         if (no) { sendJson(res, 200, no); return; }
-        sendJson(res, 200, { auto: plans.autoSlots(m.tree), tree: m.tree });
+        const a = plans.autoSlots(m.tree);
+        const lay = plans.layoutFor({ slots: a.slots }, m.tree, typesOf(ai.normalizeMap(pr.map))).layout;
+        sendJson(res, 200, { auto: { ...a, publish: lay }, tree: m.tree });
       } finally {
         release();
       }
@@ -1103,7 +1128,10 @@ module.exports = function createFiling(ctx) {
     const pd = projectOf(d, project.id);
     // the slots for filing without Claude: as sent, or kept when a page that does not know them saves the areas
     const slots = ai.cleanSlots(body.slots !== undefined ? body.slots : (pd.map || {}).slots);
-    const map = { areas, slots, updatedBy: mcp.whoAmI(p.email, p.name).name, updatedAt: new Date().toISOString() };
+    // the publish layout: as sent (checked), or kept when a page that does not know it saves the areas
+    const pub = body.publish !== undefined ? layout.cleanPublish(body.publish, ai.relPath) : { publish: (ai.normalizeMap(pd.map) || {}).publish || null };
+    if (pub.error) { sendJson(res, 400, { error: 'layout', target: pub.target, level: pub.level }); return; }
+    const map = { areas, slots, publish: pub.publish, updatedBy: mcp.whoAmI(p.email, p.name).name, updatedAt: new Date().toISOString() };
     pd.map = map;
     writeJsonAtomic(STORE, d);
     sendJson(res, 200, { map });
