@@ -137,9 +137,9 @@ try {
       $t = $j.task
       if ($t -and (Test-TaskKind $t.kind) -and (Test-HelperToken $t.token)) {
         Log "task $($t.id) $($t.kind)"
-        # -WindowStyle Hidden on Start-Process would hide the folder picker too (it inherits the hidden show state);
-        # as powershell.exe's own argument it hides only its console, which may flash for a moment
-        Start-Process powershell.exe -ArgumentList @('-NoProfile', '-STA', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', "`"$runner`"", '-Token', $t.token)
+        # started hidden, so its console never shows (powershell.exe's own -WindowStyle Hidden hides it only after it
+        # flashed); the folder picker still shows, as Run-Task's Show-FolderPicker uses up the hidden show state first
+        Start-Process powershell.exe -WindowStyle Hidden -ArgumentList @('-NoProfile', '-STA', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-File', "`"$runner`"", '-Token', $t.token)
       }
     } catch {
       # one failing round never ends the agent: it is logged, and the loop goes on after a pause
