@@ -3,7 +3,7 @@
    work (pick the project folder / read its tree / open it / file / choose a folder to publish from / publish from the
    export inbox or that folder; the project's folder is found by its root's name,
    Resolve-ProjectDir), posts the result and ends. The pane shows the result;
-   the only window here is the folder picker of a "pick", "pick-source" or "pick-inbox" task. On any failure the task is cancelled (best effort), so
+   the only window here is the folder picker of a "pick", "pick-source", "pick-inbox" or "pick-sub" task. On any failure the task is cancelled (best effort), so
    the pane does not wait for it, and the error goes to the log. The logic is in FileHelper.Core.ps1.
    Spec: docs/superpowers/specs/2026-10-22-outlook-file-to-folder-design.md
    Saved as UTF-8 with BOM. #>
@@ -228,6 +228,18 @@ try {
     'pick-inbox' {
       # another export inbox for this PC, asked for on the Hub page; the agent watches it from its next round
       $res = Set-HelperInbox $cfg (Show-FolderPicker '' $cfg.inbox (T 'בחר את תיבת הייצוא: התיקייה שממנה מתייקים קבצים לפרויקטים') -NewFolder)
+    }
+    'pick-sub' {
+      # a folder inside the project, for the project's settings page ("סייר"): the picker starts where the page asked
+      # (start, relative to the project; else the project folder), the answer is relative to the project folder, and no
+      # folder is created here
+      $dir = Resolve-TaskDir
+      if (-not $dir) { $res = @{ missing = $true } }
+      else {
+        $start = $dir
+        if ($task.start) { try { $at = Resolve-InProject $dir ([string]$task.start); if (Test-Path -LiteralPath $at -PathType Container) { $start = $at } } catch {} }
+        $res = Get-SubPickResult $dir (Show-FolderPicker $start $start (T 'בחר תיקייה בתוך תיקיית הפרויקט'))
+      }
     }
     'inbox' {
       # publishing from the export inbox (this PC's own folder, from the config: what was copied everywhere leaves it) or

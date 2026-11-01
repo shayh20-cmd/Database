@@ -323,7 +323,7 @@ const INBOX_SYSTEM = [
   'The "Targets:" line says what the person chose. SENT: a copy of each file into a new folder of today\'s date (the "Today:" line) in the sent archive. UPDATED: a copy of each file into the folder of current files, replacing a file of the same name there (the old one is moved to an @ver folder next to it, never deleted). Give each file one dest per chosen target.',
   'Unless the map, its note or the guide say otherwise, the office\'s convention (Folder Manager) is, with CODE the project code, YYYY, MM, DD today\'s date and TYPE the file\'s type by its extension as the "Types:" line maps it: SENT = <publish folder>/CODE-pub-@sent/CODE-pub-sent-YYYY/CODE-pub-YYYY,MM,DD/TYPE; UPDATED = <publish folder>/CODE-pub-updated/CODE-pub-updated-TYPE. When the project\'s real folders are built differently, follow them.',
   'The "Slots:" line, when it names folders, is the office\'s own choice and wins over the convention: SENT goes into a day folder (CODE-pub-YYYY,MM,DD, inside a CODE-pub-sent-YYYY year folder when the archive has those) of the SENT archive it names, with a sub-folder per TYPE only when it says "by file type"; UPDATED is the folder it names, or, when that folder\'s name ends in a TYPE, the folder of each file\'s own TYPE next to it.',
-  'The "Layout:" line, when present, is the publish layout the office saved for the project, and for each target it names it wins over the "Slots:" line and the convention: the dest is the target\'s base folder, then one folder per level in the order given, each level\'s pattern filled in: {type} the file\'s TYPE from the "Types:" line, {yyyy} {mm} {dd} today\'s date, {code} the project code. Add nothing to a filled name (never a " - <description>"). This holds for SENT and for UPDATED alike (UPDATED dests replace). A target the line does not name goes by the "Slots:" line and the convention.',
+  `The "Layout:" line, when present, is the publish layout the office saved for the project, and for each target it names it wins over the "Slots:" line and the convention. A target written as a path of patterns: the dest is the target's base folder, then one folder per level in the order given, each level's pattern filled in: {type} the file's TYPE from the "Types:" line, {yyyy} {mm} {dd} today's date, {code} the project code. A target written as "<base> (by type: TYPE → folder, …; date: …)": the file's folder is the one listed for its TYPE; a TYPE not listed gets a folder named like a listed one with its own TYPE in place of that one's, next to it (<base>/TYPE when none is listed), made when missing; "all types together" means the base itself. "by type inside the day folder" (SENT): the date folders go right in the base, and the file's folder is a folder per TYPE inside the day folder, named like the type folders already in the tree's day folders, else TYPE itself. For SENT the date folders then go inside that folder as the line says ("year then day": a year folder and a day folder in it; "day only": a day folder; "none": no date folder), named like the date folders already in the tree under those folders (today's date, the file's TYPE where the names hold a type), or, when there are none, by the convention (CODE-pub-sent-YYYY, then CODE-pub-YYYY,MM,DD). Never add a description to a folder name (never a " - <description>"). All of this holds for SENT and for UPDATED alike, UPDATED without date folders (UPDATED dests replace). A target the line does not name goes by the "Slots:" line and the convention.`,
   'files: for each file, dests = [{path, replace}]: replace is true for an UPDATED dest and false for any other. A file you cannot place gets [].',
   'steps: mkdir {path} only, in order, for the folders the dests need that are not in the list. You never move or delete anything.',
   'mode: "publish".',
@@ -397,9 +397,19 @@ function sanitizeInboxPlan(raw, tree, files, publish, notes) {
 function typesLine(types) {
   return types.map(t => strip(t.name) + ' = ' + (t.rest ? 'every other extension' : t.ext.length ? t.ext.map(strip).join(', ') : '(none)')).join('; ');
 }
-// the saved publish layout on one line for the publish prompt: each target's base and its levels' patterns, in order; '' when none is saved
+/* the saved publish layout on one line for the publish prompt, '' when none is saved: each target's base, then, in the
+   v2 shape, "(by type: PDF → <folder>, …; date: year then day)" (or "all types together", or "by type inside the day
+   folder"; the date for SENT only),
+   else its levels' patterns, in order */
+const DATE_WORDS = { 'year-day': 'year then day', day: 'day only', none: 'none' };
 function layoutLine(publish) {
-  const part = (label, p) => (p && p.base ? label + ' ' + [p.base, ...p.levels.map(l => l.pattern)].map(strip).join('/') : '');
+  const v2 = (label, p) => {
+    const dirs = Object.entries(p.typeDirs || {}).map(([k, v]) => strip(k) + ' → ' + strip(v));
+    const inDay = label === 'SENT' && p.byType && p.typeAt === 'day' && p.date !== 'none';
+    const how = inDay ? 'by type inside the day folder' : p.byType ? 'by type' + (dirs.length ? ': ' + dirs.join(', ') : '') : 'all types together';
+    return label + ' ' + strip(p.base) + ' (' + how + (label === 'SENT' ? '; date: ' + (DATE_WORDS[p.date] || DATE_WORDS['year-day']) : '') + ')';
+  };
+  const part = (label, p) => (!p || !p.base ? '' : layout.isV2(p) ? v2(label, p) : label + ' ' + [p.base, ...p.levels.map(l => l.pattern)].map(strip).join('/'));
   return publish ? [part('SENT', publish.sent), part('UPDATED', publish.updated)].filter(Boolean).join('; ').split('').filter(c => c.charCodeAt(0) >= 32).join('') : '';
 }
 

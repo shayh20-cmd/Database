@@ -629,8 +629,26 @@ try {
   Check 'share: a share of another root is not used' ($null -eq (Resolve-ProjectDir $none '@Other projects' 'P-01 Library' @() -Share $shareRoot))
   Check 'share: a folder that is not there' ($null -eq (Resolve-ProjectDir $none '@Share projects' 'P-02' @() -Share $shareRoot))
   Reset-ProjectRoots
+  # a folder picked inside the project (pick-sub)
+  Check 'kind: pick-sub' (Test-TaskKind 'pick-sub')
+  $sp = Join-Path $root 'Proj'
+  $spDeep = Join-Path $sp 'CONS' | Join-Path -ChildPath 'יועצים'
+  $spSibling = Join-Path $root 'Proj2'
+  foreach ($d in $spDeep, $spSibling) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
+  Check 'sub pick: cancelled' ((Get-SubPickResult $sp '').cancelled -eq $true)
+  Check 'sub pick: cancelled (null)' ((Get-SubPickResult $sp $null).cancelled -eq $true)
+  $r0 = Get-SubPickResult $sp $sp
+  Check 'sub pick: the project folder itself' ($r0.ContainsKey('rel') -and $r0.rel -eq '')
+  Check 'sub pick: the project folder, other case' ((Get-SubPickResult $sp $sp.ToUpper()).rel -eq '')
+  Check 'sub pick: a folder inside, "/" between names' ((Get-SubPickResult $sp $spDeep).rel -eq 'CONS/יועצים')
+  Check 'sub pick: a folder inside, other case' ((Get-SubPickResult $sp $spDeep.ToUpper()).rel -eq 'CONS/יועצים'.ToUpper())
+  Check 'sub pick: one level up is outside' ((Get-SubPickResult $sp $root).outside -eq $true)
+  Check 'sub pick: a sibling whose name starts the same is outside' ((Get-SubPickResult $sp $spSibling).outside -eq $true)
+  Check 'sub pick: another folder is outside' ((Get-SubPickResult $sp ([IO.Path]::GetTempPath())).outside -eq $true)
+  Check 'sub pick: outside only says so' (@((Get-SubPickResult $sp $spSibling).Keys) -join ',' -eq 'outside')
   # texts
   $script:Lang = 'en'
+  Check 'text: English for the sub picker' ((T 'בחר תיקייה בתוך תיקיית הפרויקט') -eq 'Choose a folder inside the project folder')
   Check 'text: English' ((T 'בחר את התיקייה הראשית של הפרויקט {p}' @{ p = 'TASC' }) -eq 'Choose the main folder of project TASC')
   $script:Lang = 'he'
   Check 'text: Hebrew' ((T 'בחר את התיקייה הראשית של הפרויקט {p}' @{ p = 'TASC' }) -eq 'בחר את התיקייה הראשית של הפרויקט TASC')

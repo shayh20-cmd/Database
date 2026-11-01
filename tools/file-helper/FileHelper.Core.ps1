@@ -32,6 +32,7 @@ $script:EN = @{
   'בחר תיקייה עם קבצים לפרסום בפרויקט' = 'Choose a folder with files to publish to a project'
   'אחר כך' = 'Later'
   'בחר את תיבת הייצוא: התיקייה שממנה מתייקים קבצים לפרויקטים' = 'Choose the export inbox: the folder files are filed to projects from'
+  'בחר תיקייה בתוך תיקיית הפרויקט' = 'Choose a folder inside the project folder'
 }
 function T([string]$He, [hashtable]$Slots) {
   $s = if ($script:Lang -eq 'en' -and $script:EN.ContainsKey($He)) { $script:EN[$He] } else { $He }
@@ -228,7 +229,7 @@ function Save-HelperConfig($Config, [string]$Path = $script:ConfigPath) {
 }
 
 # ── the tasks the server hands this PC (Run-Task.ps1 does the network and the window) ──
-function Test-TaskKind([string]$Kind) { return $Kind -in @('pick', 'tree', 'open', 'file', 'inbox', 'pick-source', 'pick-inbox') }
+function Test-TaskKind([string]$Kind) { return $Kind -in @('pick', 'tree', 'open', 'file', 'inbox', 'pick-source', 'pick-inbox', 'pick-sub') }
 function Set-HelperInbox($Config, [string]$Picked, [string]$ConfigPath = $script:ConfigPath) {
   # another export inbox, chosen in a folder picker the Hub asked for (Settings → תיוק מהיר): kept in the config, where
   # the agent reads it at its next round; the result is its full path, to show on the Hub page. Cancelled: no folder
@@ -377,6 +378,21 @@ function Get-RootShare([string]$Path) {
 }
 function Test-SameFolder([string]$A, [string]$B) {
   try { return (ConvertTo-SharePath ([IO.Path]::GetFullPath($A))) -ieq (ConvertTo-SharePath ([IO.Path]::GetFullPath($B))) } catch { return $false }
+}
+function Get-SubPickResult([string]$ProjectDir, [string]$Picked) {
+  # a "pick-sub" answer: the folder picked inside the project, relative to it with "/" between names ('' for the project
+  # folder itself); outside when it is not in the project folder (full paths, through a mapped drive's share, any case)
+  if (-not $Picked) { return @{ cancelled = $true } }
+  $sep = [string][char]92
+  try {
+    $root = ConvertTo-SharePath ([IO.Path]::GetFullPath($ProjectDir))
+    $full = ConvertTo-SharePath ([IO.Path]::GetFullPath($Picked))
+  } catch { return @{ outside = $true } }
+  if ($full -ieq $root) { return @{ rel = '' } }
+  if (-not $full.StartsWith($root + $sep, [StringComparison]::OrdinalIgnoreCase)) { return @{ outside = $true } }
+  $rel = ConvertTo-RelPath $full.Substring($root.Length + 1)
+  if (-not $rel) { return @{ outside = $true } }
+  return @{ rel = $rel }
 }
 function Find-RootOf($Config, [string]$Full, [string[]]$Drives = $null) {
   # the root a folder is in (or is): { name, path } or $null. The nearest of: a saved root (by path), or an

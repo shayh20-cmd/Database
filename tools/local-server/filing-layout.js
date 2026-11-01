@@ -3,7 +3,9 @@
    (a folder per file type, per year, per day), each with a name pattern, and the type list that names the type
    folders. Pure: no file, no network, no other module. filing-plan.js builds the paths; filing.js keeps the layout in
    the project's map (map.publish) and the office's type list in filing.json (office.types).
-   Spec: docs/superpowers/specs/2026-10-28-publish-layout-design.md */
+   Since v2 a target is saved as folders picked instead (base, a folder per type, a date choice); the levels shape
+   keeps working.
+   Spec: docs/superpowers/specs/2026-10-28-publish-layout-design.md, v2: 2026-10-28-folders-page-v2-design.md */
 
 const OFFICE_TYPES = [
   { name: 'PDF', ext: ['pdf'] },
@@ -95,7 +97,28 @@ function cleanLevels(raw) {
   }
   return { levels };
 }
-/* the project's publish layout as saved: { sent: {base, levels}, updated: {base, levels}, types: [..] | null }.
+const DATES = ['year-day', 'day', 'none'];
+const TYPE_AT = ['top', 'day'];
+/* a v2 target's folder per type: { <type name>: <path inside the project> }, at most 12; an entry whose name is no
+   folder name of at most 20 characters, or whose path is empty or leaves the project, is dropped */
+function cleanTypeDirs(raw, relPath) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [k, v] of Object.entries(raw)) {
+    const name = String(k).trim();
+    if (!okName(name) || name.length > 20 || typeof v !== 'string' || Object.keys(out).length >= 12) continue;
+    const p = relPath(v);
+    if (p) out[name] = p;
+  }
+  return out;
+}
+/* is a saved target in the v2 shape (folders picked: { base, byType, typeDirs, date }) rather than PR #50's levels */
+const isV2 = t => !!t && typeof t === 'object' && t.byType != null;
+/* the project's publish layout as saved: { sent, updated, types: [..] | null }, each target either v2
+   ({ base, byType, typeDirs, typeAt, date } — typeAt and date on SENT only: typeAt 'top' (the default: the type folder
+   under the base, the date folders in it) | 'day' (the date folders under the base, a folder per type inside the day
+   folder: the convention); date 'year-day' (the default) | 'day' | 'none') or, as saved before v2 (levels and no
+   byType), { base, levels }.
    relPath: filing-ai's (a path inside the project, '' for none, null when it leaves it). { publish } or
    { error: 'layout', target: 'sent' | 'updated' | 'types', level } */
 function cleanPublish(raw, relPath) {
@@ -104,6 +127,11 @@ function cleanPublish(raw, relPath) {
   const out = {};
   for (const key of ['sent', 'updated']) {
     const t = raw[key] && typeof raw[key] === 'object' ? raw[key] : {};
+    if (isV2(t)) {
+      out[key] = { base: relPath(t.base) || '', byType: t.byType === true, typeDirs: cleanTypeDirs(t.typeDirs, relPath) };
+      if (key === 'sent') Object.assign(out[key], { typeAt: TYPE_AT.includes(t.typeAt) ? t.typeAt : 'top', date: DATES.includes(t.date) ? t.date : 'year-day' });
+      continue;
+    }
     const lv = cleanLevels(t.levels);
     if (lv.error != null) return { error: 'layout', target: key, level: lv.error };
     out[key] = { base: relPath(t.base) || '', levels: lv.levels };
@@ -121,9 +149,9 @@ const leafOf = p => p.slice(p.lastIndexOf('/') + 1);
 const kids = (tree, dir) => tree.filter(p => lc(p).startsWith(lc(dir) + '/') && !p.slice(dir.length + 1).includes('/'));
 const DATE = /([0-9]{4}),([0-9]{2}),([0-9]{2})/;
 const SEP = ['-', '_', ' ', ','];
-/* the earliest type name in text as a whole word (between separators or the ends): the text with {type} in its
-   place, or null */
-function withTypeToken(text, names) {
+/* where the earliest type name sits in text as a whole word (between separators or the ends, any case):
+   { i, len, name } or null */
+function typeSpan(text, names) {
   const up = text.toUpperCase();
   let best = null;
   for (const n of names) {
@@ -132,11 +160,23 @@ function withTypeToken(text, names) {
     while (i >= 0) {
       const before = i === 0 || SEP.includes(text[i - 1]);
       const after = i + N.length === text.length || SEP.includes(text[i + N.length]);
-      if (before && after) { if (!best || i < best.i) best = { i, len: N.length }; break; }
+      if (before && after) { if (!best || i < best.i) best = { i, len: N.length, name: n }; break; }
       i = up.indexOf(N, i + 1);
     }
   }
-  return best ? text.slice(0, best.i) + '{type}' + text.slice(best.i + best.len) : null;
+  return best;
+}
+/* the earliest type name in text as a whole word: the text with {type} in its place, or null */
+function withTypeToken(text, names) {
+  const b = typeSpan(text, names);
+  return b ? text.slice(0, b.i) + '{type}' + text.slice(b.i + b.len) : null;
+}
+/* a folder name with the type name from written in it as a whole word replaced by to (LDLI-pub-sent-PDF, PDF, DOCS ->
+   LDLI-pub-sent-DOCS), or null when from is not in it */
+function renameType(leaf, from, to) {
+  const s = String(leaf || '');
+  const b = typeSpan(s, [String(from || '')].filter(Boolean));
+  return b ? s.slice(0, b.i) + to + s.slice(b.i + b.len) : null;
 }
 // the start of the last year (19xx or 20xx between non-digits) in text, or -1
 function lastYear(text) {
@@ -198,4 +238,4 @@ function detectLayout(tree, base, types) {
   return levels.length ? levels : null;
 }
 
-module.exports = { OFFICE_TYPES, KINDS, NEEDS, okName, cleanDesc, fill, cleanTypes, typeOfName, cleanLevels, cleanPublish, detectLayout };
+module.exports = { OFFICE_TYPES, KINDS, NEEDS, DATES, TYPE_AT, okName, cleanDesc, fill, cleanTypes, typeOfName, cleanLevels, cleanTypeDirs, isV2, cleanPublish, typeSpan, renameType, detectLayout };

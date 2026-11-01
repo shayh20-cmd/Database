@@ -196,17 +196,38 @@ function senderConsultant(options, contacts, email) {
 }
 
 /* The publish layout to build with, each target on its own: SENT (or UPDATED) as saved in the map (map.publish) when
-   its base is saved; else the one the tree shows under the map's SENT / UPDATED folder (filing-layout.detectLayout;
-   that folder found by the convention's names when the map has none), else the convention (year, day, then a folder
-   per type unless the map says "together"). An UPDATED folder whose name ends in a type name (…-updated-PDF, from
-   before layouts) stands for its parent with a level per type.
+   its base is saved, in either shape (v2 or levels); else what the tree shows under the map's SENT / UPDATED folder
+   (that folder found by the convention's names when the map has none), in the v2 shape:
+   - SENT: by type when the layout the tree shows (filing-layout.detectLayout) has type folders — right under the base
+     (typeAt 'top', typeDirs the folders there that name a type) or inside the day folders (typeAt 'day', the
+     convention, Folder Manager); date by the year / day levels found ('day' with days only, else 'year-day').
+     Type folders between the year and the day folders, which v2 cannot say, keep the levels shape.
+     Nothing found: the convention — by type inside the day, or the base by the convention's dates when the map says
+     "together".
+   - UPDATED: by type when folders right under it name a type; a folder of the tree whose name ends in a type name
+     (…-updated-PDF, from before layouts) stands for its parent, by type, and is that type's folder. Such a folder
+     not in the tree keeps the levels shape (a level per type named like it).
    { layout: { sent, updated }, from } — from describes SENT, the target the window's note is about: 'saved' when SENT
    is the saved one, else 'detected' or 'convention' (a saved UPDATED alone does not make it 'saved'). */
-const CONVENTION_SENT = [{ kind: 'year', pattern: '{code}-pub-sent-{yyyy}' }, { kind: 'day', pattern: '{code}-pub-{yyyy},{mm},{dd}' }, { kind: 'type', pattern: '{type}' }];
+/* the folders right under dir that name a type as a whole word: { <type>: <folder> }. Where a type has more than one,
+   the one holding year or day folders, else the one named as named(type) says (the name the tree's pattern gives
+   that type), else the first */
+function typeDirsUnder(list, dir, types, named) {
+  const names = types.map(t => t.name), found = {};
+  if (!dir) return {};
+  for (const p of kids(list, dir)) { const b = L.typeSpan(leafOf(p), names); if (b) (found[b.name] = found[b.name] || []).push(p); }
+  const dated = p => (L.detectLayout(list, p, []) || []).some(l => l.kind === 'year' || l.kind === 'day');
+  const out = {};
+  for (const [type, ps] of Object.entries(found)) {
+    const want = named ? lc(named(type) || '') : '';
+    out[type] = ps.find(dated) || (want && ps.find(p => lc(leafOf(p)) === want)) || ps[0];
+  }
+  return out;
+}
 function layoutFor(map, tree, types) {
   const list = (tree || []).filter(Boolean);
   const saved = (map && map.publish) || {};
-  const part = x => (x && typeof x === 'object' ? { base: x.base || '', levels: Array.isArray(x.levels) ? x.levels : [] } : { base: '', levels: [] });
+  const part = x => (L.isV2(x) ? { ...x, base: x.base || '' } : x && typeof x === 'object' ? { base: x.base || '', levels: Array.isArray(x.levels) ? x.levels : [] } : { base: '', levels: [] });
   const savedSent = part(saved.sent), savedUpd = part(saved.updated);
   const s = (map && map.slots) || {};
   let auto = null;
@@ -214,27 +235,104 @@ function layoutFor(map, tree, types) {
   let sent, from;
   if (savedSent.base) { sent = savedSent; from = 'saved'; } else {
     const sentBase = s.sent || autoOf().sent;
-    let levels = sentBase ? L.detectLayout(list, inTree(list, sentBase) || sentBase, types) : null;
+    const at = sentBase ? inTree(list, sentBase) || sentBase : '';
+    const levels = at ? L.detectLayout(list, at, types) : null;
     from = levels ? 'detected' : 'convention';
-    if (!levels) levels = s.sent && s.sentSplit === false ? CONVENTION_SENT.slice(0, 2) : CONVENTION_SENT.slice();
-    sent = { base: sentBase, levels };
+    const typeAt = levels ? levels.findIndex(l => l.kind === 'type') : -1;
+    const dayAt = levels ? levels.findIndex(l => l.kind === 'day') : -1;
+    if (levels && typeAt > 0 && !(dayAt >= 0 && dayAt < typeAt)) sent = { base: sentBase, levels };
+    else if (levels) {
+      const kinds = levels.map(l => l.kind);
+      const date = kinds.includes('day') && !kinds.includes('year') ? 'day' : 'year-day';
+      const named = typeAt === 0 ? type => L.fill(levels[0].pattern, { type }) : null;
+      sent = { base: sentBase, byType: typeAt >= 0, typeDirs: typeAt === 0 ? typeDirsUnder(list, at, types, named) : {}, typeAt: typeAt > 0 ? 'day' : 'top', date };
+    } else if (s.sent && s.sentSplit === false) sent = { base: sentBase, byType: false, typeDirs: {}, typeAt: 'top', date: 'year-day' };
+    else sent = { base: sentBase, byType: true, typeDirs: {}, typeAt: 'day', date: 'year-day' };
   }
   let updated = savedUpd;
   if (!savedUpd.base) {
     const upd = s.updated || autoOf().updated;
-    updated = { base: upd, levels: [] };
-    if (upd && upd.includes('/')) {
-      const leaf = leafOf(upd);
-      const hit = types.map(t => t.name).find(n => ['-', '_', ' '].some(sep => lc(leaf).endsWith(sep + lc(n))));
-      if (hit) updated = { base: upd.slice(0, upd.lastIndexOf('/')), levels: [{ kind: 'type', pattern: leaf.slice(0, leaf.length - hit.length) + '{type}' }] };
+    const leaf = upd ? leafOf(upd) : '';
+    const hit = upd && upd.includes('/') ? types.map(t => t.name).find(n => ['-', '_', ' '].some(sep => lc(leaf).endsWith(sep + lc(n)))) : null;
+    const here = upd ? inTree(list, upd) : null;
+    if (hit && !here) updated = { base: upd.slice(0, upd.lastIndexOf('/')), levels: [{ kind: 'type', pattern: leaf.slice(0, leaf.length - hit.length) + '{type}' }] };
+    else {
+      const base = hit ? here.slice(0, here.lastIndexOf('/')) : upd || '';
+      const typeDirs = typeDirsUnder(list, base && (inTree(list, base) || base), types, hit ? type => L.renameType(leafOf(here), hit, type) : null);
+      if (hit) typeDirs[hit] = here;
+      updated = { base, byType: Object.keys(typeDirs).length > 0, typeDirs };
     }
   }
   return { layout: { sent, updated }, from };
 }
 
+/* A v2 target's folder for one type (spec 2026-10-28-folders-page-v2-design.md, "בניית הנתיב"): without byType the
+   base; with it the folder picked for the type when it is inside the base, in the tree or not (then made, with any
+   missing folder on the way: the page shows the picked folder, so filing goes there); a picked folder outside the base
+   is never used, in the tree or not. Else one named like another picked folder of the tree inside the base whose name
+   holds that type's name as a whole word (LDLI-pub-sent-PDF -> LDLI-pub-sent-DOCS, next to it), else <base>/<type>.
+   In the tree's spelling where there; a path to make otherwise. */
+function typeDirOf(list, t, type, types) {
+  if (!t.byType) return inTree(list, t.base) || t.base;
+  const base = inTree(list, t.base) || t.base;
+  const inBase = p => !!p && !!base && lc(p).startsWith(lc(base) + '/');
+  const dirs = {};
+  for (const [k, v] of Object.entries(t.typeDirs || {})) if (typeof v === 'string' && inBase(v)) dirs[k] = v;
+  const want = dirs[type] || '';
+  if (want) {
+    // under the base, each folder on the way in the tree's spelling where it is there
+    let dir = base;
+    for (const part of want.slice(base.length + 1).split('/').filter(Boolean)) { const p = dir + '/' + part; dir = inTree(list, p) || p; }
+    return dir;
+  }
+  for (const o of types) {
+    if (o.name === type || !dirs[o.name]) continue;
+    const p = inTree(list, dirs[o.name]);
+    const name = p && L.renameType(leafOf(p), o.name, type);
+    if (name && p.includes('/')) { const q = p.slice(0, p.lastIndexOf('/') + 1) + name; return inTree(list, q) || q; }
+  }
+  const q = base + '/' + type;
+  return inTree(list, q) || q;
+}
+// a v2 SENT with its type folder inside the day folder (typeAt 'day'; it matters only by type and with date folders)
+const typeInDay = t => !!t.byType && t.typeAt === 'day' && t.date !== 'none';
+/* A v2 SENT's levels under where it starts, as levels ({ kind, pattern }): none with 'none'; else the year and day
+   names the tree already uses — read (filing-layout.detectLayout) under each type folder that is there, in the type
+   list's order, or under the base when SENT is not split by type or its type folder is inside the day (there read
+   without the type list, so a date folder's name is kept as written, a type name in it included) — the first year
+   and the first day found; what is not found by the
+   convention, <code>-pub-sent-YYYY and <code>-pub-YYYY,MM,DD. 'day': the day level only. With the type inside the
+   day, a type level after the day: named as the type folders in the tree's day folders are, else <type>. */
+function dateLevels(list, t, types, code) {
+  const mode = L.DATES.includes(t.date) ? t.date : 'year-day';
+  if (mode === 'none') return [];
+  const inDay = typeInDay(t);
+  let year = null, day = null, type = null;
+  const dirs = t.byType && !inDay ? types.map(x => typeDirOf(list, t, x.name, types)).filter(p => inTree(list, p)) : [inTree(list, t.base)].filter(Boolean);
+  for (const dir of dirs) {
+    const together = !t.byType || inDay;
+    const lv = L.detectLayout(list, dir, together ? [] : types) || [];
+    if (inDay && !type) {
+      const all = L.detectLayout(list, dir, types) || [];
+      const at = all.findIndex(l => l.kind === 'type'), d = all.findIndex(l => l.kind === 'day');
+      if (at > 0 && d >= 0 && d < at) type = all[at];
+    }
+    year = year || lv.find(l => l.kind === 'year') || null;
+    day = day || lv.find(l => l.kind === 'day') || null;
+    if (year && day) break;
+  }
+  year = year || { kind: 'year', pattern: pre(code) + 'pub-sent-{yyyy}' };
+  day = day || { kind: 'day', pattern: pre(code) + 'pub-{yyyy},{mm},{dd}' };
+  const dates = mode === 'day' ? [day] : [year, day];
+  return inDay ? [...dates, type || { kind: 'type', pattern: '{type}' }] : dates;
+}
+
 /* The publish plan from a layout: each file into SENT (base, then a folder per level, the day's with " - <desc>" when
    one was typed; existing folders of the same name used as they are, the missing ones made once, in order) and into
-   UPDATED (its levels, replacing a file of the same name — the PC moves the old one to @ver). typeOf { n: type }
+   UPDATED (its levels, replacing a file of the same name — the PC moves the old one to @ver). A v2 target (folders
+   picked, filing-layout.isV2) starts at the type's folder (typeDirOf) instead of the base, SENT then its date levels
+   (dateLevels), UPDATED nothing more — except a SENT with its type folder inside the day (typeAt 'day'), which starts
+   at the base, its date levels then the type folder last. typeOf { n: type }
    changes one file's type; dests { n: path } puts one file's SENT copy into a folder of the tree instead (not in the
    tree: problem 'dest'). Returns { plan, days, slotsMissing? } — days: the descriptions of the date's day folders that
    are there already, of every type, for the window to offer. */
@@ -253,8 +351,24 @@ function publishPlan({ layout, types, tree, code, files, sent, updated, date, de
   const sentBase = baseOf(sent, 'sent'), updBase = baseOf(updated, 'updated');
   const steps = [], made = new Set();
   const mk = p => { if (!inTree(list, p) && !made.has(lc(p))) { made.add(lc(p)); steps.push({ op: 'mkdir', path: p }); } };
-  const walk = (base, levels, type, withDesc) => {
-    let dir = base;
+  // where each target starts for a type, and the levels under it
+  const sentDates = sentBase && L.isV2(layout.sent) ? dateLevels(list, layout.sent, types, code) : null;
+  const route = (key, type) => {
+    const t = layout[key];
+    if (!L.isV2(t)) return { start: key === 'sent' ? sentBase : updBase, levels: t.levels || [] };
+    if (key === 'sent' && typeInDay(t)) return { start: sentBase, levels: sentDates };
+    return { start: typeDirOf(list, t, type, types), levels: key === 'sent' ? sentDates : [] };
+  };
+  const walk = (key, type, withDesc) => {
+    const { start, levels } = route(key, type);
+    let dir = start;
+    // a picked type folder may be missing with folders on the way to it from the base: each missing one made, in order
+    const base = key === 'sent' ? sentBase : updBase;
+    if (base && lc(dir).startsWith(lc(base) + '/')) {
+      const parts = dir.slice(base.length + 1).split('/');
+      for (let i = 1; i < parts.length; i++) mk(base + '/' + parts.slice(0, i).join('/'));
+    }
+    mk(dir);
     for (const lv of levels) {
       let name = L.fill(lv.pattern, { code, type, yyyy, mm, dd });
       if (lv.kind === 'day' && withDesc && desc) name += ' - ' + desc;
@@ -266,8 +380,10 @@ function publishPlan({ layout, types, tree, code, files, sent, updated, date, de
   };
   const days = new Set();
   if (sentBase) for (const t of types) {
-    let dir = sentBase;
-    for (const lv of layout.sent.levels) {
+    const { start, levels } = route('sent', t.name);
+    let dir = inTree(list, start);
+    if (!dir) continue;
+    for (const lv of levels) {
       const name = L.fill(lv.pattern, { code, type: t.name, yyyy, mm, dd });
       if (lv.kind === 'day') {
         for (const k of kids(list, dir)) { const l = leafOf(k); if (lc(l).startsWith(lc(name) + ' - ')) days.add(l.slice(name.length + 3)); }
@@ -285,9 +401,9 @@ function publishPlan({ layout, types, tree, code, files, sent, updated, date, de
     if (sent && dests[f.n] != null) {
       const p = inTree(list, dests[f.n]);
       if (p) ds.push({ path: p, replace: false }); else problems[f.n] = 'dest';
-    } else if (sentBase) ds.push({ path: walk(sentBase, layout.sent.levels, type, true), replace: false });
+    } else if (sentBase) ds.push({ path: walk('sent', type, true), replace: false });
     if (updBase) {
-      const p = walk(updBase, layout.updated.levels, type, false);
+      const p = walk('updated', type, false);
       ds.push({ path: p, replace: true });
       if (!updDirs.some(x => lc(x) === lc(p))) updDirs.push(p);
     }
