@@ -21,6 +21,7 @@
   css.textContent = [
     '.cx{flex:1;display:flex;flex-direction:column;min-height:0;background:var(--bg)}',
     '.cx-top{background:var(--surface);border-bottom:1px solid var(--border);padding:12px 20px 0}',
+    '.cx-top.emb{padding-top:4px;background:var(--surface-2)}',
     '.cx-top h1{font-size:18px;font-weight:700;margin:0 0 8px}',
     '.cx-tabs{display:flex;gap:2px;overflow-x:auto}',
     '.cx-tab{border:none;background:none;padding:8px 13px;cursor:pointer;color:var(--text-2);font:inherit;font-weight:500;border-bottom:2px solid transparent;display:flex;align-items:center;gap:6px;white-space:nowrap}',
@@ -436,7 +437,7 @@
   }
 
   /* ════════ Page ════════ */
-  function CalculatorsPage({ data, save, me }) {
+  function CalculatorsPage({ data, save, me, embedded }) {
     const [, setLangTick] = useState(0);
     useEffect(() => { const on = () => setLangTick(x => x + 1); window.addEventListener('i18n:change', on); return () => window.removeEventListener('i18n:change', on); }, []);
     const [tab, setTab] = useState(() => { try { return localStorage.getItem('cx-tab') || 'summary'; } catch (e) { return 'summary'; } });
@@ -465,7 +466,7 @@
       }
     }
     return h('div', { className: 'cx' },
-      h('div', { className: 'cx-top' }, h('h1', null, 'מחשבונים'),
+      h('div', { className: 'cx-top' + (embedded ? ' emb' : '') }, !embedded && h('h1', null, 'מחשבונים'),
         h('div', { className: 'cx-tabs' }, CALCS.map(x => h('button', { key: x.id, className: 'cx-tab' + (x.id === c.id ? ' on' : ''), onClick: () => go(x.id) },
           x.ic + ' ', x.name, x.id !== 'summary' && h('span', { className: 'cx-pill' }, x.soon ? 'בקרוב' : counts[x.id]))))),
       h('div', { className: 'cx-body' }, body), sheetBar);

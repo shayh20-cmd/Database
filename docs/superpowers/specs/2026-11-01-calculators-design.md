@@ -19,7 +19,7 @@ and the hand calculations done for הל"ת. Built with the user from a clickable
 
 ## Where it lives
 
-- Sidebar: inside the project, a "מחשבונים" item after "מסלולים". Route `track === 'calcs'`.
+- A "מחשבונים" tab in ניהול תכנון (NihulHubView, after "בדיקות"); hidden in the admin project like the other planning-only tabs. (First shipped as a sidebar item; moved here at the user's request.)
 - Stored in the project document as `data.calculators = { parking: { sheets }, hlt: { sheets } }`.
   Every sheet, use row and plan floor has an `id`, so the three-way merge combines two
   people's edits by id like the rest of the document.
