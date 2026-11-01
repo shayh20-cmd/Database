@@ -129,6 +129,17 @@
     '.cx-gaps{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}',
     '.cx-gaps span{font-size:11px;background:rgba(220,38,38,.08);color:#B91C1C;border-radius:6px;padding:1px 7px}',
     '.cx-empty{text-align:center;padding:40px 20px;color:var(--text-3)}',
+    '.cx-hga{display:grid;grid-template-columns:1fr;gap:12px;padding:10px 12px}',
+    '@media (min-width:1500px){.cx-hga{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}}',
+    '.cx-hga select.cx-in{min-width:120px}',
+    '.cx-hga td .cx-rule{white-space:nowrap}',
+    '.cx-sub{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-size:12.5px}',
+    '.cx-line{font-size:12.5px;color:var(--text-2);padding:3px 0}',
+    '.cx-sys{display:flex;flex-wrap:wrap;gap:4px;align-items:center;justify-content:center}',
+    '.cx-chip{display:inline-flex;align-items:center;gap:2px;background:rgba(37,99,235,.1);color:var(--accent);border-radius:10px;padding:1px 4px 1px 8px;font-weight:700;font-size:12px}',
+    '.cx-chip button{border:none;background:none;color:inherit;cursor:pointer;font-size:12px;padding:0 3px}',
+    '.cx-in.cx-addsys{width:auto;padding:2px 6px;font-size:12px}',
+    '.cx-blk-h .cx-p-ok,.cx-blk-h .cx-p-bad{font-size:11px}',
     '.cx-empty .ic{font-size:32px}',
   ].join('\n');
   document.head.appendChild(css);
@@ -151,7 +162,7 @@
     { id: 'summary', name: 'סיכום', ic: 'Σ' },
     { id: 'parking', name: 'תנועה וחניה', ic: '🅿' },
     { id: 'hlt', name: 'הל"ת', ic: '🚻' },
-    { id: 'shelter', name: 'הג"א', ic: '🛡', soon: true, law: 'תקנות ההתגוננות האזרחית' },
+    { id: 'hga', name: 'הג"א', ic: '🛡' },
     { id: 'safety', name: 'בטיחות', ic: '🔥', soon: true, law: 'תקנות התכנון והבנייה — בטיחות אש' },
   ];
   const ZONE_INFO = { A: ["אזור א'", 'עד 300 מ\' מציר מתע"ן'], B: ["אזור ב'", '300–600 מ\' מציר מתע"ן'], C: ["אזור ג'", 'יישוב עם תכנית מתע"ן'], N: ['ללא מתע"ן', 'יישוב בלא מתע"ן'] };
@@ -161,12 +172,14 @@
 
   /* ── sheets ── */
   function newSheet(kind, prev, me) {
-    const base = prev ? JSON.parse(JSON.stringify(prev)) : (kind === 'parking'
+    const base = prev ? JSON.parse(JSON.stringify(prev)) : kind === 'parking'
       ? { basis: 'main', zone: 'N', far: 100, rows: [] }
-      : { rows: [], plan: { floors: [0, 1, 2].map(i => ({ name: i === 0 ? T('קומת קרקע') : T('קומה {n}', { n: i }), fx: {} })) } });
+      : kind === 'hga' ? { basis: 'main', vent: { m2pp: 0.4, flow: 6 }, floors: [{ name: T('קומת קרקע'), uses: [], spaces: [] }] }
+      : { rows: [], plan: { floors: [0, 1, 2].map(i => ({ name: i === 0 ? T('קומת קרקע') : T('קומה {n}', { n: i }), fx: {} })) } };
     base.id = uid(); base.no = prev ? (+prev.no || 0) + 1 : 1; base.date = today(); base.by = me || ''; base.title = '';
     (base.rows || []).forEach(r => { r.id = uid(); });
     if (base.plan) base.plan.floors.forEach(f => { f.id = uid(); });
+    (base.floors || []).forEach(f => { f.id = uid(); (f.uses || []).forEach(u => { u.id = uid(); }); (f.spaces || []).forEach(x => { x.id = uid(); }); });
     return base;
   }
   function SheetBar({ sheets, active, setActive, onAdd, onDelete }) {
@@ -179,7 +192,7 @@
           onMouseLeave: () => setArm(null) }, arm === s.id ? 'למחוק?' : '×'))),
       h('button', { className: 'cx-add', onClick: onAdd, title: 'בדיקה חדשה — מעתיקה את האחרונה' }, '+ בדיקה נוספת'));
   }
-  function SheetHead(n, sh, upd) {
+  function SheetHead(n, sh, upd, hints) {
     return Card(n, 'פרטי הבדיקה', null, h('div', { className: 'cx-card-b' },
       h('div', { className: 'cx-grid' },
         h('label', { className: 'cx-f' }, 'מספר בדיקה', h(Field, { type: 'number', value: sh.no, onSave: v => upd({ no: v }) })),
@@ -189,7 +202,7 @@
       sh.basis != null && h('div', { className: 'cx-basis' },
         h('b', null, 'בסיס החישוב'),
         h('div', { className: 'cx-seg' }, Object.keys(BASES).map(k => h('button', { key: k, className: sh.basis === k ? 'on' : '', onClick: () => upd({ basis: k }) }, BASES[k]))),
-        h('span', { className: 'cx-hint', style: { flex: 1, minWidth: 220 } }, sh.basis === 'total'
+        h('span', { className: 'cx-hint', style: { flex: 1, minWidth: 220 } }, hints ? hints[sh.basis === 'total' ? 1 : 0] : sh.basis === 'total'
           ? '"היתר בשטח כולל" — שטחי הבנייה חושבו בשטח הכולל המותר ללא חלוקה לעיקרי ושירות (תקנה 1). התקן לפי טבלאות ה-א (2א, 3א, 4א…).'
           : 'החישוב לפי השטחים העיקריים המבוקשים בהיתר; שטחי שירות אינם נכללים.'))));
   }
@@ -398,10 +411,145 @@
               h('div', { className: 'cx-hint', style: { marginTop: 8 } }, 'מתקן שתייה, עביט שפכים וכיור מטבח נבדקים גם ברמת הקומה — בשימושים שהטבלה שלהם דורשת אותם "בכל קומה".')))));
   }
 
+  /* ════════ הג"א ════════ */
+  const HGA_HINTS = ['החישוב לפי השטח העיקרי בקומה — תקנה 236(א), טור ב\'.', 'החישוב לפי השטח הכולל — נספח א\' לתקנה 236(א) (השלמה לתקנות המפרטים).'];
+  const r2 = n => Math.round(n * 100) / 100;
+  function HgaTab({ sh, upd }) {
+    const floors = sh.floors || [];
+    const setFloors = fl => upd({ floors: fl });
+    const setFloor = (i, patch) => setFloors(floors.map((f, j) => j === i ? Object.assign({}, f, patch) : f));
+    const setCount = n => {
+      n = Math.max(1, Math.min(80, +n || 1));
+      const fl = floors.slice(0, n);
+      while (fl.length < n) fl.push({ id: uid(), name: fl.length === 0 ? T('קומת קרקע') : T('קומה {n}', { n: fl.length }), uses: [], spaces: [] });
+      setFloors(fl);
+    };
+    const dupFloor = i => {
+      const c = JSON.parse(JSON.stringify(floors[i])); c.id = uid(); c.name = T('קומה {n}', { n: floors.length });
+      c.uses.forEach(u => { u.id = uid(); }); c.spaces.forEach(x => { x.id = uid(); });
+      setFloors(floors.slice(0, i + 1).concat([c], floors.slice(i + 1)));
+    };
+    const areaLbl = sh.basis === 'total' ? 'שטח כולל בקומה (מ"ר)' : 'שטח עיקרי בקומה (מ"ר)';
+    const useOpts = Object.keys(R.HGA_GROUPS).map(g => h('optgroup', { key: g, label: T(R.HGA_GROUPS[g]) },
+      R.HGA_USES.filter(u => u.g === g).map(u => h('option', { key: u.id, value: u.id }, T(u.name)))));
+    const kindOpts = Object.keys(R.HGA_KINDS).map(k => h('option', { key: k, value: k }, T(R.HGA_KINDS[k])));
+    const checks = floors.map(f => R.hgaCheckFloor(f, sh.basis, T));
+
+    const floorBlock = (f, i) => {
+      const chk = checks[i], uses = f.uses || [], spaces = f.spaces || [];
+      const setUses = us => setFloor(i, { uses: us }), setSpaces = sp => setFloor(i, { spaces: sp });
+      const setUse = (j, p) => setUses(uses.map((u, k) => k === j ? Object.assign({}, u, p) : u));
+      const setSpace = (j, p) => setSpaces(spaces.map((u, k) => k === j ? Object.assign({}, u, p) : u));
+      const defKind = () => { const k = Object.keys(chk.f.req)[0]; return k || 'mamam'; };
+      return h('div', { key: f.id || i, className: 'cx-blk' },
+        h('div', { className: 'cx-blk-h' },
+          h(Field, { className: 'fl', value: f.name, skip: true, style: { width: 130, fontWeight: 600 }, onSave: v => setFloor(i, { name: v }) }),
+          h('span', { className: 'cx-sp', style: { flex: 1 } }),
+          chk.lines.map(l => h('span', { key: l.kind, className: l.ok ? 'cx-p-ok' : 'cx-p-bad' },
+            T(R.HGA_KINDS[l.kind]) + ' ' + (l.ok ? '✓' : '✗'))),
+          h('button', { className: 'cx-btn', onClick: () => dupFloor(i), title: 'שכפול הקומה עם השימושים והמרחבים' }, '⧉ שכפל'),
+          floors.length > 1 && h('button', { className: 'cx-x', title: 'הסרת הקומה', onClick: () => setFloors(floors.filter((_, k) => k !== i)) }, '×')),
+        h('div', { className: 'cx-hga' },
+          h('div', null,
+            h('div', { className: 'cx-sub' }, h('b', null, 'שימושים בקומה'), h('button', { className: 'cx-btn', onClick: () => setUses(uses.concat([{ id: uid(), type: 'off', qty: 0 }])) }, '+ שימוש')),
+            h('table', { className: 'cx-t' },
+              h('tbody', null, uses.length ? uses.map((u, j) => {
+                const x = R.hgaRow(u, sh.basis, T), def = R.hgaById(u.type);
+                const unit = def.kind === 'pct' ? (def.m === 'gross' ? 'שטח ברוטו (מ"ר)' : areaLbl) : def.unit ? T(def.unit) : '';
+                return h('tr', { key: u.id || j },
+                  h('td', { style: { width: '44%' } }, h('select', { className: 'cx-in', value: u.type, onChange: e => setUse(j, { type: e.target.value }) }, useOpts)),
+                  h('td', null, def.kind === 'none' ? h('span', { className: 'cx-rule' }, '—') : h('div', { className: 'cx-qty' },
+                    h(Field, { type: 'number', className: 'cx-n', value: u.qty, onSave: v => setUse(j, { qty: v }) }), h('span', { className: 'cx-rule' }, unit))),
+                  h('td', null, h('div', { className: 'cx-rule' }, x.text), h('div', { className: 'cx-rule' }, h('span', SKIP, def.ref), def.confirm ? ' · ' : '', def.confirm ? T('לאימות') : '')),
+                  h('td', { className: 'n' }, def.kind === 'none' ? '—' : T('{n} מ"ר', { n: r2(x.area) })),
+                  h('td', null, h('button', { className: 'cx-x', title: 'הסרה', onClick: () => setUses(uses.filter((_, k) => k !== j)) }, '×')));
+              }) : h('tr', null, h('td', { className: 'cx-hint', style: { padding: 10 } }, 'הוסיפו את השימושים בקומה'))))),
+          h('div', null,
+            h('div', { className: 'cx-sub' }, h('b', null, 'מרחבים מוגנים מוצעים'),
+              h('button', { className: 'cx-btn', onClick: () => setSpaces(spaces.concat([{ id: uid(), name: String(spaces.length + 1).padStart(2, '0'), kind: defKind(), area: null, systems: [] }])) }, '+ מרחב')),
+            h('table', { className: 'cx-t' },
+              h('tbody', null, spaces.length ? spaces.map((x, j) => h('tr', { key: x.id || j },
+                h('td', null, h(Field, { value: x.name, skip: true, style: { width: 60 }, onSave: v => setSpace(j, { name: v }) })),
+                h('td', null, h('select', { className: 'cx-in', value: x.kind, onChange: e => setSpace(j, { kind: e.target.value }) }, kindOpts)),
+                h('td', null, h('div', { className: 'cx-qty' }, h(Field, { type: 'number', className: 'cx-n', style: { width: 72 }, value: x.area, placeholder: '0', onSave: v => setSpace(j, { area: v }) }), h('span', { className: 'cx-rule' }, 'מ"ר נטו'))),
+                h('td', null, h('button', { className: 'cx-x', title: 'הסרה', onClick: () => setSpaces(spaces.filter((_, k) => k !== j)) }, '×'))))
+                : h('tr', null, h('td', { className: 'cx-hint', style: { padding: 10 } }, 'הוסיפו את המרחבים המוגנים שבתכנית')))))),
+        chk.lines.length > 0 && h('div', { className: 'cx-card-b', style: { paddingTop: 6, paddingBottom: 10 } }, chk.lines.map(l => {
+          const rq = chk.f.req[l.kind];
+          return h('div', { key: l.kind, className: 'cx-line' },
+            h('b', null, T(R.HGA_KINDS[l.kind])), ' · ',
+            T('נדרש {a} מ"ר', { a: l.reqArea }), l.reqCount ? ' ' + T('ב-{n} מרחבים', { n: l.reqCount }) : '', ' · ',
+            T('מוצע {a} מ"ר ב-{n} מרחבים', { a: l.area, n: l.count }), ' ',
+            h('span', { className: l.ok ? 'cx-p-ok' : 'cx-p-bad' }, l.ok ? (l.gap > 0 ? T('✓ עודף {n} מ"ר', { n: l.gap }) : T('✓ תקין')) : l.gap < 0 ? T('✗ חסר {n} מ"ר', { n: r2(-l.gap) }) : l.cgap < 0 ? T('✗ חסרים {n} מרחבים', { n: -l.cgap }) : T('✗ לא תקין')),
+            rq && rq.minApplied && h('span', { className: 'cx-rule' }, ' · ', T('הוחל שטח מזערי של {n} מ"ר', { n: rq.min })),
+            l.tooBig.length > 0 && h('span', { className: 'cx-rule cx-bad' }, ' · ', T('מעל השטח המרבי ({n} מ"ר):', { n: R.HGA_LIMITS[l.kind].max }), ' ', h('span', SKIP, l.tooBig.join(', '))),
+            l.tooSmall.length > 0 && h('span', { className: 'cx-rule cx-bad' }, ' · ', T('מתחת ל-{n} מ"ר:', { n: R.HGA_LIMITS[l.kind].min }), ' ', h('span', SKIP, l.tooSmall.join(', '))));
+        })));
+    };
+
+    const floorsCard = Card(2, 'קומות, שימושים ומרחבים מוגנים',
+      h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 8 } }, 'מספר קומות',
+        h(Field, { type: 'number', className: 'cx-n', style: { width: 64 }, min: 1, max: 80, value: floors.length, onSave: setCount })),
+      h('div', { className: 'cx-card-b' },
+        h('div', { className: 'cx-hint', style: { marginBottom: 10 } }, 'בכל קומה: השימושים והשטח שלהם, ולצדם המרחבים המוגנים המתוכננים. ממ"מ ומרחב במוסד חינוך מחושבים לפי סך השימושים בקומה; ממ"ד — אחד לכל דירה; ממ"ק — אחד לכל 4 דירות.'),
+        floors.map(floorBlock)));
+
+    const all = floors.flatMap((f, i) => checks[i].lines.map(l => ({ f, l })));
+    const bad = all.filter(o => !o.l.ok).length;
+    const cmpCard = Card(3, 'נדרש מול מוצע', null, h('div', { className: 'cx-card-b' },
+      !all.length ? h('div', { className: 'cx-hint' }, 'הוסיפו שימושים כדי לחשב את הדרישה') : h(React.Fragment, null,
+        h('div', { className: 'cx-verdict ' + (bad ? 'bad' : 'ok') }, bad ? T('✗ {n} פערים מול הדרישה', { n: bad }) : '✓ התכנית עומדת בדרישות המיגון'),
+        h('div', { className: 'cx-scroll' }, h('table', { className: 'cx-t c' },
+          h('thead', null, h('tr', null, ['קומה', 'סוג מרחב', 'שטח נדרש', 'מרחבים נדרשים', 'שטח מוצע', 'מרחבים מוצעים', 'פער (מ"ר)', 'סטטוס'].map(x => h('th', { key: x }, x)))),
+          h('tbody', null, all.map(({ f, l }, k) => h('tr', { key: k, className: l.ok ? '' : 'bad' },
+            h('td', Object.assign({ className: 'gl' }, SKIP), f.name), h('td', null, R.HGA_KINDS[l.kind]),
+            h('td', { className: 'n' }, l.reqArea), h('td', { className: 'n' }, l.reqCount || '—'), h('td', { className: 'n' }, l.area), h('td', { className: 'n' }, l.count),
+            h('td', { className: 'n ' + (l.gap >= 0 ? 'cx-ok' : 'cx-bad') }, sgn(r2(l.gap))),
+            h('td', null, l.ok ? h('span', { className: 'cx-p-ok' }, '✓ תקין') : h('span', { className: 'cx-p-bad' }, '✗ לא תקין'))))),
+          h('tfoot', null, h('tr', null, h('td', { className: 'gl', colSpan: 2 }, 'סה"כ'),
+            h('td', { className: 'n' }, r2(all.reduce((a, o) => a + o.l.reqArea, 0))), h('td', { className: 'n' }, all.reduce((a, o) => a + o.l.reqCount, 0)),
+            h('td', { className: 'n' }, r2(all.reduce((a, o) => a + o.l.area, 0))), h('td', { className: 'n' }, all.reduce((a, o) => a + o.l.count, 0)),
+            h('td', null), h('td', null))))))));
+
+    const vent = sh.vent || { m2pp: 0.4, flow: 6 };
+    const vrows = floors.flatMap((f, i) => (f.spaces || []).map((x, j) => ({ f, i, x, j })).filter(o => o.x.kind !== 'mamad'));
+    const setSys = (i, j, systems) => setFloor(i, { spaces: floors[i].spaces.map((x, k) => k === j ? Object.assign({}, x, { systems }) : x) });
+    const ventCard = Card(4, 'מערכות אוורור וסינון למרחב מוגן',
+      h(React.Fragment, null,
+        h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 6 } }, 'מ"ר לאדם', h(Field, { type: 'number', className: 'cx-n', style: { width: 64 }, value: vent.m2pp, onSave: v => upd({ vent: Object.assign({}, vent, { m2pp: v }) }) })),
+        h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 6 } }, 'מ"ק/שעה לאדם', h(Field, { type: 'number', className: 'cx-n', style: { width: 64 }, value: vent.flow, onSave: v => upd({ vent: Object.assign({}, vent, { flow: v }) }) }))),
+      h('div', { className: 'cx-card-b' },
+        !vrows.length ? h('div', { className: 'cx-hint' }, 'הוסיפו מרחבים מוגנים בקומות כדי לחשב את מערכות האוורור והסינון') : h('div', { className: 'cx-scroll' }, h('table', { className: 'cx-t c' },
+          h('thead', null, h('tr', null, ['קומה', 'מרחב מוגן', 'שטח', 'משתמשים מקס\'', 'משתמשים מעוגל', 'ספיקת אוויר נדרשת', 'מערכות נבחרות', 'כיסוי', ''].map(x => h('th', { key: x }, x)))),
+          h('tbody', null, vrows.map(({ f, i, x, j }) => {
+            const v = R.hgaVent(x, vent), sys = (x.systems || []).map(Number);
+            return h('tr', { key: x.id || i + '-' + j, className: v.ok ? '' : 'bad' },
+              h('td', Object.assign({ className: 'gl' }, SKIP), f.name), h('td', SKIP, x.name),
+              h('td', { className: 'n' }, T('{n} מ"ר', { n: +x.area || 0 })),
+              h('td', null, LTR(`${+x.area || 0} / ${vent.m2pp} = ${v.exact}`)),
+              h('td', { className: 'n' }, v.people),
+              h('td', null, LTR(`${v.people} × ${vent.flow} = ${v.flow}`), ' ', h('span', { className: 'cx-rule' }, 'מ"ק/שעה')),
+              h('td', null, h('div', { className: 'cx-sys' },
+                sys.map((n, k) => h('span', { key: k, className: 'cx-chip' }, n, h('button', { title: 'הסרה', onClick: () => setSys(i, j, sys.filter((_, q) => q !== k)) }, '×'))),
+                h('select', { className: 'cx-in cx-addsys', value: '', onChange: e => { if (e.target.value) setSys(i, j, sys.concat([+e.target.value])); } },
+                  h('option', { value: '' }, '+ מערכת'), R.HGA_SYSTEMS.map(n => h('option', { key: n, value: n }, T('{n} איש', { n })))))),
+              h('td', null, h('span', { className: v.ok ? 'cx-p-ok' : 'cx-p-bad', dir: 'ltr' }, v.ok ? T('✓ {c} ≥ {p}', { c: v.cap, p: v.people }) : T('✗ {c} < {p}', { c: v.cap, p: v.people }))),
+              h('td', null, !v.ok && v.suggest.length > 0 && h('button', { className: 'cx-btn', title: 'החלפה במערכות המוצעות', onClick: () => setSys(i, j, v.suggest) }, T('הצעה: {s}', { s: v.suggest.join(' + ') }))));
+          })))),
+        h('div', { className: 'cx-hint', style: { marginTop: 8 } }, 'מערכות בגדלים של 33, 50, 66, 83 ו-100 איש; אפשר לשלב כמה מערכות ובלבד שסכומן לא יפחת ממספר המשתמשים. ממ"ד אינו כלול — בו מותקנת מערכת סינון דירתית (תקנה 214).'),
+        h('div', { className: 'cx-cite' }, '📖 תקנות 187, 214 ו-253: במרחב מוגן תותקן מערכת אוורור וסינון לפי ת"י 4570. הנחיית ענף הנדסה ורגולציה (נובמבר 2024): הספיקות המותקנות יתוכננו בהתאם לספיקה הנדרשת לחלל המרחב המוגן.')));
+
+    return h(React.Fragment, null, SheetHead(1, sh, upd, HGA_HINTS), floorsCard, cmpCard, ventCard,
+      Card(5, 'מקורות', null, h('div', { className: 'cx-card-b' },
+        h('div', { className: 'cx-cite' }, '📖 תקנות ההתגוננות האזרחית (מפרטים לבניית מקלטים), התש"ן-1990: ממ"ק — תקנות 171–172 (4 או 5 מ"ר נטו ליח"ד, עד 4 יח"ד למרחב); ממ"ד — תקנה 197א (9 מ"ר נטו); ממ"מ — תקנה 236 (טבלה, מזערי 10 מ"ר, מרבי 60 מ"ר נטו); שימושים שאינם במניין — 236(ב).'),
+        h('div', { className: 'cx-cite' }, '📖 נספח א\' לתקנה 236(א) — אופן חישוב שטחי המיגון לפי "שטח כולל". ערכים המסומנים "לאימות" לא הופיעו בבירור בנספח.'),
+        h('div', { className: 'cx-cite' }, '📖 מפרט למיגון מוסדות חינוך ומוסדות להכשרה גבוהה, נובמבר 2023 — סעיף 8 וטבלה 1: שטח לכיתה, מזערי לכל מרחב, מרבי 90 מ"ר נטו; בחינוך מיוחד עם יותר מ-9 כיתות — תוספת 5 מ"ר לכיתה.'))));
+  }
+
   /* ════════ Summary ════════ */
   function SummaryTab({ calcs, go }) {
     const last = k => { const s = ((calcs[k] || {}).sheets) || []; return s[s.length - 1]; };
-    const P = last('parking'), H = last('hlt');
+    const P = last('parking'), H = last('hlt'), G = last('hga');
     const head = (ic, name, sh, n) => h('div', { className: 'cx-sc-h' }, h('div', { className: 'ic' }, ic),
       h('div', null, h('b', null, name), h('div', { className: 'm' }, sh ? h(React.Fragment, null, T('בדיקה {n} · {d}', { n: sh.no, d: fmtD(sh.date) }), sh.by ? ' · ' : '', h('span', SKIP, sh.by || '')) : 'טרם נבדק')),
       h('span', { className: 'bdg' }, n > 1 ? T('{n} בדיקות', { n }) : n === 1 ? 'בדיקה אחת' : 'טרם נבדק'));
@@ -432,8 +580,24 @@
     } else hlt = h('button', { className: 'cx-sc', onClick: () => go('hlt') }, head('🚻', 'הל"ת', null, 0), h('div', { className: 'cx-hint' }, 'מספר אסלות, משתנות, כיורים — לפי שימוש ואוכלוסייה'));
     const soon = CALCS.filter(c => c.soon).map(c => h('div', { key: c.id, className: 'cx-sc', style: { cursor: 'default' } },
       h('div', { className: 'cx-sc-h' }, h('div', { className: 'ic' }, c.ic), h('div', null, h('b', null, c.name), h('div', { className: 'm' }, c.law)), h('span', { className: 'bdg' }, 'בקרוב')),
-      h('div', { className: 'cx-hint' }, c.id === 'shelter' ? 'שטח מיגון נדרש — ממ"ד / ממ"ק / מקלט' : 'תפוסה, מספר יציאות ורוחב יציאות')));
-    return h('div', { className: 'cx-sum' }, parking, hlt, soon);
+      h('div', { className: 'cx-hint' }, 'תפוסה, מספר יציאות ורוחב יציאות')));
+    let hga;
+    if (G) {
+      const t = R.hgaTotals(G, T), vents = (G.floors || []).flatMap(f => (f.spaces || []).filter(x => x.kind !== 'mamad').map(x => R.hgaVent(x, G.vent)));
+      const vBad = vents.filter(v => !v.ok).length;
+      hga = h('button', { className: 'cx-sc', onClick: () => go('hga') }, head('🛡', 'הג"א', G, cnt('hga')),
+        h('div', { className: 'cx-sc-k' },
+          h('div', null, h('span', null, 'שטח נדרש'), h('b', null, T('{n} מ"ר', { n: t.reqArea }))),
+          h('div', null, h('span', null, 'שטח מוצע'), h('b', null, T('{n} מ"ר', { n: t.area }))),
+          h('div', null, h('span', null, 'מרחבים מוגנים'), h('b', null, Object.values(t.byKind).reduce((a, o) => a + o.count, 0))),
+          h('div', null, h('span', null, 'קומות'), h('b', null, t.floors))),
+        h('div', { className: 'cx-sc-r' }, h('span', null, 'נדרש מול מוצע'),
+          h('b', null, t.bad ? h('span', { className: 'cx-p-bad' }, T('✗ {n} פערים', { n: t.bad })) : h('span', { className: 'cx-p-ok' }, '✓ עומד בדרישות'))),
+        h('div', { className: 'cx-sc-r' }, h('span', null, 'מערכות אוורור וסינון'),
+          h('b', null, !vents.length ? '—' : vBad ? h('span', { className: 'cx-p-bad' }, T('✗ {n} מרחבים ללא כיסוי', { n: vBad })) : h('span', { className: 'cx-p-ok' }, '✓ מכוסה'))),
+        h('div', { className: 'cx-sc-r' }, h('span', null, 'בסיס החישוב'), h('b', null, BASES[G.basis || 'main'])));
+    } else hga = h('button', { className: 'cx-sc', onClick: () => go('hga') }, head('🛡', 'הג"א', null, 0), h('div', { className: 'cx-hint' }, 'שטח מיגון נדרש לפי קומה — ממ"ד / ממ"ק / ממ"מ / מוסדות חינוך'));
+    return h('div', { className: 'cx-sum' }, parking, hlt, hga, soon);
   }
 
   /* ════════ Page ════════ */
@@ -445,7 +609,7 @@
     const go = t => { setTab(t); try { localStorage.setItem('cx-tab', t); } catch (e) {} };
     const calcs = data.calculators || {};
     const saveCalc = (key, fn) => save(Object.assign({}, data, { calculators: Object.assign({}, calcs, { [key]: fn(calcs[key] || { sheets: [] }) }) }));
-    const counts = { parking: ((calcs.parking || {}).sheets || []).length, hlt: ((calcs.hlt || {}).sheets || []).length };
+    const counts = {}; ['parking', 'hlt', 'hga'].forEach(k => { counts[k] = ((calcs[k] || {}).sheets || []).length; });
 
     let body = null, sheetBar = null;
     const c = CALCS.find(x => x.id === tab) || CALCS[0];
@@ -461,7 +625,8 @@
       if (!sh) body = h('div', { className: 'cx-card' }, h('div', { className: 'cx-empty' }, h('div', { className: 'ic' }, c.ic), h('div', { style: { margin: '6px 0 12px' } }, 'אין עדיין בדיקות'),
         h('button', { className: 'cx-btn pri', onClick: add }, '+ בדיקה ראשונה')));
       else {
-        body = c.id === 'parking' ? h(ParkingTab, { key: sh.id, sh, upd, prev: idx > 0 ? sheets[idx - 1] : null }) : h(HltTab, { key: sh.id, sh, upd });
+        body = c.id === 'parking' ? h(ParkingTab, { key: sh.id, sh, upd, prev: idx > 0 ? sheets[idx - 1] : null })
+          : c.id === 'hga' ? h(HgaTab, { key: sh.id, sh, upd }) : h(HltTab, { key: sh.id, sh, upd });
         sheetBar = h(SheetBar, { sheets, active: curId, setActive: id => setActive(a => Object.assign({}, a, { [c.id]: id })), onAdd: add, onDelete: del });
       }
     }

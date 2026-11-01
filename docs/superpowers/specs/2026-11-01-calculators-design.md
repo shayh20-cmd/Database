@@ -68,3 +68,22 @@ citations of Hebrew legislation. Check titles and notes are user data.
 2. Component inside `project_hub_01.html` in compiled form — harder to test and review.
 3. A separate page (`calculators.html`) — loses the project document, sync and the Hub's
    navigation.
+
+## הג"א (added 2026-11-01)
+
+Sources: תקנות ההתגוננות האזרחית (מפרטים לבניית מקלטים), התש"ן-1990 — 171–172 (ממ"ק), 197א (ממ"ד),
+236 (ממ"מ: % of the floor's main area, minimum 10 m², maximum 60 m², 236(ב) uses not counted); Annex A to
+236(א) for the total-area column (from the user's scan); מפרט למיגון מוסדות חינוך, November 2023, section 8
+and table 1 (per classroom, minimum per space, maximum 90 m²).
+
+- A check has a basis (main / total area) and a list of floors. Each floor holds uses (several per floor) and
+  the proposed protected spaces (name, type, net area). Floors can be duplicated.
+- Per floor and space type: ממ"מ and school spaces add up the floor's uses, the largest minimum among them
+  applies, and the number of spaces is the area over the maximum; ממ"ד one per apartment (9 m²); ממ"ק one
+  per 4 apartments (4/5 m² per apartment). The floor passes when area, count, maximum and minimum hold.
+- Ventilation and filtration per proposed space (not ממ"ד): occupants = ceil(area / m² per person), airflow =
+  occupants × m³/h per person (defaults 0.4 and 6, from the user's own table; editable per check); chosen
+  systems of 33/50/66/83/100 people must add up to at least the occupants; the page suggests the fewest units.
+- Calls to confirm with the user: post offices 2.4% total area (the scan shows "2%"), warehouses and shops
+  under 200 m² keep their main-area % on a total-area basis (no value in the annex); special education over
+  9 classrooms adds 5 m² to every classroom.
