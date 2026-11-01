@@ -123,3 +123,36 @@ test('הג"א: ventilation people, flow and systems', () => {
   assert.deepStrictEqual(R.hgaSuggest(120), [66, 66]);
   assert.strictEqual(R.hgaVent({ area: 38.17, systems: [50, 50] }).ok, true);
 });
+
+const SAF = (floors, o) => Object.assign({ height: 'high', residential: false, sprinklers: true, floors }, o);
+
+test('בטיחות: occupancy by factor, exits from a room, door and panic hardware', () => {
+  const x = R.safSpace({ use: 'a3a', area: 450, factor: 1 }, SAF([]));
+  assert.deepStrictEqual([x.occ, x.exits, x.doorReq, x.panic], [450, 2, 1.13, true]);   // 450 × 0.5 cm / 2 = 1.125 → 1.13 > 1.10
+  assert.strictEqual(R.safSpace({ use: 'b41', area: 200 }, SAF([])).occ, 20);
+  assert.strictEqual(R.safSpace({ use: 'a3', area: 600, factor: 0.5 }, SAF([])).occ, 800);  // a factor below the range is raised to 0.75
+  assert.strictEqual(R.safSpace({ use: 'a6', qty: 30 }, SAF([])).occ, 60);                    // 0.50 m of bench per person
+  assert.strictEqual(R.safSpace({ use: 'i39', area: 30, qty: 5 }, SAF([])).exits, 2);         // hazardous over 20 m²
+});
+
+test('בטיחות: exits from a floor, widths per exit and the corridor minimum', () => {
+  const c = R.safCheck(SAF([{ name: '0', level: 0, corridor: 'pub', spaces: [{ use: 'a3a', area: 450, factor: 1 }, { use: 'a12', area: 60 }, { use: 'b41', area: 200 }] }]));
+  const f = c.floors[0].f;
+  assert.deepStrictEqual([f.occ, f.exits, f.horizPer, f.stairPer, f.corrReq, f.panic], [476, 2, 1.19, 1.9, 1.3, true]);
+  const big = R.safFloor({ spaces: [{ use: 'a3', area: 600, factor: 0.75 }] }, SAF([]));
+  assert.strictEqual(big.exits, 3);                                                            // 800 people
+  const small = R.safFloor({ short30: true, spaces: [{ use: 'b41', area: 250 }] }, SAF([]));
+  assert.deepStrictEqual([small.exits, small.single], [1, 'small']);                           // 25 people, short travel
+  assert.strictEqual(R.safFloor({ spaces: [{ use: 'b41', area: 250 }] }, SAF([], { height: 'tower' })).exits, 2);
+});
+
+test('בטיחות: stairs keep the largest floor they serve on the way down', () => {
+  const c = R.safCheck(SAF([
+    { name: '1', level: 1, spaces: [{ use: 'b41', area: 1200 }], exits: [{ kind: 'stair', door: 0.9, stair: 1.1 }, { kind: 'stair', door: 0.9, stair: 1.1 }] },
+    { name: '2', level: 2, spaces: [{ use: 'b41', area: 3500 }], exits: [{ kind: 'stair', door: 0.9, stair: 1.4, panic: true }, { kind: 'stair', door: 0.9, stair: 1.4, panic: true }] },
+  ]));
+  const [f1, f2] = c.floors;
+  assert.deepStrictEqual([f1.f.stairPer, f1.f.stairReq, f2.f.stairReq], [0.48, 1.4, 1.4]);
+  assert.strictEqual(f1.lines.find(l => l.k === 'exit').items.find(i => i.k === 'stair').ok, false);  // 1.10 < 1.40
+  assert.strictEqual(f2.bad, 0);
+});
