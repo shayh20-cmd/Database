@@ -16730,16 +16730,22 @@ const fmDetect = (tree, base, types) => {
   }
   return levels.length ? levels : null;
 };
-// a v2 target's folder for one type: the picked one when inside the base (made when missing; one outside the base is
-// never used), else named like another picked folder of the tree inside the base, else <base>/<type>
-const fmTypeDirOf = (list, t, type, types) => {
-  if (!t.byType) return fmInTree(list, t.base) || t.base;
+// a v2 target's picked type folders that are inside its base
+const fmPickedIn = (list, t) => {
   const base = fmInTree(list, t.base) || t.base;
   const inBase = p => !!p && !!base && fmLc(p).startsWith(fmLc(base) + '/');
   const dirs = {};
   Object.entries(t.typeDirs || {}).forEach(([k, v]) => {
     if (typeof v === 'string' && inBase(v)) dirs[k] = v;
   });
+  return dirs;
+};
+// a v2 target's folder for one type: the picked one when inside the base (made when missing; one outside the base is
+// never used), else named like another picked folder of the tree inside the base, else <base>/<type>
+const fmTypeDirOf = (list, t, type, types) => {
+  if (!t.byType) return fmInTree(list, t.base) || t.base;
+  const base = fmInTree(list, t.base) || t.base;
+  const dirs = fmPickedIn(list, t);
   const want = dirs[type] || '';
   if (want) {
     let dir = base;
@@ -16762,6 +16768,44 @@ const fmTypeDirOf = (list, t, type, types) => {
   return fmInTree(list, q) || q;
 };
 const fmTypeInDay = t => !!t.byType && t.typeAt === 'day' && t.date !== 'none';
+// where a v2 SENT with its type folders on top starts for a type, and the year its pick gives ({ dir, year }): with
+// 'year-day', a picked type folder named as a year folder (LDLI-pub-PDF-2026) stands for its parent and gives the
+// year's name; a type with no pick next to such a pick is named after it. As filing-plan.js's sentStart
+const fmSentStart = (list, t, type, types) => {
+  const dir = fmTypeDirOf(list, t, type, types);
+  const mode = FM_DATES.includes(t.date) ? t.date : 'year-day';
+  if (!t.byType || fmTypeInDay(t) || mode !== 'year-day') return {
+    dir,
+    year: null
+  };
+  const names = types.map(x => x.name);
+  const split = p => {
+    const i = p.lastIndexOf('/');
+    const r = i > 0 ? fmReadName(fmLeaf(p), names) : null;
+    return r && r.kind === 'year' ? {
+      dir: p.slice(0, i),
+      year: r
+    } : null;
+  };
+  const dirs = fmPickedIn(list, t);
+  if (!dirs[type]) for (const o of types) {
+    if (o.name === type || !dirs[o.name]) continue;
+    const s = split(fmTypeDirOf(list, t, o.name, types));
+    const i = s ? s.dir.lastIndexOf('/') : -1;
+    const name = i > 0 ? fmRenameType(fmLeaf(s.dir), o.name, type) : null;
+    if (name) {
+      const q = s.dir.slice(0, i + 1) + name;
+      return {
+        dir: fmInTree(list, q) || q,
+        year: s.year
+      };
+    }
+  }
+  return split(dir) || {
+    dir,
+    year: null
+  };
+};
 const fmDateLevels = (list, t, types, code) => {
   const pre = code ? code + '-' : '';
   const mode = FM_DATES.includes(t.date) ? t.date : 'year-day';
@@ -16770,7 +16814,8 @@ const fmDateLevels = (list, t, types, code) => {
   let year = null,
     day = null,
     type = null;
-  const dirs = t.byType && !inDay ? types.map(x => fmTypeDirOf(list, t, x.name, types)).filter(p => fmInTree(list, p)) : [fmInTree(list, t.base)].filter(Boolean);
+  const starts = t.byType && !inDay ? types.map(x => fmSentStart(list, t, x.name, types)) : [];
+  const dirs = t.byType && !inDay ? starts.map(x => x.dir).filter(p => fmInTree(list, p)) : [fmInTree(list, t.base)].filter(Boolean);
   for (const dir of dirs) {
     const together = !t.byType || inDay;
     const lv = fmDetect(list, dir, together ? [] : types) || [];
@@ -16784,13 +16829,18 @@ const fmDateLevels = (list, t, types, code) => {
     day = day || lv.find(l => l.kind === 'day') || null;
     if (year && day) break;
   }
+  // a year folder picked as a type folder gives the year; no day found but a year known: the year's name with
+  // ',MM,DD' after the year (not for the convention's year, whose days are <code>-pub-YYYY,MM,DD)
+  const pick = starts.find(x => x.year);
+  if (pick) year = pick.year;
+  const convYear = pre + 'pub-sent-{yyyy}';
+  if (!day) day = {
+    kind: 'day',
+    pattern: year && fmLc(year.pattern) !== fmLc(convYear) ? year.pattern.replace('{yyyy}', '{yyyy},{mm},{dd}') : pre + 'pub-{yyyy},{mm},{dd}'
+  };
   year = year || {
     kind: 'year',
-    pattern: pre + 'pub-sent-{yyyy}'
-  };
-  day = day || {
-    kind: 'day',
-    pattern: pre + 'pub-{yyyy},{mm},{dd}'
+    pattern: convYear
   };
   const dates = mode === 'day' ? [day] : [year, day];
   return inDay ? [...dates, type || {
@@ -16801,8 +16851,13 @@ const fmDateLevels = (list, t, types, code) => {
 // where a file of this type sent today goes, as publishPlan walks SENT
 const fmSentPath = (list, t, types, type, code) => {
   const [yyyy, mm, dd] = fmToday().split('-');
-  let dir = fmTypeInDay(t) ? fmInTree(list, t.base) || t.base : fmTypeDirOf(list, t, type, types);
-  for (const lv of fmDateLevels(list, t, types, code)) {
+  const start = fmTypeInDay(t) ? {
+    dir: fmInTree(list, t.base) || t.base,
+    year: null
+  } : fmSentStart(list, t, type, types);
+  let dir = start.dir;
+  for (const lv0 of fmDateLevels(list, t, types, code)) {
+    const lv = start.year && lv0.kind === 'year' ? start.year : lv0;
     const p = dir + '/' + fmFill(lv.pattern, {
       code,
       type,

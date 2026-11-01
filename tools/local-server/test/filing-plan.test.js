@@ -562,3 +562,61 @@ test('filing-plan: layoutFor — a type level between the year and the day stays
   const out = plans.publishPlan({ layout: { sent: got, updated: { base: '', levels: [] } }, types: L.OFFICE_TYPES, tree, code: 'X', files: [{ n: 0, name: 'a.pdf' }], sent: true, updated: false, date: '2026-10-28', desc: '' });
   assert.strictEqual(out.plan.files[0].dests[0].path, Y + '/PDF/X-2026,10,28');
 });
+
+// The Library as it is on the disk: under each type folder a year folder, the day folders in it (6 levels down, so a
+// helper reading 5 levels deep sends no day folder at all). The publish layout was saved with the YEAR folders picked.
+const LIB_DEEP_TYPES = ['PDF', 'DWG', 'DWF', 'DOCS'];
+const LIB_SHALLOW = ['LDLI-work', P, SENT, ...LIB_DEEP_TYPES.flatMap(t => [SENT + '/LDLI-pub-sent-' + t, SENT + '/LDLI-pub-sent-' + t + '/LDLI-pub-' + t + '-2026'])];
+const LIB_PDF_YEAR = SENT + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2026';
+const LIB_DEEP = [...LIB_SHALLOW, LIB_PDF_YEAR + '/LDLI-pub-PDF-2026,10,19 - חניה זמנית', LIB_PDF_YEAR + '/LDLI-pub-PDF-2026,02,24- תכניות לדורון', LIB_PDF_YEAR + '/LDLI-pub-PDF-2026,09,08'];
+const LIB_PICKED = { base: SENT, byType: true, typeAt: 'top', date: 'year-day', typeDirs: Object.fromEntries(LIB_DEEP_TYPES.map(t => [t, SENT + '/LDLI-pub-sent-' + t + '/LDLI-pub-' + t + '-2026'])) };
+const picked = (sentPart, over) => plans.publishPlan({ layout: { sent: sentPart, updated: { base: '', byType: false, typeDirs: {} } }, types: L.OFFICE_TYPES, tree: LIB_DEEP, code: 'LDLI', files: [{ n: 0, name: 'K.pdf' }], sent: true, updated: false, date: '2026-11-01', desc: '', ...over });
+
+test('filing-plan: publishPlan v2 — a year folder picked as the type folder: its parent is the type folder, its name the year\'s', () => {
+  for (const tree of [LIB_DEEP, LIB_SHALLOW]) {
+    const out = picked(LIB_PICKED, { tree });
+    assert.deepStrictEqual(paths(out), [[LIB_PDF_YEAR + '/LDLI-pub-PDF-2026,11,01']], tree.length);
+    assert.deepStrictEqual(out.plan.steps.map(s => s.path), [LIB_PDF_YEAR + '/LDLI-pub-PDF-2026,11,01']);
+    assert.deepStrictEqual(paths(picked(LIB_PICKED, { tree, desc: 'תכניות תקרה' })), [[LIB_PDF_YEAR + '/LDLI-pub-PDF-2026,11,01 - תכניות תקרה']]);
+    const dwg = picked(LIB_PICKED, { tree, files: [{ n: 0, name: 'a.dwg' }, { n: 1, name: 'a.txt' }] });
+    assert.deepStrictEqual(paths(dwg), [[SENT + '/LDLI-pub-sent-DWG/LDLI-pub-DWG-2026/LDLI-pub-DWG-2026,11,01'], [SENT + '/LDLI-pub-sent-DOCS/LDLI-pub-DOCS-2026/LDLI-pub-DOCS-2026,11,01']]);
+  }
+  // a new year: the year folder next to the picked one, made
+  const next = picked(LIB_PICKED, { date: '2027-01-05' });
+  const Y = SENT + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2027';
+  assert.deepStrictEqual(paths(next), [[Y + '/LDLI-pub-PDF-2027,01,05']]);
+  assert.deepStrictEqual(next.plan.steps.map(s => s.path), [Y, Y + '/LDLI-pub-PDF-2027,01,05']);
+  // a type without a pick, next to picked year folders: its type folder named like theirs, and its year folder too
+  const docs = picked({ ...LIB_PICKED, typeDirs: { PDF: LIB_PICKED.typeDirs.PDF } }, { tree: LIB_SHALLOW.filter(p => !p.includes('-DOCS')), files: [{ n: 0, name: 'a.txt' }] });
+  const D = SENT + '/LDLI-pub-sent-DOCS';
+  assert.deepStrictEqual(paths(docs), [[D + '/LDLI-pub-DOCS-2026/LDLI-pub-DOCS-2026,11,01']]);
+  assert.deepStrictEqual(docs.plan.steps.map(s => s.path), [D, D + '/LDLI-pub-DOCS-2026', D + '/LDLI-pub-DOCS-2026/LDLI-pub-DOCS-2026,11,01']);
+  // date 'day' or 'none': the picked folder as it is, no year read from it
+  assert.deepStrictEqual(paths(picked({ ...LIB_PICKED, date: 'none' })), [[LIB_PDF_YEAR]]);
+  assert.deepStrictEqual(paths(picked({ ...LIB_PICKED, date: 'day' })), [[LIB_PDF_YEAR + '/LDLI-pub-PDF-2026,11,01']], 'the day names found in it');
+});
+
+test('filing-plan: publishPlan v2 — the day named after the year folder when no day folder is seen; the convention when nothing is', () => {
+  // the type folders picked, their year folders in the tree, no day folder read
+  const plain = { ...LIB_PICKED, typeDirs: Object.fromEntries(LIB_DEEP_TYPES.map(t => [t, SENT + '/LDLI-pub-sent-' + t])) };
+  assert.deepStrictEqual(paths(picked(plain, { tree: LIB_SHALLOW })), [[LIB_PDF_YEAR + '/LDLI-pub-PDF-2026,11,01']]);
+  assert.deepStrictEqual(paths(picked(plain, { tree: LIB_SHALLOW, date: '2027-01-05' })), [[SENT + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2027/LDLI-pub-PDF-2027,01,05']]);
+  // nothing under the type folders: the convention, year and day
+  const bare = ['LDLI-work', P, SENT, ...LIB_DEEP_TYPES.map(t => SENT + '/LDLI-pub-sent-' + t)];
+  assert.deepStrictEqual(paths(picked(plain, { tree: bare })), [[SENT + '/LDLI-pub-sent-PDF/LDLI-pub-sent-2026/LDLI-pub-2026,11,01']]);
+  // the convention's year folders without day folders: the convention's day, not the year's name with the date
+  const S = 'P/S';
+  const conv = plans.publishPlan({ layout: { sent: { base: S, byType: false, typeDirs: {}, typeAt: 'top', date: 'year-day' }, updated: { base: '', levels: [] } }, types: L.OFFICE_TYPES, tree: ['P', S, S + '/X-pub-sent-2026'], code: 'X', files: [{ n: 0, name: 'a.pdf' }], sent: true, updated: false, date: '2026-11-01', desc: '' });
+  assert.strictEqual(conv.plan.files[0].dests[0].path, S + '/X-pub-sent-2026/X-pub-2026,11,01');
+});
+
+test('filing-plan: publishPlan v2 — the day folders offered in the picked year folder, "- desc" without a space before it too', () => {
+  assert.deepStrictEqual(picked(LIB_PICKED, { date: '2026-10-19' }).days, ['חניה זמנית']);
+  assert.deepStrictEqual(picked(LIB_PICKED, { date: '2026-02-24' }).days, ['תכניות לדורון']);
+  assert.deepStrictEqual(picked(LIB_PICKED, { date: '2026-09-08' }).days, []);
+  // choosing it files into that folder as it is named
+  const old = picked(LIB_PICKED, { date: '2026-02-24', desc: 'תכניות לדורון' });
+  assert.deepStrictEqual([paths(old), old.plan.steps], [[[LIB_PDF_YEAR + '/LDLI-pub-PDF-2026,02,24- תכניות לדורון']], []]);
+  const same = picked(LIB_PICKED, { date: '2026-10-19', desc: 'חניה זמנית' });
+  assert.deepStrictEqual([paths(same), same.plan.steps], [[[LIB_PDF_YEAR + '/LDLI-pub-PDF-2026,10,19 - חניה זמנית']], []]);
+});

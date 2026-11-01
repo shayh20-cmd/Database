@@ -238,4 +238,4 @@ function detectLayout(tree, base, types) {
   return levels.length ? levels : null;
 }
 
-module.exports = { OFFICE_TYPES, KINDS, NEEDS, DATES, TYPE_AT, okName, cleanDesc, fill, cleanTypes, typeOfName, cleanLevels, cleanTypeDirs, isV2, cleanPublish, typeSpan, renameType, detectLayout };
+module.exports = { OFFICE_TYPES, KINDS, NEEDS, DATES, TYPE_AT, okName, cleanDesc, fill, cleanTypes, typeOfName, cleanLevels, cleanTypeDirs, isV2, cleanPublish, typeSpan, renameType, readName, detectLayout };
