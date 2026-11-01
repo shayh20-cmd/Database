@@ -148,6 +148,8 @@ const leafOf = p => p.slice(p.lastIndexOf('/') + 1);
 // the folders directly inside dir
 const kids = (tree, dir) => tree.filter(p => lc(p).startsWith(lc(dir) + '/') && !p.slice(dir.length + 1).includes('/'));
 const DATE = /([0-9]{4}),([0-9]{2}),([0-9]{2})/;
+// a date written day first (DD,MM,YYYY — LsSp-pub-sent-01,07,2026- desc): a real day and month, no digit around it
+const DATE_DMY = /(?<![0-9])(0[1-9]|[12][0-9]|3[01]),(0[1-9]|1[0-2]),((?:19|20)[0-9]{2})(?![0-9])/;
 const SEP = ['-', '_', ' ', ','];
 /* where the earliest type name sits in text as a whole word (between separators or the ends, any case):
    { i, len, name } or null */
@@ -193,10 +195,11 @@ function lastYear(text) {
    follows it is a description or a number and is not part of the pattern; a type name counts only before it), then
    the last year, then a type name; a type name inside a date or a year name becomes {type} too */
 function readName(leaf, names) {
-  const d = DATE.exec(leaf);
+  // day first (DD,MM,YYYY) only when no YYYY,MM,DD: such a day folder is no year folder
+  const d = DATE.exec(leaf) || DATE_DMY.exec(leaf);
   if (d) {
     const head = leaf.slice(0, d.index);
-    return { kind: 'day', pattern: (withTypeToken(head, names) || head) + '{yyyy},{mm},{dd}' };
+    return { kind: 'day', pattern: (withTypeToken(head, names) || head) + (d[1].length === 4 ? '{yyyy},{mm},{dd}' : '{dd},{mm},{yyyy}') };
   }
   const typed = withTypeToken(leaf, names);
   const base = typed || leaf;
