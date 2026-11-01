@@ -611,10 +611,162 @@ function planCheck(sh, Tot) {
   return { cols, lines, bad: lines.filter(l => l.st === 'bad').length, entered, prop };
 }
 
+/* ════════════ הג"א ════════════
+   תקנות ההתגוננות האזרחית (מפרטים לבניית מקלטים), התש"ן-1990 — חלק ג' (מגורים), חלק ג'1 (מוסדי, תקנה 236)
+   ונספח א' לתקנה 236(א) (שטח כולל); מפרט למיגון מוסדות חינוך, נובמבר 2023 (טבלה 1, סעיף 8).
+   kind: pct — % of the area (main or total by the check's basis); per — m² per unit; edu — per classroom;
+   mamad — a ממ"ד per apartment; mamak — a ממ"ק per 4 apartments; none — not counted (236(ב)). */
+const HGA_KINDS = { mamam: 'ממ"מ', mamad: 'ממ"ד', mamak: 'ממ"ק', edu: 'מרחב מוגן במוסד חינוך' };
+const HGA_GROUPS = { res: 'מגורים', inst: 'מבני ציבור ותעסוקה (תקנה 236)', edu: 'מוסדות חינוך (מפרט 2023)', excl: 'שימושים שאינם במניין (236(ב))' };
+const pct = (main, total, m) => ({ kind: 'pct', main, total, m: m || 'area' });
+const HGA_USES = [
+  { id: 'res_mamad', g: 'res', space: 'mamad', name: 'דירה עם ממ"ד', unit: 'יח"ד', kind: 'mamad', ref: '197א', perSpace: 9, min: 9,
+    note: 'ממ"ד לכל דירה — שטח נטו של 9 מ"ר לפחות ונפח 22.5 מ"ק (תקנה 197א(1)).' },
+  { id: 'res_mamak_big', g: 'res', space: 'mamak', name: 'דירה מעל 100 מ"ר עיקרי — ממ"ק', unit: 'יח"ד', kind: 'mamak', ref: '171–172', perUnit: 5,
+    note: '5 מ"ר נטו ליחידת דיור ששטחה העיקרי עולה על 100 מ"ר; ממ"ק משרת עד 4 יחידות דיור.' },
+  { id: 'res_mamak_small', g: 'res', space: 'mamak', name: 'דירה עד 100 מ"ר עיקרי — ממ"ק', unit: 'יח"ד', kind: 'mamak', ref: '171–172', perUnit: 4,
+    note: '4 מ"ר נטו ליחידת דיור ששטחה העיקרי אינו עולה על 100 מ"ר; ממ"ק משרת עד 4 יחידות דיור.' },
+
+  { id: 'off', g: 'inst', name: 'בניין משרדים', ref: '236(א) 1', ...pct(3, 1.8) },
+  { id: 'lab', g: 'inst', name: 'מעבדות', ref: '236(א) 2', ...pct(3, 1.8) },
+  { id: 'bank', g: 'inst', name: 'בנקים', ref: '236(א) 3', ...pct(2, 1.2) },
+  { id: 'post', g: 'inst', name: 'בתי דואר', ref: '236(א) 4', ...pct(4, 2.4), confirm: true },
+  { id: 'court', g: 'inst', name: 'בתי משפט — אולמות משפט', ref: '236(א) 5', kind: 'per', per: 5, unit: 'אולמות' },
+  { id: 'courtOff', g: 'inst', name: 'בתי משפט — משרדים', ref: '236(א) 5', ...pct(3, 1.8) },
+  { id: 'relig', g: 'inst', name: 'מבני דת (בית כנסת, מסגד, כנסייה, אולם תפילה)', ref: '236(א) 6', ...pct(1, 0.8) },
+  { id: 'senior', g: 'inst', name: 'דיור מוגן ובית אבות לעצמאיים', ref: '236(א) 7', kind: 'per', per: 2.5, unit: 'יחידות מגורים' },
+  { id: 'hotel', g: 'inst', name: 'בתי מלון, בתי הבראה, צימרים', ref: '236(א) 8', kind: 'per', per: 1, unit: 'יחידות אירוח' },
+  { id: 'hostel', g: 'inst', name: 'אכסניות, פנימיות (שטח ברוטו של חדרי המגורים)', ref: '236(א) 9', ...pct(20, 20, 'gross') },
+  { id: 'clinic', g: 'inst', name: 'מרפאות מד"א, תחנות אם וילד', ref: '236(א) 10', ...pct(3, 1.8) },
+  { id: 'comm', g: 'inst', name: 'מתנ"סים, מרכזים קהילתיים, מועדוני נוער', ref: '236(א) 11', ...pct(2, 1.2) },
+  { id: 'indOff', g: 'inst', name: 'תעשייה — משרדים ותעשייה מתקדמת (היי-טק)', ref: '236(א) 12', ...pct(3, 1.8) },
+  { id: 'indHall', g: 'inst', name: 'תעשייה — אולם ייצור', ref: '236(א) 12', ...pct(2, 1.2) },
+  { id: 'indStore', g: 'inst', name: 'תעשייה — מחסנים', ref: '236(א) 12', ...pct(0.8, 0.8), confirm: true },
+  { id: 'workshop', g: 'inst', name: 'בתי מלאכה', ref: '236(א) 13', ...pct(2, 1.2) },
+  { id: 'shopBig', g: 'inst', name: 'מרכז קניות / חנות מעל 200 מ"ר', ref: '236(א) 14', ...pct(2, 1.2) },
+  { id: 'shopSmall', g: 'inst', name: 'חנות עד 200 מ"ר', ref: '236(א) 14', ...pct(0.5, 0.5), confirm: true },
+  { id: 'fuel', g: 'inst', name: 'תחנת דלק', ref: '236(א) 15', ...pct(2, 1.2) },
+
+  { id: 'kg', g: 'edu', space: 'edu', name: 'גן ילדים / מעון יום / גן בחינוך מיוחד', unit: 'כיתות', kind: 'edu', ref: 'טבלה 1, 1', perClass: 12, min: 12 },
+  { id: 'sch1', g: 'edu', space: 'edu', name: 'בית ספר — כיתות א\'–י\'', unit: 'כיתות', kind: 'edu', ref: 'טבלה 1, 2', perClass: 15, min: 15 },
+  { id: 'sch11', g: 'edu', space: 'edu', name: 'בית ספר — כיתות י"א ואילך', unit: 'כיתות', kind: 'edu', ref: 'טבלה 1, 2', perClass: 7.5, min: 15 },
+  { id: 'spec', g: 'edu', space: 'edu', name: 'מוסד לחינוך מיוחד', unit: 'כיתות', kind: 'edu', ref: 'טבלה 1, 3', perClass: 10, min: 15, special: true },
+  { id: 'specSev', g: 'edu', space: 'edu', name: 'חינוך מיוחד — פיגור קשה/עמוק, סיעודי, שיתוק מוחין', unit: 'כיתות', kind: 'edu', ref: 'טבלה 1, 4', perClass: 15, min: 15, special: true },
+  { id: 'eduAux', g: 'edu', space: 'edu', name: 'מבנה נפרד — מנהלה, ספרייה, אולם ספורט', unit: 'מבנה', kind: 'fixed', ref: '8(ה)(1)', fixed: 10,
+    note: 'במבנה מנהלה, ספרייה ואולם ספורט ייבנה מרחב מוגן בשטח 10 מ"ר נטו; אינו בא בחישוב השטח הנדרש לכיתות.' },
+
+  ...['תרבות ובידור, קולנוע, תיאטרון, אודיטוריום', 'ספורט ונופש — אולמות ספורט, בריכות', 'אולמי שמחות, מסעדות, מזנונים', 'אולם תערוכות, מוזיאון, גלריה, ספרייה',
+    'מחסן ללא נוכחות עובדים', 'חניון'].map((name, i) => ({ id: 'ex' + i, g: 'excl', name, ref: '236(ב)', kind: 'none' })),
+];
+const HGA_LIMITS = { mamam: { max: 60, ref: '236(ג)' }, edu: { max: 90, ref: 'מפרט חינוך 8(ג)' }, mamad: { min: 9, ref: '197א(1)' } };
+const HGA_SYSTEMS = [33, 50, 66, 83, 100];
+const hgaById = id => HGA_USES.find(u => u.id === id);
+const hgaSpaceOf = u => u.space || (u.g === 'inst' ? 'mamam' : null);
+
+/* One use on a floor → { u, space, area (m² net required), count (spaces required, for ממ"ד/ממ"ק), min, text } */
+function hgaRow(row, basis, T) {
+  T = T || fill;
+  const u = hgaById(row.type); if (!u) return null;
+  const q = +row.qty || 0, out = { u, space: hgaSpaceOf(u), area: 0, count: 0, min: u.min || (u.g === 'inst' ? 10 : 0), text: '' };
+  if (u.kind === 'pct') {
+    const p = basis === 'total' ? u.total : u.main;
+    out.area = q * p / 100;
+    out.text = T(u.m === 'gross' ? '{p}% משטח ברוטו של חדרי המגורים' : basis === 'total' ? '{p}% מהשטח הכולל בקומה' : '{p}% מהשטח העיקרי בקומה', { p });
+  } else if (u.kind === 'per') {
+    out.area = q * u.per; out.text = T('{a} מ"ר ל{u}', { a: u.per, u: T(u.unit) });
+  } else if (u.kind === 'mamad') {
+    out.count = q; out.area = q * u.perSpace; out.text = T('ממ"ד של {a} מ"ר לכל דירה', { a: u.perSpace });
+  } else if (u.kind === 'mamak') {
+    out.count = Math.ceil(q / 4); out.area = q * u.perUnit; out.text = T('{a} מ"ר ליח"ד; ממ"ק לכל 4 יח"ד', { a: u.perUnit });
+  } else if (u.kind === 'edu') {
+    // special education with more than 9 classrooms: +5 m² for each classroom (spec 8(ב))
+    const per = u.special && q > 9 ? u.perClass + 5 : u.perClass;
+    out.area = q * per; out.text = T('{a} מ"ר לכיתה', { a: per });
+  } else if (u.kind === 'fixed') {
+    out.area = q > 0 ? u.fixed : 0; out.text = T('{a} מ"ר נטו', { a: u.fixed });
+  } else out.text = T('לא בא במניין');
+  return out;
+}
+/* A floor → required area and spaces by kind of protected space.
+   ממ"מ / education: the floor's uses add up; the minimum of the largest-minimum use applies; spaces = ceil(area / max).
+   ממ"ד: one per apartment, 9 m² each. ממ"ק: one per 4 apartments. */
+function hgaFloor(floor, basis, T) {
+  const rows = (floor.uses || []).map(r => ({ r, x: hgaRow(r, basis, T) })).filter(o => o.x);
+  const req = {};
+  rows.forEach(({ x }) => {
+    if (!x.space) return;
+    const k = x.space, o = req[k] || (req[k] = { kind: k, raw: 0, min: 0, count: 0 });
+    o.raw += x.area; o.count += x.count;
+    if (x.area > 0) o.min = Math.max(o.min, x.min);
+  });
+  Object.values(req).forEach(o => {
+    o.area = Math.round(Math.max(o.raw, o.raw > 0 ? o.min : 0) * 100) / 100;
+    const lim = HGA_LIMITS[o.kind] || {};
+    if (o.kind === 'mamam' || o.kind === 'edu') o.count = o.area > 0 ? Math.ceil(o.area / lim.max - 1e-9) : 0;
+    o.minApplied = o.raw > 0 && o.raw < o.min;
+  });
+  return { rows, req };
+}
+/* Required vs proposed on a floor: proposed spaces = [{id, name, kind, area, systems:[]}] */
+function hgaCheckFloor(floor, basis, T) {
+  const f = hgaFloor(floor, basis, T), spaces = floor.spaces || [];
+  const kinds = new Set(Object.keys(f.req).concat(spaces.map(s => s.kind)));
+  const lines = [...kinds].map(k => {
+    const rq = f.req[k] || { area: 0, count: 0 };
+    const mine = spaces.filter(s => s.kind === k), area = mine.reduce((a, s) => a + (+s.area || 0), 0);
+    const lim = HGA_LIMITS[k] || {};
+    const tooBig = lim.max ? mine.filter(s => +s.area > lim.max).map(s => s.name) : [];
+    const tooSmall = lim.min ? mine.filter(s => +s.area < lim.min).map(s => s.name) : [];
+    const gap = Math.round((area - rq.area) * 100) / 100, cgap = mine.length - rq.count;
+    const ok = gap >= -1e-9 && cgap >= 0 && !tooBig.length && !tooSmall.length;
+    return { kind: k, reqArea: rq.area, reqCount: rq.count, area: Math.round(area * 100) / 100, count: mine.length, gap, cgap, tooBig, tooSmall, ok };
+  });
+  return { f, lines, bad: lines.filter(l => !l.ok).length };
+}
+function hgaTotals(sh, T) {
+  const t = { reqArea: 0, area: 0, bad: 0, floors: 0, byKind: {} };
+  (sh.floors || []).forEach(fl => {
+    const c = hgaCheckFloor(fl, sh.basis, T);
+    if (c.lines.length) t.floors++;
+    c.lines.forEach(l => {
+      t.reqArea += l.reqArea; t.area += l.area; if (!l.ok) t.bad++;
+      const o = t.byKind[l.kind] || (t.byKind[l.kind] = { reqArea: 0, area: 0, reqCount: 0, count: 0 });
+      o.reqArea += l.reqArea; o.area += l.area; o.reqCount += l.reqCount; o.count += l.count;
+    });
+  });
+  t.reqArea = Math.round(t.reqArea * 100) / 100; t.area = Math.round(t.area * 100) / 100;
+  return t;
+}
+/* Ventilation and filtration for one space: people = ceil(area / m² per person), flow = people × m³/h per person;
+   the chosen systems must add up to at least the people. */
+function hgaVent(space, cfg) {
+  const k = +(cfg && cfg.m2pp) || 0.4, q = +(cfg && cfg.flow) || 6, area = +space.area || 0;
+  const exact = area / k, people = Math.ceil(exact - 1e-9), flow = people * q;
+  const sys = (space.systems || []).map(Number).filter(Boolean), cap = sys.reduce((a, b) => a + b, 0);
+  return { exact: Math.round(exact * 100) / 100, people, flow, cap, ok: people === 0 || cap >= people, suggest: hgaSuggest(people) };
+}
+/* standard systems that cover the people: the fewest units, then the smallest total */
+function hgaSuggest(people) {
+  if (!(people > 0)) return [];
+  let best = null;
+  const go = (left, from, pick) => {
+    if (left <= 0) {
+      const sum = pick.reduce((a, b) => a + b, 0);
+      if (!best || pick.length < best.pick.length || (pick.length === best.pick.length && sum < best.sum)) best = { sum, pick: pick.slice() };
+      return;
+    }
+    if (pick.length >= 6) return;
+    for (let i = from; i >= 0; i--) { pick.push(HGA_SYSTEMS[i]); go(left - HGA_SYSTEMS[i], i, pick); pick.pop(); }
+  };
+  go(people, HGA_SYSTEMS.length - 1, []);
+  return best ? best.pick : [];
+}
+
 const api = {
   MEASURES, CATS, USES, BIKES, MOTOS, STATIONS, ZONES, FIX, FIX_ORDER, HLT, HLT_GENERAL, PCOLS, FLOOR_FX,
   haversine, stationsNear, zoneForStation, useById, ruleSet, ruleText, carRow, bikeRow, motoRow, parkingTotals, span,
   hltById, stepCount, stepText, hltRow, hltTotals, reqFor, planCheck, fill,
+  HGA_KINDS, HGA_GROUPS, HGA_USES, HGA_LIMITS, HGA_SYSTEMS, hgaById, hgaSpaceOf, hgaRow, hgaFloor, hgaCheckFloor, hgaTotals, hgaVent, hgaSuggest,
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 else root.CalcRules = api;
