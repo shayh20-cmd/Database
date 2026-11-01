@@ -31,7 +31,8 @@ const TARGETS = {
   'together, day only': { base: B, byType: false, typeDirs: {}, typeAt: 'top', date: 'day' },
   'no date folders': { base: B, byType: true, typeDirs: { PDF: B + '/LDLI-pub-sent-PDF' }, typeAt: 'top', date: 'none' },
   'picked, not in the tree': { base: B, byType: true, typeDirs: { PDF: B + '/new/PDF-here', DWG: B.toUpperCase() + '/LDLI-pub-sent-DWG' }, typeAt: 'top', date: 'year-day' },
-  'picked outside the base': { base: B, byType: true, typeDirs: { PDF: 'W/elsewhere-PDF' }, typeAt: 'top', date: 'day' }
+  'picked outside the base': { base: B, byType: true, typeDirs: { PDF: 'W/elsewhere-PDF' }, typeAt: 'top', date: 'day' },
+  'picked outside the base, in the tree': { base: B, byType: true, typeDirs: { PDF: 'W/P', DWG: B + '/LDLI-pub-sent-DWG' }, typeAt: 'top', date: 'year-day' }
 };
 
 test('folders page: the SENT folder it names is the one publishPlan files to', () => {
@@ -46,7 +47,7 @@ test('folders page: the SENT folder it names is the one publishPlan files to', (
       }
     }
   }
-  assert.strictEqual(n, 54);
+  assert.strictEqual(n, 63);
 });
 
 test('folders page: a picked type folder inside the base is used even when missing; outside the base it is not', () => {
@@ -55,6 +56,7 @@ test('folders page: a picked type folder inside the base is used even when missi
   assert.strictEqual(page.fmTypeDirOf(tree, t, 'PDF', types), B + '/new/PDF-here');
   assert.strictEqual(page.fmTypeDirOf(tree, t, 'DWG', types), B + '/LDLI-pub-sent-DWG', 'in the tree, in its spelling');
   assert.strictEqual(page.fmTypeDirOf(tree, TARGETS['picked outside the base'], 'PDF', types), B + '/PDF', 'outside the base and missing: not used (base/<type>)');
+  assert.strictEqual(page.fmTypeDirOf(tree, TARGETS['picked outside the base, in the tree'], 'PDF', types), B + '/LDLI-pub-sent-PDF', 'outside the base, in the tree: not used either (named like the DWG folder)');
 });
 
 test('folders page: a consultant folder\'s newest plan version', () => {

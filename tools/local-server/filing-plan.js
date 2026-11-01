@@ -267,19 +267,19 @@ function layoutFor(map, tree, types) {
 }
 
 /* A v2 target's folder for one type (spec 2026-10-28-folders-page-v2-design.md, "בניית הנתיב"): without byType the
-   base; with it the folder picked for the type when it is in the tree, or when it is inside the base (then made, with
-   any missing folder on the way: the page shows the picked folder, so filing goes there); a picked folder outside the
-   base and not in the tree is not used. Else one named like another picked folder of the tree whose name holds that
-   type's name as a whole word (LDLI-pub-sent-PDF -> LDLI-pub-sent-DOCS, next to it), else <base>/<type>. In the tree's
-   spelling where there; a path to make otherwise. */
+   base; with it the folder picked for the type when it is inside the base, in the tree or not (then made, with any
+   missing folder on the way: the page shows the picked folder, so filing goes there); a picked folder outside the base
+   is never used, in the tree or not. Else one named like another picked folder of the tree inside the base whose name
+   holds that type's name as a whole word (LDLI-pub-sent-PDF -> LDLI-pub-sent-DOCS, next to it), else <base>/<type>.
+   In the tree's spelling where there; a path to make otherwise. */
 function typeDirOf(list, t, type, types) {
   if (!t.byType) return inTree(list, t.base) || t.base;
-  const dirs = t.typeDirs || {};
-  const own = dirs[type] && inTree(list, dirs[type]);
-  if (own) return own;
   const base = inTree(list, t.base) || t.base;
-  const want = dirs[type] ? String(dirs[type]) : '';
-  if (want && base && lc(want).startsWith(lc(base) + '/')) {
+  const inBase = p => !!p && !!base && lc(p).startsWith(lc(base) + '/');
+  const dirs = {};
+  for (const [k, v] of Object.entries(t.typeDirs || {})) if (typeof v === 'string' && inBase(v)) dirs[k] = v;
+  const want = dirs[type] || '';
+  if (want) {
     // under the base, each folder on the way in the tree's spelling where it is there
     let dir = base;
     for (const part of want.slice(base.length + 1).split('/').filter(Boolean)) { const p = dir + '/' + part; dir = inTree(list, p) || p; }
@@ -291,7 +291,7 @@ function typeDirOf(list, t, type, types) {
     const name = p && L.renameType(leafOf(p), o.name, type);
     if (name && p.includes('/')) { const q = p.slice(0, p.lastIndexOf('/') + 1) + name; return inTree(list, q) || q; }
   }
-  const q = (inTree(list, t.base) || t.base) + '/' + type;
+  const q = base + '/' + type;
   return inTree(list, q) || q;
 }
 // a v2 SENT with its type folder inside the day folder (typeAt 'day'; it matters only by type and with date folders)

@@ -16730,16 +16730,18 @@ const fmDetect = (tree, base, types) => {
   }
   return levels.length ? levels : null;
 };
-// a v2 target's folder for one type: the picked one when in the tree or inside the base (made when missing), else
-// named like another picked folder, else <base>/<type>
+// a v2 target's folder for one type: the picked one when inside the base (made when missing; one outside the base is
+// never used), else named like another picked folder of the tree inside the base, else <base>/<type>
 const fmTypeDirOf = (list, t, type, types) => {
   if (!t.byType) return fmInTree(list, t.base) || t.base;
-  const dirs = t.typeDirs || {};
-  const own = dirs[type] && fmInTree(list, dirs[type]);
-  if (own) return own;
   const base = fmInTree(list, t.base) || t.base;
-  const want = dirs[type] ? String(dirs[type]) : '';
-  if (want && base && fmLc(want).startsWith(fmLc(base) + '/')) {
+  const inBase = p => !!p && !!base && fmLc(p).startsWith(fmLc(base) + '/');
+  const dirs = {};
+  Object.entries(t.typeDirs || {}).forEach(([k, v]) => {
+    if (typeof v === 'string' && inBase(v)) dirs[k] = v;
+  });
+  const want = dirs[type] || '';
+  if (want) {
     let dir = base;
     for (const part of want.slice(base.length + 1).split('/').filter(Boolean)) {
       const p = dir + '/' + part;
@@ -17858,7 +17860,7 @@ function InboxBatch({
     onChange: e => setUpdated(e.target.checked)
   }), h("span", null, "UPDATED (מחליף קובץ באותו שם)")) : null, mode === 'publish' ? slotHint('updated') : null, mode === 'publish' && prop && (prop.layoutFrom === 'detected' || prop.layoutFrom === 'convention') ? h("div", {
     className: "ib-hint"
-  }, prop.layoutFrom === 'convention' ? "לא זוהה מבנה בתיקיות — לפי המוסכמה. להגדרה: הגדרות הפרויקט ← תיקיות הפרויקט ← פרסום" : "המבנה זוהה מהתיקיות. לשמירה: הגדרות הפרויקט ← תיקיות הפרויקט ← פרסום") : null, mode === 'publish' && updated ? h("div", {
+  }, prop.layoutFrom === 'convention' ? "לא זוהה מבנה בתיקיות — לפי המוסכמה. להגדרה: הגדרות הפרויקט ← תיקיות הפרויקט ← PUBLISH" : "המבנה זוהה מהתיקיות. לשמירה: הגדרות הפרויקט ← תיקיות הפרויקט ← PUBLISH") : null, mode === 'publish' && updated ? h("div", {
     className: "ib-hint"
   }, "קובץ ישן באותו שם עובר ל-@ver ולא נמחק") : null, mode === 'receive' ? h("div", {
     className: "ib-hint"
@@ -18376,6 +18378,12 @@ function PublishFoldersBox({
       list: typeList,
       root: t.base,
       start: own || t.base,
+      check: v => fmLc(v).startsWith(fmLc(t.base) + '/') ? null : {
+        s: 'התיקייה שנבחרה לא בתוך {b}',
+        v: {
+          b: asTyped(fmLeaf(t.base))
+        }
+      },
       onSet: v => setT(key, o => ({
         ...o,
         typeDirs: {
@@ -18776,7 +18784,7 @@ function SettingsFoldersView({
   const [browsing, setBrowsing] = useState(''); // the row whose picker is open
   const browsingRef = useRef('');
   const [browseMsg, setBrowseMsg] = useState(null); // { id, s, v }
-  const browse = (id, start, apply) => {
+  const browse = (id, start, apply, check) => {
     if (!w || !has || browsingRef.current) return;
     browsingRef.current = id;
     setBrowsing(id);
@@ -18824,6 +18832,9 @@ function SettingsFoldersView({
           if (s.handed && !handedAt) handedAt = Date.now();
           const r = s.result;
           if (r && typeof r.rel === 'string') {
+            // a folder the row cannot take (a type folder outside its SENT / UPDATED folder): said, not stored
+            const bad = r.rel && check ? check(r.rel) : null;
+            if (bad) return stop(bad.s, bad.v);
             stop(null);
             // '' is the project folder itself: no folder of the map
             if (r.rel) apply(r.rel);
@@ -18873,7 +18884,8 @@ function SettingsFoldersView({
     root,
     start,
     onSet,
-    onClear
+    onClear,
+    check
   }) => [w && tree && list.length ? h("select", {
     key: 's',
     className: "fm-pick",
@@ -18890,7 +18902,7 @@ function SettingsFoldersView({
     className: "np-btn fm-browse",
     disabled: !has || !!browsing,
     title: has ? 'בחר תיקייה במחשב' : 'בחר קודם את תיקיית הפרויקט.',
-    onClick: () => browse(id, start, onSet)
+    onClick: () => browse(id, start, onSet, check)
   }, browsing === id ? '…' : 'סייר') : null, has && path ? h("button", {
     key: 'o',
     className: "fm-ico",

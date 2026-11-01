@@ -407,6 +407,11 @@ test('filing-plan: publishPlan v2 — a picked type folder not in the tree is us
   const deep = v2({ ...V2_SENT, typeDirs: { PDF: SENT.toUpperCase() + '/new/PDF-here' }, date: 'none' }, { files: [{ n: 0, name: 'K.pdf' }] });
   assert.deepStrictEqual(paths(deep)[0], [SENT + '/new/PDF-here']);
   assert.deepStrictEqual(deep.plan.steps.map(x => x.path), [SENT + '/new', SENT + '/new/PDF-here']);
+  // a picked folder outside the base is not used even when it is in the tree, nor named after
+  const out = v2({ ...V2_SENT, typeDirs: { PDF: UPD + '/LDLI-pub-updated-PDF', DWG: SENT + '/LDLI-pub-sent-DWG' }, date: 'none' }, { files: [{ n: 0, name: 'K.pdf' }] });
+  assert.deepStrictEqual(paths(out)[0], [SENT + '/LDLI-pub-sent-PDF'], 'in the tree, outside SENT: named like the DWG folder instead');
+  const only = v2({ ...V2_SENT, typeDirs: { PDF: UPD + '/LDLI-pub-updated-PDF' }, date: 'none' }, { files: [{ n: 0, name: 'a.zip' }] });
+  assert.deepStrictEqual(paths(only)[0], [SENT + '/DWG'], 'no sibling named after a folder outside SENT');
   // UPDATED the same
   const upd = v2(V2_SENT, { sent: false, updated: true, layout: { sent: V2_SENT, updated: { base: UPD, byType: true, typeDirs: { PDF: UPD + '/fresh-PDF' } } }, files: [{ n: 0, name: 'K.pdf' }] });
   assert.deepStrictEqual(upd.plan.files[0].dests, [{ path: UPD + '/fresh-PDF', replace: true }]);

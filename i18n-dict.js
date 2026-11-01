@@ -3348,7 +3348,7 @@ Object.assign(HE_EN, {
 "תיקייה קיימת מאותו יום: {d}": "An existing folder from that day: {d}",
 "יש כבר תיקיות מהיום: {d} — בחר מהרשימה, או כתוב תיאור חדש": "There are already folders from today: {d} — pick from the list, or type a new description",
 "UPDATED (מחליף קובץ באותו שם)": "UPDATED (replaces a file of the same name)",
-"המבנה זוהה מהתיקיות. לשמירה: הגדרות הפרויקט ← תיקיות הפרויקט ← פרסום": "The layout was recognized from the folders. To save it: Project settings → Project folders → Publishing",
+"המבנה זוהה מהתיקיות. לשמירה: הגדרות הפרויקט ← תיקיות הפרויקט ← PUBLISH": "The layout was recognized from the folders. To save it: Project settings → Project folders → PUBLISH",
 "סוג הקובץ": "File type",
 "בטל שינוי": "Undo change",
 "בחר תיקייה ל-SENT של הקובץ הזה": "Choose a SENT folder for this file",
@@ -3358,7 +3358,7 @@ Object.assign(HE_EN, {
 "חלק מהתיקיות של הקובץ הזה לא ייווצרו — הוא לא יגיע לכל היעדים": "Some of this file's folders will not be created — it will not reach every destination",
 "התיקייה שתויקו אליה הקבצים:": "The folder the files were filed to:",
 "התיקיות שתויקו אליהן הקבצים:": "The folders the files were filed to:",
-"לא זוהה מבנה בתיקיות — לפי המוסכמה. להגדרה: הגדרות הפרויקט ← תיקיות הפרויקט ← פרסום": "No layout was recognized in the folders — using the convention. To set it: Project settings → Project folders → Publishing",
+"לא זוהה מבנה בתיקיות — לפי המוסכמה. להגדרה: הגדרות הפרויקט ← תיקיות הפרויקט ← PUBLISH": "No layout was recognized in the folders — using the convention. To set it: Project settings → Project folders → PUBLISH",
 "CONSULTANTS — מה שאנחנו מקבלים מיועצים": "CONSULTANTS — what we receive from consultants",
 "PUBLISH — מה שאנחנו שולחים": "PUBLISH — what we send",
 "אין עדיין תיקיות יועצים": "No consultant folders yet",
@@ -3385,6 +3385,7 @@ Object.assign(HE_EN, {
 "תיקייה נפרדת לכל סוג קובץ": "A separate folder for each file type",
 "תיקייה ראשית": "Main folder",
 "תיקיית תאריך": "Date folder",
+"התיקייה שנבחרה לא בתוך {b}": "The chosen folder is not inside {b}",
 });
 
 window.I18N_HE_EN = HE_EN;
