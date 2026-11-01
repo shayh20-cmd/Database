@@ -581,6 +581,7 @@
       const setSp = (j, p) => setSpaces(spaces.map((x, k) => k === j ? Object.assign({}, x, p) : x));
       const setEx = (j, p) => setExits(exits.map((x, k) => k === j ? Object.assign({}, x, p) : x));
       const exitLines = o.lines.filter(l => l.k === 'exit'), count = o.lines.find(l => l.k === 'count'), corr = o.lines.find(l => l.k === 'corridor');
+      const sums = o.lines.filter(l => l.k === 'doorSum' || l.k === 'stairSum');
       const singleWhy = f.single === 'res' ? 'בניין מגורים שאינו רב-קומות — 3.2.13.3(א)(1)' : f.single === 'small' ? 'עד 30 איש ומרחק הליכה עד 30 מ\' — 3.2.13.3(א)(2)' : '';
       return h('div', { key: fl.id || i, className: 'cx-blk' },
         h('div', { className: 'cx-blk-h' },
@@ -624,12 +625,12 @@
         f.occ > 0 && h('div', { className: 'cx-card-b cx-req' },
           h('div', null, h('b', null, T('{n} איש בקומה', { n: f.occ })), ' · ', T('{n} דרכי מוצא נדרשות', { n: f.exits }), singleWhy && h('span', { className: 'cx-rule' }, ' (' + T(singleWhy) + ')'),
             f.roomMax > 2 && h('span', { className: 'cx-rule' }, ' · ', T('לפחות כמספר היציאות מהחלל הגדול (3.2.13.3(ד))'))),
-          h('div', null, T('לכל דרך מוצא: {p} איש', { p: Math.ceil(f.share) }), ' → ',
-            T('מהלך אופקי {a}', { a: m2(f.horizPer) }), ' · ', T('מדרגות {a}', { a: m2(f.stairPer) }),
-            f.stairGov > f.stairPer && h('span', { className: 'cx-rule' }, ' · ', T('מדרגות לפי הקומה הגדולה שהן משרתות: {a}', { a: m2(f.stairGov) })),
-            h('span', { className: 'cx-rule' }, ' · ', T('מקדם {s}/{h} ס"מ לנפש', { s: f.wf.s, h: f.wf.h }))),
+          h('div', null, T('רוחב מילוט כולל מהקומה'), ': ',
+            T('מהלך אופקי {a}', { a: m2(f.horizTot) }), ' · ', T('מדרגות {a}', { a: m2(f.stairGov) }),
+            f.stairGov > f.stairTot && h('span', { className: 'cx-rule' }, ' ', T('(לפי הקומה הגדולה שהמדרגות משרתות)')),
+            h('span', { className: 'cx-rule' }, ' · ', T('מקדם {s}/{h} ס"מ לנפש', { s: f.wf.s, h: f.wf.h }), ' · ', T('החלוקה בין דרכי המוצא חופשית, כל אחת לפחות במינימום (3.2.12.1(ב), 3.2.12.4)'))),
           h('div', null, T('פרוזדור: {a}', { a: m2(f.corrReq) }), h('span', { className: 'cx-rule' }, ' ', T('(הגדול מבין חישוב {c} ומינימום {m})', { c: m2(f.corrCalc), m: m2(f.corrMin) })),
-            ' · ', T('מדרגות: {a}', { a: m2(f.stairReq) }), h('span', { className: 'cx-rule' }, ' ', T('(מינימום {m} — 3.2.2.2)', { m: m2(f.stairMin) })),
+            ' · ', T('כל גרם מדרגות: לפחות {a}', { a: m2(f.stairMin) }), h('span', { className: 'cx-rule' }, ' (3.2.2.2)'),
             ' · ', f.panic ? h('span', { className: 'cx-tag warn' }, 'מנגנון בהלה בדלתות היציאה מהקומה (מעל 100 איש)') : h('span', { className: 'cx-rule' }, 'ללא חובת מנגנון בהלה')),
           sh.height !== 'tower' && !sh.residential && f.occ <= 30 && h('label', { className: 'cx-rule', style: { display: 'block', marginTop: 4 } },
             h('input', { type: 'checkbox', checked: !!fl.short30, onChange: e => setFloor(i, { short30: e.target.checked }) }), ' ', 'מרחק ההליכה מכל נקודה בקומה אל מוצא בטוח או יציאה אינו עולה על 30 מ\' (מאפשר דרך מוצא אחת)')),
@@ -658,6 +659,8 @@
           }) : h('tr', null, h('td', { colSpan: 9, className: 'cx-hint', style: { padding: 12 } }, 'הוסיפו את דרכי המוצא מהקומה — חדרי מדרגות או יציאות באותה קומה'))))),
         h('div', { className: 'cx-card-b', style: { paddingTop: 6 } },
           h('span', { className: count.ok ? 'cx-p-ok' : 'cx-p-bad' }, T('דרכי מוצא: {h} מתוך {n} נדרשות', { h: count.have, n: count.need })), ' ',
+          sums.map(l => h(React.Fragment, { key: l.k }, h('span', { className: l.ok ? 'cx-p-ok' : 'cx-p-bad' },
+            T(l.k === 'doorSum' ? 'סה"כ רוחב דלתות {h} מול {n} נדרש' : 'סה"כ רוחב מדרגות {h} מול {n} נדרש', { h: l.have.toFixed(2), n: l.need.toFixed(2) })), ' ')),
           corr && h('span', { className: corr.ok ? 'cx-p-ok' : 'cx-p-bad' }, T('פרוזדור {h} מול {n} נדרש', { h: (+corr.have).toFixed(2), n: corr.need.toFixed(2) }))));
     };
 
@@ -688,13 +691,15 @@
       !rows.length ? h('div', { className: 'cx-hint' }, 'הוסיפו חללים כדי לחשב את הדרישה') : h(React.Fragment, null,
         h('div', { className: 'cx-verdict ' + (chk.bad ? 'bad' : 'ok') }, chk.bad ? T('✗ {n} פערים מול הדרישה', { n: chk.bad }) : '✓ דרכי המוצא עומדות בדרישות'),
         h('div', { className: 'cx-scroll' }, h('table', { className: 'cx-t c' },
-          h('thead', null, h('tr', null, ['קומה', 'מפלס', 'אנשים', 'דרכי מוצא', 'רוחב אופקי לדרך', 'מדרגות נדרש', 'פרוזדור', 'בהלה', 'פערים'].map(x => h('th', { key: x }, x)))),
+          h('thead', null, h('tr', null, ['קומה', 'מפלס', 'אנשים', 'דרכי מוצא', 'רוחב אופקי כולל', 'מדרגות כולל', 'פרוזדור', 'בהלה', 'פערים'].map(x => h('th', { key: x }, x)))),
           h('tbody', null, rows.map((o, k) => {
             const cnt = o.lines.find(l => l.k === 'count'), cr = o.lines.find(l => l.k === 'corridor');
+            const sumCell = (k, need) => { const l = o.lines.find(z => z.k === k);
+              return h('td', { className: 'n ' + (l && !l.ok ? 'cx-bad' : '') }, l ? `${l.have.toFixed(2)} / ${l.need.toFixed(2)}` : need ? need.toFixed(2) : '—'); };
             return h('tr', { key: k, className: o.bad ? 'bad' : '' },
               h('td', Object.assign({ className: 'gl' }, SKIP), o.fl.name), h('td', { className: 'n' }, o.fl.level || 0), h('td', { className: 'n' }, o.f.occ),
               h('td', { className: 'n ' + (cnt.ok ? '' : 'cx-bad') }, `${cnt.have} / ${cnt.need}`),
-              h('td', { className: 'n' }, o.f.horizPer.toFixed(2)), h('td', { className: 'n' }, o.f.stairReq.toFixed(2)),
+              sumCell('doorSum', o.f.horizTot), sumCell('stairSum', o.f.stairGov),
               h('td', { className: 'n ' + (cr && !cr.ok ? 'cx-bad' : '') }, cr ? `${(+cr.have).toFixed(2)} / ${cr.need.toFixed(2)}` : o.f.corrReq.toFixed(2)),
               h('td', null, o.f.panic ? h('span', { className: 'cx-tag warn' }, 'נדרש') : '—'),
               h('td', null, okPill(!o.bad, '✓', T('✗ {n}', { n: o.bad }))));
@@ -703,7 +708,7 @@
 
     const src = Card(4, 'מקורות', null, h('div', { className: 'cx-card-b' },
       h('div', { className: 'cx-cite' }, '📖 תקנות התכנון והבנייה (בקשה להיתר, תנאיו ואגרות), התש"ל-1970 — תוספת שנייה, חלק ג\': בטיחות אש בבניינים.'),
-      h('div', { className: 'cx-cite' }, '3.2.12.1–3.2.12.3 — תפוסה לפי שטח שימושי ומקדם תפוסה (טבלה 3.2.12.2); שטחי פרוזדורים, מדרגות, שירותים וחדרים טכניים אינם בחישוב. 3.2.12.4 — מקדם רוחב: מדרגות 0.8 / מהלך אופקי 0.5 ס"מ לנפש (בתי חולים וסיכון גבוה — לפי הטבלה). 3.2.12.5 — פרוזדור: התפוסה חלקי מספר דרכי המוצא כפול המקדם, ולא פחות מטבלה 3.2.12.5. 3.2.12.7 — בשימושים שונים קובע המקדם הרחב.'),
+      h('div', { className: 'cx-cite' }, '3.2.12.1–3.2.12.3 — תפוסה לפי שטח שימושי ומקדם תפוסה (טבלה 3.2.12.2); שטחי פרוזדורים, מדרגות, שירותים וחדרים טכניים אינם בחישוב. 3.2.12.4 — מקדם רוחב: מדרגות 0.8 / מהלך אופקי 0.5 ס"מ לנפש (בתי חולים וסיכון גבוה — לפי הטבלה), לפי מספר האנשים שכל דרך משרתת; סך רוחב דרכי המוצא נותן מענה לתפוסת הקומה כולה (3.2.12.1(ב)), והחלוקה ביניהן אינה חייבת להיות שווה. 3.2.12.5 — פרוזדור: התפוסה חלקי מספר דרכי המוצא כפול המקדם, ולא פחות מטבלה 3.2.12.5. 3.2.12.7 — בשימושים שונים קובע המקדם הרחב.'),
       h('div', { className: 'cx-cite' }, '3.2.1.3 — רוחב דלת: הגדול מבין החישוב לפי התפוסה לבין טבלה 3.2.1.3. 3.2.1.21 — מנגנון בהלה בדלת יציאה מחלק בניין או קומה שתפוסתם מעל 100 איש. 3.2.2.2 — מדרגות 1.10 מ\' לפחות; 1.00 בבניין שאינו גבוה; 0.90 בבניין מגורים עד 2 דירות.'),
       h('div', { className: 'cx-cite' }, '3.2.13.2 — יציאות מחדר: 2 מ-50 איש (או אחסון חומרים מסוכנים מעל 20 מ"ר), 3 מעל 500, 4 מעל 1,000. 3.2.13.3 — דרכי מוצא מקומה: 2, למעט בניין מגורים שאינו רב-קומות או עד 30 איש ומרחק הליכה עד 30 מ\'; 3 מעל 500, 4 מעל 1,000. 3.2.12.1(ג) — אין הפחתה במספר דרכי המוצא או ברוחבן בכיוון המילוט.')));
 

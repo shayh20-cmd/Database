@@ -152,7 +152,19 @@ test('בטיחות: stairs keep the largest floor they serve on the way down', (
     { name: '2', level: 2, spaces: [{ use: 'b41', area: 3500 }], exits: [{ kind: 'stair', door: 0.9, stair: 1.4, panic: true }, { kind: 'stair', door: 0.9, stair: 1.4, panic: true }] },
   ]));
   const [f1, f2] = c.floors;
-  assert.deepStrictEqual([f1.f.stairPer, f1.f.stairReq, f2.f.stairReq], [0.48, 1.4, 1.4]);
-  assert.strictEqual(f1.lines.find(l => l.k === 'exit').items.find(i => i.k === 'stair').ok, false);  // 1.10 < 1.40
+  assert.deepStrictEqual([f1.f.stairTot, f1.f.stairGov, f2.f.stairGov], [0.96, 2.8, 2.8]);   // 350 × 0.8 cm carried down
+  assert.strictEqual(f1.lines.find(l => l.k === 'stairSum').ok, false);                       // 2 × 1.10 < 2.80
   assert.strictEqual(f2.bad, 0);
+});
+
+test('בטיחות: the total width may be split unevenly; each exit keeps its minimum', () => {
+  const fl = stairs => ({ name: '1', level: 1, spaces: [{ use: 'b41', area: 3500 }],
+    exits: stairs.map(w => ({ kind: 'stair', door: 0.9, stair: w, panic: true })) });
+  const ok = R.safCheck(SAF([fl([1.2, 1.6])])).floors[0];
+  assert.deepStrictEqual([ok.f.stairGov, ok.bad], [2.8, 0]);                                  // 1.20 + 1.60 = 2.80
+  const thin = R.safCheck(SAF([fl([0.9, 1.9])])).floors[0];
+  assert.strictEqual(thin.lines.find(l => l.k === 'stairSum').ok, true);
+  assert.strictEqual(thin.lines.filter(l => l.k === 'exit' && !l.ok).length, 1);              // 0.90 is under the 3.2.2.2 minimum
+  const ground = R.safCheck(SAF([{ name: '0', level: 0, spaces: [{ use: 'b41', area: 2000 }], exits: [{ kind: 'level', door: 0.6, panic: true }, { kind: 'level', door: 1.2, panic: true }] }])).floors[0];
+  assert.deepStrictEqual(ground.lines.filter(l => !l.ok).map(l => l.k), ['exit']);            // 200 people: 1.00 m total, but 0.60 < 1.10
 });

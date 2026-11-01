@@ -890,6 +890,8 @@ function safFloor(fl, sh) {
   return {
     spaces, occ, exits, single, roomMax, share, wf,
     horizPer: r2s(share * wf.h / 100), stairPer: r2s(share * wf.s / 100),
+    // the floor's total width; it may be split unevenly between the exits (3.2.12.1(ב), 3.2.12.4)
+    horizTot: r2s(occ * wf.h / 100), stairTot: r2s(occ * wf.s / 100),
     doorMinLevel: levelDoor ? 1.10 : 0.80, doorMinStair: levelDoor ? 1.10 : 0.90,       // table 3.2.1.3 rows 1, 12, 13
     stairMin, corrMin: corr.w, corr, corrCalc: r2s(share * wf.h / 100),
     panic: occ > 100,                                                                    // 3.2.1.21
@@ -900,23 +902,33 @@ function safCheck(sh) {
   const floors = (sh.floors || []).map(fl => ({ fl, f: safFloor(fl, sh) }));
   floors.forEach(o => {
     const L = +o.fl.level || 0;
+    // stairs carry the floors they serve on the way to the exit level, with no reduction (3.2.12.1(ג));
     // a stair at the exit level carries everyone coming down or up to it
     const served = floors.filter(p => { const M = +p.fl.level || 0; return L > 0 ? M >= L : L < 0 ? M <= L : true; });
-    o.f.stairGov = r2s(Math.max(o.f.stairPer, ...served.map(p => p.f.stairPer)));
-    o.f.stairReq = r2s(Math.max(o.f.stairMin, o.f.stairGov));
+    o.f.stairGov = r2s(Math.max(o.f.stairTot, ...served.map(p => p.f.stairTot)));
+    o.f.stairReq = o.f.stairMin;
     o.f.corrReq = r2s(Math.max(o.f.corrMin, o.f.corrCalc));
     const ex = o.fl.exits || [];
     const lines = [];
     lines.push({ k: 'count', need: o.f.exits, have: ex.length, ok: ex.length >= o.f.exits });
+    // each exit: the minimum widths only; the floor's total width is checked on the sums below
     ex.forEach(e => {
       const isStair = e.kind === 'stair';
-      const doorNeed = r2s(Math.max(isStair ? o.f.doorMinStair : o.f.doorMinLevel, o.f.horizPer));
-      const items = [{ k: 'door', need: doorNeed, have: +e.door || 0 }];
-      if (isStair) items.push({ k: 'stair', need: o.f.stairReq, have: +e.stair || 0 });
+      const items = [{ k: 'door', need: isStair ? o.f.doorMinStair : o.f.doorMinLevel, have: +e.door || 0 }];
+      if (isStair) items.push({ k: 'stair', need: o.f.stairMin, have: +e.stair || 0 });
       if (o.f.panic) items.push({ k: 'panic', need: true, have: !!e.panic });
       items.forEach(i => { i.ok = i.k === 'panic' ? i.have : i.have + 1e-9 >= i.need; });
       lines.push({ k: 'exit', e, isStair, items, ok: items.every(i => i.ok) });
     });
+    if (ex.length && o.f.occ > 0) {
+      const doors = r2s(ex.reduce((a, e) => a + (+e.door || 0), 0));
+      lines.push({ k: 'doorSum', need: o.f.horizTot, have: doors, ok: doors + 1e-9 >= o.f.horizTot });
+    }
+    const stairs = ex.filter(e => e.kind === 'stair');
+    if (stairs.length && o.f.stairGov > 0) {
+      const sw = r2s(stairs.reduce((a, e) => a + (+e.stair || 0), 0));
+      lines.push({ k: 'stairSum', need: o.f.stairGov, have: sw, ok: sw + 1e-9 >= o.f.stairGov });
+    }
     if (o.fl.corridorW != null && o.fl.corridorW !== '') lines.push({ k: 'corridor', need: o.f.corrReq, have: +o.fl.corridorW || 0, ok: +o.fl.corridorW + 1e-9 >= o.f.corrReq });
     const spaceBad = o.f.spaces.filter(s => s.x.entered && !s.x.ok).length;
     o.lines = lines; o.bad = lines.filter(l => !l.ok).length + spaceBad;
