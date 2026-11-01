@@ -40,6 +40,10 @@ try {
   Check 'tree: parents before children' ([array]::IndexOf($tree, 'CONS') -lt [array]::IndexOf($tree, 'CONS/S'))
   Check 'tree: depth limit' (-not ((Get-FolderTree $root 2) -contains 'CONS/S/plans'))
   Check 'tree: count limit' ((Get-FolderTree $root 5 3).Count -eq 3)
+  # the Library's day folders sit 6 levels down: the tree reads 7 by default, not 8
+  New-Item -ItemType Directory -Force -Path (Join-Path $root 'L1/L2/L3/L4/L5/L6/L7/L8') | Out-Null
+  $deepTree = Get-FolderTree $root
+  Check 'tree: 7 levels deep by default' (($deepTree -contains 'L1/L2/L3/L4/L5/L6/L7') -and -not ($deepTree -contains 'L1/L2/L3/L4/L5/L6/L7/L8'))
 
   # free names
   Check 'free name: as is' ((Get-FreeName (Join-Path $root 'CONS\S\docs') 'b.pdf') -eq 'b.pdf')
