@@ -109,12 +109,13 @@ function inboxPlan({ slots, tree, code, files, sent, updated, date }) {
   return { plan, ...(Object.keys(missing).length ? { slotsMissing: missing } : {}) };
 }
 
-/* the description of a day folder: what follows its name and a '-' (spaces around it or not: "…,10,19 - desc",
-   "…,02,24- desc"), or null when the folder is not that day's or has none */
+/* the description of a day folder: what follows its name and a '-' with a space on at least one side ("…,10,19 - desc",
+   "…,02,24- desc", "… -desc"; "…,09,08-2" is a numbering, not a description), or null when the folder is not that
+   day's or has none */
 const descOf = (leaf, name) => {
   if (!lc(leaf).startsWith(lc(name))) return null;
-  const m = /^ ?- ?(.*)$/.exec(leaf.slice(name.length));
-  const d = m ? m[1].trim() : '';
+  const m = /^( ?)-( ?)(.*)$/.exec(leaf.slice(name.length));
+  const d = m && (m[1] || m[2]) ? m[3].trim() : '';
   return d || null;
 };
 
@@ -317,16 +318,23 @@ const typeInDay = t => !!t.byType && t.typeAt === 'day' && t.date !== 'none';
    real type folder, and gives the year's name (LDLI-pub-{type}-{yyyy}), so another year goes next to it, made. A type
    with no pick of its own next to such a pick is named after it, type folder and year alike
    (…/LDLI-pub-sent-PDF/LDLI-pub-PDF-2026 -> …/LDLI-pub-sent-DOCS, LDLI-pub-{type}-{yyyy}). With date 'day' or 'none',
-   not by type, or the type inside the day, the folder typeDirOf gives is used as it is. */
-function sentStart(list, t, type, types) {
+   not by type, or the type inside the day, the folder typeDirOf gives is used as it is. Only a folder deeper than right
+   under the base is split (a type folder right under it is never a year folder, whatever its name), and the year is
+   read after the project code when the name starts with it (code 2031: 2031-pub-PDF-2026 is 2026's; 2031-pub-PDF has
+   none). */
+function sentStart(list, t, type, types, code) {
   const dir = typeDirOf(list, t, type, types);
   const mode = L.DATES.includes(t.date) ? t.date : 'year-day';
   if (!t.byType || typeInDay(t) || mode !== 'year-day') return { dir, year: null };
   const names = types.map(x => x.name);
+  const base = inTree(list, t.base) || t.base;
   const split = p => {
-    const i = p.lastIndexOf('/');
-    const r = i > 0 ? L.readName(leafOf(p), names) : null;
-    return r && r.kind === 'year' ? { dir: p.slice(0, i), year: r } : null;
+    const parent = p.slice(0, Math.max(0, p.lastIndexOf('/')));
+    if (!base || !lc(parent).startsWith(lc(base) + '/')) return null;
+    const leaf = leafOf(p);
+    const head = code && lc(leaf).startsWith(lc(code) + '-') ? leaf.slice(0, code.length + 1) : '';
+    const r = L.readName(leaf.slice(head.length), names);
+    return r && r.kind === 'year' ? { dir: parent, year: { kind: 'year', pattern: head + r.pattern } } : null;
   };
   const dirs = pickedIn(list, t);
   if (!dirs[type]) for (const o of types) {
@@ -353,7 +361,7 @@ function dateLevels(list, t, types, code) {
   if (mode === 'none') return [];
   const inDay = typeInDay(t);
   let year = null, day = null, type = null;
-  const starts = t.byType && !inDay ? types.map(x => sentStart(list, t, x.name, types)) : [];
+  const starts = t.byType && !inDay ? types.map(x => sentStart(list, t, x.name, types, code)) : [];
   const dirs = t.byType && !inDay ? starts.map(x => x.dir).filter(p => inTree(list, p)) : [inTree(list, t.base)].filter(Boolean);
   for (const dir of dirs) {
     const together = !t.byType || inDay;
@@ -407,7 +415,7 @@ function publishPlan({ layout, types, tree, code, files, sent, updated, date, de
     if (!L.isV2(t)) return { start: key === 'sent' ? sentBase : updBase, levels: t.levels || [] };
     if (key === 'sent' && typeInDay(t)) return { start: sentBase, levels: sentDates };
     if (key !== 'sent') return { start: typeDirOf(list, t, type, types), levels: [] };
-    const s = sentStart(list, t, type, types);
+    const s = sentStart(list, t, type, types, code);
     return { start: s.dir, levels: s.year ? sentDates.map(l => (l.kind === 'year' ? s.year : l)) : sentDates };
   };
   const walk = (key, type, withDesc) => {

@@ -16,7 +16,7 @@ const L = require('../tools/local-server/filing-layout');
 
 const DATE = '2026-10-28';
 const fmFill = (pattern, v) => ['code', 'type', 'yyyy', 'mm', 'dd'].reduce((s, k) => s.split('{' + k + '}').join(v[k] == null ? '' : String(v[k])), String(pattern || ''));
-const pageAt = date => new Function('fmFill', 'FM_DATES', 'fmToday', m[1] + '\nreturn { fmSentPath, fmTypeDirOf, fmTopVersion };')(fmFill, ['year-day', 'day', 'none'], () => date);
+const pageAt = date => new Function('fmFill', 'FM_DATES', 'fmToday', m[1] + '\nreturn { fmSentPath, fmTypeDirOf, fmTopVersion, fmSentStart, fmTypeRowDir };')(fmFill, ['year-day', 'day', 'none'], () => date);
 const page = pageAt(DATE);
 
 const types = L.OFFICE_TYPES;
@@ -86,4 +86,48 @@ test('folders page: a consultant folder\'s newest plan version', () => {
   assert.strictEqual(page.fmTopVersion(['W', 'W/C', C, C + '/X-elec-plans', C + '/X-elec-plans/X-elec-plans-v02', C + '/X-elec-plans/X-elec-plans-v10', C + '/X-elec-plans/X-elec-@ver'], C), 'X-elec-plans-v10');
   assert.strictEqual(page.fmTopVersion(['W', 'W/C', C, C + '/a-v3'], C), 'a-v3', 'versions in the folder itself');
   assert.strictEqual(page.fmTopVersion(['W', 'W/C', C], C), '');
+});
+
+test('folders page: a year in the project code splits nothing — page and server agree', () => {
+  let n = 0;
+  for (const code of ['2031', '2024-20']) {
+    const CB = 'W/' + code + '-pub-@sent', T = CB + '/' + code + '-pub-sent-PDF', Y = T + '/' + code + '-pub-PDF-2026';
+    const tree = ['W', CB, T, Y, Y + '/' + code + '-pub-PDF-2026,10,01', CB + '/sub'];
+    for (const PDF of [T, Y, CB + '/sub/' + code + '-pub-PDF', CB + '/PDF-2020']) {
+      for (const date of [DATE, '2027-01-05']) {
+        const t = { base: CB, byType: true, typeAt: 'top', date: 'year-day', typeDirs: { PDF } };
+        for (const [type, name] of [['PDF', 'a.pdf'], ['DWG', 'b.dwg']]) {
+          const r = plan.publishPlan({ layout: { sent: t, updated: { base: '', byType: false, typeDirs: {} } }, types, tree, code, files: [{ n: 0, name }], sent: true, updated: false, date });
+          assert.strictEqual(pageAt(date).fmSentPath(tree, t, types, type, code), r.plan.files[0].dests[0].path, code + ' / ' + PDF + ' / ' + date + ' / ' + type);
+          n++;
+        }
+      }
+    }
+  }
+  assert.strictEqual(n, 32);
+});
+
+test('folders page: the type row names the folder the date folders go under, as the server files', () => {
+  let n = 0;
+  for (const date of [DATE, '2027-01-05']) {
+    const at = pageAt(date);
+    for (const [tn, tree] of Object.entries(TREES)) {
+      for (const [ln, t] of Object.entries(TARGETS)) {
+        if (!t.byType || t.typeAt === 'day') continue;
+        for (const [type, name] of [['PDF', 'a.pdf'], ['DWG', 'b.dwg'], ['DOCS', 'c.txt']]) {
+          const r = plan.publishPlan({ layout: { sent: t, updated: { base: '', byType: false, typeDirs: {} } }, types, tree, code: 'LDLI', files: [{ n: 0, name }], sent: true, updated: false, date });
+          const server = r.plan.files[0].dests[0].path;
+          const row = at.fmTypeRowDir(tree, t, types, type, 'LDLI');
+          // under it: the day only when the pick gave the year, the year and the day with 'year-day', the day with 'day'
+          const below = t.date === 'none' ? 0 : t.date === 'day' || at.fmSentStart(tree, t, type, types, 'LDLI').year ? 1 : 2;
+          const want = server.split('/').slice(0, server.split('/').length - below).join('/');
+          assert.strictEqual(row, want, date + ' / ' + tn + ' / ' + ln + ' / ' + type);
+          n++;
+        }
+      }
+    }
+  }
+  assert.ok(n > 100, String(n));
+  // the Library in 2027: the row names the new year folder, to be made
+  assert.strictEqual(pageAt('2027-01-05').fmTypeRowDir(TREES['library, no day folders'], TARGETS['year folders picked'], types, 'PDF', 'LDLI'), B + '/LDLI-pub-sent-PDF/LDLI-pub-PDF-2027');
 });

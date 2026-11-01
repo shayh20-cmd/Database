@@ -620,3 +620,32 @@ test('filing-plan: publishPlan v2 — the day folders offered in the picked year
   const same = picked(LIB_PICKED, { date: '2026-10-19', desc: 'חניה זמנית' });
   assert.deepStrictEqual([paths(same), same.plan.steps], [[[LIB_PDF_YEAR + '/LDLI-pub-PDF-2026,10,19 - חניה זמנית']], []]);
 });
+
+test('filing-plan: publishPlan v2 — a year in the project code or a type folder right under the base splits nothing', () => {
+  const run = (code, base, tree, typeDirs, over) => plans.publishPlan({ layout: { sent: { base, byType: true, typeAt: 'top', date: 'year-day', typeDirs }, updated: { base: '', byType: false, typeDirs: {} } }, types: L.OFFICE_TYPES, tree, code, files: [{ n: 0, name: 'a.pdf' }], sent: true, updated: false, date: '2026-11-01', desc: '', ...over });
+  const dest = r => r.plan.files[0].dests[0].path;
+  for (const code of ['2031', '2024-20']) {
+    const B = 'W/' + code + '-pub-@sent', T = B + '/' + code + '-pub-sent-PDF', Y = T + '/' + code + '-pub-PDF-2026';
+    const tree = ['W', B, T, Y, Y + '/' + code + '-pub-PDF-2026,10,01'];
+    assert.strictEqual(dest(run(code, B, tree, { PDF: T })), Y + '/' + code + '-pub-PDF-2026,11,01', code + ': the type folder picked');
+    assert.strictEqual(dest(run(code, B, tree, { PDF: Y })), Y + '/' + code + '-pub-PDF-2026,11,01', code + ': the year folder picked');
+    assert.strictEqual(dest(run(code, B, tree, { PDF: Y }, { date: '2027-01-05' })), T + '/' + code + '-pub-PDF-2027/' + code + '-pub-PDF-2027,01,05', code + ': next year');
+    // deeper in the base, named with the code only: no year read from the code
+    const D = B + '/sub/' + code + '-pub-PDF';
+    assert.strictEqual(dest(run(code, B, ['W', B, B + '/sub', D], { PDF: D })), D + '/' + code + '-pub-sent-2026/' + code + '-pub-2026,11,01', code + ': the code is no year');
+  }
+  // a type folder right under the base whose name holds a year is the type folder
+  const B = 'W/S';
+  assert.strictEqual(dest(run('X', B, ['W', B, B + '/PDF-2020'], { PDF: B + '/PDF-2020' })), B + '/PDF-2020/X-pub-sent-2026/X-pub-2026,11,01');
+  // and a type without a pick is named next to it, inside the base: nothing is made outside the base
+  const S = 'W/P/sent-PDF';
+  const dwg = run('X', S, ['W', 'W/P', S, S + '/PDF-2026'], { PDF: S + '/PDF-2026' }, { files: [{ n: 0, name: 'a.dwg' }] });
+  assert.ok(dwg.plan.steps.every(s => s.path.startsWith(S + '/')), JSON.stringify(dwg.plan.steps));
+  assert.ok(dest(dwg).startsWith(S + '/DWG-2026/'), dest(dwg));
+});
+
+test('filing-plan: publishPlan v2 — a day folder\'s description needs a space by its dash; "-2" is no description', () => {
+  const tree = [...LIB_DEEP, LIB_PDF_YEAR + '/LDLI-pub-PDF-2026,09,08-2', LIB_PDF_YEAR + '/LDLI-pub-PDF-2026,09,08 -ערב'];
+  assert.deepStrictEqual(picked(LIB_PICKED, { tree, date: '2026-09-08' }).days, ['ערב']);
+  assert.deepStrictEqual(paths(picked(LIB_PICKED, { tree, date: '2026-09-08', desc: '2' })), [[LIB_PDF_YEAR + '/LDLI-pub-PDF-2026,09,08 - 2']]);
+});

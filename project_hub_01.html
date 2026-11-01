@@ -16770,8 +16770,9 @@ const fmTypeDirOf = (list, t, type, types) => {
 const fmTypeInDay = t => !!t.byType && t.typeAt === 'day' && t.date !== 'none';
 // where a v2 SENT with its type folders on top starts for a type, and the year its pick gives ({ dir, year }): with
 // 'year-day', a picked type folder named as a year folder (LDLI-pub-PDF-2026) stands for its parent and gives the
-// year's name; a type with no pick next to such a pick is named after it. As filing-plan.js's sentStart
-const fmSentStart = (list, t, type, types) => {
+// year's name; a type with no pick next to such a pick is named after it. Only a folder deeper than right under the
+// base is split, its year read after the project code. As filing-plan.js's sentStart
+const fmSentStart = (list, t, type, types, code) => {
   const dir = fmTypeDirOf(list, t, type, types);
   const mode = FM_DATES.includes(t.date) ? t.date : 'year-day';
   if (!t.byType || fmTypeInDay(t) || mode !== 'year-day') return {
@@ -16779,12 +16780,19 @@ const fmSentStart = (list, t, type, types) => {
     year: null
   };
   const names = types.map(x => x.name);
+  const base = fmInTree(list, t.base) || t.base;
   const split = p => {
-    const i = p.lastIndexOf('/');
-    const r = i > 0 ? fmReadName(fmLeaf(p), names) : null;
+    const parent = p.slice(0, Math.max(0, p.lastIndexOf('/')));
+    if (!base || !fmLc(parent).startsWith(fmLc(base) + '/')) return null;
+    const leaf = fmLeaf(p);
+    const head = code && fmLc(leaf).startsWith(fmLc(code) + '-') ? leaf.slice(0, code.length + 1) : '';
+    const r = fmReadName(leaf.slice(head.length), names);
     return r && r.kind === 'year' ? {
-      dir: p.slice(0, i),
-      year: r
+      dir: parent,
+      year: {
+        kind: 'year',
+        pattern: head + r.pattern
+      }
     } : null;
   };
   const dirs = fmPickedIn(list, t);
@@ -16814,7 +16822,7 @@ const fmDateLevels = (list, t, types, code) => {
   let year = null,
     day = null,
     type = null;
-  const starts = t.byType && !inDay ? types.map(x => fmSentStart(list, t, x.name, types)) : [];
+  const starts = t.byType && !inDay ? types.map(x => fmSentStart(list, t, x.name, types, code)) : [];
   const dirs = t.byType && !inDay ? starts.map(x => x.dir).filter(p => fmInTree(list, p)) : [fmInTree(list, t.base)].filter(Boolean);
   for (const dir of dirs) {
     const together = !t.byType || inDay;
@@ -16854,7 +16862,7 @@ const fmSentPath = (list, t, types, type, code) => {
   const start = fmTypeInDay(t) ? {
     dir: fmInTree(list, t.base) || t.base,
     year: null
-  } : fmSentStart(list, t, type, types);
+  } : fmSentStart(list, t, type, types, code);
   let dir = start.dir;
   for (const lv0 of fmDateLevels(list, t, types, code)) {
     const lv = start.year && lv0.kind === 'year' ? start.year : lv0;
@@ -16868,6 +16876,18 @@ const fmSentPath = (list, t, types, type, code) => {
     dir = fmInTree(list, p) || p;
   }
   return dir;
+};
+// a SENT type row's folder: the one its date folders go under — the type folder, or this year's folder when the
+// picked one is a year folder (fmSentStart)
+const fmTypeRowDir = (list, t, types, type, code) => {
+  const st = fmSentStart(list, t, type, types, code);
+  if (!st.year) return st.dir;
+  const p = st.dir + '/' + fmFill(st.year.pattern, {
+    code,
+    type,
+    yyyy: fmToday().slice(0, 4)
+  });
+  return fmInTree(list, p) || p;
 };
 // a consultant folder's newest plan version: the highest …-vNN in its …-plans folder (or in the folder itself)
 const fmTopVersion = (tree, folder) => {
@@ -18407,10 +18427,10 @@ function PublishFoldersBox({
     const own = t.typeDirs[name] || '';
     const id = key + ':type:' + name;
     let shown = pathSpan(own, t.base);
-    if (t.base && tree && !(own && fmInTree(list, own))) {
-      // the folder the server will use when the picked one is not in the tree, or none is picked: the picked one when
-      // inside the base, else one already there ("נמצאה"), or one it makes ("תיווצר")
-      const d = fmTypeDirOf(list, t, name, types);
+    // the folder the server will use (for SENT the one its date folders go under: this year's when a year folder was
+    // picked), when it is not the picked one as it is in the tree: one already there ("נמצאה"), or one it makes ("תיווצר")
+    const d = key === 'sent' ? fmTypeRowDir(list, t, types, name, code) : fmTypeDirOf(list, t, name, types);
+    if (t.base && tree && !(own && fmInTree(list, own) && fmLc(own) === fmLc(d))) {
       shown = h("span", {
         className: "fm-mark",
         "data-i18n-skip": "",
