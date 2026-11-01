@@ -88,8 +88,9 @@ function Resolve-InProject([string]$Root, [string]$Rel) {
   }
   return $full
 }
-# ── the project's folders: names only, breadth first (parents before children) ──
-function Get-FolderTree([string]$Root, [int]$MaxDepth = 5, [int]$Max = 3000) {
+# ── the project's folders: names only, breadth first (parents before children), 7 levels deep (the
+#    publish archive's day folders sit 6 down: work/publish/@sent/<type>/<year>/<day>), at most 3000 ──
+function Get-FolderTree([string]$Root, [int]$MaxDepth = 7, [int]$Max = 3000) {
   $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd('\')
   $out = New-Object System.Collections.Generic.List[string]
   $queue = New-Object System.Collections.Generic.Queue[object]
