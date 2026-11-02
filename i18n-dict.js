@@ -3920,6 +3920,7 @@ Object.assign(HE_EN, {
 "רוחב אופקי כולל (ס\"מ)": "Total horizontal width (cm)",
 "מדרגות כולל (ס\"מ)": "Total stairs (cm)",
 "פרוזדור (ס\"מ)": "Corridor (cm)",
+"החלופה שמוצגת בסיכום": "The alternative shown in the summary",
 });
 
 window.I18N_HE_EN = HE_EN;

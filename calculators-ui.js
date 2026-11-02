@@ -1,6 +1,7 @@
 /* Calculators (מחשבונים): a project page of regulatory checks — parking and הל"ת today, הג"א and
    fire safety later. Each calculator keeps numbered, dated checks in the project document under
-   data.calculators.<key>.sheets; the summary tab shows the latest check of each.
+   data.calculators.<key>.sheets; the summary tab shows the check ticked on its tab
+   (data.calculators.<key>.pick), or the latest when none is.
    Loaded after calc-rules.js; the page reaches it as window.CalculatorsUI.
    Design: docs/superpowers/specs/2026-11-01-calculators-design.md */
 (function () {
@@ -32,6 +33,7 @@
     '.cx-sheet{border:1px solid var(--border);border-top:none;background:var(--bg);padding:6px 12px;border-radius:0 0 8px 8px;cursor:pointer;color:var(--text-2);font-size:12px;display:flex;gap:6px;align-items:center;white-space:nowrap}',
     '.cx-sheet.on{background:var(--surface);color:var(--text);box-shadow:inset 0 2px 0 var(--accent)}',
     '.cx-sheet .cx-dt{color:var(--text-3);font-size:11px}',
+    '.cx-sheet .cx-pick{margin:0;cursor:pointer;accent-color:var(--accent)}',
     '.cx-sheet-x{border:none;background:none;color:var(--text-3);cursor:pointer;font-size:13px;padding:0 2px}',
     '.cx-sheet-x.arm{color:#DC2626;font-weight:700;font-size:11px}',
     '.cx-add{border:1px dashed var(--border-strong);background:none;border-top:none;border-radius:0 0 8px 8px;padding:6px 12px;cursor:pointer;color:var(--accent);font:inherit;font-size:12px;font-weight:600;white-space:nowrap}',
@@ -193,10 +195,14 @@
     (base.floors || []).forEach(f => { f.id = uid(); ['uses', 'spaces', 'exits'].forEach(k => (f[k] || []).forEach(x => { x.id = uid(); })); });
     return base;
   }
-  function SheetBar({ sheets, active, setActive, onAdd, onDelete }) {
+  // the check the summary shows: the one ticked on its tab, else the latest
+  const pickedSheet = c => { const s = (c && c.sheets) || []; return s.find(x => x.id === c.pick) || s[s.length - 1]; };
+  function SheetBar({ sheets, active, setActive, onAdd, onDelete, picked, onPick }) {
     const [arm, setArm] = useState(null);
     return h('div', { className: 'cx-sheets' },
       sheets.map(s => h('div', { key: s.id, className: 'cx-sheet' + (s.id === active ? ' on' : ''), onClick: () => setActive(s.id) },
+        onPick && h('input', { type: 'checkbox', className: 'cx-pick', checked: s.id === picked, title: T('החלופה שמוצגת בסיכום'),
+          onClick: e => e.stopPropagation(), onChange: () => { if (s.id !== picked) onPick(s.id); } }),
         h('b', null, T('בדיקה {n}', { n: s.no })), h('span', { className: 'cx-dt' }, fmtD(s.date)),
         s.id === active && h('button', { className: 'cx-sheet-x' + (arm === s.id ? ' arm' : ''), title: 'מחיקת הבדיקה',
           onClick: e => { e.stopPropagation(); if (arm === s.id) { setArm(null); onDelete(s.id); } else setArm(s.id); },
@@ -753,7 +759,7 @@
 
   /* ════════ Summary ════════ */
   function SummaryTab({ calcs, go }) {
-    const last = k => { const s = ((calcs[k] || {}).sheets) || []; return s[s.length - 1]; };
+    const last = k => pickedSheet(calcs[k]);
     const P = last('parking'), H = last('hlt'), G = last('hga'), S = last('safety');
     const head = (ic, name, sh, n) => h('div', { className: 'cx-sc-h' }, h('div', { className: 'ic' }, ic),
       h('div', null, h('b', null, name), h('div', { className: 'm' }, sh ? h(React.Fragment, null, T('בדיקה {n} · {d}', { n: sh.no, d: fmtD(sh.date) }), sh.by ? ' · ' : '', h('span', SKIP, sh.by || '')) : 'טרם נבדק')),
@@ -843,7 +849,8 @@
       else {
         body = c.id === 'parking' ? h(ParkingTab, { key: sh.id, sh, upd, prev: idx > 0 ? sheets[idx - 1] : null })
           : c.id === 'hga' ? h(HgaTab, { key: sh.id, sh, upd }) : c.id === 'safety' ? h(SafetyTab, { key: sh.id, sh, upd }) : h(HltTab, { key: sh.id, sh, upd });
-        sheetBar = h(SheetBar, { sheets, active: curId, setActive: id => setActive(a => Object.assign({}, a, { [c.id]: id })), onAdd: add, onDelete: del });
+        sheetBar = h(SheetBar, { sheets, active: curId, setActive: id => setActive(a => Object.assign({}, a, { [c.id]: id })), onAdd: add, onDelete: del,
+          picked: (pickedSheet(calcs[c.id]) || {}).id, onPick: id => saveCalc(c.id, o => Object.assign({}, o, { pick: id })) });
       }
     }
     return h('div', { className: 'cx' },
