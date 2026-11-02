@@ -856,8 +856,8 @@ function safSpace(sp, sh) {
   const cat = safWidthCat(u, sh), wf = SAF_WIDTH[cat];
   const horiz = r2s(occ * wf.h / 100);                                  // total horizontal width, m
   const dmin = safDoorMin(u, occ, area);
-  const doorReq = r2s(Math.max(dmin.w, horiz / exits));
-  return { u, area, factor, occ, exits, cat, horiz, doorMin: dmin, doorReq, panic: occ > 100 };
+  // each door keeps the table 3.2.1.3 minimum; together the doors carry the calculated width (3.2.12.4)
+  return { u, area, factor, occ, exits, cat, horiz, doorMin: dmin, doorReq: dmin.w, panic: occ > 100 };
 }
 /* The proposed doors of a space against the requirement */
 function safSpaceCheck(sp, sh) {
@@ -866,6 +866,7 @@ function safSpaceCheck(sp, sh) {
   const issues = [];
   if (x.occ > 0 && doors < x.exits) issues.push({ k: 'doors', need: x.exits, have: doors });
   if (x.occ > 0 && doors && w + 1e-9 < x.doorReq) issues.push({ k: 'width', need: x.doorReq, have: w });
+  if (x.occ > 0 && doors && w && doors * w + 1e-9 < x.horiz) issues.push({ k: 'total', need: x.horiz, have: r2s(doors * w) });
   if (x.panic && !sp.panic) issues.push({ k: 'panic' });
   return Object.assign(x, { doors, w, issues, ok: !issues.length, entered: doors > 0 || w > 0 });
 }
@@ -897,6 +898,8 @@ function safFloor(fl, sh) {
     panic: occ > 100,                                                                    // 3.2.1.21
   };
 }
+/* A floor's stair flights; older checks kept them on the exits (kind 'stair') */
+const safStairs = fl => fl.stairs || (fl.exits || []).filter(e => e.kind === 'stair').map(e => ({ id: e.id, w: e.stair }));
 /* The whole check: stairs take the largest requirement of the floors they serve on the way to the exit level */
 function safCheck(sh) {
   const floors = (sh.floors || []).map(fl => ({ fl, f: safFloor(fl, sh) }));
@@ -911,22 +914,23 @@ function safCheck(sh) {
     const ex = o.fl.exits || [];
     const lines = [];
     lines.push({ k: 'count', need: o.f.exits, have: ex.length, ok: ex.length >= o.f.exits });
-    // each exit: the minimum widths only; the floor's total width is checked on the sums below
+    // each exit door keeps its minimum; the floor's total width is checked on the sums
     ex.forEach(e => {
-      const isStair = e.kind === 'stair';
-      const items = [{ k: 'door', need: isStair ? o.f.doorMinStair : o.f.doorMinLevel, have: +e.door || 0 }];
-      if (isStair) items.push({ k: 'stair', need: o.f.stairMin, have: +e.stair || 0 });
+      const items = [{ k: 'door', need: o.f.doorMinStair, have: +e.door || 0 }];
       if (o.f.panic) items.push({ k: 'panic', need: true, have: !!e.panic });
       items.forEach(i => { i.ok = i.k === 'panic' ? i.have : i.have + 1e-9 >= i.need; });
-      lines.push({ k: 'exit', e, isStair, items, ok: items.every(i => i.ok) });
+      lines.push({ k: 'exit', e, items, ok: items.every(i => i.ok) });
     });
     if (ex.length && o.f.occ > 0) {
       const doors = r2s(ex.reduce((a, e) => a + (+e.door || 0), 0));
       lines.push({ k: 'doorSum', need: o.f.horizTot, have: doors, ok: doors + 1e-9 >= o.f.horizTot });
     }
-    const stairs = ex.filter(e => e.kind === 'stair');
-    if (stairs.length && o.f.stairGov > 0) {
-      const sw = r2s(stairs.reduce((a, e) => a + (+e.stair || 0), 0));
+    // stairs: on a floor off the exit level they are required; at the exit level only when drawn
+    const stairs = safStairs(o.fl);
+    o.stairs = stairs;
+    stairs.forEach(st => lines.push({ k: 'stair', st, need: o.f.stairMin, have: +st.w || 0, ok: (+st.w || 0) + 1e-9 >= o.f.stairMin }));
+    if ((stairs.length || L !== 0) && o.f.stairGov > 0) {
+      const sw = r2s(stairs.reduce((a, st) => a + (+st.w || 0), 0));
       lines.push({ k: 'stairSum', need: o.f.stairGov, have: sw, ok: sw + 1e-9 >= o.f.stairGov });
     }
     if (o.fl.corridorW != null && o.fl.corridorW !== '') lines.push({ k: 'corridor', need: o.f.corrReq, have: +o.fl.corridorW || 0, ok: +o.fl.corridorW + 1e-9 >= o.f.corrReq });
@@ -940,7 +944,7 @@ const api = {
   MEASURES, CATS, USES, BIKES, MOTOS, STATIONS, ZONES, FIX, FIX_ORDER, HLT, HLT_GENERAL, PCOLS, FLOOR_FX,
   haversine, stationsNear, zoneForStation, useById, ruleSet, ruleText, carRow, bikeRow, motoRow, parkingTotals, span,
   hltById, stepCount, stepText, hltRow, hltTotals, reqFor, planCheck, fill,
-  SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safCheck,
+  SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck,
   HGA_KINDS, HGA_GROUPS, HGA_USES, HGA_LIMITS, HGA_SYSTEMS, hgaById, hgaSpaceOf, hgaRow, hgaFloor, hgaCheckFloor, hgaTotals, hgaVent, hgaSuggest,
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;

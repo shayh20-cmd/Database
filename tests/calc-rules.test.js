@@ -128,7 +128,10 @@ const SAF = (floors, o) => Object.assign({ height: 'high', residential: false, s
 
 test('בטיחות: occupancy by factor, exits from a room, door and panic hardware', () => {
   const x = R.safSpace({ use: 'a3a', area: 450, factor: 1 }, SAF([]));
-  assert.deepStrictEqual([x.occ, x.exits, x.doorReq, x.panic], [450, 2, 1.13, true]);   // 450 × 0.5 cm / 2 = 1.125 → 1.13 > 1.10
+  assert.deepStrictEqual([x.occ, x.exits, x.horiz, x.doorReq, x.panic], [450, 2, 2.25, 1.1, true]);   // 450 × 0.5 cm; each door ≥ 1.10
+  const doors = (n, w) => R.safSpaceCheck({ use: 'a3a', area: 450, factor: 1, doors: n, doorW: w, panic: true }, SAF([])).issues.map(i => i.k);
+  assert.deepStrictEqual(doors(2, 1.1), ['total']);                                           // 2.20 < 2.25
+  assert.deepStrictEqual(doors(2, 1.2), []);
   assert.strictEqual(R.safSpace({ use: 'b41', area: 200 }, SAF([])).occ, 20);
   assert.strictEqual(R.safSpace({ use: 'a3', area: 600, factor: 0.5 }, SAF([])).occ, 800);  // a factor below the range is raised to 0.75
   assert.strictEqual(R.safSpace({ use: 'a6', qty: 30 }, SAF([])).occ, 60);                    // 0.50 m of bench per person
@@ -164,7 +167,11 @@ test('בטיחות: the total width may be split unevenly; each exit keeps its m
   assert.deepStrictEqual([ok.f.stairGov, ok.bad], [2.8, 0]);                                  // 1.20 + 1.60 = 2.80
   const thin = R.safCheck(SAF([fl([0.9, 1.9])])).floors[0];
   assert.strictEqual(thin.lines.find(l => l.k === 'stairSum').ok, true);
-  assert.strictEqual(thin.lines.filter(l => l.k === 'exit' && !l.ok).length, 1);              // 0.90 is under the 3.2.2.2 minimum
+  assert.strictEqual(thin.lines.filter(l => l.k === 'stair' && !l.ok).length, 1);             // 0.90 is under the 3.2.2.2 minimum
+  const flights = R.safCheck(SAF([{ name: '1', level: 1, spaces: [{ use: 'b41', area: 3500 }], exits: [{ door: 0.9, panic: true }, { door: 0.9, panic: true }], stairs: [{ w: 1.4 }, { w: 1.4 }] }])).floors[0];
+  assert.strictEqual(flights.bad, 0);                                                          // stairs kept apart from the doors
+  const none = R.safCheck(SAF([{ name: '1', level: 1, spaces: [{ use: 'b41', area: 3500 }], exits: [{ door: 0.9, panic: true }, { door: 0.9, panic: true }] }])).floors[0];
+  assert.strictEqual(none.lines.find(l => l.k === 'stairSum').ok, false);                     // a floor above the exit level needs stairs
   const ground = R.safCheck(SAF([{ name: '0', level: 0, spaces: [{ use: 'b41', area: 2000 }], exits: [{ kind: 'level', door: 0.6, panic: true }, { kind: 'level', door: 1.2, panic: true }] }])).floors[0];
   assert.deepStrictEqual(ground.lines.filter(l => !l.ok).map(l => l.k), ['exit']);            // 200 people: 1.00 m total, but 0.60 < 1.10
 });
