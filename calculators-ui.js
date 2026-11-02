@@ -29,6 +29,8 @@
     '.cx-tab.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}',
     '.cx-tab .cx-pill{font-size:10px;background:var(--bg);color:var(--text-3);border-radius:10px;padding:0 6px}',
     '.cx-body{flex:1;overflow:auto;padding:18px 20px}',
+    // a full-screen-wide table is hard to read: keep the content in a centred column
+    '.cx-body>*{max-width:1080px;margin-inline:auto}',
     '.cx-sheets{display:flex;align-items:flex-end;gap:2px;background:var(--surface-2);border-top:1px solid var(--border);padding:0 14px;min-height:36px;overflow-x:auto}',
     '.cx-sheet{border:1px solid var(--border);border-top:none;background:var(--bg);padding:6px 12px;border-radius:0 0 8px 8px;cursor:pointer;color:var(--text-2);font-size:12px;display:flex;gap:6px;align-items:center;white-space:nowrap}',
     '.cx-sheet.on{background:var(--surface);color:var(--text);box-shadow:inset 0 2px 0 var(--accent)}',
@@ -147,6 +149,7 @@
     '.cx-saf tr.tot td{background:var(--surface-2);font-weight:600}',
     '.cx-chips{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center}',
     '.cx-saf tr.cx-wrow td{background:var(--surface-2);padding:4px 10px 8px;text-align:start}',
+    '.cx-wsep{width:1px;align-self:stretch;background:var(--border);margin:0 8px}',
     '.cx-chip{display:inline-flex;align-items:center;gap:0}',
     '.cx-chip .cx-x{padding:0 3px;border:0;background:none}',
     '.cx-in.cx-in-bad{border-color:#dc2626}',
@@ -155,6 +158,7 @@
     '.cx-ns::-webkit-inner-spin-button,.cx-ns::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}',
     '.cx-req{background:var(--surface-2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-size:12.5px;color:var(--text-2);display:flex;flex-direction:column;gap:3px;padding:8px 12px}',
     '.cx-req b{color:var(--text)}',
+    '.cx-req>div{max-width:80ch}',
     'td.cx-bad .cx-in{border-color:#DC2626}',
     '.cx-empty .ic{font-size:32px}',
   ].join('\n');
@@ -673,11 +677,6 @@
               h('td', null, exits.length || f.occ ? okPill(exitsOk, '✓', flagged(doorSum) ? short(doorSum) : '✗') : '—'),
               h('td', null)),
             // the widths behind the total, one box per exit, on a row of their own so they don't stretch the columns
-            h('tr', { className: 'cx-wrow' }, h('td', { colSpan: 14 }, h('div', { className: 'cx-chips' },
-              h('span', { className: 'cx-rule' }, 'רוחב כל דלת יציאה (ס"מ):'),
-              exitLines.map((l, j) => chip(l.e.door, !l.items[0].ok, v => setEx(j, { door: v }), () => setExits(exits.filter((_, k) => k !== j)), l.e.id || j)),
-              h('button', { className: 'cx-btn', title: 'דרך מוצא נוספת', onClick: () => setExits(exits.concat([{ id: uid(), door: null, panic: f.panic }])) }, '+')))),
-
             showStairs && h('tr', { className: 'tot' + (stairsOk ? '' : ' bad') },
               h('td', null), h('td', { style: { textAlign: 'start' } }, 'מדרגות'),
               h('td', { colSpan: 3, className: 'cx-rule' }, f.stairGov > f.stairTot ? T('לפי הקומה הגדולה שהמדרגות משרתות') : ''),
@@ -688,10 +687,16 @@
               h('td', null, '—'),
               h('td', null, okPill(stairsOk, '✓', flagged(stairSum) ? short(stairSum) : '✗')),
               h('td', null)),
-            showStairs && h('tr', { className: 'cx-wrow' }, h('td', { colSpan: 14 }, h('div', { className: 'cx-chips' },
-              h('span', { className: 'cx-rule' }, 'רוחב כל גרם מדרגות (ס"מ):'),
-              stairLines.map((l, j) => chip(l.st.w, !l.ok, v => setSt(j, { w: v }), () => setStairs(stairs.filter((_, k) => k !== j)), l.st.id || j)),
-              h('button', { className: 'cx-btn', title: 'גרם מדרגות נוסף', onClick: () => setStairs(stairs.concat([{ id: uid(), w: null }])) }, '+'))))))),
+            // the widths behind the totals, one box per exit door and per stair flight, on one row of their own so they don't stretch the columns
+            h('tr', { className: 'cx-wrow' }, h('td', { colSpan: 14 }, h('div', { className: 'cx-chips' },
+              h('span', { className: 'cx-rule' }, 'דלתות יציאה (ס"מ):'),
+              exitLines.map((l, j) => chip(l.e.door, !l.items[0].ok, v => setEx(j, { door: v }), () => setExits(exits.filter((_, k) => k !== j)), l.e.id || j)),
+              h('button', { className: 'cx-btn', title: 'דרך מוצא נוספת', onClick: () => setExits(exits.concat([{ id: uid(), door: null, panic: f.panic }])) }, '+'),
+              showStairs && h(React.Fragment, null, h('span', { className: 'cx-wsep' }),
+                h('span', { className: 'cx-rule' }, 'גרמי מדרגות (ס"מ):'),
+                stairLines.map((l, j) => chip(l.st.w, !l.ok, v => setSt(j, { w: v }), () => setStairs(stairs.filter((_, k) => k !== j)), l.st.id || j)),
+                h('button', { className: 'cx-btn', title: 'גרם מדרגות נוסף', onClick: () => setStairs(stairs.concat([{ id: uid(), w: null }])) }, '+')),
+              !showStairs && h('button', { className: 'cx-btn', style: { marginInlineStart: 'auto' }, onClick: () => setStairs([{ id: uid(), w: null }]) }, '+ מדרגות בקומה'))))))),
 
         h('div', { className: 'cx-card-b', style: { display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', paddingTop: 6, paddingBottom: 6 } },
           h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 6 } }, 'רוחב פרוזדור (ס"מ)',
@@ -701,8 +706,7 @@
             f.corrMin >= f.corrCalc
               ? h(React.Fragment, null, h('span', { className: 'cx-tag warn', title: T(f.corr.name) }, T('מינימום טבלה 3.2.12.5')), ' ', T('(החישוב לפי התפוסה: {c} — נמוך מהמינימום)', { c: cmT(f.corrCalc) }))
               : h(React.Fragment, null, h('span', { className: 'cx-tag' }, T('לפי התפוסה — 3.2.12.5(ב)')), ' ', T('(מינימום בטבלה 3.2.12.5: {m})', { m: cmT(f.corrMin) }))),
-          corr && h('span', { className: corr.ok ? 'cx-p-ok' : 'cx-p-bad' }, T('פרוזדור {h} מול {n} ס"מ נדרש', { h: cm(corr.have), n: cm(corr.need) })),
-          !showStairs && h('button', { className: 'cx-btn', onClick: () => setStairs([{ id: uid(), w: null }]) }, '+ מדרגות בקומה')),
+          corr && okPill(corr.ok, '✓', short(corr))),
 
         f.occ > 0 && h('div', { className: 'cx-card-b cx-req' },
           h('div', null, h('b', null, T('{n} איש בקומה', { n: f.occ })), ' · ', T('{n} דרכי מוצא נדרשות', { n: f.exits }), singleWhy && h('span', { className: 'cx-rule' }, ' (' + T(singleWhy) + ')'),
@@ -710,8 +714,7 @@
           h('div', null, T('רוחב מילוט כולל מהקומה'), ': ',
             T('מהלך אופקי {a}', { a: cmT(f.horizTot) }), ' · ', T('מדרגות {a}', { a: cmT(f.stairGov) }),
             h('span', { className: 'cx-rule' }, ' · ', T('מקדם {s}/{h} ס"מ לנפש', { s: f.wf.s, h: f.wf.h }), ' · ', T('החלוקה בין דרכי המוצא חופשית, כל אחת לפחות במינימום (3.2.12.1(ב), 3.2.12.4)'))),
-          h('div', null, T('פרוזדור: {a}', { a: cmT(f.corrReq) }), h('span', { className: 'cx-rule' }, ' ', T('(הגדול מבין חישוב {c} ומינימום {m})', { c: cmT(f.corrCalc), m: cmT(f.corrMin) })),
-            ' · ', T('כל גרם מדרגות: לפחות {a}', { a: cmT(f.stairMin) }), h('span', { className: 'cx-rule' }, ' (3.2.2.2)'),
+          h('div', null, T('כל גרם מדרגות: לפחות {a}', { a: cmT(f.stairMin) }), h('span', { className: 'cx-rule' }, ' (3.2.2.2)'),
             ' · ', T('דלת יציאה: לפחות {a}', { a: cmT(f.doorMinStair) }), h('span', { className: 'cx-rule' }, ' (' + T('טבלה 3.2.1.3') + ')'),
             ' · ', f.panic ? h('span', { className: 'cx-tag warn' }, 'מנגנון בהלה בדלתות היציאה מהקומה (מעל 100 איש)') : h('span', { className: 'cx-rule' }, 'ללא חובת מנגנון בהלה')),
           sh.height !== 'tower' && !sh.residential && f.occ <= 30 && h('label', { className: 'cx-rule', style: { display: 'block', marginTop: 4 } },

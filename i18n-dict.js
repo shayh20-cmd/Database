@@ -3864,8 +3864,6 @@ Object.assign(HE_EN, {
 "מדרגות {a}": "stairs {a}",
 "החלוקה בין דרכי המוצא חופשית, כל אחת לפחות במינימום (3.2.12.1(ב), 3.2.12.4)": "the width may be split freely between the exits, each at least the minimum (3.2.12.1(b), 3.2.12.4)",
 "מקדם {s}/{h} ס\"מ לנפש": "factor {s}/{h} cm per person",
-"פרוזדור: {a}": "Corridor: {a}",
-"(הגדול מבין חישוב {c} ומינימום {m})": "(the larger of {c} calculated and {m} minimum)",
 "כל גרם מדרגות: לפחות {a}": "Each stair flight: at least {a}",
 "מנגנון בהלה בדלתות היציאה מהקומה (מעל 100 איש)": "Panic hardware on the floor's exit doors (over 100 people)",
 "ללא חובת מנגנון בהלה": "No panic hardware required",
@@ -3914,7 +3912,6 @@ Object.assign(HE_EN, {
 "לפי הקומה הגדולה שהמדרגות משרתות": "by the largest floor the stairs serve",
 "גרם מדרגות נוסף": "Another stair flight",
 "רוחב פרוזדור (ס\"מ)": "Corridor width (cm)",
-"פרוזדור {h} מול {n} ס\"מ נדרש": "Corridor {h} vs {n} cm required",
 "+ מדרגות בקומה": "+ Stairs on the floor",
 "דלת יציאה: לפחות {a}": "Exit door: at least {a}",
 "רוחב אופקי כולל (ס\"מ)": "Total horizontal width (cm)",
@@ -3927,8 +3924,8 @@ Object.assign(HE_EN, {
 "לפי התפוסה — 3.2.12.5(ב)": "By occupancy — 3.2.12.5(b)",
 "(מינימום בטבלה 3.2.12.5: {m})": "(table 3.2.12.5 minimum: {m})",
 "* הרוחב נקבע לפי המינימום בטבלה 3.2.12.5": "* width set by the table 3.2.12.5 minimum",
-"רוחב כל דלת יציאה (ס\"מ):": "Width of each exit door (cm):",
-"רוחב כל גרם מדרגות (ס\"מ):": "Width of each stair flight (cm):",
+"דלתות יציאה (ס\"מ):": "Exit doors (cm):",
+"גרמי מדרגות (ס\"מ):": "Stair flights (cm):",
 });
 
 window.I18N_HE_EN = HE_EN;
