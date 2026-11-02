@@ -163,7 +163,7 @@
     '.cx-fchip.bad{background:var(--danger-row,#FFF5F5);color:#b91c1c}',
     '.cx-ftools{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--border)}',
     '.cx-ftools .cx-f{gap:2px;font-size:11px}',
-    '.cx-fac{margin-top:2px;white-space:nowrap}',
+    '.cx-fac{white-space:nowrap}',
     '.cx-why{border-top:1px solid var(--border)}',
     '.cx-why>summary{cursor:pointer;padding:7px 12px;font-size:12px;color:var(--text-2)}',
     '.cx-why .cx-req{border-bottom:0}',
@@ -669,16 +669,16 @@
             f.spaces.map(({ sp, x }, j) => {
               const u = x.u, iss = k => x.issues.some(z => z.k === k), tot = x.issues.find(z => z.k === 'total');
               return h('tr', { key: sp.id || j, className: x.entered && !x.ok ? 'bad' : '' },
-                h('td', null, h(Field, { value: sp.no, skip: true, placeholder: '—', style: { width: 48 }, onSave: v => setSp(j, { no: v }) })),
-                h('td', { style: { textAlign: 'start' } }, h('div', { className: 'cx-qty' },
-                  h(Field, { value: sp.name, skip: true, placeholder: '—', style: { width: 76 }, onSave: v => setSp(j, { name: v }) }),
-                  h('select', { className: 'cx-in', style: { minWidth: 150, maxWidth: 190 }, value: sp.use, onChange: e => setSp(j, { use: e.target.value, factor: null }) }, useOpts))),
-                // the occupancy factor sits under the area: it is read far more than it is changed
-                h('td', null, u.none ? '—' : u.q ? h('div', { className: 'cx-qty' }, h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 66 }, value: sp.qty, onSave: v => setSp(j, { qty: v }) }),
+                // one box for the room number and the zone; a number typed in the old separate box joins the name
+                h('td', null, h(Field, { value: [sp.no, sp.name].filter(Boolean).join(' '), skip: true, placeholder: '—', style: { width: 110 }, onSave: v => setSp(j, { no: null, name: v }) })),
+                h('td', { style: { textAlign: 'start' } },
+                  h('select', { className: 'cx-in', style: { minWidth: 150, maxWidth: 190 }, value: sp.use, onChange: e => setSp(j, { use: e.target.value, factor: null }) }, useOpts)),
+                // the occupancy factor sits beside the area, on the same line as the rest of the row
+                h('td', null, h('div', { className: 'cx-qty', style: { justifyContent: 'center' } }, u.none ? '—' : u.q ? h('div', { className: 'cx-qty' }, h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 66 }, value: sp.qty, onSave: v => setSp(j, { qty: v }) }),
                   h('span', { className: 'cx-rule' }, u.q === 'bench' ? 'מ\' ספסל' : u.q === 'seats' ? 'מושבים' : 'איש'))
                   : h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 66 }, value: sp.area, title: T('מ"ר'), onSave: v => setSp(j, { area: v }) }),
                   x.factor != null && h('div', { className: 'cx-rule cx-fac', title: T('מקדם תפוסה') + (u.max ? ' — ' + T('מקסימלית') : '') }, '× ',
-                    Array.isArray(u.factor) ? h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 46 }, value: x.factor, title: T('טווח {a}–{b}', { a: u.factor[0], b: u.factor[1] }), onSave: v => setSp(j, { factor: v }) }) : x.factor)),
+                    Array.isArray(u.factor) ? h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 46 }, value: x.factor, title: T('טווח {a}–{b}', { a: u.factor[0], b: u.factor[1] }), onSave: v => setSp(j, { factor: v }) }) : x.factor))),
                 h('td', { className: 'n' }, x.occ),
                 h('td', { className: 'n' }, x.occ ? cm(x.horiz) : '—'),
                 h('td', { className: 'n' }, x.occ ? x.exits : '—'),
