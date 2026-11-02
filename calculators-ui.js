@@ -149,6 +149,9 @@
     '.cx-chip{display:inline-flex;align-items:center;gap:0}',
     '.cx-chip .cx-x{padding:0 3px;border:0;background:none}',
     '.cx-in.cx-in-bad{border-color:#dc2626}',
+    // no spinner arrows in the safety widths, so the whole number shows
+    '.cx-ns{-moz-appearance:textfield;appearance:textfield}',
+    '.cx-ns::-webkit-inner-spin-button,.cx-ns::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}',
     '.cx-req{background:var(--surface-2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-size:12.5px;color:var(--text-2);display:flex;flex-direction:column;gap:3px;padding:8px 12px}',
     '.cx-req b{color:var(--text)}',
     'td.cx-bad .cx-in{border-color:#DC2626}',
@@ -606,7 +609,7 @@
       const singleWhy = f.single === 'res' ? 'בניין מגורים שאינו רב-קומות — 3.2.13.3(א)(1)' : f.single === 'small' ? 'עד 30 איש ומרחק הליכה עד 30 מ\' — 3.2.13.3(א)(2)' : '';
       const area = f.spaces.reduce((a, s) => a + (s.x.u.q ? 0 : s.x.area), 0);
       // a width typed in cm, kept in m
-      const wField = (val, bad, onSave, title) => h(Field, { type: 'number', className: 'cx-n' + (bad ? ' cx-in-bad' : ''), style: { width: 58 }, value: cm(val), placeholder: '0', title, onSave: v => onSave(v == null ? null : rm(v / 100)) });
+      const wField = (val, bad, onSave, title) => h(Field, { type: 'number', className: 'cx-n cx-ns' + (bad ? ' cx-in-bad' : ''), style: { width: 66 }, value: cm(val), placeholder: '0', title, onSave: v => onSave(v == null ? null : rm(v / 100)) });
       const chip = (val, bad, onSave, onDel, key) => h('span', { key, className: 'cx-chip' }, wField(val, bad, onSave), h('button', { className: 'cx-x', title: 'הסרה', onClick: onDel }, '×'));
       const flagged = l => l && !l.ok;
       const short = l => T('✗ חסר {n}', { n: cm(rm(l.need - l.have)) });
@@ -635,17 +638,17 @@
                 h('td', { style: { textAlign: 'start' } }, h('div', { className: 'cx-qty' },
                   h(Field, { value: sp.name, skip: true, placeholder: '—', style: { width: 76 }, onSave: v => setSp(j, { name: v }) }),
                   h('select', { className: 'cx-in', style: { minWidth: 150, maxWidth: 190 }, value: sp.use, onChange: e => setSp(j, { use: e.target.value, factor: null }) }, useOpts))),
-                h('td', null, u.none ? '—' : u.q ? h('div', { className: 'cx-qty' }, h(Field, { type: 'number', className: 'cx-n', style: { width: 62 }, value: sp.qty, onSave: v => setSp(j, { qty: v }) }),
+                h('td', null, u.none ? '—' : u.q ? h('div', { className: 'cx-qty' }, h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 66 }, value: sp.qty, onSave: v => setSp(j, { qty: v }) }),
                   h('span', { className: 'cx-rule' }, u.q === 'bench' ? 'מ\' ספסל' : u.q === 'seats' ? 'מושבים' : 'איש'))
-                  : h(Field, { type: 'number', className: 'cx-n', style: { width: 62 }, value: sp.area, title: T('מ"ר'), onSave: v => setSp(j, { area: v }) })),
-                h('td', null, Array.isArray(u.factor) ? h(Field, { type: 'number', className: 'cx-n', style: { width: 50 }, value: x.factor, title: T('טווח {a}–{b}', { a: u.factor[0], b: u.factor[1] }), onSave: v => setSp(j, { factor: v }) })
+                  : h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 66 }, value: sp.area, title: T('מ"ר'), onSave: v => setSp(j, { area: v }) })),
+                h('td', null, Array.isArray(u.factor) ? h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 50 }, value: x.factor, title: T('טווח {a}–{b}', { a: u.factor[0], b: u.factor[1] }), onSave: v => setSp(j, { factor: v }) })
                   : x.factor != null ? x.factor : '—', u.max && h('div', { className: 'cx-rule' }, 'מקסימלית')),
                 h('td', { className: 'n' }, x.occ),
                 h('td', { className: 'n' }, x.occ ? cm(x.horiz) : '—'),
                 h('td', { className: 'n' }, x.occ ? x.exits : '—'),
                 h('td', { className: 'n', title: T('טבלה 3.2.1.3 שורה {r}', { r: x.doorMin.row }) }, x.occ ? cm(x.doorReq) : '—'),
                 h('td', null, x.panic ? h('span', { className: 'cx-tag warn' }, 'נדרש') : '—'),
-                h('td', { className: iss('doors') || iss('total') ? 'cx-bad' : '' }, h(Field, { type: 'number', className: 'cx-n', style: { width: 40 }, value: sp.doors, placeholder: '0', onSave: v => setSp(j, { doors: v }) })),
+                h('td', { className: iss('doors') || iss('total') ? 'cx-bad' : '' }, h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 44 }, value: sp.doors, placeholder: '0', onSave: v => setSp(j, { doors: v }) })),
                 h('td', { className: iss('width') || iss('total') ? 'cx-bad' : '' }, wField(sp.doorW, false, v => setSp(j, { doorW: v }))),
                 h('td', { className: iss('panic') ? 'cx-bad' : '' }, h('input', { type: 'checkbox', checked: !!sp.panic, onChange: e => setSp(j, { panic: e.target.checked }) })),
                 h('td', { title: tot ? T('הדלתות יחד {h} ס"מ מול {n} ס"מ מחושב', { h: cm(tot.have), n: cm(x.horiz) }) : undefined },
