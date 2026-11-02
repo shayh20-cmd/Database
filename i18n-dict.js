@@ -3846,7 +3846,6 @@ Object.assign(HE_EN, {
 "+ חלל": "+ Space",
 "חלל": "Space",
 "שימוש (טבלה 3.2.12.2)": "Use (table 3.2.12.2)",
-"מקדם": "Factor",
 "יציאות": "Exits",
 "רוחב דלת": "Door width",
 "בהלה": "Panic",
@@ -3884,7 +3883,6 @@ Object.assign(HE_EN, {
 "מערכת מתזים": "Sprinkler system",
 "גובה: הפרש בין מפלס הכניסה הקובעת לכניסה לקומה הגבוהה המאוכלסת (3.1.1.1).": "Height: from the main entrance level to the entrance of the highest occupied floor (3.1.1.1).",
 "קומות, חללים ודרכי מוצא": "Floors, spaces and exits",
-"בכל קומה: החללים והשימוש בכל אחד מחשבים את מספר האנשים; ממנו נגזרים מספר היציאות, רוחב הדלתות, רוחב הפרוזדור והמדרגות ומנגנון הבהלה. \"מפלס\" — 0 לקומת היציאה, מספרים חיוביים מעליה ושליליים מתחתיה; מדרגות לא יוצרו בכיוון המילוט.": "On each floor, the spaces and their uses give the number of people; from it follow the number of exits, door widths, corridor and stair widths, and panic hardware. \"Level\" — 0 for the exit floor, positive above and negative below; stairs do not narrow in the escape direction.",
 "הוסיפו חללים כדי לחשב את הדרישה": "Add spaces to calculate the requirement",
 "✓ דרכי המוצא עומדות בדרישות": "✓ The exits meet the requirements",
 "דרכי מוצא": "Exits",
@@ -3926,6 +3924,15 @@ Object.assign(HE_EN, {
 "* הרוחב נקבע לפי המינימום בטבלה 3.2.12.5": "* width set by the table 3.2.12.5 minimum",
 "דלתות יציאה (ס\"מ):": "Exit doors (cm):",
 "גרמי מדרגות (ס\"מ):": "Stair flights (cm):",
+"מפלס {n}": "Level {n}",
+"דלתות {h}/{n}": "Doors {h}/{n}",
+"מדרגות {h}/{n}": "Stairs {h}/{n}",
+"פרוזדור {h}/{n}": "Corridor {h}/{n}",
+"סוג פרוזדור": "Corridor type",
+"× הסרה": "× Remove",
+"מקדם תפוסה": "Occupancy factor",
+"פירוט ונימוקים מהתקנות": "Details and regulation references",
+"לחצו על קומה כדי לפתוח אותה. החללים קובעים את מספר האנשים, וממנו נגזרות הדרישות.": "Click a floor to open it. The spaces set the number of people, and the requirements follow from it.",
 });
 
 window.I18N_HE_EN = HE_EN;
