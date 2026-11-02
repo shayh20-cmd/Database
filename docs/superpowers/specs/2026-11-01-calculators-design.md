@@ -87,3 +87,24 @@ and table 1 (per classroom, minimum per space, maximum 90 m²).
 - Calls to confirm with the user: post offices 2.4% total area (the scan shows "2%"), warehouses and shops
   under 200 m² keep their main-area % on a total-area basis (no value in the annex); special education over
   9 classrooms adds 5 m² to every classroom.
+
+## בטיחות (added 2026-11-01)
+
+Source: תקנות התכנון והבנייה (בקשה להיתר, תנאיו ואגרות), התש"ל-1970, second schedule, part ג' (fire safety),
+from 3.1.1.1 — 3.2.12.1–3.2.12.7 (occupancy, width factors, corridors, mixed uses), 3.2.1.3 (doors), 3.2.1.21
+(panic hardware), 3.2.2.2 (stairs), 3.2.13.2–3.2.13.3 (number of exits).
+
+- A check has the building height (low / high 13–29 m / tower), residential, up to 2 apartments, sprinklers,
+  and floors. Each floor has a level (0 = exit level), a corridor type (table 3.2.12.5), spaces and the
+  proposed exits; floors can be duplicated.
+- Space: use from table 3.2.12.2 → occupancy (area ÷ factor rounded up; seats, bench length ÷ 0.5 or planned
+  people where the table says so; range factors chosen within the range). Exits from the room (3.2.13.2),
+  door width = max(table 3.2.1.3, horizontal width ÷ exits), panic hardware above 100. Proposed doors,
+  width and panic are checked.
+- Floor: total occupancy; exits from the floor (3.2.13.3, single exit for a residential non-tower or ≤30
+  people with ≤30 m travel as a checkbox, never fewer than the largest room needs); per exit: occupancy ÷
+  exits × the widest factor on the floor (stairs / horizontal); corridor = max(table 3.2.12.5, calculated);
+  stairs = max(3.2.2.2 minimum, the largest per-exit stair width of the floors it serves on the way to the
+  exit level — 3.2.12.1(ג)); exit doors ≥ 0.90 into a stair, 1.10 at the exit level.
+- Proposed exits are stairs or same-level exits, with door width, stair width and panic hardware.
+- Calls: occupancy rounds up; hazardous areas only through use 39; travel distances are not calculated.

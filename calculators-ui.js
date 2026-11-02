@@ -1,6 +1,7 @@
 /* Calculators (מחשבונים): a project page of regulatory checks — parking and הל"ת today, הג"א and
    fire safety later. Each calculator keeps numbered, dated checks in the project document under
-   data.calculators.<key>.sheets; the summary tab shows the latest check of each.
+   data.calculators.<key>.sheets; the summary tab shows the check ticked on its tab
+   (data.calculators.<key>.pick), or the latest when none is.
    Loaded after calc-rules.js; the page reaches it as window.CalculatorsUI.
    Design: docs/superpowers/specs/2026-11-01-calculators-design.md */
 (function () {
@@ -28,10 +29,13 @@
     '.cx-tab.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}',
     '.cx-tab .cx-pill{font-size:10px;background:var(--bg);color:var(--text-3);border-radius:10px;padding:0 6px}',
     '.cx-body{flex:1;overflow:auto;padding:18px 20px}',
+    // a full-screen-wide table is hard to read: keep the content in a centred column
+    '.cx-body>*{max-width:1080px;margin-inline:auto}',
     '.cx-sheets{display:flex;align-items:flex-end;gap:2px;background:var(--surface-2);border-top:1px solid var(--border);padding:0 14px;min-height:36px;overflow-x:auto}',
     '.cx-sheet{border:1px solid var(--border);border-top:none;background:var(--bg);padding:6px 12px;border-radius:0 0 8px 8px;cursor:pointer;color:var(--text-2);font-size:12px;display:flex;gap:6px;align-items:center;white-space:nowrap}',
     '.cx-sheet.on{background:var(--surface);color:var(--text);box-shadow:inset 0 2px 0 var(--accent)}',
     '.cx-sheet .cx-dt{color:var(--text-3);font-size:11px}',
+    '.cx-sheet .cx-pick{margin:0;cursor:pointer;accent-color:var(--accent)}',
     '.cx-sheet-x{border:none;background:none;color:var(--text-3);cursor:pointer;font-size:13px;padding:0 2px}',
     '.cx-sheet-x.arm{color:#DC2626;font-weight:700;font-size:11px}',
     '.cx-add{border:1px dashed var(--border-strong);background:none;border-top:none;border-radius:0 0 8px 8px;padding:6px 12px;cursor:pointer;color:var(--accent);font:inherit;font-size:12px;font-weight:600;white-space:nowrap}',
@@ -140,19 +144,35 @@
     '.cx-chip button{border:none;background:none;color:inherit;cursor:pointer;font-size:12px;padding:0 3px}',
     '.cx-in.cx-addsys{width:auto;padding:2px 6px;font-size:12px}',
     '.cx-blk-h .cx-p-ok,.cx-blk-h .cx-p-bad{font-size:11px}',
+    '.cx-saf th.sub{font-weight:500;font-size:10.5px}',
+    '.cx-saf td,.cx-saf th{padding:5px 5px}',
+    '.cx-saf tr.tot td{background:var(--surface-2);font-weight:600}',
+    '.cx-chips{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center}',
+    '.cx-saf tr.cx-wrow td{background:var(--surface-2);padding:4px 10px 8px;text-align:start}',
+    '.cx-wsep{width:1px;align-self:stretch;background:var(--border);margin:0 8px}',
+    '.cx-chip{display:inline-flex;align-items:center;gap:0}',
+    '.cx-chip .cx-x{padding:0 3px;border:0;background:none}',
+    '.cx-in.cx-in-bad{border-color:#dc2626}',
+    // no spinner arrows in the safety widths, so the whole number shows
+    '.cx-ns{-moz-appearance:textfield;appearance:textfield}',
+    '.cx-ns::-webkit-inner-spin-button,.cx-ns::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}',
+    '.cx-req{background:var(--surface-2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-size:12.5px;color:var(--text-2);display:flex;flex-direction:column;gap:3px;padding:8px 12px}',
+    '.cx-req b{color:var(--text)}',
+    '.cx-req>div{max-width:80ch}',
+    'td.cx-bad .cx-in{border-color:#DC2626}',
     '.cx-empty .ic{font-size:32px}',
   ].join('\n');
   document.head.appendChild(css);
 
   /* inputs that save on blur or Enter, so typing does not write the document each keystroke */
-  function Field({ value, onSave, type, className, placeholder, skip, min, max, style }) {
+  function Field({ value, onSave, type, className, placeholder, skip, min, max, style, title }) {
     const [v, setV] = useState(value == null ? '' : String(value));
     useEffect(() => { setV(value == null ? '' : String(value)); }, [value]);
     const commit = () => {
       const out = type === 'number' ? (v === '' ? null : +v) : v;
       if (String(out == null ? '' : out) !== String(value == null ? '' : value)) onSave(out);
     };
-    return h('input', Object.assign({ className: 'cx-in ' + (className || ''), type: type || 'text', value: v, placeholder, min, max, style,
+    return h('input', Object.assign({ className: 'cx-in ' + (className || ''), type: type || 'text', step: type === 'number' ? 'any' : undefined, value: v, placeholder, min, max, style, title,
       onChange: e => setV(e.target.value), onBlur: commit, onKeyDown: e => { if (e.key === 'Enter') e.currentTarget.blur(); } }, skip ? SKIP : {}));
   }
   const Card = (n, title, extra, body) => h('div', { className: 'cx-card' },
@@ -163,7 +183,7 @@
     { id: 'parking', name: 'תנועה וחניה', ic: '🅿' },
     { id: 'hlt', name: 'הל"ת', ic: '🚻' },
     { id: 'hga', name: 'הג"א', ic: '🛡' },
-    { id: 'safety', name: 'בטיחות', ic: '🔥', soon: true, law: 'תקנות התכנון והבנייה — בטיחות אש' },
+    { id: 'safety', name: 'בטיחות', ic: '🔥' },
   ];
   const ZONE_INFO = { A: ["אזור א'", 'עד 300 מ\' מציר מתע"ן'], B: ["אזור ב'", '300–600 מ\' מציר מתע"ן'], C: ["אזור ג'", 'יישוב עם תכנית מתע"ן'], N: ['ללא מתע"ן', 'יישוב בלא מתע"ן'] };
   const BASES = { main: 'שטח עיקרי (היתר בחלוקה)', total: 'שטח כולל' };
@@ -175,17 +195,22 @@
     const base = prev ? JSON.parse(JSON.stringify(prev)) : kind === 'parking'
       ? { basis: 'main', zone: 'N', far: 100, rows: [] }
       : kind === 'hga' ? { basis: 'main', vent: { m2pp: 0.4, flow: 6 }, floors: [{ name: T('קומת קרקע'), uses: [], spaces: [] }] }
+      : kind === 'safety' ? { height: 'low', residential: false, sprinklers: true, floors: [{ name: T('קומת קרקע'), level: 0, corridor: 'res', spaces: [], exits: [] }] }
       : { rows: [], plan: { floors: [0, 1, 2].map(i => ({ name: i === 0 ? T('קומת קרקע') : T('קומה {n}', { n: i }), fx: {} })) } };
     base.id = uid(); base.no = prev ? (+prev.no || 0) + 1 : 1; base.date = today(); base.by = me || ''; base.title = '';
     (base.rows || []).forEach(r => { r.id = uid(); });
     if (base.plan) base.plan.floors.forEach(f => { f.id = uid(); });
-    (base.floors || []).forEach(f => { f.id = uid(); (f.uses || []).forEach(u => { u.id = uid(); }); (f.spaces || []).forEach(x => { x.id = uid(); }); });
+    (base.floors || []).forEach(f => { f.id = uid(); ['uses', 'spaces', 'exits'].forEach(k => (f[k] || []).forEach(x => { x.id = uid(); })); });
     return base;
   }
-  function SheetBar({ sheets, active, setActive, onAdd, onDelete }) {
+  // the check the summary shows: the one ticked on its tab, else the latest
+  const pickedSheet = c => { const s = (c && c.sheets) || []; return s.find(x => x.id === c.pick) || s[s.length - 1]; };
+  function SheetBar({ sheets, active, setActive, onAdd, onDelete, picked, onPick }) {
     const [arm, setArm] = useState(null);
     return h('div', { className: 'cx-sheets' },
       sheets.map(s => h('div', { key: s.id, className: 'cx-sheet' + (s.id === active ? ' on' : ''), onClick: () => setActive(s.id) },
+        onPick && h('input', { type: 'checkbox', className: 'cx-pick', checked: s.id === picked, title: T('החלופה שמוצגת בסיכום'),
+          onClick: e => e.stopPropagation(), onChange: () => { if (s.id !== picked) onPick(s.id); } }),
         h('b', null, T('בדיקה {n}', { n: s.no })), h('span', { className: 'cx-dt' }, fmtD(s.date)),
         s.id === active && h('button', { className: 'cx-sheet-x' + (arm === s.id ? ' arm' : ''), title: 'מחיקת הבדיקה',
           onClick: e => { e.stopPropagation(); if (arm === s.id) { setArm(null); onDelete(s.id); } else setArm(s.id); },
@@ -546,10 +571,212 @@
         h('div', { className: 'cx-cite' }, '📖 מפרט למיגון מוסדות חינוך ומוסדות להכשרה גבוהה, נובמבר 2023 — סעיף 8 וטבלה 1: שטח לכיתה, מזערי לכל מרחב, מרבי 90 מ"ר נטו; בחינוך מיוחד עם יותר מ-9 כיתות — תוספת 5 מ"ר לכיתה.'))));
   }
 
+  /* ════════ בטיחות ════════ */
+  const m2 = n => T('{n} מ\'', { n: (+n || 0).toFixed(2) });
+  // safety widths are kept in m and shown in cm, as in a safety plan
+  const cm = m => m == null || m === '' ? '' : Math.round(+m * 1000) / 10;
+  const cmT = m => T('{a} ס"מ', { a: cm(+m || 0) });
+  const rm = n => Math.round(n * 10000) / 10000;
+  function SafetyTab({ sh, upd }) {
+    const floors = sh.floors || [];
+    const chk = R.safCheck(sh);
+    const setFloors = fl => upd({ floors: fl });
+    const setFloor = (i, p) => setFloors(floors.map((f, j) => j === i ? Object.assign({}, f, p) : f));
+    const setCount = n => {
+      n = Math.max(1, Math.min(80, +n || 1));
+      const fl = floors.slice(0, n);
+      while (fl.length < n) fl.push({ id: uid(), name: T('קומה {n}', { n: fl.length }), level: fl.length, corridor: (floors[0] || {}).corridor || 'res', spaces: [], exits: [] });
+      setFloors(fl);
+    };
+    const dupFloor = i => {
+      const c = JSON.parse(JSON.stringify(floors[i])); c.id = uid(); c.name = T('קומה {n}', { n: floors.length }); c.level = Math.max(...floors.map(f => +f.level || 0)) + 1;
+      (c.spaces || []).forEach(x => { x.id = uid(); }); (c.exits || []).forEach(x => { x.id = uid(); }); (c.stairs || []).forEach(x => { x.id = uid(); });
+      setFloors(floors.slice(0, i + 1).concat([c], floors.slice(i + 1)));
+    };
+    const useOpts = Object.keys(R.SAF_GROUPS).map(g => h('optgroup', { key: g, label: T(R.SAF_GROUPS[g]) },
+      R.SAF_USES.filter(u => u.g === g).map(u => h('option', { key: u.id, value: u.id }, u.n + ' · ' + T(u.name)))));
+    const corrOpts = R.SAF_CORRIDOR.map(c => h('option', { key: c.id, value: c.id }, T(c.name) + ' — ' + c.w.toFixed(2)));
+    const okPill = (ok, txtOk, txtBad) => h('span', { className: ok ? 'cx-p-ok' : 'cx-p-bad' }, ok ? (txtOk || '✓') : (txtBad || '✗'));
+
+    const floorBlock = (o, i) => {
+      const fl = o.fl, f = o.f, spaces = fl.spaces || [], exits = fl.exits || [], stairs = o.stairs || [];
+      const L = +fl.level || 0;
+      const setSpaces = s => setFloor(i, { spaces: s }), setExits = e => setFloor(i, { exits: e }), setStairs = s => setFloor(i, { stairs: s });
+      const setSp = (j, p) => setSpaces(spaces.map((x, k) => k === j ? Object.assign({}, x, p) : x));
+      const setEx = (j, p) => setExits(exits.map((x, k) => k === j ? Object.assign({}, x, p) : x));
+      const setSt = (j, p) => setStairs(stairs.map((x, k) => k === j ? Object.assign({}, x, p) : x));
+      const line = k => o.lines.find(l => l.k === k);
+      const exitLines = o.lines.filter(l => l.k === 'exit'), stairLines = o.lines.filter(l => l.k === 'stair');
+      const count = line('count'), doorSum = line('doorSum'), stairSum = line('stairSum'), corr = line('corridor');
+      const exitsOk = count.ok && (!doorSum || doorSum.ok) && exitLines.every(l => l.ok);
+      const stairsOk = (!stairSum || stairSum.ok) && stairLines.every(l => l.ok);
+      const showStairs = L !== 0 || stairs.length > 0;
+      const singleWhy = f.single === 'res' ? 'בניין מגורים שאינו רב-קומות — 3.2.13.3(א)(1)' : f.single === 'small' ? 'עד 30 איש ומרחק הליכה עד 30 מ\' — 3.2.13.3(א)(2)' : '';
+      const area = f.spaces.reduce((a, s) => a + (s.x.u.q ? 0 : s.x.area), 0);
+      // a width typed in cm, kept in m
+      const wField = (val, bad, onSave, title) => h(Field, { type: 'number', className: 'cx-n cx-ns' + (bad ? ' cx-in-bad' : ''), style: { width: 66 }, value: cm(val), placeholder: '0', title, onSave: v => onSave(v == null ? null : rm(v / 100)) });
+      const chip = (val, bad, onSave, onDel, key) => h('span', { key, className: 'cx-chip' }, wField(val, bad, onSave), h('button', { className: 'cx-x', title: 'הסרה', onClick: onDel }, '×'));
+      const flagged = l => l && !l.ok;
+      const short = l => T('✗ חסר {n}', { n: cm(rm(l.need - l.have)) });
+      return h('div', { key: fl.id || i, className: 'cx-blk' },
+        h('div', { className: 'cx-blk-h' },
+          h(Field, { className: 'fl', value: fl.name, skip: true, style: { width: 120, fontWeight: 600 }, onSave: v => setFloor(i, { name: v }) }),
+          h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 4 }, title: T('0 = קומת היציאה; חיובי מעליה, שלילי מתחתיה') }, 'מפלס',
+            h(Field, { type: 'number', className: 'cx-n', style: { width: 52 }, value: fl.level || 0, onSave: v => setFloor(i, { level: v }) })),
+          h('select', { className: 'cx-in', style: { width: 'auto', maxWidth: 260 }, value: fl.corridor || 'res', title: T('טבלה 3.2.12.5 — רוחב מינימלי של פרוזדור'), onChange: e => setFloor(i, { corridor: e.target.value }) }, corrOpts),
+          h('span', { className: 'cx-sp', style: { flex: 1 } }),
+          h('span', { className: 'cx-tag' }, T('{n} איש', { n: f.occ })),
+          okPill(o.bad === 0, '✓', T('✗ {n}', { n: o.bad })),
+          h('button', { className: 'cx-btn', onClick: () => dupFloor(i), title: 'שכפול הקומה עם החללים ודרכי המוצא' }, '⧉ שכפל'),
+          floors.length > 1 && h('button', { className: 'cx-x', title: 'הסרת הקומה', onClick: () => setFloors(floors.filter((_, k) => k !== i)) }, '×')),
+
+        h('div', { className: 'cx-scroll' }, h('table', { className: 'cx-t c cx-saf' },
+          h('thead', null,
+            h('tr', null, h('th', { rowSpan: 2 }, 'מס\' חדר / אזור'), h('th', { rowSpan: 2 }, 'חלל / שימוש (טבלה 3.2.12.2)'), h('th', { rowSpan: 2 }, 'שטח / כמות'), h('th', { rowSpan: 2 }, 'מקדם'), h('th', { rowSpan: 2 }, 'אנשים'),
+              h('th', { rowSpan: 2 }, 'רוחב מחושב (ס"מ)'), h('th', { colSpan: 3 }, 'נדרש'), h('th', { colSpan: 3 }, 'מוצע'), h('th', { rowSpan: 2 }, 'עומד'), h('th', { rowSpan: 2 })),
+            h('tr', null, ['כמות', 'רוחב', 'בהלה', 'כמות', 'רוחב', 'בהלה'].map((x, k) => h('th', { key: k, className: 'sub' }, x)))),
+          h('tbody', null,
+            f.spaces.map(({ sp, x }, j) => {
+              const u = x.u, iss = k => x.issues.some(z => z.k === k), tot = x.issues.find(z => z.k === 'total');
+              return h('tr', { key: sp.id || j, className: x.entered && !x.ok ? 'bad' : '' },
+                h('td', null, h(Field, { value: sp.no, skip: true, placeholder: '—', style: { width: 48 }, onSave: v => setSp(j, { no: v }) })),
+                h('td', { style: { textAlign: 'start' } }, h('div', { className: 'cx-qty' },
+                  h(Field, { value: sp.name, skip: true, placeholder: '—', style: { width: 76 }, onSave: v => setSp(j, { name: v }) }),
+                  h('select', { className: 'cx-in', style: { minWidth: 150, maxWidth: 190 }, value: sp.use, onChange: e => setSp(j, { use: e.target.value, factor: null }) }, useOpts))),
+                h('td', null, u.none ? '—' : u.q ? h('div', { className: 'cx-qty' }, h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 66 }, value: sp.qty, onSave: v => setSp(j, { qty: v }) }),
+                  h('span', { className: 'cx-rule' }, u.q === 'bench' ? 'מ\' ספסל' : u.q === 'seats' ? 'מושבים' : 'איש'))
+                  : h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 66 }, value: sp.area, title: T('מ"ר'), onSave: v => setSp(j, { area: v }) })),
+                h('td', null, Array.isArray(u.factor) ? h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 50 }, value: x.factor, title: T('טווח {a}–{b}', { a: u.factor[0], b: u.factor[1] }), onSave: v => setSp(j, { factor: v }) })
+                  : x.factor != null ? x.factor : '—', u.max && h('div', { className: 'cx-rule' }, 'מקסימלית')),
+                h('td', { className: 'n' }, x.occ),
+                h('td', { className: 'n' }, x.occ ? cm(x.horiz) : '—'),
+                h('td', { className: 'n' }, x.occ ? x.exits : '—'),
+                h('td', { className: 'n', title: T('טבלה 3.2.1.3 שורה {r}', { r: x.doorMin.row }) }, x.occ ? cm(x.doorReq) : '—'),
+                h('td', null, x.panic ? h('span', { className: 'cx-tag warn' }, 'נדרש') : '—'),
+                h('td', { className: iss('doors') || iss('total') ? 'cx-bad' : '' }, h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 44 }, value: sp.doors, placeholder: '0', onSave: v => setSp(j, { doors: v }) })),
+                h('td', { className: iss('width') || iss('total') ? 'cx-bad' : '' }, wField(sp.doorW, false, v => setSp(j, { doorW: v }))),
+                h('td', { className: iss('panic') ? 'cx-bad' : '' }, h('input', { type: 'checkbox', checked: !!sp.panic, onChange: e => setSp(j, { panic: e.target.checked }) })),
+                h('td', { title: tot ? T('הדלתות יחד {h} ס"מ מול {n} ס"מ מחושב', { h: cm(tot.have), n: cm(x.horiz) }) : undefined },
+                  x.entered ? okPill(x.ok, '✓', '✗') : '—'),
+                h('td', null, h('button', { className: 'cx-x', title: 'הסרה', onClick: () => setSpaces(spaces.filter((_, k) => k !== j)) }, '×')));
+            }),
+            h('tr', null, h('td', { colSpan: 14, style: { textAlign: 'start' } },
+              h('button', { className: 'cx-btn', onClick: () => setSpaces(spaces.concat([{ id: uid(), name: '', use: 'b41', area: null }])) }, '+ חלל'),
+              !spaces.length && h('span', { className: 'cx-hint', style: { marginInlineStart: 8 } }, 'הוסיפו את החללים בקומה ואת השימוש בכל אחד'))),
+
+            h('tr', { className: 'tot' + (exitsOk ? '' : ' bad') },
+              h('td', null), h('td', { style: { textAlign: 'start' } }, 'סה"כ קומה — דלתות יציאה'),
+              h('td', { className: 'n' }, area ? +area.toFixed(1) : '—'), h('td', null, '—'), h('td', { className: 'n' }, f.occ),
+              h('td', { className: 'n' }, f.occ ? cm(f.horizTot) : '—'),
+              h('td', { className: 'n' }, f.exits), h('td', { className: 'n', title: T('טבלה 3.2.1.3') }, cm(f.doorMinStair)),
+              h('td', null, f.panic ? h('span', { className: 'cx-tag warn' }, 'נדרש') : '—'),
+              h('td', { className: 'n' + (count.ok ? '' : ' cx-bad') }, exits.length),
+              h('td', { className: 'n' + (flagged(doorSum) ? ' cx-bad' : '') }, doorSum ? cm(doorSum.have) : '—'),
+              h('td', { className: f.panic && exits.some(e => !e.panic) ? 'cx-bad' : '' },
+                h('input', { type: 'checkbox', checked: exits.length > 0 && exits.every(e => e.panic), title: T('מנגנון בהלה בכל דלתות היציאה'), onChange: e => setExits(exits.map(x => Object.assign({}, x, { panic: e.target.checked }))) })),
+              h('td', null, exits.length || f.occ ? okPill(exitsOk, '✓', flagged(doorSum) ? short(doorSum) : '✗') : '—'),
+              h('td', null)),
+            // the widths behind the total, one box per exit, on a row of their own so they don't stretch the columns
+            showStairs && h('tr', { className: 'tot' + (stairsOk ? '' : ' bad') },
+              h('td', null), h('td', { style: { textAlign: 'start' } }, 'מדרגות'),
+              h('td', { colSpan: 3, className: 'cx-rule' }, f.stairGov > f.stairTot ? T('לפי הקומה הגדולה שהמדרגות משרתות') : ''),
+              h('td', { className: 'n' }, f.stairGov ? cm(f.stairGov) : '—'),
+              h('td', null, '—'), h('td', { className: 'n', title: '3.2.2.2' }, cm(f.stairMin)), h('td', null, '—'),
+              h('td', { className: 'n' }, stairs.length),
+              h('td', { className: 'n' + (flagged(stairSum) ? ' cx-bad' : '') }, stairSum ? cm(stairSum.have) : '—'),
+              h('td', null, '—'),
+              h('td', null, okPill(stairsOk, '✓', flagged(stairSum) ? short(stairSum) : '✗')),
+              h('td', null)),
+            // the widths behind the totals, one box per exit door and per stair flight, on one row of their own so they don't stretch the columns
+            h('tr', { className: 'cx-wrow' }, h('td', { colSpan: 14 }, h('div', { className: 'cx-chips' },
+              h('span', { className: 'cx-rule' }, 'דלתות יציאה (ס"מ):'),
+              exitLines.map((l, j) => chip(l.e.door, !l.items[0].ok, v => setEx(j, { door: v }), () => setExits(exits.filter((_, k) => k !== j)), l.e.id || j)),
+              h('button', { className: 'cx-btn', title: 'דרך מוצא נוספת', onClick: () => setExits(exits.concat([{ id: uid(), door: null, panic: f.panic }])) }, '+'),
+              showStairs && h(React.Fragment, null, h('span', { className: 'cx-wsep' }),
+                h('span', { className: 'cx-rule' }, 'גרמי מדרגות (ס"מ):'),
+                stairLines.map((l, j) => chip(l.st.w, !l.ok, v => setSt(j, { w: v }), () => setStairs(stairs.filter((_, k) => k !== j)), l.st.id || j)),
+                h('button', { className: 'cx-btn', title: 'גרם מדרגות נוסף', onClick: () => setStairs(stairs.concat([{ id: uid(), w: null }])) }, '+')),
+              !showStairs && h('button', { className: 'cx-btn', style: { marginInlineStart: 'auto' }, onClick: () => setStairs([{ id: uid(), w: null }]) }, '+ מדרגות בקומה'))))))),
+
+        h('div', { className: 'cx-card-b', style: { display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', paddingTop: 6, paddingBottom: 6 } },
+          h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 6 } }, 'רוחב פרוזדור (ס"מ)',
+            wField(fl.corridorW, flagged(corr), v => setFloor(i, { corridorW: v }))),
+          // say which rule sets the corridor: the table 3.2.12.5 minimum often beats the occupancy calculation
+          f.occ > 0 && h('span', { className: 'cx-rule' }, h('b', null, T('נדרש {a}', { a: cmT(f.corrReq) })), ' ',
+            f.corrMin >= f.corrCalc
+              ? h(React.Fragment, null, h('span', { className: 'cx-tag warn', title: T(f.corr.name) }, T('מינימום טבלה 3.2.12.5')), ' ', T('(החישוב לפי התפוסה: {c} — נמוך מהמינימום)', { c: cmT(f.corrCalc) }))
+              : h(React.Fragment, null, h('span', { className: 'cx-tag' }, T('לפי התפוסה — 3.2.12.5(ב)')), ' ', T('(מינימום בטבלה 3.2.12.5: {m})', { m: cmT(f.corrMin) }))),
+          corr && okPill(corr.ok, '✓', short(corr))),
+
+        f.occ > 0 && h('div', { className: 'cx-card-b cx-req' },
+          h('div', null, h('b', null, T('{n} איש בקומה', { n: f.occ })), ' · ', T('{n} דרכי מוצא נדרשות', { n: f.exits }), singleWhy && h('span', { className: 'cx-rule' }, ' (' + T(singleWhy) + ')'),
+            f.roomMax > 2 && h('span', { className: 'cx-rule' }, ' · ', T('לפחות כמספר היציאות מהחלל הגדול (3.2.13.3(ד))'))),
+          h('div', null, T('רוחב מילוט כולל מהקומה'), ': ',
+            T('מהלך אופקי {a}', { a: cmT(f.horizTot) }), ' · ', T('מדרגות {a}', { a: cmT(f.stairGov) }),
+            h('span', { className: 'cx-rule' }, ' · ', T('מקדם {s}/{h} ס"מ לנפש', { s: f.wf.s, h: f.wf.h }), ' · ', T('החלוקה בין דרכי המוצא חופשית, כל אחת לפחות במינימום (3.2.12.1(ב), 3.2.12.4)'))),
+          h('div', null, T('כל גרם מדרגות: לפחות {a}', { a: cmT(f.stairMin) }), h('span', { className: 'cx-rule' }, ' (3.2.2.2)'),
+            ' · ', T('דלת יציאה: לפחות {a}', { a: cmT(f.doorMinStair) }), h('span', { className: 'cx-rule' }, ' (' + T('טבלה 3.2.1.3') + ')'),
+            ' · ', f.panic ? h('span', { className: 'cx-tag warn' }, 'מנגנון בהלה בדלתות היציאה מהקומה (מעל 100 איש)') : h('span', { className: 'cx-rule' }, 'ללא חובת מנגנון בהלה')),
+          sh.height !== 'tower' && !sh.residential && f.occ <= 30 && h('label', { className: 'cx-rule', style: { display: 'block', marginTop: 4 } },
+            h('input', { type: 'checkbox', checked: !!fl.short30, onChange: e => setFloor(i, { short30: e.target.checked }) }), ' ', 'מרחק ההליכה מכל נקודה בקומה אל מוצא בטוח או יציאה אינו עולה על 30 מ\' (מאפשר דרך מוצא אחת)')));
+    };
+
+    const head = Card(1, 'פרטי הבדיקה', null, h('div', { className: 'cx-card-b' },
+      h('div', { className: 'cx-grid' },
+        h('label', { className: 'cx-f' }, 'מספר בדיקה', h(Field, { type: 'number', value: sh.no, onSave: v => upd({ no: v }) })),
+        h('label', { className: 'cx-f' }, 'תאריך', h(Field, { type: 'date', value: sh.date, onSave: v => upd({ date: v }) })),
+        h('label', { className: 'cx-f' }, 'בוצע ע"י', h(Field, { value: sh.by, skip: true, onSave: v => upd({ by: v }) })),
+        h('label', { className: 'cx-f' }, 'כותרת / הערה', h(Field, { value: sh.title, skip: true, onSave: v => upd({ title: v }) }))),
+      h('div', { className: 'cx-basis' },
+        h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 6 } }, 'גובה הבניין',
+          h('select', { className: 'cx-in', style: { width: 'auto' }, value: sh.height || 'low', onChange: e => upd({ height: e.target.value }) },
+            Object.keys(R.SAF_HEIGHTS).map(k => h('option', { key: k, value: k }, T(R.SAF_HEIGHTS[k]))))),
+        h('label', { className: 'cx-rule' }, h('input', { type: 'checkbox', checked: !!sh.residential, onChange: e => upd({ residential: e.target.checked }) }), ' ', 'בניין מגורים'),
+        h('label', { className: 'cx-rule' }, h('input', { type: 'checkbox', checked: !!sh.twoDwellings, onChange: e => upd({ twoDwellings: e.target.checked }) }), ' ', 'עד 2 דירות (מדרגות 0.90)'),
+        h('label', { className: 'cx-rule' }, h('input', { type: 'checkbox', checked: sh.sprinklers !== false, onChange: e => upd({ sprinklers: e.target.checked }) }), ' ', 'מערכת מתזים'),
+        h('span', { className: 'cx-hint', style: { flex: 1, minWidth: 200 } }, 'גובה: הפרש בין מפלס הכניסה הקובעת לכניסה לקומה הגבוהה המאוכלסת (3.1.1.1).'))));
+
+    const floorsCard = Card(2, 'קומות, חללים ודרכי מוצא',
+      h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 8 } }, 'מספר קומות',
+        h(Field, { type: 'number', className: 'cx-n', style: { width: 64 }, min: 1, max: 80, value: floors.length, onSave: setCount })),
+      h('div', { className: 'cx-card-b' },
+        h('div', { className: 'cx-hint', style: { marginBottom: 10 } }, 'בכל קומה: החללים והשימוש בכל אחד מחשבים את מספר האנשים; ממנו נגזרים מספר היציאות, רוחב הדלתות, רוחב הפרוזדור והמדרגות ומנגנון הבהלה. "מפלס" — 0 לקומת היציאה, מספרים חיוביים מעליה ושליליים מתחתיה; מדרגות לא יוצרו בכיוון המילוט.'),
+        chk.floors.map(floorBlock)));
+
+    const rows = chk.floors.filter(o => o.f.occ > 0 || (o.fl.exits || []).length);
+    const cmp = Card(3, 'נדרש מול מוצע — סיכום קומות', null, h('div', { className: 'cx-card-b' },
+      !rows.length ? h('div', { className: 'cx-hint' }, 'הוסיפו חללים כדי לחשב את הדרישה') : h(React.Fragment, null,
+        h('div', { className: 'cx-verdict ' + (chk.bad ? 'bad' : 'ok') }, chk.bad ? T('✗ {n} פערים מול הדרישה', { n: chk.bad }) : '✓ דרכי המוצא עומדות בדרישות'),
+        h('div', { className: 'cx-scroll' }, h('table', { className: 'cx-t c' },
+          h('thead', null, h('tr', null, ['קומה', 'מפלס', 'אנשים', 'דרכי מוצא', 'רוחב אופקי כולל (ס"מ)', 'מדרגות כולל (ס"מ)', 'פרוזדור (ס"מ)', 'בהלה', 'פערים'].map(x => h('th', { key: x }, x)))),
+          h('tbody', null, rows.map((o, k) => {
+            const cnt = o.lines.find(l => l.k === 'count'), cr = o.lines.find(l => l.k === 'corridor');
+            const sumCell = (k, need) => { const l = o.lines.find(z => z.k === k);
+              return h('td', { className: 'n ' + (l && !l.ok ? 'cx-bad' : '') }, l ? `${cm(l.have)} / ${cm(l.need)}` : need ? cm(need) : '—'); };
+            return h('tr', { key: k, className: o.bad ? 'bad' : '' },
+              h('td', Object.assign({ className: 'gl' }, SKIP), o.fl.name), h('td', { className: 'n' }, o.fl.level || 0), h('td', { className: 'n' }, o.f.occ),
+              h('td', { className: 'n ' + (cnt.ok ? '' : 'cx-bad') }, `${cnt.have} / ${cnt.need}`),
+              sumCell('doorSum', o.f.horizTot), sumCell('stairSum', o.f.stairGov),
+              h('td', { className: 'n ' + (cr && !cr.ok ? 'cx-bad' : '') }, (cr ? `${cm(cr.have)} / ${cm(cr.need)}` : cm(o.f.corrReq)) + (o.f.corrMin >= o.f.corrCalc ? ' *' : '')),
+              h('td', null, o.f.panic ? h('span', { className: 'cx-tag warn' }, 'נדרש') : '—'),
+              h('td', null, okPill(!o.bad, '✓', T('✗ {n}', { n: o.bad }))));
+          })),
+          h('tfoot', null, h('tr', null, h('td', { className: 'gl', colSpan: 2 }, 'סה"כ בבניין'), h('td', { className: 'n' }, chk.occ), h('td', { colSpan: 6 }))))),
+        rows.some(o => o.f.occ > 0 && o.f.corrMin >= o.f.corrCalc) && h('div', { className: 'cx-rule', style: { marginTop: 6 } }, '* הרוחב נקבע לפי המינימום בטבלה 3.2.12.5'))));
+
+    const src = Card(4, 'מקורות', null, h('div', { className: 'cx-card-b' },
+      h('div', { className: 'cx-cite' }, '📖 תקנות התכנון והבנייה (בקשה להיתר, תנאיו ואגרות), התש"ל-1970 — תוספת שנייה, חלק ג\': בטיחות אש בבניינים.'),
+      h('div', { className: 'cx-cite' }, '3.2.12.1–3.2.12.3 — תפוסה לפי שטח שימושי ומקדם תפוסה (טבלה 3.2.12.2); שטחי פרוזדורים, מדרגות, שירותים וחדרים טכניים אינם בחישוב. 3.2.12.4 — מקדם רוחב: מדרגות 0.8 / מהלך אופקי 0.5 ס"מ לנפש (בתי חולים וסיכון גבוה — לפי הטבלה), לפי מספר האנשים שכל דרך משרתת; סך רוחב דרכי המוצא נותן מענה לתפוסת הקומה כולה (3.2.12.1(ב)), והחלוקה ביניהן אינה חייבת להיות שווה. 3.2.12.5 — פרוזדור: התפוסה חלקי מספר דרכי המוצא כפול המקדם, ולא פחות מטבלה 3.2.12.5. 3.2.12.7 — בשימושים שונים קובע המקדם הרחב.'),
+      h('div', { className: 'cx-cite' }, '3.2.1.3 — רוחב דלת: הגדול מבין החישוב לפי התפוסה לבין טבלה 3.2.1.3. 3.2.1.21 — מנגנון בהלה בדלת יציאה מחלק בניין או קומה שתפוסתם מעל 100 איש. 3.2.2.2 — מדרגות 1.10 מ\' לפחות; 1.00 בבניין שאינו גבוה; 0.90 בבניין מגורים עד 2 דירות.'),
+      h('div', { className: 'cx-cite' }, '3.2.13.2 — יציאות מחדר: 2 מ-50 איש (או אחסון חומרים מסוכנים מעל 20 מ"ר), 3 מעל 500, 4 מעל 1,000. 3.2.13.3 — דרכי מוצא מקומה: 2, למעט בניין מגורים שאינו רב-קומות או עד 30 איש ומרחק הליכה עד 30 מ\'; 3 מעל 500, 4 מעל 1,000. 3.2.12.1(ג) — אין הפחתה במספר דרכי המוצא או ברוחבן בכיוון המילוט.')));
+
+    return h(React.Fragment, null, head, floorsCard, cmp, src);
+  }
+
   /* ════════ Summary ════════ */
   function SummaryTab({ calcs, go }) {
-    const last = k => { const s = ((calcs[k] || {}).sheets) || []; return s[s.length - 1]; };
-    const P = last('parking'), H = last('hlt'), G = last('hga');
+    const last = k => pickedSheet(calcs[k]);
+    const P = last('parking'), H = last('hlt'), G = last('hga'), S = last('safety');
     const head = (ic, name, sh, n) => h('div', { className: 'cx-sc-h' }, h('div', { className: 'ic' }, ic),
       h('div', null, h('b', null, name), h('div', { className: 'm' }, sh ? h(React.Fragment, null, T('בדיקה {n} · {d}', { n: sh.no, d: fmtD(sh.date) }), sh.by ? ' · ' : '', h('span', SKIP, sh.by || '')) : 'טרם נבדק')),
       h('span', { className: 'bdg' }, n > 1 ? T('{n} בדיקות', { n }) : n === 1 ? 'בדיקה אחת' : 'טרם נבדק'));
@@ -578,9 +805,20 @@
         chk.entered && short.length > 0 && h('div', { className: 'cx-gaps' }, short.map(l => h('span', { key: l.c.k },
           T(R.FIX[l.c.fx]) + (PCOL_LABEL[l.c.g] ? ' ' + T(PCOL_LABEL[l.c.g]) : '') + ' ', l.gap < 0 ? h('b', null, sgn(l.gap)) : h('b', null, T('קומה'))))));
     } else hlt = h('button', { className: 'cx-sc', onClick: () => go('hlt') }, head('🚻', 'הל"ת', null, 0), h('div', { className: 'cx-hint' }, 'מספר אסלות, משתנות, כיורים — לפי שימוש ואוכלוסייה'));
-    const soon = CALCS.filter(c => c.soon).map(c => h('div', { key: c.id, className: 'cx-sc', style: { cursor: 'default' } },
-      h('div', { className: 'cx-sc-h' }, h('div', { className: 'ic' }, c.ic), h('div', null, h('b', null, c.name), h('div', { className: 'm' }, c.law)), h('span', { className: 'bdg' }, 'בקרוב')),
-      h('div', { className: 'cx-hint' }, 'תפוסה, מספר יציאות ורוחב יציאות')));
+    let safety;
+    if (S) {
+      const c = R.safCheck(S), maxEx = c.floors.reduce((a, o) => Math.max(a, o.f.exits), 0), panicFl = c.floors.filter(o => o.f.panic).length;
+      safety = h('button', { className: 'cx-sc', onClick: () => go('safety') }, head('🔥', 'בטיחות', S, cnt('safety')),
+        h('div', { className: 'cx-sc-k' },
+          h('div', null, h('span', null, 'תפוסה בבניין'), h('b', null, c.occ)),
+          h('div', null, h('span', null, 'קומות'), h('b', null, c.floors.length)),
+          h('div', null, h('span', null, 'דרכי מוצא (מקסימום)'), h('b', null, maxEx)),
+          h('div', null, h('span', null, 'קומות עם בהלה'), h('b', null, panicFl))),
+        h('div', { className: 'cx-sc-r' }, h('span', null, 'נדרש מול מוצע'),
+          h('b', null, c.bad ? h('span', { className: 'cx-p-bad' }, T('✗ {n} פערים', { n: c.bad })) : h('span', { className: 'cx-p-ok' }, '✓ עומד בדרישות'))),
+        h('div', { className: 'cx-sc-r' }, h('span', null, 'גובה הבניין'), h('b', null, R.SAF_HEIGHTS[S.height || 'low'])));
+    } else safety = h('button', { className: 'cx-sc', onClick: () => go('safety') }, head('🔥', 'בטיחות', null, 0), h('div', { className: 'cx-hint' }, 'תפוסה, מספר יציאות ורוחב יציאות, פרוזדורים ומדרגות'));
+    const soon = [];
     let hga;
     if (G) {
       const t = R.hgaTotals(G, T), vents = (G.floors || []).flatMap(f => (f.spaces || []).filter(x => x.kind !== 'mamad').map(x => R.hgaVent(x, G.vent)));
@@ -597,7 +835,7 @@
           h('b', null, !vents.length ? '—' : vBad ? h('span', { className: 'cx-p-bad' }, T('✗ {n} מרחבים ללא כיסוי', { n: vBad })) : h('span', { className: 'cx-p-ok' }, '✓ מכוסה'))),
         h('div', { className: 'cx-sc-r' }, h('span', null, 'בסיס החישוב'), h('b', null, BASES[G.basis || 'main'])));
     } else hga = h('button', { className: 'cx-sc', onClick: () => go('hga') }, head('🛡', 'הג"א', null, 0), h('div', { className: 'cx-hint' }, 'שטח מיגון נדרש לפי קומה — ממ"ד / ממ"ק / ממ"מ / מוסדות חינוך'));
-    return h('div', { className: 'cx-sum' }, parking, hlt, hga, soon);
+    return h('div', { className: 'cx-sum' }, parking, hlt, hga, safety, soon);
   }
 
   /* ════════ Page ════════ */
@@ -609,7 +847,7 @@
     const go = t => { setTab(t); try { localStorage.setItem('cx-tab', t); } catch (e) {} };
     const calcs = data.calculators || {};
     const saveCalc = (key, fn) => save(Object.assign({}, data, { calculators: Object.assign({}, calcs, { [key]: fn(calcs[key] || { sheets: [] }) }) }));
-    const counts = {}; ['parking', 'hlt', 'hga'].forEach(k => { counts[k] = ((calcs[k] || {}).sheets || []).length; });
+    const counts = {}; ['parking', 'hlt', 'hga', 'safety'].forEach(k => { counts[k] = ((calcs[k] || {}).sheets || []).length; });
 
     let body = null, sheetBar = null;
     const c = CALCS.find(x => x.id === tab) || CALCS[0];
@@ -626,8 +864,9 @@
         h('button', { className: 'cx-btn pri', onClick: add }, '+ בדיקה ראשונה')));
       else {
         body = c.id === 'parking' ? h(ParkingTab, { key: sh.id, sh, upd, prev: idx > 0 ? sheets[idx - 1] : null })
-          : c.id === 'hga' ? h(HgaTab, { key: sh.id, sh, upd }) : h(HltTab, { key: sh.id, sh, upd });
-        sheetBar = h(SheetBar, { sheets, active: curId, setActive: id => setActive(a => Object.assign({}, a, { [c.id]: id })), onAdd: add, onDelete: del });
+          : c.id === 'hga' ? h(HgaTab, { key: sh.id, sh, upd }) : c.id === 'safety' ? h(SafetyTab, { key: sh.id, sh, upd }) : h(HltTab, { key: sh.id, sh, upd });
+        sheetBar = h(SheetBar, { sheets, active: curId, setActive: id => setActive(a => Object.assign({}, a, { [c.id]: id })), onAdd: add, onDelete: del,
+          picked: (pickedSheet(calcs[c.id]) || {}).id, onPick: id => saveCalc(c.id, o => Object.assign({}, o, { pick: id })) });
       }
     }
     return h('div', { className: 'cx' },

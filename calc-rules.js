@@ -762,10 +762,189 @@ function hgaSuggest(people) {
   return best ? best.pick : [];
 }
 
+/* ════════════ בטיחות ════════════
+   תקנות התכנון והבנייה (בקשה להיתר, תנאיו ואגרות), התש"ל-1970 — תוספת שנייה, חלק ג' (בטיחות אש בבניינים):
+   3.2.12.1–3.2.12.5 (תפוסה, מקדמי רוחב, פרוזדור), 3.2.1.3 (רוחב דלתות), 3.2.1.21 (מנגנון בהלה),
+   3.2.2.2 (רוחב מדרגות), 3.2.13.2–3.2.13.3 (מספר יציאות ודרכי מוצא).
+   factor: m² per person; [lo, hi] — a range the designer may choose in (3.2.12.3(ב2)); q — the occupancy is entered
+   directly (seats, bench length, planned); door: the row of table 3.2.1.3; w: width category of table 3.2.12.4. */
+const SAF_GROUPS = { asm: 'התקהלות', edu: 'מוסדות חינוך', hea: 'מוסדות בריאות', res: 'מגורים ולינה', ind: 'תעשייה ועסקים', com: 'מסחר', oth: 'אחר' };
+const SAF_USES = [
+  { id: 'a1', g: 'asm', n: 1, name: 'אולם אסיפות עם מושבים מקובעים', q: 'seats', max: true, door: 'asm' },
+  { id: 'a2', g: 'asm', n: 2, name: 'אולם אסיפות, מושבים לא מקובעים, לצפייה באירוע', factor: 1, max: true, door: 'asm' },
+  { id: 'a3', g: 'asm', n: 3, name: 'אולם אסיפות ללא מקומות ישיבה', factor: [0.75, 1], max: true, door: 'asm' },
+  { id: 'a3a', g: 'asm', n: '3א', name: 'אולם עם שולחנות / אולם שמחות', factor: [1, 1.4], max: true, door: 'asm' },
+  { id: 'a6', g: 'asm', n: 6, name: 'אצטדיון / אולם ספורט — ספסלים (0.50 מ\' לאדם)', q: 'bench', max: true, door: 'asm' },
+  { id: 'a7', g: 'asm', n: 7, name: 'אצטדיון / אולם ספורט — מושבים מקובעים', q: 'seats', max: true, door: 'asm' },
+  { id: 'a8', g: 'asm', n: 8, name: 'כדורת, ביליארד ומשחקים', factor: 1.1, max: true, door: 'asm' },
+  { id: 'a9', g: 'asm', n: 9, name: 'אולם המתנה לאולם אסיפות', factor: 1, door: 'asm' },
+  { id: 'a11', g: 'asm', n: 11, name: 'מסעדה או שטח הסעדה', factor: [1, 1.4], door: 'asm' },
+  { id: 'a12', g: 'asm', n: 12, name: 'מטבח', factor: 10 },
+  { id: 'a13', g: 'asm', n: 13, name: 'ספרייה — אולם קריאה', factor: 4.6, door: 'asm' },
+  { id: 'a14', g: 'asm', n: 14, name: 'ספרייה — אזור מדפים', factor: 10 },
+  { id: 'a15', g: 'asm', n: 15, name: 'בריכה — שטח המים', factor: 3, max: true, door: 'asm' },
+  { id: 'a16', g: 'asm', n: 16, name: 'בריכה — שטחים מרוצפים מסביב', factor: 3, door: 'asm' },
+  { id: 'a21', g: 'asm', n: 21, name: 'חדר כושר עם ציוד', factor: 4.6 },
+  { id: 'a22', g: 'asm', n: 22, name: 'חדר כושר ללא ציוד', factor: 1.4, door: 'asm' },
+  { id: 'a23', g: 'asm', n: 23, name: 'במה', factor: 1.4 },
+  { id: 'e25', g: 'edu', n: 25, name: 'כיתה', factor: 1.25, door: 'class' },
+  { id: 'e26', g: 'edu', n: 26, name: 'חדרי מלאכה (חינוך)', factor: 4, door: 'class' },
+  { id: 'e27', g: 'edu', n: 27, name: 'מעבדה במוסד חינוך', factor: 2.5, door: 'class' },
+  { id: 'e28', g: 'edu', n: 28, name: 'כיתה בגן ילדים או מעון יום', factor: 3.3, door: 'class' },
+  { id: 'h29', g: 'hea', n: 29, name: 'מרפאות (ברוטו)', factor: 9, w: 'amb' },
+  { id: 'h30', g: 'hea', n: 30, name: 'מחלקות טיפול (ברוטו)', factor: 22, w: 'ward' },
+  { id: 'h31', g: 'hea', n: 31, name: 'חדרי חולים — שינה (ברוטו)', factor: 11, w: 'ward' },
+  { id: 'r33', g: 'res', n: 33, name: 'בניין דירות (נטו שטח הדירות)', factor: 18 },
+  { id: 'r34', g: 'res', n: 34, name: 'בתי מלון ומעונות סטודנטים', factor: 18 },
+  { id: 'r35', g: 'res', n: 35, name: 'דיור מוגן (ברוטו)', factor: 18 },
+  { id: 'r36', g: 'res', n: 36, name: 'אולם מיטות באכסניה', factor: 5 },
+  { id: 'i37', g: 'ind', n: 37, name: 'תעשייה רגילה', factor: 10 },
+  { id: 'i38', g: 'ind', n: 38, name: 'תעשייה מיוחדת — לפי התפוסה המתוכננת (עד 100)', q: 'planned' },
+  { id: 'i39', g: 'ind', n: 39, name: 'תעשייה מסוכנת — לפי התפוסה המתוכננת (עד 100)', q: 'planned', w: 'haz', hazard: true },
+  { id: 'i40', g: 'ind', n: 40, name: 'בית מלאכה', factor: 5 },
+  { id: 'b41', g: 'ind', n: 41, name: 'משרדים', factor: 10, door: 'office' },
+  { id: 'b42', g: 'ind', n: 42, name: 'אולם אחסון', factor: 30 },
+  { id: 'c43', g: 'com', n: 43, name: 'מסחר בקומת מרתף', factor: 3, door: 'shop' },
+  { id: 'c44', g: 'com', n: 44, name: 'מסחר בקומת רחוב', factor: 3, door: 'shop' },
+  { id: 'c45', g: 'com', n: 45, name: 'מסחר מעל מפלס הרחוב', factor: 6, door: 'shop' },
+  { id: 'c46', g: 'com', n: 46, name: 'אחסון / קבלת סחורה, לא פתוח לקהל', factor: 30 },
+  { id: 'o48', g: 'oth', n: 48, name: 'חניון', factor: 30 },
+  { id: 'o49', g: 'oth', n: 49, name: 'מקלט או מרחב מוגן — לא במניין', none: true },
+];
+// table 3.2.12.4 — cm per person: [stairs and ramps over 8%, horizontal]
+const SAF_WIDTH = {
+  other: { s: 0.8, h: 0.5, name: 'כל האחרים' }, ward: { s: 1.0, h: 0.5, name: 'מחלקה סיעודית בבית חולים' },
+  amb: { s: 0.8, h: 0.5, name: 'מחלקה אמבולטורית עם מתזים' }, ambNs: { s: 1.5, h: 1.3, name: 'מחלקה אמבולטורית ללא מתזים' },
+  haz: { s: 1.8, h: 1.0, name: 'אזור בעל סיכון גבוה' },
+};
+// table 3.2.12.5 — minimum corridor width (m)
+const SAF_CORRIDOR = [
+  { id: 'res', w: 1.10, name: 'בניין מגורים, משרדים, תעשייה או מלאכה' }, { id: 'com', w: 1.30, name: 'בניין מסחרי' },
+  { id: 'pub', w: 1.30, name: 'בניין המשמש מוסד ציבורי' }, { id: 'school', w: 2.40, name: 'אגף כיתות בבית ספר יסודי עד תיכון' },
+  { id: 'beds', w: 2.20, name: 'מעבר מיטות בבית חולים / מחלקה סיעודית' }, { id: 'psy', w: 1.80, name: 'בית חולים פסיכיאטרי' },
+  { id: 'amb', w: 1.50, name: 'פרוזדור לחולים אמבולטוריים' }, { id: 'assist', w: 1.50, name: 'דיור מוגן' },
+  { id: 'care', w: 1.80, name: 'בית אבות' }, { id: 'aux', w: 1.10, name: 'חלק בניין שאינו משמש לייעודו הראשי' },
+];
+const SAF_HEIGHTS = { low: 'עד 13 מ\' (אינו גבוה)', high: 'בניין גבוה (13–29 מ\')', tower: 'בניין רב-קומות (מעל 29 מ\')' };
+const safUse = id => SAF_USES.find(u => u.id === id);
+const r2s = n => Math.round(n * 100) / 100;
+
+/* table 3.2.1.3 — the minimum door from a space, by its use, occupancy and area */
+function safDoorMin(u, occ, area) {
+  if (u.door === 'asm') return occ > 100 ? { w: 1.10, row: 15 } : { w: 0.90, row: 14 };
+  if (u.door === 'class') return { w: 0.90, row: 16 };
+  if (u.door === 'office') return { w: 0.90, row: 11 };
+  if (u.door === 'shop') return area > 100 ? { w: 1.10, row: 19 } : { w: 0.90, row: 18 };
+  return { w: 0.80, row: 1 };
+}
+const safWidthCat = (u, sh) => u.w === 'amb' && !sh.sprinklers ? 'ambNs' : (u.w || 'other');
+
+/* One space → occupancy, exits, door width and panic hardware */
+function safSpace(sp, sh) {
+  const u = safUse(sp.use); if (!u) return null;
+  const area = +sp.area || 0;
+  let factor = null, occ = 0;
+  if (u.none) occ = 0;
+  else if (u.q === 'seats' || u.q === 'planned') occ = Math.ceil(+sp.qty || 0);
+  else if (u.q === 'bench') occ = Math.floor((+sp.qty || 0) / 0.5);
+  else {
+    factor = Array.isArray(u.factor) ? Math.min(Math.max(+sp.factor || u.factor[0], u.factor[0]), u.factor[1]) : u.factor;
+    occ = area > 0 ? Math.ceil(area / factor - 1e-9) : 0;
+  }
+  if (u.q === 'planned') occ = Math.min(occ, 100);
+  const exits = occ > 1000 ? 4 : occ > 500 ? 3 : (occ >= 50 || (u.hazard && area > 20)) ? 2 : 1;   // 3.2.13.2
+  const cat = safWidthCat(u, sh), wf = SAF_WIDTH[cat];
+  const horiz = r2s(occ * wf.h / 100);                                  // total horizontal width, m
+  const dmin = safDoorMin(u, occ, area);
+  // each door keeps the table 3.2.1.3 minimum; together the doors carry the calculated width (3.2.12.4)
+  return { u, area, factor, occ, exits, cat, horiz, doorMin: dmin, doorReq: dmin.w, panic: occ > 100 };
+}
+/* The proposed doors of a space against the requirement */
+function safSpaceCheck(sp, sh) {
+  const x = safSpace(sp, sh); if (!x) return null;
+  const doors = +sp.doors || 0, w = +sp.doorW || 0;
+  const issues = [];
+  if (x.occ > 0 && doors < x.exits) issues.push({ k: 'doors', need: x.exits, have: doors });
+  if (x.occ > 0 && doors && w + 1e-9 < x.doorReq) issues.push({ k: 'width', need: x.doorReq, have: w });
+  if (x.occ > 0 && doors && w && doors * w + 1e-9 < x.horiz) issues.push({ k: 'total', need: x.horiz, have: r2s(doors * w) });
+  if (x.panic && !sp.panic) issues.push({ k: 'panic' });
+  return Object.assign(x, { doors, w, issues, ok: !issues.length, entered: doors > 0 || w > 0 });
+}
+/* A floor → total occupancy, exits, width per exit, corridor and stairs (before the "no reduction" rule) */
+function safFloor(fl, sh) {
+  const spaces = (fl.spaces || []).map(sp => ({ sp, x: safSpaceCheck(sp, sh) })).filter(o => o.x);
+  const occ = spaces.reduce((a, o) => a + o.x.occ, 0);
+  // the widest factor on the floor applies to its shared exits (3.2.12.7(א))
+  const cats = spaces.filter(o => o.x.occ > 0).map(o => o.x.cat);
+  const wf = cats.reduce((m, c) => SAF_WIDTH[c].s > m.s ? SAF_WIDTH[c] : m, SAF_WIDTH.other);
+  const roomMax = spaces.reduce((a, o) => Math.max(a, o.x.occ > 0 ? o.x.exits : 0), 0);
+  let exits = occ > 1000 ? 4 : occ > 500 ? 3 : 2, single = '';                         // 3.2.13.3
+  if (exits === 2 && sh.height !== 'tower') {
+    if (sh.residential) { exits = 1; single = 'res'; }
+    else if (occ <= 30 && fl.short30) { exits = 1; single = 'small'; }
+  }
+  exits = Math.max(exits, roomMax);
+  const share = exits ? occ / exits : 0;
+  const levelDoor = (+fl.level || 0) === 0;
+  const stairMin = sh.twoDwellings ? 0.90 : sh.height === 'low' ? 1.00 : 1.10;          // 3.2.2.2
+  const corr = SAF_CORRIDOR.find(c => c.id === fl.corridor) || SAF_CORRIDOR[0];
+  return {
+    spaces, occ, exits, single, roomMax, share, wf,
+    horizPer: r2s(share * wf.h / 100), stairPer: r2s(share * wf.s / 100),
+    // the floor's total width; it may be split unevenly between the exits (3.2.12.1(ב), 3.2.12.4)
+    horizTot: r2s(occ * wf.h / 100), stairTot: r2s(occ * wf.s / 100),
+    doorMinLevel: levelDoor ? 1.10 : 0.80, doorMinStair: levelDoor ? 1.10 : 0.90,       // table 3.2.1.3 rows 1, 12, 13
+    stairMin, corrMin: corr.w, corr, corrCalc: r2s(share * wf.h / 100),
+    panic: occ > 100,                                                                    // 3.2.1.21
+  };
+}
+/* A floor's stair flights; older checks kept them on the exits (kind 'stair') */
+const safStairs = fl => fl.stairs || (fl.exits || []).filter(e => e.kind === 'stair').map(e => ({ id: e.id, w: e.stair }));
+/* The whole check: stairs take the largest requirement of the floors they serve on the way to the exit level */
+function safCheck(sh) {
+  const floors = (sh.floors || []).map(fl => ({ fl, f: safFloor(fl, sh) }));
+  floors.forEach(o => {
+    const L = +o.fl.level || 0;
+    // stairs carry the floors they serve on the way to the exit level, with no reduction (3.2.12.1(ג));
+    // a stair at the exit level carries everyone coming down or up to it
+    const served = floors.filter(p => { const M = +p.fl.level || 0; return L > 0 ? M >= L : L < 0 ? M <= L : true; });
+    o.f.stairGov = r2s(Math.max(o.f.stairTot, ...served.map(p => p.f.stairTot)));
+    o.f.stairReq = o.f.stairMin;
+    o.f.corrReq = r2s(Math.max(o.f.corrMin, o.f.corrCalc));
+    const ex = o.fl.exits || [];
+    const lines = [];
+    lines.push({ k: 'count', need: o.f.exits, have: ex.length, ok: ex.length >= o.f.exits });
+    // each exit door keeps its minimum; the floor's total width is checked on the sums
+    ex.forEach(e => {
+      const items = [{ k: 'door', need: o.f.doorMinStair, have: +e.door || 0 }];
+      if (o.f.panic) items.push({ k: 'panic', need: true, have: !!e.panic });
+      items.forEach(i => { i.ok = i.k === 'panic' ? i.have : i.have + 1e-9 >= i.need; });
+      lines.push({ k: 'exit', e, items, ok: items.every(i => i.ok) });
+    });
+    if (ex.length && o.f.occ > 0) {
+      const doors = r2s(ex.reduce((a, e) => a + (+e.door || 0), 0));
+      lines.push({ k: 'doorSum', need: o.f.horizTot, have: doors, ok: doors + 1e-9 >= o.f.horizTot });
+    }
+    // stairs: on a floor off the exit level they are required; at the exit level only when drawn
+    const stairs = safStairs(o.fl);
+    o.stairs = stairs;
+    stairs.forEach(st => lines.push({ k: 'stair', st, need: o.f.stairMin, have: +st.w || 0, ok: (+st.w || 0) + 1e-9 >= o.f.stairMin }));
+    if ((stairs.length || L !== 0) && o.f.stairGov > 0) {
+      const sw = r2s(stairs.reduce((a, st) => a + (+st.w || 0), 0));
+      lines.push({ k: 'stairSum', need: o.f.stairGov, have: sw, ok: sw + 1e-9 >= o.f.stairGov });
+    }
+    if (o.fl.corridorW != null && o.fl.corridorW !== '') lines.push({ k: 'corridor', need: o.f.corrReq, have: +o.fl.corridorW || 0, ok: +o.fl.corridorW + 1e-9 >= o.f.corrReq });
+    const spaceBad = o.f.spaces.filter(s => s.x.entered && !s.x.ok).length;
+    o.lines = lines; o.bad = lines.filter(l => !l.ok).length + spaceBad;
+  });
+  return { floors, occ: floors.reduce((a, o) => a + o.f.occ, 0), bad: floors.reduce((a, o) => a + o.bad, 0) };
+}
+
 const api = {
   MEASURES, CATS, USES, BIKES, MOTOS, STATIONS, ZONES, FIX, FIX_ORDER, HLT, HLT_GENERAL, PCOLS, FLOOR_FX,
   haversine, stationsNear, zoneForStation, useById, ruleSet, ruleText, carRow, bikeRow, motoRow, parkingTotals, span,
   hltById, stepCount, stepText, hltRow, hltTotals, reqFor, planCheck, fill,
+  SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck,
   HGA_KINDS, HGA_GROUPS, HGA_USES, HGA_LIMITS, HGA_SYSTEMS, hgaById, hgaSpaceOf, hgaRow, hgaFloor, hgaCheckFloor, hgaTotals, hgaVent, hgaSuggest,
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
