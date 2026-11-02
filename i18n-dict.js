@@ -3927,6 +3927,8 @@ Object.assign(HE_EN, {
 "לפי התפוסה — 3.2.12.5(ב)": "By occupancy — 3.2.12.5(b)",
 "(מינימום בטבלה 3.2.12.5: {m})": "(table 3.2.12.5 minimum: {m})",
 "* הרוחב נקבע לפי המינימום בטבלה 3.2.12.5": "* width set by the table 3.2.12.5 minimum",
+"רוחב כל דלת יציאה (ס\"מ):": "Width of each exit door (cm):",
+"רוחב כל גרם מדרגות (ס\"מ):": "Width of each stair flight (cm):",
 });
 
 window.I18N_HE_EN = HE_EN;
