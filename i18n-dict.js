@@ -3921,6 +3921,12 @@ Object.assign(HE_EN, {
 "מדרגות כולל (ס\"מ)": "Total stairs (cm)",
 "פרוזדור (ס\"מ)": "Corridor (cm)",
 "החלופה שמוצגת בסיכום": "The alternative shown in the summary",
+"נדרש {a}": "Required {a}",
+"מינימום טבלה 3.2.12.5": "Table 3.2.12.5 minimum",
+"(החישוב לפי התפוסה: {c} — נמוך מהמינימום)": "(by occupancy: {c} — below the minimum)",
+"לפי התפוסה — 3.2.12.5(ב)": "By occupancy — 3.2.12.5(b)",
+"(מינימום בטבלה 3.2.12.5: {m})": "(table 3.2.12.5 minimum: {m})",
+"* הרוחב נקבע לפי המינימום בטבלה 3.2.12.5": "* width set by the table 3.2.12.5 minimum",
 });
 
 window.I18N_HE_EN = HE_EN;

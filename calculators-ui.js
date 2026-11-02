@@ -689,6 +689,11 @@
         h('div', { className: 'cx-card-b', style: { display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', paddingTop: 6, paddingBottom: 6 } },
           h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 6 } }, 'רוחב פרוזדור (ס"מ)',
             wField(fl.corridorW, flagged(corr), v => setFloor(i, { corridorW: v }))),
+          // say which rule sets the corridor: the table 3.2.12.5 minimum often beats the occupancy calculation
+          f.occ > 0 && h('span', { className: 'cx-rule' }, h('b', null, T('נדרש {a}', { a: cmT(f.corrReq) })), ' ',
+            f.corrMin >= f.corrCalc
+              ? h(React.Fragment, null, h('span', { className: 'cx-tag warn', title: T(f.corr.name) }, T('מינימום טבלה 3.2.12.5')), ' ', T('(החישוב לפי התפוסה: {c} — נמוך מהמינימום)', { c: cmT(f.corrCalc) }))
+              : h(React.Fragment, null, h('span', { className: 'cx-tag' }, T('לפי התפוסה — 3.2.12.5(ב)')), ' ', T('(מינימום בטבלה 3.2.12.5: {m})', { m: cmT(f.corrMin) }))),
           corr && h('span', { className: corr.ok ? 'cx-p-ok' : 'cx-p-bad' }, T('פרוזדור {h} מול {n} ס"מ נדרש', { h: cm(corr.have), n: cm(corr.need) })),
           !showStairs && h('button', { className: 'cx-btn', onClick: () => setStairs([{ id: uid(), w: null }]) }, '+ מדרגות בקומה')),
 
@@ -742,11 +747,12 @@
               h('td', Object.assign({ className: 'gl' }, SKIP), o.fl.name), h('td', { className: 'n' }, o.fl.level || 0), h('td', { className: 'n' }, o.f.occ),
               h('td', { className: 'n ' + (cnt.ok ? '' : 'cx-bad') }, `${cnt.have} / ${cnt.need}`),
               sumCell('doorSum', o.f.horizTot), sumCell('stairSum', o.f.stairGov),
-              h('td', { className: 'n ' + (cr && !cr.ok ? 'cx-bad' : '') }, cr ? `${cm(cr.have)} / ${cm(cr.need)}` : cm(o.f.corrReq)),
+              h('td', { className: 'n ' + (cr && !cr.ok ? 'cx-bad' : '') }, (cr ? `${cm(cr.have)} / ${cm(cr.need)}` : cm(o.f.corrReq)) + (o.f.corrMin >= o.f.corrCalc ? ' *' : '')),
               h('td', null, o.f.panic ? h('span', { className: 'cx-tag warn' }, 'נדרש') : '—'),
               h('td', null, okPill(!o.bad, '✓', T('✗ {n}', { n: o.bad }))));
           })),
-          h('tfoot', null, h('tr', null, h('td', { className: 'gl', colSpan: 2 }, 'סה"כ בבניין'), h('td', { className: 'n' }, chk.occ), h('td', { colSpan: 6 }))))))));
+          h('tfoot', null, h('tr', null, h('td', { className: 'gl', colSpan: 2 }, 'סה"כ בבניין'), h('td', { className: 'n' }, chk.occ), h('td', { colSpan: 6 }))))),
+        rows.some(o => o.f.occ > 0 && o.f.corrMin >= o.f.corrCalc) && h('div', { className: 'cx-rule', style: { marginTop: 6 } }, '* הרוחב נקבע לפי המינימום בטבלה 3.2.12.5'))));
 
     const src = Card(4, 'מקורות', null, h('div', { className: 'cx-card-b' },
       h('div', { className: 'cx-cite' }, '📖 תקנות התכנון והבנייה (בקשה להיתר, תנאיו ואגרות), התש"ל-1970 — תוספת שנייה, חלק ג\': בטיחות אש בבניינים.'),
