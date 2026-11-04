@@ -177,22 +177,26 @@ test('בטיחות: the total width may be split unevenly; each exit keeps its m
 });
 
 test('safety floors: a copy is the next floor up; moving a floor renumbers the list', () => {
-  const t = (k, o) => k.replace('{n}', o ? o.n : '');
   const fl = [{ name: 'קומת קרקע', level: 0 }, { name: 'קומה 1', level: 1 }, { name: 'גג טכני', level: 2 }, { name: 'קומה 3', level: 3 }];
   assert.strictEqual(R.safNextLevel(fl), 4);
   assert.strictEqual(R.safNextLevel([{ level: -2 }, { level: -1 }]), 0);
-  assert.strictEqual(R.safFloorName(11, t), 'קומה 11');
-  const moved = R.safMoveFloor(fl, 3, 1, t);
+  assert.strictEqual(R.safFloorName(11), 'קומה 11');
+  const moved = R.safMoveFloor(fl, 3, 1);
   assert.deepStrictEqual(moved.map(f => f.level), [0, 1, 2, 3]);
   assert.deepStrictEqual(moved.map(f => f.name), ['קומת קרקע', 'קומה 1', 'קומה 2', 'גג טכני']);  // a typed name stays
-  const down = R.safMoveFloor(fl, 0, 1, t);
+  const down = R.safMoveFloor(fl, 0, 1);
   assert.deepStrictEqual(down.map(f => f.name), ['קומת קרקע', 'קומה 1', 'גג טכני', 'קומה 3']);
-  const gone = R.safRemoveFloor(fl, 1, t);
+  const gone = R.safRemoveFloor(fl, 1);
   assert.deepStrictEqual(gone.map(f => f.level), [0, 1, 2]);
   assert.deepStrictEqual(gone.map(f => f.name), ['קומת קרקע', 'גג טכני', 'קומה 2']);
-  assert.deepStrictEqual(R.safRemoveFloor([{ level: -2 }, { level: -1 }, { level: 0 }], 1, t).map(f => f.level), [-1, 0]);
+  assert.deepStrictEqual(R.safRemoveFloor([{ level: -2 }, { level: -1 }, { level: 0 }], 1).map(f => f.level), [-1, 0]);
+  // default names are stored in Hebrew and shown in the page's language
+  const en = (k, o) => ({ 'קומת קרקע': 'Ground floor', 'קומה {n}': 'Floor ' + (o && o.n) })[k];
+  assert.strictEqual(R.safFloorLabel({ name: 'קומה 2', level: 2 }, en), 'Floor 2');
+  assert.strictEqual(R.safFloorLabel({ name: 'Ground floor', level: 0 }, k => k), 'קומת קרקע');
+  assert.strictEqual(R.safFloorLabel({ name: 'גג טכני', level: 2 }, en), 'גג טכני');
   // a basement keeps the list's levels: only the places change
-  const low = R.safMoveFloor([{ name: 'קומה -1', level: -1 }, { name: 'קומת קרקע', level: 0 }, { name: 'Floor 1', level: 1 }], 2, 0, t);
+  const low = R.safMoveFloor([{ name: 'קומה -1', level: -1 }, { name: 'קומת קרקע', level: 0 }, { name: 'Floor 1', level: 1 }], 2, 0);
   assert.deepStrictEqual(low.map(f => f.level), [-1, 0, 1]);
   assert.deepStrictEqual(low.map(f => f.name), ['קומה -1', 'קומת קרקע', 'קומה 1']);
 });

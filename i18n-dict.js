@@ -3932,7 +3932,6 @@ Object.assign(HE_EN, {
 "סך הגרמים {h} מול {n} ס\"מ נדרש": "Flights total {h} vs {n} cm required",
 "למחוק את {n}? החללים ודרכי המוצא שלה יימחקו.": "Delete {n}? Its spaces and exits will be deleted too.",
 "גררו כדי להזיז את הקומה": "Drag to move the floor",
-"הקומה": "the floor",
 });
 
 window.I18N_HE_EN = HE_EN;
