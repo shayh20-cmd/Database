@@ -512,6 +512,66 @@ function stationsNear(lat, lng, radius) {
 }
 const zoneForStation = s => s.planned ? 'C' : s.d <= 300 ? 'A' : s.d <= 600 ? 'B' : 'C';
 
+/* ── רמת שירות בחניון ──
+   הנחיות לתכנון חניונים, משרד התחבורה — סעיפים 3.3–3.4, טבלה 2. 1 is the highest level: drivers who know the garage can
+   take a lower one, and a dense area served by transit accepts tighter dimensions. [row, use, A, B, C, note] */
+const LOS_TABLE = [
+  [1, 'מגורים', 3, 2, 1, 'משתמשים קבועים'], [2, 'חנויות ומסחר', 2, 1, 1], [3, 'מרכז קניות ובילוי', 2, 1, 1], [4, 'משרדים', 3, 2, 1, 'משתמשים קבועים'],
+  [5, 'בידור', 2, 1, 1], [6, 'מסעדה, בתי קפה', 2, 1, 1], [7, 'מלון', 3, 2, 1, 'חניה ממושכת'], [8, 'בית ספר על-יסודי, מקצועי', 2, 2, 1],
+  [9, 'אוניברסיטה, מכללה', 2, 2, 1], [10, 'ספריה, מוזיאון, מועדון, מתנ"ס', 2, 1, 1], [11, 'מרפאה, מרפאת חוץ בבית חולים', 2, 1, 1], [12, 'בית חולים', 2, 1, 1],
+  [13, 'תעשיה ומלאכה', 3, 2, 1], [14, 'אחסנה', 3, 2, 1], [15, 'תעשיה עתירת ידע', 3, 2, 1], [16, 'מסעדה או מזנון בתחנת תדלוק', 2, 1, 1],
+  [17, 'מתקן ספורט ציבורי, אצטדיון', 2, 1, 1], [18, 'מתקן ספורט לשימוש עצמי', 3, 2, 1], [19, 'פארק ציבורי, גן לאומי', 2, 1, 1], [20, 'בית עלמין', 2, 1, 1],
+  [21, 'חוף רחצה מוסדר', 2, 1, 1], [22, 'שדה תעופה', null, 1, 1], [23, 'בניין קיים', 3, 2, 1, 'אילוצים פיסיים'], [24, 'מקום שנועד לחניה כמטרה עיקרית', 2, 1, 1],
+].map(([n, name, A, B, C, note]) => ({ n, name, A, B, C, note: note || '' }));
+/* The parking standard's uses against table 2. Our reading, where the two lists don't name the same thing: garages as
+   workshops, a sports club as public, homes for the elderly and dormitories as housing */
+const LOS_BY_USE = { '1': 1, '2': 2, '3': 4, '4.1': 13, '4.5': 14, '5.1': 8, '5.2': 9, '5.3': 10, '6.1': 5, '6.2': 5, '6.3': 6, '6.4': 10, '6.5': 10,
+  '7.1': 11, '7.2': 12, '7.3': 12, '8.1': 17, '8.2': 17, '8.3': 20, '9': 7, '10.1': 13, '10.2': 16 };
+const losRowFor = id => { const c = String(id).replace(/[sa]$/, ''), n = LOS_BY_USE[c] || LOS_BY_USE[c.split('.')[0]]; return LOS_TABLE.find(r => r.n === n) || null; };
+/* The guidelines don't give a distance for A, B and C and leave the zones to the local authority. These are our working
+   figures, for the suggestion only: A within 600 m of a working mass-transit stop, B within 800 m or near a planned one */
+const LOS_NEAR = 600, LOS_FAR = 800;
+/* Main bus terminals, coordinates approximate. Kept apart from STATIONS, which decide the legal parking zone */
+const BUS_HUBS = [
+  ['התחנה המרכזית תל אביב', 32.0559, 34.7795], ['התחנה המרכזית ירושלים', 31.7892, 35.2030], ['מרכזית חוף הכרמל, חיפה', 32.7934, 34.9579], ['מרכזית המפרץ, חיפה', 32.7924, 35.0370],
+  ['התחנה המרכזית באר שבע', 31.2434, 34.7973], ['התחנה המרכזית נתניה', 32.3275, 34.8573], ['התחנה המרכזית פתח תקווה', 32.0911, 34.8860], ['התחנה המרכזית עפולה', 32.6071, 35.2872],
+  ['התחנה המרכזית אילת', 29.5577, 34.9519],
+];
+function busHubsNear(lat, lng, radius) {
+  return BUS_HUBS.map(([name, la, ln]) => ({ name, type: 'תחנה מרכזית', planned: false, d: Math.round(haversine(lat, lng, la, ln)) }))
+    .filter(s => s.d <= (radius || LOS_FAR)).sort((a, b) => a.d - b.d);
+}
+/* Where the garage stands in the city: the nearest mass-transit stop, of the stations found for the address and the terminals */
+function parkLocation(sh) {
+  if (!sh.loc) return { loc: null, by: null };
+  const near = (sh.stations || []).concat(busHubsNear(sh.loc.lat, sh.loc.lng)).sort((a, b) => a.d - b.d);
+  const live = near.find(s => !s.planned), by = live || near[0] || null;
+  return { loc: live && live.d <= LOS_NEAR ? 'A' : by && by.d <= LOS_FAR ? 'B' : 'C', by };
+}
+/* The level the garage needs. With several uses the one needing the highest level decides (3.4); with no location, or a zone
+   the plan set by hand to nothing, level 1, as 3.4 requires where the authority hasn't defined its zones */
+function parkLos(sh) {
+  const auto = parkLocation(sh), s = sh.supply || {}, loc = s.loc || auto.loc;
+  const seen = new Set(), rows = [];
+  (sh.rows || []).forEach(r => {
+    const row = losRowFor(r.type), u = useById(r.type);
+    if (!row || !u || seen.has(row.n)) return;
+    seen.add(row.n);
+    rows.push({ row, use: u, level: loc ? row[loc] || 1 : 1 });
+  });
+  const level = rows.length ? Math.min(...rows.map(r => r.level)) : null;
+  const designed = s.level != null && s.level !== '' ? +s.level : level;
+  return { loc, auto, manual: !!s.loc, rows, level, designed, decidedBy: rows.find(r => r.level === level) || null, ok: level == null || designed <= level };
+}
+/* What the project offers against what it needs. Accessible spaces are counted inside the cars and come on top of the total,
+   so the standard's range is checked without them */
+function parkSupply(sh) {
+  const s = sh.supply || {}, rows = (s.floors || []).concat([s.outdoor || {}]), sum = k => rows.reduce((a, r) => a + (+r[k] || 0), 0);
+  const t = parkingTotals(sh), cars = sum('cars'), acc = sum('acc'), moto = sum('moto'), bike = sum('bike'), net = cars - acc;
+  const carsOk = (t.noMin || net >= t.min) && (t.noMax || net <= t.max);
+  return { t, cars, acc, net, moto, bike, entered: rows.some(r => ['cars', 'acc', 'moto', 'bike'].some(k => +r[k] > 0)), carsOk, bikeOk: bike >= t.bikes, motoOk: moto >= t.mMin && moto <= t.mMax, accOk: acc <= cars };
+}
+
 /* ── הל"ת ── */
 const hltById = id => HLT.find(u => u.id === id);
 /* One use row → { u, groups:[{g, n, fx:{key:{c, t}}}], extra:{key:{c, note}}, desc:{tpl, vars} }.
@@ -1134,7 +1194,7 @@ function safSection(sh) {
 
 const api = {
   MEASURES, CATS, USES, BIKES, MOTOS, STATIONS, ZONES, FIX, FIX_ORDER, HLT, HLT_GENERAL, PCOLS, FLOOR_FX,
-  haversine, stationsNear, zoneForStation, useById, ruleSet, ruleText, carRow, bikeRow, motoRow, parkingTotals, span,
+  haversine, stationsNear, zoneForStation, LOS_TABLE, LOS_NEAR, LOS_FAR, BUS_HUBS, losRowFor, busHubsNear, parkLocation, parkLos, parkSupply, useById, ruleSet, ruleText, carRow, bikeRow, motoRow, parkingTotals, span,
   hltById, stepCount, stepText, hltRow, hltTotals, reqFor, planCheck, fill,
   SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck, safFloorName, safFloorLabel, safFloorNick, safRenumber, safNextLevel, safFloorCounts, safSetCounts, safFloorHasData, safCopyFloor, safFlights, safFlightsWithout, safProtectedStairs, safSection, safMoveFloor, safRemoveFloor,
   HGA_KINDS, HGA_GROUPS, HGA_USES, HGA_LIMITS, HGA_SYSTEMS, hgaById, hgaSpaceOf, hgaRow, hgaFloor, hgaCheckFloor, hgaTowers, hgaResolve, hgaSheet, hgaSetTowerFloor, hgaPruneTowers, hgaFloorHasData, hgaCopyFloorUp, hgaSection, hgaTotals, hgaVent, hgaSuggest,
