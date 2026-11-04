@@ -563,13 +563,12 @@ function parkLos(sh) {
   const designed = s.level != null && s.level !== '' ? +s.level : level;
   return { loc, auto, manual: !!s.loc, rows, level, designed, decidedBy: rows.find(r => r.level === level) || null, ok: level == null || designed <= level };
 }
-/* What the project offers against what it needs. Accessible spaces are counted inside the cars and come on top of the total,
-   so the standard's range is checked without them */
+/* What the project offers against what it needs. Accessible spaces come on top of the number the standard requires, so the cars are checked without them */
 function parkSupply(sh) {
   const s = sh.supply || {}, rows = (s.floors || []).concat([s.outdoor || {}]), sum = k => rows.reduce((a, r) => a + (+r[k] || 0), 0);
-  const t = parkingTotals(sh), cars = sum('cars'), acc = sum('acc'), moto = sum('moto'), bike = sum('bike'), net = cars - acc;
-  const carsOk = (t.noMin || net >= t.min) && (t.noMax || net <= t.max);
-  return { t, cars, acc, net, moto, bike, entered: rows.some(r => ['cars', 'acc', 'moto', 'bike'].some(k => +r[k] > 0)), carsOk, bikeOk: bike >= t.bikes, motoOk: moto >= t.mMin && moto <= t.mMax, accOk: acc <= cars };
+  const t = parkingTotals(sh), cars = sum('cars'), acc = sum('acc'), moto = sum('moto'), bike = sum('bike');
+  const carsOk = (t.noMin || cars >= t.min) && (t.noMax || cars <= t.max);
+  return { t, cars, acc, total: cars + acc, moto, bike, entered: rows.some(r => ['cars', 'acc', 'moto', 'bike'].some(k => +r[k] > 0)), carsOk, bikeOk: bike >= t.bikes, motoOk: moto >= t.mMin && moto <= t.mMax };
 }
 
 /* ── הל"ת ── */

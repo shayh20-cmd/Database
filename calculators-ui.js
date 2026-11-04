@@ -470,13 +470,13 @@
     const KEYS = ['cars', 'acc', 'moto', 'bike'];
     const numCells = (o, save) => KEYS.map(k => h('td', { key: k }, h(Field, { type: 'number', min: 0, placeholder: '0', value: o[k], onSave: v => save(k, v) })));
     const state = (good, txt) => h('span', { className: good ? 'cx-p-ok' : 'cx-p-bad' }, txt);
-    const carState = !sc.entered ? '—' : state(sc.carsOk, sc.carsOk ? '✓' : sc.net < sc.t.min ? T('✗ חסר {n}', { n: sc.t.min - sc.net }) : T('✗ עודף {n}', { n: sc.net - sc.t.max }));
+    const carState = !sc.entered ? '—' : state(sc.carsOk, sc.carsOk ? '✓' : sc.cars < sc.t.min ? T('✗ חסר {n}', { n: sc.t.min - sc.cars }) : T('✗ עודף {n}', { n: sc.cars - sc.t.max }));
     const offerCard = Card(5, 'מוצע בפרויקט',
       h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 8 } }, 'קומות חניה',
         h(Field, { type: 'number', className: 'cx-n', style: { width: 64 }, min: 0, max: 20, value: supFloors.length, onSave: setSupCount })),
       h(React.Fragment, null,
         h('div', { className: 'cx-scroll' }, h('table', { className: 'cx-t c cx-plan' },
-          h('thead', null, h('tr', null, ['קומה', 'רכב (כולל נכים)', 'מתוכן נכים', 'אופנועים', 'אופניים'].map(x => h('th', { key: x }, x)))),
+          h('thead', null, h('tr', null, ['קומה', 'רכב', 'נכים (בנוסף)', 'אופנועים', 'אופניים'].map(x => h('th', { key: x }, x)))),
           h('tbody', null,
             supFloors.map((f, i) => h('tr', { key: f.id || i },
               h('td', { className: 'gl' }, h(Field, { className: 'fl', value: f.name, skip: true, onSave: v => setSup({ floors: supFloors.map((x, j) => j === i ? Object.assign({}, x, { name: v }) : x) }) })),
@@ -485,9 +485,9 @@
           h('tfoot', null,
             h('tr', null, h('td', { className: 'gl' }, 'מוצע'), h('td', { className: 'n' }, sc.cars), h('td', { className: 'n' }, sc.acc), h('td', { className: 'n' }, sc.moto), h('td', { className: 'n' }, sc.bike)),
             h('tr', null, h('td', { className: 'gl' }, 'נדרש'), h('td', { className: 'n' }, R.span(sc.t.min, sc.t.max, sc.t.noMin, sc.t.noMax, T)), h('td', { className: 'n' }, 'ממתין'), h('td', { className: 'n' }, R.span(sc.t.mMin, sc.t.mMax, false, false, T)), h('td', { className: 'n' }, sc.t.bikes + (sc.t.bikesMissing ? '+' : ''))),
-            h('tr', null, h('td', { className: 'gl' }, 'עומד'), h('td', { className: 'n' }, carState), h('td', { className: 'n' }, !sc.entered ? '—' : sc.accOk ? '—' : state(false, '✗')),
+            h('tr', null, h('td', { className: 'gl' }, 'עומד'), h('td', { className: 'n' }, carState), h('td', { className: 'n' }, '—'),
               h('td', { className: 'n' }, !sc.entered ? '—' : state(sc.motoOk, sc.motoOk ? '✓' : '✗')), h('td', { className: 'n' }, !sc.entered ? '—' : state(sc.bikeOk, sc.bikeOk ? '✓' : T('✗ חסר {n}', { n: sc.t.bikes - sc.bike }))))))),
-        h('div', { className: 'cx-card-b', style: { paddingTop: 8 } }, h('span', { className: 'cx-hint' }, 'חניות הנכים נספרות בתוך הרכב ובאות בנוסף לתקן, ולכן הבדיקה מול התקן היא בלי חניות הנכים. מספר חניות הנכים הנדרש ממתין לטבלה בתקנות.'))));
+        h('div', { className: 'cx-card-b', style: { paddingTop: 8 } }, h('span', { className: 'cx-hint' }, 'חניות הנכים באות בנוסף למספר הנדרש בתקן, ולכן הן לא נספרות בבדיקת הרכב. מספר חניות הנכים הנדרש ממתין לטבלה בתקנות.'))));
 
     const locLbl = l => l === 'A' ? 'A — נגישות גבוהה לתח"צ' : l === 'B' ? 'B — נגישות סבירה לתח"צ ולרכב פרטי' : 'C — נגישות גבוהה לרכב פרטי';
     const by = los.auto.by;

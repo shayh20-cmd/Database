@@ -192,11 +192,11 @@ test('parking location: mass transit and terminals, keeping the legal zones apar
   assert.ok(!R.stationsNear(32.0559, 34.7795, 100).some(s => s.type === 'תחנה מרכזית'));              // terminals don't touch the parking zone
 });
 
-test('parking supply: floors and outdoor add up, accessible spaces outside the standard', () => {
-  const sh = { basis: 'main', zone: 'A', rows: [{ type: '1.2', qty: 20 }], supply: { floors: [{ cars: 15, acc: 2 }, { cars: 5 }], outdoor: { cars: 2, moto: 2, bike: 20 } } };
+test('parking supply: floors and outdoor add up, accessible spaces on top of the standard', () => {
+  const sh = { basis: 'main', zone: 'A', rows: [{ type: '1.2', qty: 20 }], supply: { floors: [{ cars: 13, acc: 2 }, { cars: 5 }], outdoor: { cars: 2, moto: 2, bike: 20 } } };
   const c = R.parkSupply(sh);
   assert.deepStrictEqual([c.t.min, c.t.max], [10, 20]);
-  assert.deepStrictEqual([c.cars, c.acc, c.net, c.carsOk], [22, 2, 20, true]);
+  assert.deepStrictEqual([c.cars, c.acc, c.total, c.carsOk], [20, 2, 22, true]);
   assert.strictEqual(R.parkSupply({ ...sh, supply: { outdoor: { cars: 9 } } }).carsOk, false);
   assert.strictEqual(R.parkSupply({ ...sh, supply: { outdoor: { cars: 30 } } }).carsOk, false);
   assert.strictEqual(R.parkSupply({ ...sh, supply: undefined }).entered, false);

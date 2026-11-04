@@ -46,11 +46,11 @@ function parkingSections(sh, { R, T, L }) {
 function parkingOffer(sh, { R, T }) {
   const s = sh.supply || {}, c = R.parkSupply(sh), row = (name, o) => [name, +o.cars || 0, +o.acc || 0, +o.moto || 0, +o.bike || 0];
   const state = (good, txt) => (!c.entered ? '—' : mark(good, txt));
-  return { title: T('מוצע בפרויקט'), tables: [{ head: [T('קומה'), T('רכב (כולל נכים)'), T('מתוכן נכים'), T('אופנועים'), T('אופניים')],
+  return { title: T('מוצע בפרויקט'), tables: [{ head: [T('קומה'), T('רכב'), T('נכים (בנוסף)'), T('אופנועים'), T('אופניים')],
     rows: (s.floors || []).map(f => row(f.name, f)).concat([row(T('חניה חיצונית'), s.outdoor || {})],
       [[T('מוצע'), c.cars, c.acc, c.moto, c.bike], [T('נדרש'), R.span(c.t.min, c.t.max, c.t.noMin, c.t.noMax, T), T('ממתין'), R.span(c.t.mMin, c.t.mMax, false, false, T), c.t.bikes + (c.t.bikesMissing ? '+' : '')]]),
     foot: [T('עומד'), state(c.carsOk, c.carsOk ? '✓' : '✗'), '—', state(c.motoOk, c.motoOk ? '✓' : '✗'), state(c.bikeOk, c.bikeOk ? '✓' : '✗')] }],
-    notes: c.entered ? [T('חניות הנכים נספרות בתוך הרכב ובאות בנוסף לתקן, ולכן הבדיקה מול התקן היא בלי חניות הנכים. מספר חניות הנכים הנדרש ממתין לטבלה בתקנות.')] : [] };
+    notes: c.entered ? [T('חניות הנכים באות בנוסף למספר הנדרש בתקן, ולכן הן לא נספרות בבדיקת הרכב. מספר חניות הנכים הנדרש ממתין לטבלה בתקנות.')] : [] };
 }
 function parkingLevel(sh, { R, T }) {
   const l = R.parkLos(sh);
