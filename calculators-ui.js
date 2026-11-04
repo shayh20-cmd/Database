@@ -140,6 +140,9 @@
     '.cx-hk{font-size:12px;color:var(--text-2);margin-bottom:4px}',
     '.cx-hk b{color:var(--text)}',
     '.cx-hk2{margin-top:4px}',
+    '.cx-chip-diff{box-shadow:inset 0 0 0 1px rgba(217,119,6,.6);background:rgba(217,119,6,.14)}',
+    '.cx-twf{flex-basis:100%;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:4px 16px}',
+    '.cx-twr{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:28px}',
     '.cx-sys{display:flex;flex-wrap:wrap;gap:4px;align-items:center;justify-content:center}',
     '.cx-chip{display:inline-flex;align-items:center;gap:2px;background:rgba(37,99,235,.1);color:var(--accent);border-radius:10px;padding:1px 4px 1px 8px;font-weight:700;font-size:12px}',
     '.cx-chip button{border:none;background:none;color:inherit;cursor:pointer;font-size:12px;padding:0 3px}',
@@ -264,7 +267,7 @@
           onMouseLeave: () => setArm(null) }, arm === s.id ? 'למחוק?' : '×'))),
       h('button', { className: 'cx-add', onClick: onAdd, title: 'בדיקה חדשה — מעתיקה את האחרונה' }, '+ בדיקה נוספת'));
   }
-  function SheetHead(n, sh, upd, hints) {
+  function SheetHead(n, sh, upd, hints, extra) {
     return Card(n, 'פרטי הבדיקה', null, h('div', { className: 'cx-card-b' },
       h('div', { className: 'cx-grid' },
         h('label', { className: 'cx-f' }, 'מספר בדיקה', h(Field, { type: 'number', value: sh.no, onSave: v => upd({ no: v }) })),
@@ -276,7 +279,8 @@
         h('div', { className: 'cx-seg' }, Object.keys(BASES).map(k => h('button', { key: k, className: sh.basis === k ? 'on' : '', onClick: () => upd({ basis: k }) }, BASES[k]))),
         h('span', { className: 'cx-hint', style: { flex: 1, minWidth: 220 } }, hints ? hints[sh.basis === 'total' ? 1 : 0] : sh.basis === 'total'
           ? '"היתר בשטח כולל" — שטחי הבנייה חושבו בשטח הכולל המותר ללא חלוקה לעיקרי ושירות (תקנה 1). התקן לפי טבלאות ה-א (2א, 3א, 4א…).'
-          : 'החישוב לפי השטחים העיקריים המבוקשים בהיתר; שטחי שירות אינם נכללים.'))));
+          : 'החישוב לפי השטחים העיקריים המבוקשים בהיתר; שטחי שירות אינם נכללים.')),
+      extra));
   }
 
   /* ════════ Parking ════════ */
@@ -487,31 +491,51 @@
   const HGA_HINTS = ['החישוב לפי השטח העיקרי בקומה — תקנה 236(א), טור ב\'.', 'החישוב לפי השטח הכולל — נספח א\' לתקנה 236(א) (השלמה לתקנות המפרטים).'];
   const r2 = n => Math.round(n * 100) / 100;
   function HgaTab({ sh, upd }) {
-    const floors = sh.floors || [];
-    const setFloors = fl => upd({ floors: fl });
+    // floors numbered and spaces in towers: an older sheet moves over with its next change
+    const sheet = R.hgaSheet(sh), floors = sheet.floors, towers = sheet.towers, shown = sheet.resolved;
+    const [open, setOpen] = useState({}), [countKey, setCountKey] = useState(0), [twEdit, setTwEdit] = useState(null);
+    const setFloors = (fl, tw) => upd({ floors: fl, towers: R.hgaPruneTowers(tw || towers, fl) });
     const setFloor = (i, patch) => setFloors(floors.map((f, j) => j === i ? Object.assign({}, f, patch) : f));
-    const setCount = n => {
-      n = Math.max(1, Math.min(80, +n || 1));
-      const fl = floors.slice(0, n);
-      while (fl.length < n) fl.push({ id: uid(), name: fl.length === 0 ? T('קומת קרקע') : T('קומה {n}', { n: fl.length }), uses: [], spaces: [] });
-      setFloors(fl);
+    const setTower = (id, p) => upd({ floors, towers: towers.map(t => t.id === id ? Object.assign({}, t, p) : t) });
+    const towerNo = id => towers.findIndex(t => t.id === id) + 1;
+    const counts = R.safFloorCounts(floors);
+    const nameList = list => '⁨' + list.map(f => R.safFloorLabel(f, T)).join(', ') + '⁩';
+    const setCounts = async (above, below) => {
+      setCountKey(k => k + 1);  // the boxes go back to the real counts if this is refused or cancelled
+      const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(+v) || 0));
+      const next = R.safSetCounts(floors, clamp(above, 1, 80), clamp(below, 0, 20), level => ({ id: uid(), name: R.safFloorName(level), level, uses: [], spaces: [] }));
+      const lost = floors.filter(f => !next.includes(f) && R.hgaFloorHasData(f));
+      if (lost.length && !await window.askConfirm(T('יימחקו קומות שיש בהן מידע: {n}. להמשיך?', { n: nameList(lost) }))) return;
+      setFloors(next);
     };
-    const dupFloor = i => {
-      const c = JSON.parse(JSON.stringify(floors[i])); c.id = uid(); c.name = T('קומה {n}', { n: floors.length });
-      c.uses.forEach(u => { u.id = uid(); }); c.spaces.forEach(x => { x.id = uid(); });
-      setFloors(floors.concat([c]));
+    const delFloor = async i => {
+      const ok = !R.hgaFloorHasData(floors[i]) || await window.askConfirm(T('למחוק את {n}? השימושים והמרחבים שלה יימחקו.', { n: '⁨' + R.safFloorLabel(floors[i], T) + '⁩' }));
+      if (ok) setFloors(R.safRemoveFloor(floors, i));
     };
+    const dupFloor = i => setFloors(R.hgaCopyFloorUp(floors, i, uid));
+    // a new tower starts on every floor that needs this kind of space, since it usually runs through them
+    const addTower = (kind, i) => {
+      const t = { id: uid(), kind, area: null };
+      const fl = floors.reduce((list, f, k) => k === i || checks[k].lines.some(l => l.kind === kind && l.reqArea > 0) ? R.hgaSetTowerFloor(list, t, f.id, true, uid) : list, floors);
+      setFloors(fl, towers.concat([t])); setTwEdit({ id: t.id, floor: floors[i].id });
+    };
+    const delTower = async id => {
+      if (!await window.askConfirm(T('למחוק את מגדל {n} מכל הקומות?', { n: towerNo(id) }))) return;
+      setFloors(floors.map(f => Object.assign({}, f, { spaces: (f.spaces || []).filter(s => s.tower !== id) }))); setTwEdit(null);
+    };
+    // "every floor" off leaves the floor the panel sits on, so the tower stays in view
+    const setAllFloors = (t, on, here) => setFloors(floors.reduce((list, f) => R.hgaSetTowerFloor(list, t, f.id, on || f.id === here, uid), floors));
     const areaLbl = sh.basis === 'total' ? 'שטח כולל בקומה (מ"ר)' : 'שטח עיקרי בקומה (מ"ר)';
     const useOpts = Object.keys(R.HGA_GROUPS).map(g => h('optgroup', { key: g, label: T(R.HGA_GROUPS[g]) },
       R.HGA_USES.filter(u => u.g === g).map(u => h('option', { key: u.id, value: u.id }, T(u.name)))));
-    const checks = floors.map(f => R.hgaCheckFloor(f, sh.basis, T));
-    const [open, setOpen] = useState({});
+    const checks = shown.map(f => R.hgaCheckFloor(f, sh.basis, T));
 
     const floorBlock = (f, i) => {
-      const chk = checks[i], uses = f.uses || [], spaces = f.spaces || [];
-      const setUses = us => setFloor(i, { uses: us }), setSpaces = sp => setFloor(i, { spaces: sp });
+      const chk = checks[i], uses = f.uses || [], spaces = shown[i].spaces, tower = twEdit && twEdit.floor === f.id ? towers.find(t => t.id === twEdit.id) : null;
+      const setUses = us => setFloor(i, { uses: us });
       const setUse = (j, p) => setUses(uses.map((u, k) => k === j ? Object.assign({}, u, p) : u));
-      const setSpace = (j, p) => setSpaces(spaces.map((u, k) => k === j ? Object.assign({}, u, p) : u));
+      // a floor's area matching its tower's is no difference, so an empty box means "the same"
+      const setOwnArea = (Fi, t, v) => setFloor(Fi, { spaces: floors[Fi].spaces.map(s => s.tower === t.id ? Object.assign({}, s, { area: v == null || +v === +t.area ? null : v }) : s) });
       const isOpen = open[f.id || i] != null ? open[f.id || i] : i === 0;
       // the requirement adds up per kind of space, so the uses sharing a kind sit together beside one offer
       const groups = [];
@@ -532,11 +556,14 @@
           h('td', { key: 'o', className: 'cx-o', rowSpan },
             h('div', { className: 'cx-hk' }, h('b', null, T(R.HGA_KINDS[g.kind])), ' · ', T('נדרש {a} מ"ר', { a: l.reqArea }), l.reqCount ? ' · ' + T('{n} מרחבים', { n: l.reqCount }) : ''),
             h('div', { className: 'cx-chips' },
+              // the same tower on every floor it runs through: its area changes everywhere, unless this floor has its own
               mine.map(({ x, j }) => { const a = +x.area || 0, off = (l.minEach && a < l.minEach) || (l.maxEach && a > l.maxEach);
-                return h('span', { key: x.id || j, className: 'cx-chip' },
-                  h(Field, { type: 'number', className: 'cx-n cx-ns' + (off ? ' cx-in-bad' : ''), style: { width: 62 }, value: x.area, placeholder: '0', title: T('מ"ר נטו'), onSave: v => setSpace(j, { area: v }) }),
-                  h('button', { className: 'cx-x', title: 'הסרה', onClick: () => setSpaces(spaces.filter((_, k) => k !== j)) }, '×')); }),
-              h('button', { className: 'cx-btn', title: 'מרחב נוסף', onClick: () => setSpaces(spaces.concat([{ id: uid(), name: String(spaces.length + 1).padStart(2, '0'), kind: g.kind, area: null, systems: [] }])) }, '+')),
+                const t = towers.find(o => o.id === x.tower), no = towerNo(x.tower), own = f.spaces[j].area != null, edit = () => setTwEdit({ id: x.tower, floor: f.id });
+                return h('span', { key: x.id || j, className: 'cx-chip' + (own ? ' cx-chip-diff' : ''), onFocus: e => { if (e.target.tagName === 'INPUT') edit(); } },
+                  h('button', { className: 'cx-stno', title: T('מגדל {n}', { n: no }), onClick: edit }, no),
+                  h(Field, { type: 'number', className: 'cx-n cx-ns' + (off ? ' cx-in-bad' : ''), style: { width: 62 }, value: x.area, placeholder: '0', title: own ? T('שטח שונה בקומה הזו') : T('שטח המגדל, בכל הקומות'), onSave: v => own ? setOwnArea(i, t, v) : setTower(t.id, { area: v }) }),
+                  h('button', { className: 'cx-x', title: 'הסרה מהקומה הזו', onClick: () => setFloors(R.hgaSetTowerFloor(floors, t, f.id, false)) }, '×')); }),
+              h('button', { className: 'cx-btn', title: 'מגדל מרחב מוגן נוסף', onClick: () => addTower(g.kind, i) }, '+ מגדל')),
             (l.minEach > 0 || l.maxEach > 0) && h('div', { className: 'cx-rule cx-hk2' }, [l.minEach ? T('כל מרחב לפחות {n} מ"ר', { n: l.minEach }) : null, l.maxEach ? T('עד {a} מ"ר', { a: l.maxEach }) : null].filter(Boolean).join(' · '))),
           h('td', { key: 's', className: 'cx-o', rowSpan }, h('span', { className: l.ok ? 'cx-p-ok' : 'cx-p-bad' }, verdict(l)))];
       };
@@ -556,16 +583,17 @@
         h('div', { className: 'cx-blk-h cx-fbar' },
           h('button', { className: 'cx-fold', 'aria-expanded': isOpen, onClick: () => setOpen(s => Object.assign({}, s, { [f.id || i]: !isOpen })) },
             h('span', { className: 'cx-chev', 'aria-hidden': true }, '›'),
-            h('b', SKIP, f.name),
+            h('b', SKIP, R.safFloorLabel(f, T)),
             h('span', { className: 'cx-sp', style: { flex: 1 } }),
             chk.lines.map(l => h('span', { key: l.kind, className: 'cx-fgrp' }, T(R.HGA_KINDS[l.kind]),
               h('span', { className: 'cx-fchip ' + (l.ok ? 'ok' : 'bad') }, T('{a} מול {r}', { a: l.area, r: l.reqArea })))),
             chk.lines.length > 0 && h('span', { className: chk.bad ? 'cx-p-bad' : 'cx-p-ok' }, chk.bad ? T('✗ {n}', { n: chk.bad }) : '✓')),
-          floors.length > 1 && h('button', { className: 'cx-x cx-fdel', title: 'הסרת הקומה', onClick: () => setFloors(floors.filter((_, k) => k !== i)) }, '×')),
+          floors.length > 1 && h('button', { className: 'cx-x cx-fdel', title: 'הסרת הקומה', onClick: () => delFloor(i) }, '×')),
         isOpen && h('div', { className: 'cx-ftools' },
-          h('label', { className: 'cx-f' }, 'שם הקומה', h(Field, { value: f.name, skip: true, style: { width: 130 }, onSave: v => setFloor(i, { name: v }) })),
+          h('label', { className: 'cx-f' }, 'כינוי לקומה', h(Field, { key: 'n' + countKey, value: R.safFloorNick(f), placeholder: R.safFloorLabel(Object.assign({}, f, { name: '' }), T), skip: true, style: { width: 120 },
+            onSave: v => { setCountKey(k => k + 1); setFloor(i, { name: (v || '').trim() }); } })),
           h('span', { className: 'cx-sp', style: { flex: 1 } }),
-          h('button', { className: 'cx-btn', onClick: () => dupFloor(i), title: 'שכפול הקומה עם השימושים והמרחבים' }, '⧉ שכפל')),
+          h('button', { className: 'cx-btn', onClick: () => dupFloor(i), title: 'קומה נוספת למעלה, עם אותם שימושים ובאותם מגדלים' }, '⧉ שכפל')),
         isOpen && h('div', { className: 'cx-scroll' }, h('table', { className: 'cx-t c cx-hgat' },
           h('thead', null, h('tr', null, h('th', { style: { textAlign: 'start' } }, 'שימוש'), h('th', null, 'כמות'), h('th', null, 'מקדם'), h('th', null, 'נדרש (מ"ר)'), h('th', null),
             h('th', { className: 'cx-o' }, 'מרחבים מוצעים (מ"ר נטו)'), h('th', { className: 'cx-o' }, 'עומד'))),
@@ -574,15 +602,35 @@
               : h('tr', { key: 'k' + g.kind }, h('td', { colSpan: 5, className: 'cx-hint', style: { textAlign: 'start' } }, 'אין בקומה שימוש שדורש את המרחב הזה'), offer(g))),
             h('tr', null, h('td', { colSpan: 7, style: { textAlign: 'start' } },
               h('button', { className: 'cx-btn', onClick: () => setUses(uses.concat([{ id: uid(), type: 'off', qty: 0 }])) }, '+ שימוש'),
-              !uses.length && h('span', { className: 'cx-hint', style: { marginInlineStart: 8 } }, 'הוסיפו את השימושים בקומה')))))));
+              !uses.length && h('span', { className: 'cx-hint', style: { marginInlineStart: 8 } }, 'הוסיפו את השימושים בקומה')))))),
+        isOpen && tower && h('div', { className: 'cx-copy cx-flight' },
+          h('b', null, T('מגדל {n} — {k}', { n: towerNo(tower.id), k: T(R.HGA_KINDS[tower.kind]) })),
+          h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 6 } }, 'שטח המגדל (מ"ר נטו)',
+            h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 66 }, value: tower.area, placeholder: '0', onSave: v => setTower(tower.id, { area: v }) })),
+          h('label', { className: 'cx-rule' }, h('input', { type: 'checkbox', checked: floors.every(t => (t.spaces || []).some(s => s.tower === tower.id)), onChange: e => setAllFloors(tower, e.target.checked, f.id) }), ' ', 'כל הקומות'),
+          h('span', { className: 'cx-hint' }, 'השאירו ריק כשהשטח זהה לשטח המגדל'),
+          h('span', { className: 'cx-sp', style: { flex: 1 } }),
+          h('button', { className: 'cx-btn', onClick: () => delTower(tower.id) }, 'מחיקת המגדל'),
+          h('button', { className: 'cx-btn pri', onClick: () => setTwEdit(null) }, 'סגור'),
+          h('div', { className: 'cx-twf' }, floors.map((t, k) => { const s = (t.spaces || []).find(o => o.tower === tower.id);
+            return h('div', { key: t.id, className: 'cx-twr' },
+              h('label', { className: 'cx-rule' }, h('input', { type: 'checkbox', checked: !!s, onChange: e => setFloors(R.hgaSetTowerFloor(floors, tower, t.id, e.target.checked, uid)) }), ' ', h('span', SKIP, R.safFloorLabel(t, T))),
+              s && h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 66 }, value: s.area, placeholder: tower.area == null ? '0' : String(tower.area), title: T('שטח שונה בקומה הזו'), onSave: v => setOwnArea(k, tower, v) })); }))));
     };
 
-    const floorsCard = Card(2, 'קומות, שימושים ומרחבים מוגנים',
-      h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 8 } }, 'מספר קומות',
-        h(Field, { type: 'number', className: 'cx-n', style: { width: 64 }, min: 1, max: 80, value: floors.length, onSave: setCount })),
+    const floorCounts = h('div', { className: 'cx-basis' },
+      h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 6 } }, 'קומות מעל הקרקע (כולל קרקע)',
+        h(Field, { key: 'a' + countKey, type: 'number', className: 'cx-n', style: { width: 58 }, min: 1, max: 80, value: counts.above, onSave: v => setCounts(v, counts.below) })),
+      h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 6 } }, 'קומות מתחת לקרקע',
+        h(Field, { key: 'b' + countKey, type: 'number', className: 'cx-n', style: { width: 58 }, min: 0, max: 20, value: counts.below, onSave: v => setCounts(counts.above, v) })));
+
+    const floorsCard = Card(2, 'קומות, שימושים ומרחבים מוגנים', null,
       h('div', { className: 'cx-card-b' },
-        h('div', { className: 'cx-hint', style: { marginBottom: 10 } }, 'לחצו על קומה כדי לפתוח אותה. ממ"מ ומרחב במוסד חינוך מחושבים לפי סך השימושים בקומה, והחלוקה בין המרחבים חופשית; ממ"ד — אחד לכל דירה; ממ"ק — אחד לכל 4 דירות.'),
-        floors.map(floorBlock)));
+        h('div', { className: 'cx-hint', style: { marginBottom: 10 } }, 'לחצו על קומה כדי לפתוח אותה. מגדל הוא מרחב מוגן שחוזר בכמה קומות: קובעים לו שטח פעם אחת, ובכל קומה אפשר להחליט אם היא חלק ממנו ואם השטח בה שונה. ממ"מ ומרחב במוסד חינוך מחושבים לפי סך השימושים בקומה; ממ"ד — אחד לכל דירה; ממ"ק — אחד לכל 4 דירות.'),
+        floors.map(floorBlock),
+        h('div', { className: 'cx-fadd' },
+          h('button', { className: 'cx-btn', onClick: () => setCounts(counts.above + 1, counts.below) }, '+ קומה מעל'),
+          h('button', { className: 'cx-btn', onClick: () => setCounts(counts.above, counts.below + 1) }, '+ קומה מתחת'))));
 
     const all = floors.flatMap((f, i) => checks[i].lines.map(l => ({ f, l })));
     const bad = all.filter(o => !o.l.ok).length;
@@ -592,7 +640,7 @@
         h('div', { className: 'cx-scroll' }, h('table', { className: 'cx-t c' },
           h('thead', null, h('tr', null, ['קומה', 'סוג מרחב', 'שטח נדרש', 'מרחבים נדרשים', 'שטח מוצע', 'מרחבים מוצעים', 'פער (מ"ר)', 'סטטוס'].map(x => h('th', { key: x }, x)))),
           h('tbody', null, all.map(({ f, l }, k) => h('tr', { key: k, className: l.ok ? '' : 'bad' },
-            h('td', Object.assign({ className: 'gl' }, SKIP), f.name), h('td', null, R.HGA_KINDS[l.kind]),
+            h('td', Object.assign({ className: 'gl' }, SKIP), R.safFloorLabel(f, T)), h('td', null, R.HGA_KINDS[l.kind]),
             h('td', { className: 'n' }, l.reqArea), h('td', { className: 'n' }, l.reqCount || '—'), h('td', { className: 'n' }, l.area), h('td', { className: 'n' }, l.count),
             h('td', { className: 'n ' + (l.gap >= 0 ? 'cx-ok' : 'cx-bad') }, sgn(r2(l.gap))),
             h('td', null, l.ok ? h('span', { className: 'cx-p-ok' }, '✓ תקין') : h('span', { className: 'cx-p-bad' }, '✗ לא תקין'))))),
@@ -602,7 +650,7 @@
             h('td', null), h('td', null))))))));
 
     const vent = sh.vent || { m2pp: 0.4, flow: 6 };
-    const vrows = floors.flatMap((f, i) => (f.spaces || []).map((x, j) => ({ f, i, x, j })).filter(o => o.x.kind !== 'mamad'));
+    const vrows = shown.flatMap((f, i) => f.spaces.map((x, j) => ({ f, i, x, j })).filter(o => o.x.kind !== 'mamad'));
     const setSys = (i, j, systems) => setFloor(i, { spaces: floors[i].spaces.map((x, k) => k === j ? Object.assign({}, x, { systems }) : x) });
     const ventCard = Card(4, 'מערכות אוורור וסינון למרחב מוגן',
       h(React.Fragment, null,
@@ -614,7 +662,7 @@
           h('tbody', null, vrows.map(({ f, i, x, j }) => {
             const v = R.hgaVent(x, vent), sys = (x.systems || []).map(Number);
             return h('tr', { key: x.id || i + '-' + j, className: v.ok ? '' : 'bad' },
-              h('td', Object.assign({ className: 'gl' }, SKIP), f.name), h('td', SKIP, x.name),
+              h('td', Object.assign({ className: 'gl' }, SKIP), R.safFloorLabel(f, T)), h('td', null, T('מגדל {n}', { n: towerNo(x.tower) })),
               h('td', { className: 'n' }, T('{n} מ"ר', { n: +x.area || 0 })),
               h('td', null, LTR(`${+x.area || 0} / ${vent.m2pp} = ${v.exact}`)),
               h('td', { className: 'n' }, v.people),
@@ -629,7 +677,7 @@
         h('div', { className: 'cx-hint', style: { marginTop: 8 } }, 'מערכות בגדלים של 33, 50, 66, 83 ו-100 איש; אפשר לשלב כמה מערכות ובלבד שסכומן לא יפחת ממספר המשתמשים. ממ"ד אינו כלול — בו מותקנת מערכת סינון דירתית (תקנה 214).'),
         h('div', { className: 'cx-cite' }, '📖 תקנות 187, 214 ו-253: במרחב מוגן תותקן מערכת אוורור וסינון לפי ת"י 4570. הנחיית ענף הנדסה ורגולציה (נובמבר 2024): הספיקות המותקנות יתוכננו בהתאם לספיקה הנדרשת לחלל המרחב המוגן.')));
 
-    return h(React.Fragment, null, SheetHead(1, sh, upd, HGA_HINTS), floorsCard, cmpCard, ventCard,
+    return h(React.Fragment, null, SheetHead(1, sh, upd, HGA_HINTS, floorCounts), floorsCard, cmpCard, ventCard,
       Card(5, 'מקורות', null, h('div', { className: 'cx-card-b' },
         h('div', { className: 'cx-cite' }, '📖 תקנות ההתגוננות האזרחית (מפרטים לבניית מקלטים), התש"ן-1990: ממ"ק — תקנות 171–172 (4 או 5 מ"ר נטו ליח"ד, עד 4 יח"ד למרחב); ממ"ד — תקנה 197א (9 מ"ר נטו); ממ"מ — תקנה 236 (טבלה, מזערי 10 מ"ר, מרבי 60 מ"ר נטו); שימושים שאינם במניין — 236(ב).'),
         h('div', { className: 'cx-cite' }, '📖 נספח א\' לתקנה 236(א) — אופן חישוב שטחי המיגון לפי "שטח כולל". ערכים המסומנים "לאימות" לא הופיעו בבירור בנספח.'),
@@ -964,7 +1012,7 @@
     const soon = [];
     let hga;
     if (G) {
-      const t = R.hgaTotals(G, T), vents = (G.floors || []).flatMap(f => (f.spaces || []).filter(x => x.kind !== 'mamad').map(x => R.hgaVent(x, G.vent)));
+      const t = R.hgaTotals(G, T), vents = R.hgaSheet(G).resolved.flatMap(f => f.spaces.filter(x => x.kind !== 'mamad').map(x => R.hgaVent(x, G.vent)));
       const vBad = vents.filter(v => !v.ok).length;
       hga = h('button', { className: 'cx-sc', onClick: () => go('hga') }, head('🛡', 'הג"א', G, cnt('hga')),
         h('div', { className: 'cx-sc-k' },

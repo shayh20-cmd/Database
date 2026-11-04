@@ -723,9 +723,63 @@ function hgaCheckFloor(floor, basis, T) {
   });
   return { f, lines, bad: lines.filter(l => !l.ok).length };
 }
+/* A protected-space tower repeats through the floors, as a stair flight does: it has one kind and one area.
+   A floor is part of a tower when it holds a space pointing at it (space.tower). That space's own area is empty
+   unless this floor differs; each floor keeps its own space, so its ventilation systems stay its own.
+   Older sheets have spaces with no tower: the same place in the kind's list at the same area is the same tower. */
+function hgaTowers(sh) {
+  const towers = (Array.isArray(sh.towers) ? sh.towers : []).map(t => Object.assign({}, t));
+  const known = new Set(towers.map(t => t.id));
+  const floors = safRenumber(sh.floors || []).map((fl, i) => {
+    const slot = {};
+    const spaces = (fl.spaces || []).map(s => {
+      const n = slot[s.kind] = (slot[s.kind] || 0) + 1;
+      if (s.tower && known.has(s.tower)) return s;
+      const a = +s.area || 0;
+      let t = towers.find(o => o.kind === s.kind && o.slot === n && (+o.area || 0) === a);
+      if (!t) { t = { id: s.id || 'tw' + towers.length, kind: s.kind, area: s.area == null ? null : s.area, slot: n }; towers.push(t); }
+      return Object.assign({}, s, { tower: t.id, area: null });
+    });
+    return Object.assign({}, fl, { id: fl.id || 'fl' + i, spaces });
+  });
+  return { floors, towers: towers.map(({ slot, ...t }) => t) };
+}
+const hgaHasArea = s => s.area != null && s.area !== '';
+/* The floors with each space's real area filled in, for everything that checks or adds up areas */
+function hgaResolve(floors, towers) {
+  return floors.map(fl => Object.assign({}, fl, { spaces: (fl.spaces || []).map(s => {
+    if (hgaHasArea(s)) return s;
+    const t = towers.find(o => o.id === s.tower);
+    return Object.assign({}, s, { area: t ? t.area : s.area });
+  }) }));
+}
+function hgaSheet(sh) {
+  const { floors, towers } = hgaTowers(sh);
+  return { floors, towers, resolved: hgaResolve(floors, towers) };
+}
+/* Puts a floor in a tower or takes it out */
+function hgaSetTowerFloor(floors, tower, floorId, on, newId) {
+  return floors.map(fl => {
+    if (fl.id !== floorId) return fl;
+    const spaces = fl.spaces || [], has = spaces.some(s => s.tower === tower.id);
+    if (on) return has ? fl : Object.assign({}, fl, { spaces: spaces.concat([{ id: newId(), kind: tower.kind, tower: tower.id, area: null, systems: [] }]) });
+    return Object.assign({}, fl, { spaces: spaces.filter(s => s.tower !== tower.id) });
+  });
+}
+/* A tower no floor holds any more is gone */
+function hgaPruneTowers(towers, floors) {
+  return towers.filter(t => floors.some(fl => (fl.spaces || []).some(s => s.tower === t.id)));
+}
+function hgaFloorHasData(fl) { return (fl.uses || []).length > 0 || (fl.spaces || []).length > 0; }
+/* A new top floor with the same contents: its spaces carry on in the same towers */
+function hgaCopyFloorUp(floors, i, newId) {
+  const c = JSON.parse(JSON.stringify(floors[i])), level = safNextLevel(floors);
+  ['uses', 'spaces'].forEach(k => (c[k] || []).forEach(x => { x.id = newId(); }));
+  return floors.concat([Object.assign(c, { id: newId(), level, name: safFloorName(level) })]);
+}
 function hgaTotals(sh, T) {
   const t = { reqArea: 0, area: 0, bad: 0, floors: 0, byKind: {} };
-  (sh.floors || []).forEach(fl => {
+  hgaSheet(sh).resolved.forEach(fl => {
     const c = hgaCheckFloor(fl, sh.basis, T);
     if (c.lines.length) t.floors++;
     c.lines.forEach(l => {
@@ -1037,7 +1091,7 @@ const api = {
   haversine, stationsNear, zoneForStation, useById, ruleSet, ruleText, carRow, bikeRow, motoRow, parkingTotals, span,
   hltById, stepCount, stepText, hltRow, hltTotals, reqFor, planCheck, fill,
   SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck, safFloorName, safFloorLabel, safFloorNick, safRenumber, safNextLevel, safFloorCounts, safSetCounts, safFloorHasData, safCopyFloor, safFlights, safFlightsWithout, safProtectedStairs, safMoveFloor, safRemoveFloor,
-  HGA_KINDS, HGA_GROUPS, HGA_USES, HGA_LIMITS, HGA_SYSTEMS, hgaById, hgaSpaceOf, hgaRow, hgaFloor, hgaCheckFloor, hgaTotals, hgaVent, hgaSuggest,
+  HGA_KINDS, HGA_GROUPS, HGA_USES, HGA_LIMITS, HGA_SYSTEMS, hgaById, hgaSpaceOf, hgaRow, hgaFloor, hgaCheckFloor, hgaTowers, hgaResolve, hgaSheet, hgaSetTowerFloor, hgaPruneTowers, hgaFloorHasData, hgaCopyFloorUp, hgaTotals, hgaVent, hgaSuggest,
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 else root.CalcRules = api;

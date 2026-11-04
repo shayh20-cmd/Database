@@ -92,6 +92,47 @@ test('הל"ת: required vs proposed, urinals covered by extra toilets, floors ch
   assert.strictEqual(c.entered, true);
 });
 
+test('הג"א towers: one area through the floors, a floor can differ or stay out', () => {
+  let n = 0; const id = () => 'n' + (++n);
+  const uses = [{ type: 'off', qty: 1000 }];   // 30 m²
+  const tw = { id: 't', kind: 'mamam', area: 30 };
+  let floors = [{ id: 'a', level: 0, uses, spaces: [] }, { id: 'b', level: 1, uses, spaces: [] }, { id: 'c', level: 2, uses, spaces: [] }];
+  floors = ['a', 'b'].reduce((l, f) => R.hgaSetTowerFloor(l, tw, f, true, id), floors);
+  const sh = over => ({ basis: 'main', towers: [tw], floors: over(floors) });
+  const line = (s, i) => R.hgaCheckFloor(R.hgaSheet(s).resolved[i], s.basis).lines[0];
+  assert.strictEqual(line(sh(f => f), 1).area, 30);
+  assert.strictEqual(line(sh(f => f), 2).ok, false);                // not in the tower: nothing proposed
+  tw.area = 35;
+  assert.deepStrictEqual([line(sh(f => f), 0).area, line(sh(f => f), 1).area], [35, 35]);
+  const differs = f => f.map(x => x.id === 'b' ? Object.assign({}, x, { spaces: [Object.assign({}, x.spaces[0], { area: 12 })] }) : x);
+  assert.deepStrictEqual([line(sh(differs), 0).area, line(sh(differs), 1).area, line(sh(differs), 1).ok], [35, 12, false]);
+  assert.strictEqual(R.hgaTotals(sh(differs)).area, 47);
+  const out = R.hgaSetTowerFloor(floors, tw, 'a', false);
+  assert.strictEqual(R.hgaPruneTowers([tw], out).length, 1);
+  assert.strictEqual(R.hgaPruneTowers([tw], R.hgaSetTowerFloor(out, tw, 'b', false)).length, 0);
+});
+
+test('הג"א towers: older sheets move over, same place and area being the same tower', () => {
+  const sp = (id, area) => ({ id, name: '01', kind: 'mamam', area, systems: [50] });
+  const s = R.hgaSheet({ basis: 'main', floors: [{ name: 'קומת קרקע', uses: [], spaces: [sp('x', 30)] }, { name: 'קומה 1', uses: [], spaces: [sp('y', 30)] }, { name: 'משרדים', uses: [], spaces: [sp('z', 20)] }] });
+  assert.deepStrictEqual(s.floors.map(f => f.level), [0, 1, 2]);
+  assert.deepStrictEqual(s.floors[2].name, 'משרדים');
+  assert.deepStrictEqual(s.towers.map(t => [t.kind, t.area]), [['mamam', 30], ['mamam', 20]]);
+  assert.deepStrictEqual(s.resolved.map(f => f.spaces[0].area), [30, 30, 20]);
+  assert.deepStrictEqual(s.floors[1].spaces[0].systems, [50]);
+  assert.deepStrictEqual(R.hgaSheet(s).towers, s.towers);          // a saved sheet stays as it is
+});
+
+test('הג"א floors: counts use the safety rules; a copied floor goes on top in the same towers', () => {
+  let n = 0; const id = () => 'n' + (++n);
+  const floors = R.safSetCounts([{ id: 'g', level: 0, uses: [{ id: 'u', type: 'off', qty: 100 }], spaces: [{ id: 's', kind: 'mamam', tower: 't', area: null }] }], 3, 1, level => ({ id: id(), level, name: R.safFloorName(level), uses: [], spaces: [] }));
+  assert.deepStrictEqual(R.safFloorCounts(floors), { above: 3, below: 1 });
+  assert.deepStrictEqual(floors.map(f => f.level), [-1, 0, 1, 2]);
+  const c = R.hgaCopyFloorUp(floors, 1, id), top = c[c.length - 1];
+  assert.deepStrictEqual([top.level, top.spaces[0].tower, top.spaces[0].id === 's', top.uses[0].id === 'u'], [3, 't', false, false]);
+  assert.deepStrictEqual([R.hgaFloorHasData(floors[0]), R.hgaFloorHasData(floors[1])], [false, true]);
+});
+
 test('הג"א: institutional space by % of the floor area, switching with the basis', () => {
   const fl = { uses: [{ type: 'off', qty: 1200 }, { type: 'bank', qty: 300 }], spaces: [{ id: 'a', name: '01', kind: 'mamam', area: 38 }] };
   const main = R.hgaCheckFloor(fl, 'main').lines[0];          // 3% × 1200 + 2% × 300 = 42
