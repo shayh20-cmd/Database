@@ -162,6 +162,8 @@
     '.cx-copy{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:8px 12px;background:var(--surface-2);border-bottom:1px solid var(--border)}',
     '.cx-copy .cx-btn:disabled{opacity:.5;cursor:default}',
     '.cx-fadd{display:flex;gap:8px}',
+    '.cx-prot{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;margin-top:10px;font-size:12.5px}',
+    '.cx-prot+.cx-prot{margin-top:4px}',
     '.cx-drop-up{box-shadow:0 -3px 0 var(--accent)}',
     '.cx-drop-down{box-shadow:0 3px 0 var(--accent)}',
     '.cx-chev{display:inline-block;transition:transform .15s;font-size:16px;line-height:1;color:var(--text-3)}',
@@ -823,7 +825,11 @@
           h(Field, { key: 'a' + countKey, type: 'number', className: 'cx-n', style: { width: 58 }, min: 1, max: 80, value: counts.above, onSave: v => setCounts(v, counts.below) })),
         h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 6 } }, 'קומות מתחת לקרקע',
           h(Field, { key: 'b' + countKey, type: 'number', className: 'cx-n', style: { width: 58 }, min: 0, max: 20, value: counts.below, onSave: v => setCounts(counts.above, v) })),
-        h('span', { className: 'cx-hint', style: { flex: 1, minWidth: 200 } }, 'גובה: הפרש בין מפלס הכניסה הקובעת לכניסה לקומה הגבוהה המאוכלסת (3.1.1.1).'))));
+        counts.below > 0 && h('label', { className: 'cx-rule', title: '3.2.3.3' }, h('input', { type: 'checkbox', checked: !!sh.deepBelow, onChange: e => upd({ deepBelow: e.target.checked }) }), ' ', 'מפלס הכניסה לקומה התחתונה נמוך מ-8 מ\' מתחת לכניסה הקובעת'),
+        h('span', { className: 'cx-hint', style: { flex: 1, minWidth: 200 } }, 'גובה: הפרש בין מפלס הכניסה הקובעת לכניסה לקומה הגבוהה המאוכלסת (3.1.1.1).')),
+      R.safProtectedStairs(sh, counts.below).map(r => h('div', { key: r.ref, className: 'cx-prot' },
+        h('span', { className: 'cx-tag warn' }, 'נדרש'), h('b', null, T(r.text)), h('span', { className: 'cx-ref' }, r.ref),
+        r.note && h('span', { className: 'cx-hint' }, T(r.note))))));
 
     const floorsCard = Card(2, 'קומות, חללים ודרכי מוצא', null,
       h('div', { className: 'cx-card-b' },

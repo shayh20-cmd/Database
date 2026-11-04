@@ -954,6 +954,15 @@ function safCopyFloor(floors, from, targets, newId) {
   });
 }
 
+/* When the building needs protected stairs. The list is shown as a requirement: nothing here checks the stairs drawn */
+function safProtectedStairs(sh, below) {
+  const out = [];
+  if (sh.height === 'tower') out.push({ ref: '3.7.1.3', text: 'בניין רב-קומות: שני חדרי מדרגות מוגנים לפחות' });
+  if (sh.height === 'high') out.push({ ref: '3.7.1.2', text: 'בניין גבוה: חדר מדרגות מוגן', note: 'שניים, אלא אם הבניין למגורים, תפוסת כל קומה עד 30 איש, או מרחק ההליכה לדלת האש עד 30 מ\'' });
+  if (below > 0 && sh.deepBelow) out.push({ ref: '3.2.3.3', text: 'קומות תחתיות: חדרי המדרגות המחויבים שמשרתים אותן יהיו מוגנים' });
+  return out;
+}
+
 /* The whole check: stairs take the largest requirement of the floors they serve on the way to the exit level */
 function safCheck(sh) {
   const floors = (sh.floors || []).map(fl => ({ fl, f: safFloor(fl, sh) }));
@@ -998,7 +1007,7 @@ const api = {
   MEASURES, CATS, USES, BIKES, MOTOS, STATIONS, ZONES, FIX, FIX_ORDER, HLT, HLT_GENERAL, PCOLS, FLOOR_FX,
   haversine, stationsNear, zoneForStation, useById, ruleSet, ruleText, carRow, bikeRow, motoRow, parkingTotals, span,
   hltById, stepCount, stepText, hltRow, hltTotals, reqFor, planCheck, fill,
-  SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck, safFloorName, safFloorLabel, safNextLevel, safFloorCounts, safSetCounts, safFloorHasData, safCopyFloor, safMoveFloor, safRemoveFloor,
+  SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck, safFloorName, safFloorLabel, safNextLevel, safFloorCounts, safSetCounts, safFloorHasData, safCopyFloor, safProtectedStairs, safMoveFloor, safRemoveFloor,
   HGA_KINDS, HGA_GROUPS, HGA_USES, HGA_LIMITS, HGA_SYSTEMS, hgaById, hgaSpaceOf, hgaRow, hgaFloor, hgaCheckFloor, hgaTotals, hgaVent, hgaSuggest,
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;

@@ -3941,6 +3941,11 @@ Object.assign(HE_EN, {
 "יימחקו קומות שיש בהן מידע: {n}. להמשיך?": "Floors with data will be deleted: {n}. Continue?",
 "+ קומה מעל": "+ Floor above",
 "+ קומה מתחת": "+ Floor below",
+"מפלס הכניסה לקומה התחתונה נמוך מ-8 מ' מתחת לכניסה הקובעת": "Lowest floor's entrance is more than 8 m below the determining entrance",
+"בניין רב-קומות: שני חדרי מדרגות מוגנים לפחות": "Multi-storey building: at least two protected stairways",
+"בניין גבוה: חדר מדרגות מוגן": "High-rise building: a protected stairway",
+"שניים, אלא אם הבניין למגורים, תפוסת כל קומה עד 30 איש, או מרחק ההליכה לדלת האש עד 30 מ'": "Two, unless the building is residential, each floor holds up to 30 people, or the walk to the fire door is up to 30 m",
+"קומות תחתיות: חדרי המדרגות המחויבים שמשרתים אותן יהיו מוגנים": "Lower floors: the required stairways serving them must be protected",
 });
 
 window.I18N_HE_EN = HE_EN;

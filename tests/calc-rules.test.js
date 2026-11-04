@@ -220,3 +220,13 @@ test('safety floors: counts above and below ground, and copying onto other floor
   assert.strictEqual(list[0].spaces[0].id, 's');                            // the source is untouched
   assert.strictEqual(out[2], list[2]);
 });
+
+test('safety: when protected stairs are required', () => {
+  const refs = (sh, below) => R.safProtectedStairs(sh, below).map(r => r.ref);
+  assert.deepStrictEqual(refs({ height: 'low' }, 0), []);
+  assert.deepStrictEqual(refs({ height: 'high' }, 0), ['3.7.1.2']);
+  assert.deepStrictEqual(refs({ height: 'tower' }, 0), ['3.7.1.3']);
+  assert.deepStrictEqual(refs({ height: 'low', deepBelow: true }, 1), ['3.2.3.3']);
+  assert.deepStrictEqual(refs({ height: 'low', deepBelow: true }, 0), []);          // the mark means nothing with no floors below ground
+  assert.deepStrictEqual(refs({ height: 'tower', deepBelow: true }, 2), ['3.7.1.3', '3.2.3.3']);
+});
