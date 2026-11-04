@@ -778,7 +778,8 @@ function hgaCopyFloorUp(floors, i, newId) {
   return floors.concat([Object.assign(c, { id: newId(), level, name: safFloorName(level) })]);
 }
 /* The building in section: rows from the top floor down, one column per tower. A cell is empty where the floor isn't in the tower.
-   size: this space is outside the minimum or maximum. short: the floor's spaces of this kind miss the requirement together. */
+   size: this space is outside the minimum or maximum. short: the floor's spaces of this kind miss the requirement together.
+   ok: the floor meets the requirement and this space has an area. */
 function hgaSection(sh, T) {
   const { floors, towers, resolved } = hgaSheet(sh);
   const rows = resolved.map((fl, i) => {
@@ -788,7 +789,7 @@ function hgaSection(sh, T) {
       if (!s) return null;
       const l = chk.lines.find(o => o.kind === t.kind), a = +s.area || 0;
       const size = !!l && ((l.minEach > 0 && a < l.minEach) || (l.maxEach > 0 && a > l.maxEach));
-      return { area: a, own: hgaHasArea(floors[i].spaces.find(x => x.tower === t.id)), size, short: !!l && !l.ok && !size, line: l };
+      return { area: a, own: hgaHasArea(floors[i].spaces.find(x => x.tower === t.id)), size, short: !!l && !l.ok && !size, ok: !!l && l.ok && a > 0, line: l };
     });
     return { fl, bad: chk.lines.filter(l => !l.ok), cells };
   }).reverse();

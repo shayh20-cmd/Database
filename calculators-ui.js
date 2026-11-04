@@ -167,6 +167,7 @@
     '.cx-sec-h,.cx-sec-q{border:0;padding:0;font:inherit;font-weight:700;color:var(--text);cursor:pointer;background:color-mix(in srgb,var(--k) 26%,var(--surface));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--k) 60%,var(--surface))}',
     '.cx-sec-h{justify-self:center;align-self:center;min-width:20px;height:20px;margin-bottom:4px;border-radius:10px}',
     '.cx-sec-q{height:100%;min-width:14px;border-radius:3px;overflow:hidden;font-size:10.5px;font-variant-numeric:tabular-nums}',
+    '.cx-sec-q.ok{background:rgba(22,163,74,.2);box-shadow:inset 0 0 0 1px rgba(22,163,74,.75)}',
     '.cx-sec-q.own{outline:1.5px dashed #d97706;outline-offset:-2px}',
     '.cx-sec-q.short{box-shadow:inset 0 0 0 2px #dc2626}',
     '.cx-sec-q.size,.cx-sec-h.bad{background:rgba(220,38,38,.2);box-shadow:inset 0 0 0 1.5px #dc2626;color:#dc2626}',
@@ -683,12 +684,12 @@
             return h(React.Fragment, { key: r.fl.id },
               h('div', { className: 'cx-sec-l', title: r.bad.map(verdict).join(' · ') || undefined }, h('span', SKIP, name), r.bad.length > 0 && h('b', { className: 'cx-p-bad' }, '✗')),
               r.cells.map((c, k) => h('div', { key: cols[k].id, className: 'cx-sec-c' + zone + (k === 0 ? ' ws' : '') + (k === n - 1 ? ' we' : '') },
-                c && h('button', { className: 'cx-sec-q k-' + cols[k].kind + (c.size ? ' size' : c.short ? ' short' : '') + (c.own ? ' own' : '') + (twEdit && twEdit.id === cols[k].id ? ' on' : ''), style: { width: Math.min(100, c.area / cols[k].max * 100) + '%' },
+                c && h('button', { className: 'cx-sec-q k-' + cols[k].kind + (c.size ? ' size' : c.short ? ' short' : c.ok ? ' ok' : '') + (c.own ? ' own' : '') + (twEdit && twEdit.id === cols[k].id ? ' on' : ''), style: { width: Math.min(100, c.area / cols[k].max * 100) + '%' },
                   title: T('מגדל {n} · {f} · {a} מ"ר', { n: cols[k].no, f: '⁨' + name + '⁩', a: c.area }) + (c.line && !c.line.ok ? ' · ' + verdict(c.line) : ''),
                   onClick: () => jumpTo(cols[k].id, r.fl.id, r.fl.id) }, c.area || '?')))); })),
         h('div', { className: 'cx-hkey' }, kinds.length > 1 && kinds.map(k => h('span', { key: k, className: 'k-' + k }, h('i'), T(R.HGA_KINDS[k])))),
         h('div', { className: 'cx-hint', style: { marginTop: 6 } }, 'לחצו על מספר מגדל כדי לערוך אותו, או על קובייה כדי לערוך את המרחב בקומה הזו.'),
-        h('div', { className: 'cx-hint' }, 'רוחב הקובייה יחסי לשטח. מסגרת כתומה: שטח שונה בקומה. אדום: לא עומד בדרישה.'));
+        h('div', { className: 'cx-hint' }, 'רוחב הקובייה יחסי לשטח. ירוק: עומד בדרישה. אדום: לא עומד בדרישה. מסגרת כתומה: שטח שונה בקומה.'));
     };
 
     const floorCounts = h('div', { className: 'cx-basis' },

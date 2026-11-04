@@ -145,6 +145,7 @@ test('הג"א section: top floor first, one column per tower, the problems marke
   assert.deepStrictEqual(mid.cells.map(c => c && c.short), [true, true, null]);                       // 38 of 60: no one space is at fault
   assert.deepStrictEqual([mid.bad.length, low.bad.length], [1, 0]);
   assert.deepStrictEqual(low.cells.map(c => c && c.short), [false, false, null]);
+  assert.deepStrictEqual([low.cells[0].ok, mid.cells[0].ok, top.cells[2].ok], [true, false, false]);
 });
 
 test('הג"א: institutional space by % of the floor area, switching with the basis', () => {

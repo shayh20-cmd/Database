@@ -3981,7 +3981,7 @@ Object.assign(HE_EN, {
 "הוסיפו מגדל כדי לראות אותו בחתך": "Add a tower to see it in the section",
 "מגדל {n} · {f} · {a} מ\"ר": "Tower {n} · {f} · {a} m²",
 "לחצו על מספר מגדל כדי לערוך אותו, או על קובייה כדי לערוך את המרחב בקומה הזו.": "Click a tower number to edit the tower, or a block to edit the space on that floor.",
-"רוחב הקובייה יחסי לשטח. מסגרת כתומה: שטח שונה בקומה. אדום: לא עומד בדרישה.": "A block's width follows its area. Orange frame: a different area on that floor. Red: misses the requirement.",
+"רוחב הקובייה יחסי לשטח. ירוק: עומד בדרישה. אדום: לא עומד בדרישה. מסגרת כתומה: שטח שונה בקומה.": "A block's width follows its area. Green: meets the requirement. Red: misses it. Orange frame: a different area on that floor.",
 "מעל הקרקע": "Above ground",
 "מתחת לקרקע": "Below ground",
 });
