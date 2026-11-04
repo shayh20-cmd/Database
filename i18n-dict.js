@@ -3946,6 +3946,11 @@ Object.assign(HE_EN, {
 "שניים, אלא אם הבניין למגורים, תפוסת כל קומה עד 30 איש, או מרחק ההליכה לדלת האש עד 30 מ'": "Two, unless the building is residential, each floor holds up to 30 people, or the walk to the fire door is up to 30 m",
 "קומות תחתיות: חדרי המדרגות המחויבים שמשרתים אותן יהיו מוגנים": "Lower floors: the required stairways serving them must be protected",
 "כינוי לקומה": "Floor nickname",
+"גרם {n}": "Flight {n}",
+"גרם {n} — בקומות:": "Flight {n} — on floors:",
+"מחיקת הגרם": "Delete the flight",
+"למחוק את גרם {n} מכל הקומות?": "Delete flight {n} from all floors?",
+"הסרה מהקומה הזו": "Remove from this floor",
 });
 
 window.I18N_HE_EN = HE_EN;

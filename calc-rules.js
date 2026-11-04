@@ -950,14 +950,15 @@ function safSetCounts(floors, above, below, make) {
   return under.concat(up);
 }
 function safFloorHasData(fl) {
-  return (fl.spaces || []).length > 0 || (fl.exits || []).length > 0 || safStairs(fl).length > 0 || (fl.corridorW != null && fl.corridorW !== '');
+  return (fl.spaces || []).length > 0 || (fl.exits || []).length > 0 || (fl.corridorW != null && fl.corridorW !== '');
 }
 /* Copies a floor's contents over other floors, which keep their own place and name. newId makes the copied rows their own */
 function safCopyFloor(floors, from, targets, newId) {
   return floors.map((f, k) => {
     if (!targets.includes(k)) return f;
     const c = JSON.parse(JSON.stringify(floors[from]));
-    ['spaces', 'exits', 'stairs'].forEach(key => (c[key] || []).forEach(x => { x.id = newId(); }));
+    delete c.stairs;
+    ['spaces', 'exits'].forEach(key => (c[key] || []).forEach(x => { x.id = newId(); }));
     return Object.assign(c, { id: f.id, name: f.name, level: f.level });
   });
 }
@@ -971,8 +972,28 @@ function safProtectedStairs(sh, below) {
   return out;
 }
 
+/* Stair flights belong to the building: each has one width and the levels it runs through.
+   Older sheets kept a list on each floor; the same place in the list at the same width is the same flight */
+function safFlights(sh) {
+  if (Array.isArray(sh.stairs)) return sh.stairs;
+  const out = [];
+  (sh.floors || []).forEach(fl => safStairs(fl).forEach((st, slot) => {
+    const L = +fl.level || 0, w = +st.w || 0;
+    const same = out.find(x => x.slot === slot && (+x.w || 0) === w);
+    if (same) same.levels.push(L);
+    else out.push({ id: st.id || 'st' + out.length, slot, w: st.w, levels: [L] });
+  }));
+  return out.map(({ slot, ...f }) => f);
+}
+/* After a floor goes: it leaves every flight, and the levels past it step towards the exit level as the floors do */
+function safFlightsWithout(flights, L) {
+  return flights.map(f => Object.assign({}, f, { levels: f.levels.filter(M => M !== L).map(M => L >= 0 && M > L ? M - 1 : L < 0 && M < L ? M + 1 : M) }))
+    .filter(f => f.levels.length);
+}
+
 /* The whole check: stairs take the largest requirement of the floors they serve on the way to the exit level */
 function safCheck(sh) {
+  const flights = safFlights(sh);
   const floors = (sh.floors || []).map(fl => ({ fl, f: safFloor(fl, sh) }));
   floors.forEach(o => {
     const L = +o.fl.level || 0;
@@ -997,7 +1018,7 @@ function safCheck(sh) {
       lines.push({ k: 'doorSum', need: o.f.horizTot, have: doors, ok: doors + 1e-9 >= o.f.horizTot });
     }
     // stairs: on a floor off the exit level they are required; at the exit level only when drawn
-    const stairs = safStairs(o.fl);
+    const stairs = flights.filter(st => st.levels.includes(L));
     o.stairs = stairs;
     stairs.forEach(st => lines.push({ k: 'stair', st, need: o.f.stairMin, have: +st.w || 0, ok: (+st.w || 0) + 1e-9 >= o.f.stairMin }));
     if ((stairs.length || L !== 0) && o.f.stairGov > 0) {
@@ -1015,7 +1036,7 @@ const api = {
   MEASURES, CATS, USES, BIKES, MOTOS, STATIONS, ZONES, FIX, FIX_ORDER, HLT, HLT_GENERAL, PCOLS, FLOOR_FX,
   haversine, stationsNear, zoneForStation, useById, ruleSet, ruleText, carRow, bikeRow, motoRow, parkingTotals, span,
   hltById, stepCount, stepText, hltRow, hltTotals, reqFor, planCheck, fill,
-  SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck, safFloorName, safFloorLabel, safFloorNick, safRenumber, safNextLevel, safFloorCounts, safSetCounts, safFloorHasData, safCopyFloor, safProtectedStairs, safMoveFloor, safRemoveFloor,
+  SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck, safFloorName, safFloorLabel, safFloorNick, safRenumber, safNextLevel, safFloorCounts, safSetCounts, safFloorHasData, safCopyFloor, safFlights, safFlightsWithout, safProtectedStairs, safMoveFloor, safRemoveFloor,
   HGA_KINDS, HGA_GROUPS, HGA_USES, HGA_LIMITS, HGA_SYSTEMS, hgaById, hgaSpaceOf, hgaRow, hgaFloor, hgaCheckFloor, hgaTotals, hgaVent, hgaSuggest,
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;

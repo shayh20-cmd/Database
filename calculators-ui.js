@@ -164,6 +164,8 @@
     '.cx-fadd{display:flex;gap:8px}',
     '.cx-prot{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;margin-top:10px;font-size:12.5px}',
     '.cx-prot+.cx-prot{margin-top:4px}',
+    '.cx-stno{font-size:10px!important;font-weight:700;padding:0 5px!important;min-width:16px}',
+    '.cx-saf .cx-flight{background:none;border:0;padding:6px 0 2px}',
     '.cx-drop-up{box-shadow:0 -3px 0 var(--accent)}',
     '.cx-drop-down{box-shadow:0 3px 0 var(--accent)}',
     '.cx-chev{display:inline-block;transition:transform .15s;font-size:16px;line-height:1;color:var(--text-3)}',
@@ -611,7 +613,18 @@
     // numbered by place in the list, so an old gap or a repeated level heals itself
     const floors = R.safRenumber(sh.floors || []);
     const chk = R.safCheck(Object.assign({}, sh, { floors }));
-    const setFloors = fl => upd({ floors: fl });
+    // the flights are saved with every floor change, which moves an older sheet off the per-floor lists
+    const flights = R.safFlights(Object.assign({}, sh, { floors }));
+    const setFloors = (fl, st) => upd({ floors: fl, stairs: st || flights });
+    const setFlights = st => upd({ floors, stairs: st });
+    const setFlight = (id, p) => setFlights(flights.map(x => x.id === id ? Object.assign({}, x, p) : x));
+    const flightNo = id => flights.findIndex(x => x.id === id) + 1;
+    const addFlight = (L, i) => { const id = uid(); setFlights(flights.concat([{ id, w: null, levels: [L] }])); setStEdit({ id, floor: i }); };
+    const closeFlight = () => { setFlights(flights.filter(x => x.levels.length)); setStEdit(null); };
+    const delFlight = async id => {
+      if (!await window.askConfirm(T('למחוק את גרם {n} מכל הקומות?', { n: flightNo(id) }))) return;
+      setFlights(flights.filter(x => x.id !== id)); setStEdit(null);
+    };
     const setFloor = (i, p) => setFloors(floors.map((f, j) => j === i ? Object.assign({}, f, p) : f));
     const counts = R.safFloorCounts(floors);
     const setCounts = async (above, below) => {
@@ -642,22 +655,21 @@
     };
     const delFloor = async i => {
       const ok = await window.askConfirm(T('למחוק את {n}? החללים ודרכי המוצא שלה יימחקו.', { n: '⁨' + R.safFloorLabel(floors[i], T) + '⁩' }));
-      if (ok) { setCopy(null); setFloors(R.safRemoveFloor(floors, i)); }
+      if (ok) { setCopy(null); setStEdit(null); setFloors(R.safRemoveFloor(floors, i), R.safFlightsWithout(flights, +floors[i].level || 0)); }
     };
     const useOpts = Object.keys(R.SAF_GROUPS).map(g => h('optgroup', { key: g, label: T(R.SAF_GROUPS[g]) },
       R.SAF_USES.filter(u => u.g === g).map(u => h('option', { key: u.id, value: u.id }, u.n + ' · ' + T(u.name)))));
     const corrOpts = R.SAF_CORRIDOR.map(c => h('option', { key: c.id, value: c.id }, T(c.name) + ' — ' + c.w.toFixed(2)));
     const [open, setOpen] = useState({});
-    const [drag, setDrag] = useState(null), [copy, setCopy] = useState(null), [countKey, setCountKey] = useState(0);
+    const [drag, setDrag] = useState(null), [copy, setCopy] = useState(null), [countKey, setCountKey] = useState(0), [stEdit, setStEdit] = useState(null);
     const okPill = (ok, txtOk, txtBad) => h('span', { className: ok ? 'cx-p-ok' : 'cx-p-bad' }, ok ? (txtOk || '✓') : (txtBad || '✗'));
 
     const floorBlock = (o, i) => {
       const fl = o.fl, f = o.f, spaces = fl.spaces || [], exits = fl.exits || [], stairs = o.stairs || [];
       const L = +fl.level || 0;
-      const setSpaces = s => setFloor(i, { spaces: s }), setExits = e => setFloor(i, { exits: e }), setStairs = s => setFloor(i, { stairs: s });
+      const setSpaces = s => setFloor(i, { spaces: s }), setExits = e => setFloor(i, { exits: e });
       const setSp = (j, p) => setSpaces(spaces.map((x, k) => k === j ? Object.assign({}, x, p) : x));
       const setEx = (j, p) => setExits(exits.map((x, k) => k === j ? Object.assign({}, x, p) : x));
-      const setSt = (j, p) => setStairs(stairs.map((x, k) => k === j ? Object.assign({}, x, p) : x));
       const line = k => o.lines.find(l => l.k === k);
       const exitLines = o.lines.filter(l => l.k === 'exit'), stairLines = o.lines.filter(l => l.k === 'stair');
       const count = line('count'), doorSum = line('doorSum'), stairSum = line('stairSum'), corr = line('corridor');
@@ -676,6 +688,7 @@
       const widthChip = (key, val, ok, title) => h('span', { key, className: 'cx-fchip ' + (ok ? 'ok' : 'bad'), title }, val);
       const stairShort = flagged(stairSum) ? T('סך הגרמים {h} מול {n} ס"מ נדרש', { h: cm(stairSum.have), n: cm(stairSum.need) }) : null;
       const picking = copy && copy.from === i;
+      const flight = stEdit && stEdit.floor === i ? flights.find(x => x.id === stEdit.id) : null;
       const dropCls = drag && drag.over === i && drag.from !== i ? (i < drag.from ? ' cx-drop-up' : ' cx-drop-down') : '';
       return h('div', { key: fl.id || i, className: 'cx-blk cx-floor' + (isOpen ? ' open' : '') + dropCls },
         h('div', { className: 'cx-blk-h cx-fbar' },
@@ -780,9 +793,22 @@
               h('button', { className: 'cx-btn', title: 'דרך מוצא נוספת', onClick: () => setExits(exits.concat([{ id: uid(), door: null, panic: f.panic }])) }, '+'),
               showStairs && h(React.Fragment, null, h('span', { className: 'cx-wsep' }),
                 h('span', { className: 'cx-rule' }, 'גרמי מדרגות (ס"מ):'),
-                stairLines.map((l, j) => chip(l.st.w, !l.ok, v => setSt(j, { w: v }), () => setStairs(stairs.filter((_, k) => k !== j)), l.st.id || j)),
-                h('button', { className: 'cx-btn', title: 'גרם מדרגות נוסף', onClick: () => setStairs(stairs.concat([{ id: uid(), w: null }])) }, '+')),
-              !showStairs && h('button', { className: 'cx-btn', style: { marginInlineStart: 'auto' }, onClick: () => setStairs([{ id: uid(), w: null }]) }, '+ מדרגות בקומה'))))))),
+                // the same flight on every floor it runs through: its width changes everywhere, its floors open from here
+                stairLines.map(l => h('span', { key: l.st.id, className: 'cx-chip', onFocus: e => { if (e.target.tagName === 'INPUT') setStEdit({ id: l.st.id, floor: i }); } },
+                  h('button', { className: 'cx-stno', title: T('גרם {n}', { n: flightNo(l.st.id) }), onClick: () => setStEdit({ id: l.st.id, floor: i }) }, flightNo(l.st.id)),
+                  wField(l.st.w, !l.ok, v => setFlight(l.st.id, { w: v })),
+                  h('button', { className: 'cx-x', title: 'הסרה מהקומה הזו', onClick: () => setFlights(flights.map(x => x.id === l.st.id ? Object.assign({}, x, { levels: x.levels.filter(M => M !== L) }) : x).filter(x => x.levels.length)) }, '×'))),
+                h('button', { className: 'cx-btn', title: 'גרם מדרגות נוסף', onClick: () => addFlight(L, i) }, '+')),
+              !showStairs && h('button', { className: 'cx-btn', style: { marginInlineStart: 'auto' }, onClick: () => addFlight(L, i) }, '+ מדרגות בקומה')))),
+            flight && h('tr', { className: 'cx-wrow' }, h('td', { colSpan: 13 }, h('div', { className: 'cx-copy cx-flight' },
+              h('b', null, T('גרם {n} — בקומות:', { n: flightNo(flight.id) })),
+              h('label', { className: 'cx-rule' }, h('input', { type: 'checkbox', checked: floors.every(t => flight.levels.includes(+t.level || 0)), onChange: e => setFlight(flight.id, { levels: e.target.checked ? floors.map(t => +t.level || 0) : [] }) }), ' ', 'כל הקומות'),
+              floors.map((t, k) => { const M = +t.level || 0; return h('label', { key: t.id || k, className: 'cx-rule' },
+                h('input', { type: 'checkbox', checked: flight.levels.includes(M), onChange: e => setFlight(flight.id, { levels: e.target.checked ? flight.levels.concat([M]).sort((a, b) => a - b) : flight.levels.filter(x => x !== M) }) }), ' ',
+                h('span', SKIP, R.safFloorLabel(t, T))); }),
+              h('span', { className: 'cx-sp', style: { flex: 1 } }),
+              h('button', { className: 'cx-btn', onClick: () => delFlight(flight.id) }, 'מחיקת הגרם'),
+              h('button', { className: 'cx-btn pri', onClick: closeFlight }, 'סגור'))))))),
 
         isOpen && h('div', { className: 'cx-card-b', style: { display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', paddingTop: 6, paddingBottom: 6 } },
           h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 6 } }, 'רוחב פרוזדור (ס"מ)',
