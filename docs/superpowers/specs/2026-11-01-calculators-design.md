@@ -80,7 +80,7 @@ and table 1 (per classroom, minimum per space, maximum 90 m²).
   the proposed protected spaces (name, type, net area). Floors can be duplicated.
 - Per floor and space type: ממ"מ and school spaces add up the floor's uses, the largest minimum among them
   applies, and the number of spaces is the area over the maximum; ממ"ד one per apartment (9 m²); ממ"ק one
-  per 4 apartments (4/5 m² per apartment). The floor passes when area, count, maximum and minimum hold.
+  per 4 apartments (4/5 m² per apartment). The floor passes when area, count, maximum and minimum hold (superseded 2026-11-04: ממ"מ and school spaces have no required number of spaces; the area divides freely, each space within the minimum and maximum).
 - Ventilation and filtration per proposed space (not ממ"ד): occupants = ceil(area / m² per person), airflow =
   occupants × m³/h per person (defaults 0.4 and 6, from the user's own table; editable per check); chosen
   systems of 33/50/66/83/100 people must add up to at least the occupants; the page suggests the fewest units.

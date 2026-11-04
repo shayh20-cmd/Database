@@ -95,7 +95,7 @@ test('הל"ת: required vs proposed, urinals covered by extra toilets, floors ch
 test('הג"א: institutional space by % of the floor area, switching with the basis', () => {
   const fl = { uses: [{ type: 'off', qty: 1200 }, { type: 'bank', qty: 300 }], spaces: [{ id: 'a', name: '01', kind: 'mamam', area: 38 }] };
   const main = R.hgaCheckFloor(fl, 'main').lines[0];          // 3% × 1200 + 2% × 300 = 42
-  assert.deepStrictEqual([main.reqArea, main.reqCount, main.gap, main.ok], [42, 1, -4, false]);
+  assert.deepStrictEqual([main.reqArea, main.reqCount, main.gap, main.ok], [42, 0, -4, false]);
   const total = R.hgaCheckFloor(fl, 'total').lines[0];        // 1.8% × 1200 + 1.2% × 300 = 25.2
   assert.deepStrictEqual([total.reqArea, total.ok], [25.2, true]);
 });
@@ -103,17 +103,22 @@ test('הג"א: institutional space by % of the floor area, switching with the ba
 test('הג"א: the 10 m² minimum and the 60 m² maximum per space', () => {
   const small = R.hgaFloor({ uses: [{ type: 'off', qty: 200 }] }, 'main').req.mamam;   // 6 → 10
   assert.deepStrictEqual([small.area, small.minApplied], [10, true]);
-  const big = R.hgaFloor({ uses: [{ type: 'off', qty: 3000 }] }, 'main').req.mamam;     // 90 m² → 2 spaces
-  assert.strictEqual(big.count, 2);
+  const big = R.hgaFloor({ uses: [{ type: 'off', qty: 3000 }] }, 'main').req.mamam;     // 90 m², however it divides
+  assert.deepStrictEqual([big.area, big.count], [90, 0]);
   const over = R.hgaCheckFloor({ uses: [{ type: 'off', qty: 3000 }], spaces: [{ name: 'A', kind: 'mamam', area: 90 }] }, 'main').lines[0];
   assert.deepStrictEqual(over.tooBig, ['A']);
+  const fl = sp => R.hgaCheckFloor({ uses: [{ type: 'off', qty: 3000 }], spaces: sp.map((area, i) => ({ name: 's' + i, kind: 'mamam', area })) }, 'main').lines[0];
+  assert.strictEqual(fl([60, 30]).ok, true);                                            // the total and the sizes hold, any split
+  assert.strictEqual(fl([40, 30, 20]).ok, true);
+  assert.deepStrictEqual([fl([85, 5]).ok, fl([55, 30, 5]).tooSmall], [false, ['s2']]);  // a space under the 10 m² minimum
+  assert.deepStrictEqual([fl([]).minEach, fl([]).maxEach], [10, 60]);
 });
 
 test('הג"א: housing and education', () => {
   const r = R.hgaFloor({ uses: [{ type: 'res_mamad', qty: 4 }, { type: 'res_mamak_big', qty: 6 }] }, 'main').req;
   assert.deepStrictEqual([r.mamad.count, r.mamad.area, r.mamak.count, r.mamak.area], [4, 36, 2, 30]);
   const e = R.hgaFloor({ uses: [{ type: 'sch1', qty: 8 }, { type: 'sch11', qty: 2 }] }, 'main').req.edu;
-  assert.deepStrictEqual([e.area, e.count], [135, 2]);                                  // 8×15 + 2×7.5, max 90 per space
+  assert.deepStrictEqual([e.area, e.count], [135, 0]);                                  // 8×15 + 2×7.5, split freely
 });
 
 test('הג"א: ventilation people, flow and systems', () => {

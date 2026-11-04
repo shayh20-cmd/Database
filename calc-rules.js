@@ -670,7 +670,7 @@ function hgaRow(row, basis, T) {
   const q = +row.qty || 0, out = { u, space: hgaSpaceOf(u), area: 0, count: 0, min: u.min || (u.g === 'inst' ? 10 : 0), text: '' };
   if (u.kind === 'pct') {
     const p = basis === 'total' ? u.total : u.main;
-    out.area = q * p / 100;
+    out.area = q * p / 100; out.rate = p + '%';
     out.text = T(u.m === 'gross' ? '{p}% משטח ברוטו של חדרי המגורים' : basis === 'total' ? '{p}% מהשטח הכולל בקומה' : '{p}% מהשטח העיקרי בקומה', { p });
   } else if (u.kind === 'per') {
     out.area = q * u.per; out.text = T('{a} מ"ר ל{u}', { a: u.per, u: T(u.unit) });
@@ -688,7 +688,8 @@ function hgaRow(row, basis, T) {
   return out;
 }
 /* A floor → required area and spaces by kind of protected space.
-   ממ"מ / education: the floor's uses add up; the minimum of the largest-minimum use applies; spaces = ceil(area / max).
+   ממ"מ / education: the floor's uses add up and the minimum of the largest-minimum use applies. How the area divides
+   into spaces is free: the proposed spaces must reach the total, each within the minimum and maximum size.
    ממ"ד: one per apartment, 9 m² each. ממ"ק: one per 4 apartments. */
 function hgaFloor(floor, basis, T) {
   const rows = (floor.uses || []).map(r => ({ r, x: hgaRow(r, basis, T) })).filter(o => o.x);
@@ -701,8 +702,6 @@ function hgaFloor(floor, basis, T) {
   });
   Object.values(req).forEach(o => {
     o.area = Math.round(Math.max(o.raw, o.raw > 0 ? o.min : 0) * 100) / 100;
-    const lim = HGA_LIMITS[o.kind] || {};
-    if (o.kind === 'mamam' || o.kind === 'edu') o.count = o.area > 0 ? Math.ceil(o.area / lim.max - 1e-9) : 0;
     o.minApplied = o.raw > 0 && o.raw < o.min;
   });
   return { rows, req };
@@ -716,10 +715,11 @@ function hgaCheckFloor(floor, basis, T) {
     const mine = spaces.filter(s => s.kind === k), area = mine.reduce((a, s) => a + (+s.area || 0), 0);
     const lim = HGA_LIMITS[k] || {};
     const tooBig = lim.max ? mine.filter(s => +s.area > lim.max).map(s => s.name) : [];
-    const tooSmall = lim.min ? mine.filter(s => +s.area < lim.min).map(s => s.name) : [];
+    const minEach = Math.max(lim.min || 0, rq.min || 0), maxEach = lim.max || 0;
+    const tooSmall = minEach ? mine.filter(s => +s.area < minEach).map(s => s.name) : [];
     const gap = Math.round((area - rq.area) * 100) / 100, cgap = mine.length - rq.count;
     const ok = gap >= -1e-9 && cgap >= 0 && !tooBig.length && !tooSmall.length;
-    return { kind: k, reqArea: rq.area, reqCount: rq.count, area: Math.round(area * 100) / 100, count: mine.length, gap, cgap, tooBig, tooSmall, ok };
+    return { kind: k, minEach, maxEach, reqArea: rq.area, reqCount: rq.count, area: Math.round(area * 100) / 100, count: mine.length, gap, cgap, tooBig, tooSmall, ok };
   });
   return { f, lines, bad: lines.filter(l => !l.ok).length };
 }
