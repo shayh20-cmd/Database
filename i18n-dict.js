@@ -3977,6 +3977,11 @@ Object.assign(HE_EN, {
 "קומה נוספת למעלה, עם אותם שימושים ובאותם מגדלים": "Another floor on top, with the same uses and in the same towers",
 "לחצו על קומה כדי לפתוח אותה. מגדל הוא מרחב מוגן שחוזר בכמה קומות: קובעים לו שטח פעם אחת, ובכל קומה אפשר להחליט אם היא חלק ממנו ואם השטח בה שונה. ממ\"מ ומרחב במוסד חינוך מחושבים לפי סך השימושים בקומה; ממ\"ד — אחד לכל דירה; ממ\"ק — אחד לכל 4 דירות.": "Click a floor to open it. A tower is a protected space that repeats through several floors: set its area once, then decide on each floor whether it belongs to the tower and whether its area differs. Institutional and school spaces are worked out from all the uses on the floor; a mamad is one per apartment; a mamak is one per 4 apartments.",
 "סה\"כ {a} מ\"ר": "Total {a} m²",
+"חתך המבנה": "Building section",
+"הוסיפו מגדל כדי לראות אותו בחתך": "Add a tower to see it in the section",
+"מגדל {n} · {f} · {a} מ\"ר": "Tower {n} · {f} · {a} m²",
+"לחצו על מספר מגדל כדי לערוך אותו, או על קובייה כדי לערוך את המרחב בקומה הזו.": "Click a tower number to edit the tower, or a block to edit the space on that floor.",
+"רוחב הקובייה יחסי לשטח. מסגרת כתומה: שטח שונה בקומה. אדום: לא עומד בדרישה.": "A block's width follows its area. Orange frame: a different area on that floor. Red: misses the requirement.",
 });
 
 window.I18N_HE_EN = HE_EN;

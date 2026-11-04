@@ -39,7 +39,7 @@
     '.cx-sheet-x{border:none;background:none;color:var(--text-3);cursor:pointer;font-size:13px;padding:0 2px}',
     '.cx-sheet-x.arm{color:#DC2626;font-weight:700;font-size:11px}',
     '.cx-add{border:1px dashed var(--border-strong);background:none;border-top:none;border-radius:0 0 8px 8px;padding:6px 12px;cursor:pointer;color:var(--accent);font:inherit;font-size:12px;font-weight:600;white-space:nowrap}',
-    '.cx-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg,12px);margin-bottom:14px;overflow:hidden}',
+    '.cx-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg,12px);margin-bottom:14px;overflow:clip}',
     '.cx-card-h{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);font-weight:600;flex-wrap:wrap}',
     '.cx-num{width:20px;height:20px;border-radius:50%;background:rgba(37,99,235,.1);color:var(--accent);display:grid;place-items:center;font-size:11px;flex:none}',
     '.cx-sp{flex:1}',
@@ -144,6 +144,33 @@
     '.cx-twf{flex-basis:100%;display:grid;grid-template-columns:repeat(auto-fill,150px);gap:4px 14px}',
     '.cx-twr{display:flex;align-items:center;gap:6px;min-height:28px}',
     '.cx-twr label{flex:1;min-width:0}',
+    '.cx-hlay{container-type:inline-size}',
+    '.cx-hrow{display:flex;gap:14px;align-items:flex-start}',
+    '.cx-hfl{flex:1;min-width:0}',
+    '.cx-hsec{flex:0 0 270px;position:sticky;top:8px;border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--surface)}',
+    '@container (max-width:960px){.cx-hrow{flex-direction:column-reverse;align-items:stretch}.cx-hsec{position:static;flex:none}}',
+    '.cx-hsec-t{font-weight:700;font-size:13px;margin-bottom:8px}',
+    '.cx-sect{display:grid;font-size:11px;max-height:520px;overflow:auto}',
+    '.cx-sect .k-mamam{--k:var(--accent)}.cx-sect .k-mamad,.cx-hkey .k-mamad{--k:#0d9488}.cx-sect .k-mamak,.cx-hkey .k-mamak{--k:#7c3aed}.cx-sect .k-edu,.cx-hkey .k-edu{--k:#c2410c}.cx-hkey .k-mamam{--k:var(--accent)}',
+    '.cx-sec-l{display:flex;align-items:center;gap:3px;height:var(--rh);padding-inline-end:6px;white-space:nowrap;overflow:hidden;color:var(--text-2)}',
+    '.cx-sec-l span{overflow:hidden;text-overflow:ellipsis}',
+    '.cx-sec-l .cx-p-bad{flex:none;padding:0 3px;font-size:10px}',
+    '.cx-sec-c{display:flex;align-items:center;justify-content:center;height:var(--rh);padding:3px 1px;min-width:0;border-bottom:1px solid color-mix(in srgb,var(--text) 28%,var(--surface))}',
+    '.cx-sec-c.top{border-top:2px solid color-mix(in srgb,var(--text) 45%,var(--surface))}',
+    '.cx-sec-c.gnd{border-bottom:3px solid color-mix(in srgb,var(--text) 55%,var(--surface))}',
+    '.cx-sec-c.und{background:color-mix(in srgb,var(--text) 6%,var(--surface))}',
+    '.cx-sec-c.ws{border-inline-start:2px solid color-mix(in srgb,var(--text) 45%,var(--surface))}',
+    '.cx-sec-c.we{border-inline-end:2px solid color-mix(in srgb,var(--text) 45%,var(--surface))}',
+    '.cx-sec-h,.cx-sec-q{border:0;padding:0;font:inherit;font-weight:700;color:var(--text);cursor:pointer;background:color-mix(in srgb,var(--k) 26%,var(--surface));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--k) 60%,var(--surface))}',
+    '.cx-sec-h{justify-self:center;align-self:center;min-width:20px;height:20px;margin-bottom:4px;border-radius:10px}',
+    '.cx-sec-q{height:100%;min-width:14px;border-radius:3px;overflow:hidden;font-size:10.5px;font-variant-numeric:tabular-nums}',
+    '.cx-sec-q.own{outline:1.5px dashed #d97706;outline-offset:-2px}',
+    '.cx-sec-q.short{box-shadow:inset 0 0 0 2px #dc2626}',
+    '.cx-sec-q.size,.cx-sec-h.bad{background:rgba(220,38,38,.2);box-shadow:inset 0 0 0 1.5px #dc2626;color:#dc2626}',
+    '.cx-sec-q.on,.cx-sec-h.on{outline:2px solid var(--text);outline-offset:0}',
+    '.cx-sec-h:focus-visible,.cx-sec-q:focus-visible{outline:2px solid var(--accent);outline-offset:1px}',
+    '.cx-hkey{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:8px;font-size:11px;color:var(--text-2)}',
+    '.cx-hkey i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-inline-end:4px;vertical-align:-1px;background:color-mix(in srgb,var(--k) 40%,var(--surface))}',
     '.cx-fhga{flex-wrap:wrap;white-space:normal;color:var(--text-2)}',
     '.cx-fhga b{color:var(--text)}',
     '.cx-ftw{display:inline-flex;align-items:center;font-variant-numeric:tabular-nums;font-weight:700;color:var(--text)}',
@@ -498,6 +525,16 @@
     // floors numbered and spaces in towers: an older sheet moves over with its next change
     const sheet = R.hgaSheet(sh), floors = sheet.floors, towers = sheet.towers, shown = sheet.resolved;
     const [open, setOpen] = useState({}), [countKey, setCountKey] = useState(0), [twEdit, setTwEdit] = useState(null);
+    // a click in the section opens the tower's panel on that floor and lands on the box for what was clicked
+    useEffect(() => {
+      if (!twEdit || !twEdit.jump) return;
+      const p = document.querySelector('.cx-flight');
+      if (!p) return;
+      p.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const box = p.querySelector(twEdit.cell ? '[data-fl="' + twEdit.cell + '"] input[type=number]' : 'input[type=number]');
+      if (box) { box.focus({ preventScroll: true }); box.select(); }
+    }, [twEdit]);
+    const jumpTo = (id, floorId, cell) => { setOpen(s => Object.assign({}, s, { [floorId]: true })); setTwEdit({ id, floor: floorId, cell, jump: true }); };
     const setFloors = (fl, tw) => upd({ floors: fl, towers: R.hgaPruneTowers(tw || towers, fl) });
     const setFloor = (i, patch) => setFloors(floors.map((f, j) => j === i ? Object.assign({}, f, patch) : f));
     const setTower = (id, p) => upd({ floors, towers: towers.map(t => t.id === id ? Object.assign({}, t, p) : t) });
@@ -534,6 +571,10 @@
       R.HGA_USES.filter(u => u.g === g).map(u => h('option', { key: u.id, value: u.id }, T(u.name)))));
     const checks = shown.map(f => R.hgaCheckFloor(f, sh.basis, T));
 
+    const verdict = l => l.ok ? (l.gap > 0 ? T('✓ עודף {n} מ"ר', { n: l.gap }) : T('✓ תקין'))
+      : l.gap < 0 ? T('✗ חסר {n} מ"ר', { n: r2(-l.gap) }) : l.cgap < 0 ? T('✗ חסרים {n} מרחבים', { n: -l.cgap })
+      : l.tooSmall.length ? T('✗ מרחב קטן מ-{n} מ"ר', { n: l.minEach }) : T('✗ מרחב גדול מ-{n} מ"ר', { n: l.maxEach });
+
     const floorBlock = (f, i) => {
       const chk = checks[i], uses = f.uses || [], spaces = shown[i].spaces, tower = twEdit && twEdit.floor === f.id ? towers.find(t => t.id === twEdit.id) : null;
       const setUses = us => setFloor(i, { uses: us });
@@ -549,9 +590,6 @@
         if (g) g.rows.push({ u, j, x }); else groups.push({ kind: x.space, rows: [{ u, j, x }] });
       });
       chk.lines.forEach(l => { if (!groups.some(o => o.kind === l.kind)) groups.push({ kind: l.kind, rows: [] }); });
-      const verdict = l => l.ok ? (l.gap > 0 ? T('✓ עודף {n} מ"ר', { n: l.gap }) : T('✓ תקין'))
-        : l.gap < 0 ? T('✗ חסר {n} מ"ר', { n: r2(-l.gap) }) : l.cgap < 0 ? T('✗ חסרים {n} מרחבים', { n: -l.cgap })
-        : l.tooSmall.length ? T('✗ מרחב קטן מ-{n} מ"ר', { n: l.minEach }) : T('✗ מרחב גדול מ-{n} מ"ר', { n: l.maxEach });
       const offer = g => {
         const rowSpan = Math.max(1, g.rows.length), l = chk.lines.find(o => o.kind === g.kind);
         if (!l) return [h('td', { key: 'o', className: 'cx-o', rowSpan }, '—'), h('td', { key: 's', className: 'cx-o', rowSpan }, '—')];
@@ -622,9 +660,31 @@
           h('button', { className: 'cx-btn', onClick: () => delTower(tower.id) }, 'מחיקת המגדל'),
           h('button', { className: 'cx-btn pri', onClick: () => setTwEdit(null) }, 'סגור'),
           h('div', { className: 'cx-twf' }, floors.map((t, k) => { const s = (t.spaces || []).find(o => o.tower === tower.id);
-            return h('div', { key: t.id, className: 'cx-twr' },
+            return h('div', { key: t.id, className: 'cx-twr', 'data-fl': t.id },
               h('label', { className: 'cx-rule' }, h('input', { type: 'checkbox', checked: !!s, onChange: e => setFloors(R.hgaSetTowerFloor(floors, tower, t.id, e.target.checked, uid)) }), ' ', h('span', SKIP, R.safFloorLabel(t, T))),
               s && h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 66 }, value: s.area, placeholder: tower.area == null ? '0' : String(tower.area), title: T('שטח שונה בקומה הזו'), onSave: v => setOwnArea(k, tower, v) })); }))));
+    };
+
+    // the building in section: one column per tower, a block per floor as wide as its area
+    const sectionView = () => {
+      const { rows, cols } = R.hgaSection(sh, T), n = cols.length, last = rows.length - 1;
+      if (!n) return h('div', { className: 'cx-hint' }, 'הוסיפו מגדל כדי לראות אותו בחתך');
+      const kinds = [...new Set(cols.map(c => c.kind))], lowest = id => [...rows].reverse().find(r => r.cells[cols.findIndex(c => c.id === id)]).fl.id;
+      return h(React.Fragment, null,
+        h('div', { className: 'cx-sect', style: { gridTemplateColumns: 'minmax(50px,auto) ' + cols.map(c => 'minmax(22px,' + c.max + 'fr)').join(' '), '--rh': Math.max(22, Math.min(36, Math.round(420 / rows.length))) + 'px' } },
+          h('span', null),
+          cols.map(c => h('button', { key: c.id, className: 'cx-sec-h k-' + c.kind + (c.bad ? ' bad' : '') + (twEdit && twEdit.id === c.id ? ' on' : ''), title: T('מגדל {n}', { n: c.no }) + ' · ' + T(R.HGA_KINDS[c.kind]),
+            onClick: () => jumpTo(c.id, twEdit && twEdit.id === c.id ? twEdit.floor : lowest(c.id)) }, c.no)),
+          rows.map((r, y) => { const L = +r.fl.level || 0, name = R.safFloorLabel(r.fl, T), zone = (L < 0 ? ' und' : '') + (L === 0 ? ' gnd' : '') + (y === 0 ? ' top' : '');
+            return h(React.Fragment, { key: r.fl.id },
+              h('div', { className: 'cx-sec-l', title: r.bad.map(verdict).join(' · ') || undefined }, h('span', SKIP, name), r.bad.length > 0 && h('b', { className: 'cx-p-bad' }, '✗')),
+              r.cells.map((c, k) => h('div', { key: cols[k].id, className: 'cx-sec-c' + zone + (k === 0 ? ' ws' : '') + (k === n - 1 ? ' we' : '') },
+                c && h('button', { className: 'cx-sec-q k-' + cols[k].kind + (c.size ? ' size' : c.short ? ' short' : '') + (c.own ? ' own' : '') + (twEdit && twEdit.id === cols[k].id ? ' on' : ''), style: { width: Math.min(100, c.area / cols[k].max * 100) + '%' },
+                  title: T('מגדל {n} · {f} · {a} מ"ר', { n: cols[k].no, f: '⁨' + name + '⁩', a: c.area }) + (c.line && !c.line.ok ? ' · ' + verdict(c.line) : ''),
+                  onClick: () => jumpTo(cols[k].id, r.fl.id, r.fl.id) }, c.area || '?')))); })),
+        h('div', { className: 'cx-hkey' }, kinds.length > 1 && kinds.map(k => h('span', { key: k, className: 'k-' + k }, h('i'), T(R.HGA_KINDS[k])))),
+        h('div', { className: 'cx-hint', style: { marginTop: 6 } }, 'לחצו על מספר מגדל כדי לערוך אותו, או על קובייה כדי לערוך את המרחב בקומה הזו.'),
+        h('div', { className: 'cx-hint' }, 'רוחב הקובייה יחסי לשטח. מסגרת כתומה: שטח שונה בקומה. אדום: לא עומד בדרישה.'));
     };
 
     const floorCounts = h('div', { className: 'cx-basis' },
@@ -636,10 +696,13 @@
     const floorsCard = Card(2, 'קומות, שימושים ומרחבים מוגנים', null,
       h('div', { className: 'cx-card-b' },
         h('div', { className: 'cx-hint', style: { marginBottom: 10 } }, 'לחצו על קומה כדי לפתוח אותה. מגדל הוא מרחב מוגן שחוזר בכמה קומות: קובעים לו שטח פעם אחת, ובכל קומה אפשר להחליט אם היא חלק ממנו ואם השטח בה שונה. ממ"מ ומרחב במוסד חינוך מחושבים לפי סך השימושים בקומה; ממ"ד — אחד לכל דירה; ממ"ק — אחד לכל 4 דירות.'),
-        floors.map(floorBlock),
-        h('div', { className: 'cx-fadd' },
-          h('button', { className: 'cx-btn', onClick: () => setCounts(counts.above + 1, counts.below) }, '+ קומה מעל'),
-          h('button', { className: 'cx-btn', onClick: () => setCounts(counts.above, counts.below + 1) }, '+ קומה מתחת'))));
+        h('div', { className: 'cx-hlay' }, h('div', { className: 'cx-hrow' },
+          h('div', { className: 'cx-hfl' },
+            floors.map(floorBlock),
+            h('div', { className: 'cx-fadd' },
+              h('button', { className: 'cx-btn', onClick: () => setCounts(counts.above + 1, counts.below) }, '+ קומה מעל'),
+              h('button', { className: 'cx-btn', onClick: () => setCounts(counts.above, counts.below + 1) }, '+ קומה מתחת'))),
+          h('aside', { className: 'cx-hsec' }, h('div', { className: 'cx-hsec-t' }, 'חתך המבנה'), sectionView())))));
 
     const all = floors.flatMap((f, i) => checks[i].lines.map(l => ({ f, l })));
     const bad = all.filter(o => !o.l.ok).length;

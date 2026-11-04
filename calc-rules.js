@@ -777,6 +777,27 @@ function hgaCopyFloorUp(floors, i, newId) {
   ['uses', 'spaces'].forEach(k => (c[k] || []).forEach(x => { x.id = newId(); }));
   return floors.concat([Object.assign(c, { id: newId(), level, name: safFloorName(level) })]);
 }
+/* The building in section: rows from the top floor down, one column per tower. A cell is empty where the floor isn't in the tower.
+   size: this space is outside the minimum or maximum. short: the floor's spaces of this kind miss the requirement together. */
+function hgaSection(sh, T) {
+  const { floors, towers, resolved } = hgaSheet(sh);
+  const rows = resolved.map((fl, i) => {
+    const chk = hgaCheckFloor(fl, sh.basis, T);
+    const cells = towers.map(t => {
+      const s = fl.spaces.find(x => x.tower === t.id);
+      if (!s) return null;
+      const l = chk.lines.find(o => o.kind === t.kind), a = +s.area || 0;
+      const size = !!l && ((l.minEach > 0 && a < l.minEach) || (l.maxEach > 0 && a > l.maxEach));
+      return { area: a, own: hgaHasArea(floors[i].spaces.find(x => x.tower === t.id)), size, short: !!l && !l.ok && !size, line: l };
+    });
+    return { fl, bad: chk.lines.filter(l => !l.ok), cells };
+  }).reverse();
+  const cols = towers.map((t, k) => {
+    const cells = rows.map(r => r.cells[k]).filter(Boolean);
+    return { id: t.id, kind: t.kind, no: k + 1, max: Math.max(10, ...cells.map(c => c.area)), bad: cells.some(c => c.size || c.short) };
+  });
+  return { rows, cols };
+}
 function hgaTotals(sh, T) {
   const t = { reqArea: 0, area: 0, bad: 0, floors: 0, byKind: {} };
   hgaSheet(sh).resolved.forEach(fl => {
@@ -1091,7 +1112,7 @@ const api = {
   haversine, stationsNear, zoneForStation, useById, ruleSet, ruleText, carRow, bikeRow, motoRow, parkingTotals, span,
   hltById, stepCount, stepText, hltRow, hltTotals, reqFor, planCheck, fill,
   SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck, safFloorName, safFloorLabel, safFloorNick, safRenumber, safNextLevel, safFloorCounts, safSetCounts, safFloorHasData, safCopyFloor, safFlights, safFlightsWithout, safProtectedStairs, safMoveFloor, safRemoveFloor,
-  HGA_KINDS, HGA_GROUPS, HGA_USES, HGA_LIMITS, HGA_SYSTEMS, hgaById, hgaSpaceOf, hgaRow, hgaFloor, hgaCheckFloor, hgaTowers, hgaResolve, hgaSheet, hgaSetTowerFloor, hgaPruneTowers, hgaFloorHasData, hgaCopyFloorUp, hgaTotals, hgaVent, hgaSuggest,
+  HGA_KINDS, HGA_GROUPS, HGA_USES, HGA_LIMITS, HGA_SYSTEMS, hgaById, hgaSpaceOf, hgaRow, hgaFloor, hgaCheckFloor, hgaTowers, hgaResolve, hgaSheet, hgaSetTowerFloor, hgaPruneTowers, hgaFloorHasData, hgaCopyFloorUp, hgaSection, hgaTotals, hgaVent, hgaSuggest,
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 else root.CalcRules = api;
