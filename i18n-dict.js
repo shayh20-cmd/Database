@@ -3984,6 +3984,15 @@ Object.assign(HE_EN, {
 "רוחב הקובייה יחסי לשטח. ירוק: עומד בדרישה. אדום: לא עומד בדרישה. מסגרת כתומה: שטח שונה בקומה.": "A block's width follows its area. Green: meets the requirement. Red: misses it. Orange frame: a different area on that floor.",
 "מעל הקרקע": "Above ground",
 "מתחת לקרקע": "Below ground",
+"מוגן": "Protected",
+"תפוסה": "Occupancy",
+"מוצאים בטוחים (ס\"מ)": "Safe exits (cm)",
+"גרם מדרגות מוגן": "Protected flight",
+"{h} מתוך {n} נדרשים": "{h} of {n} required",
+"גרמים מוגנים: {h} מסומנים, {n} נדרשים": "Protected flights: {h} marked, {n} required",
+"גרמים מוגנים: {h}": "Protected flights: {h}",
+"לחצו על מספר גרם כדי לבחור את הקומות שלו ולסמן אם הוא מוגן, על גרם בקומה כדי לערוך את הרוחב, או על המוצאים כדי לערוך אותם.": "Click a flight number to choose its floors and mark it protected, a flight on a floor to edit its width, or the exits to edit them.",
+"בכל גרם כתוב הרוחב בס\"מ. ירוק: עומד בדרישה. אדום: לא עומד בדרישה. מסגרת כפולה: גרם מוגן.": "Each flight shows its width in cm. Green: meets the requirement. Red: misses it. Double frame: a protected flight.",
 });
 
 window.I18N_HE_EN = HE_EN;

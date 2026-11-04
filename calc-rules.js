@@ -1042,8 +1042,8 @@ function safCopyFloor(floors, from, targets, newId) {
 /* When the building needs protected stairs. The list is shown as a requirement: nothing here checks the stairs drawn */
 function safProtectedStairs(sh, below) {
   const out = [];
-  if (sh.height === 'tower') out.push({ ref: '3.7.1.3', text: 'בניין רב-קומות: שני חדרי מדרגות מוגנים לפחות' });
-  if (sh.height === 'high') out.push({ ref: '3.7.1.2', text: 'בניין גבוה: חדר מדרגות מוגן', note: 'שניים, אלא אם הבניין למגורים, תפוסת כל קומה עד 30 איש, או מרחק ההליכה לדלת האש עד 30 מ\'' });
+  if (sh.height === 'tower') out.push({ ref: '3.7.1.3', n: 2, text: 'בניין רב-קומות: שני חדרי מדרגות מוגנים לפחות' });
+  if (sh.height === 'high') out.push({ ref: '3.7.1.2', n: 1, text: 'בניין גבוה: חדר מדרגות מוגן', note: 'שניים, אלא אם הבניין למגורים, תפוסת כל קומה עד 30 איש, או מרחק ההליכה לדלת האש עד 30 מ\'' });
   if (below > 0 && sh.deepBelow) out.push({ ref: '3.2.3.3', text: 'קומות תחתיות: חדרי המדרגות המחויבים שמשרתים אותן יהיו מוגנים' });
   return out;
 }
@@ -1108,11 +1108,35 @@ function safCheck(sh) {
   return { floors, occ: floors.reduce((a, o) => a + o.f.occ, 0), bad: floors.reduce((a, o) => a + o.bad, 0) };
 }
 
+/* The building in section: rows from the top floor down with each floor's people and exits, one column per flight.
+   A cell is empty where the flight doesn't reach the floor. size: under the flight's minimum.
+   short: fine alone, but the floor's flights together miss the total width. */
+function safSection(sh) {
+  const floors = safRenumber(sh.floors || []), s = Object.assign({}, sh, { floors }), c = safCheck(s);
+  const flights = safFlights(s).filter(st => floors.some(f => st.levels.includes(+f.level || 0)));
+  const rows = c.floors.map(o => {
+    const line = k => o.lines.find(l => l.k === k), sum = line('stairSum'), doors = line('doorSum');
+    const cells = flights.map(st => {
+      const l = o.lines.find(x => x.k === 'stair' && x.st.id === st.id);
+      if (!l) return null;
+      return { w: l.have, need: l.need, size: !l.ok, short: l.ok && !!sum && !sum.ok, ok: l.ok && (!sum || sum.ok) && l.have > 0, sum };
+    });
+    return { fl: o.fl, occ: o.f.occ, exits: (o.fl.exits || []).map(e => +e.door || 0), exitsNeed: o.f.exits,
+      exitsOk: line('count').ok && (!doors || doors.ok) && o.lines.filter(l => l.k === 'exit').every(l => l.ok), bad: o.bad, cells };
+  }).reverse();
+  const cols = flights.map((st, k) => {
+    const cells = rows.map(r => r.cells[k]).filter(Boolean);
+    return { id: st.id, w: +st.w || 0, prot: !!st.prot, max: Math.max(1.1, ...cells.map(x => x.w)), bad: cells.some(x => x.size || x.short), ok: cells.length > 0 && cells.every(x => x.ok) };
+  });
+  const prot = safProtectedStairs(sh, safFloorCounts(floors).below);
+  return { rows, cols, protNeed: prot.reduce((a, r) => Math.max(a, r.n || 0), 0), protAny: prot.length > 0, protHave: cols.filter(x => x.prot).length };
+}
+
 const api = {
   MEASURES, CATS, USES, BIKES, MOTOS, STATIONS, ZONES, FIX, FIX_ORDER, HLT, HLT_GENERAL, PCOLS, FLOOR_FX,
   haversine, stationsNear, zoneForStation, useById, ruleSet, ruleText, carRow, bikeRow, motoRow, parkingTotals, span,
   hltById, stepCount, stepText, hltRow, hltTotals, reqFor, planCheck, fill,
-  SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck, safFloorName, safFloorLabel, safFloorNick, safRenumber, safNextLevel, safFloorCounts, safSetCounts, safFloorHasData, safCopyFloor, safFlights, safFlightsWithout, safProtectedStairs, safMoveFloor, safRemoveFloor,
+  SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck, safFloorName, safFloorLabel, safFloorNick, safRenumber, safNextLevel, safFloorCounts, safSetCounts, safFloorHasData, safCopyFloor, safFlights, safFlightsWithout, safProtectedStairs, safSection, safMoveFloor, safRemoveFloor,
   HGA_KINDS, HGA_GROUPS, HGA_USES, HGA_LIMITS, HGA_SYSTEMS, hgaById, hgaSpaceOf, hgaRow, hgaFloor, hgaCheckFloor, hgaTowers, hgaResolve, hgaSheet, hgaSetTowerFloor, hgaPruneTowers, hgaFloorHasData, hgaCopyFloorUp, hgaSection, hgaTotals, hgaVent, hgaSuggest,
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
