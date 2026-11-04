@@ -150,6 +150,22 @@ test('הג"א section: top floor first, one column per tower, the problems marke
   assert.deepStrictEqual([one.ok, one.bad], [true, false]);
 });
 
+test('safety section: top floor first, flights by column, protected flights counted', () => {
+  const fl = (level, people, exits) => ({ id: 'f' + level, level, name: '', corridor: 'res', exits: exits.map(door => ({ door })), spaces: [{ use: 'i38', qty: people }] });
+  const sh = { height: 'high', floors: [fl(-1, 20, [1.1]), fl(0, 50, [1.1, 1.1]), fl(1, 100, [1.1, 1.1]), fl(2, 100, [1.1])],
+    stairs: [{ id: 'a', w: 1.2, prot: true, levels: [-1, 0, 1, 2] }, { id: 'b', w: 0.8, levels: [0, 1, 2] }] };
+  const s = R.safSection(sh);
+  assert.deepStrictEqual(s.rows.map(r => r.fl.level), [2, 1, 0, -1]);
+  assert.deepStrictEqual(s.rows.map(r => r.occ), [100, 100, 50, 20]);
+  assert.deepStrictEqual(s.rows[1].exits, [1.1, 1.1]);
+  assert.deepStrictEqual([s.rows[0].exitsOk, s.rows[1].exitsOk], [false, true]);       // two needed at 100 people, one drawn
+  assert.deepStrictEqual(s.rows[3].cells.map(c => !!c), [true, false]);                // the second flight stops at the ground
+  assert.strictEqual(s.rows[0].cells[0].ok, true);
+  assert.strictEqual(s.rows[0].cells[1].size, true);                                   // 0.80 is under the flight minimum
+  assert.deepStrictEqual([s.cols[0].prot, s.cols[1].prot, s.cols[1].bad], [true, false, true]);
+  assert.deepStrictEqual([s.protNeed, s.protHave], [1, 1]);
+});
+
 test('הג"א: institutional space by % of the floor area, switching with the basis', () => {
   const fl = { uses: [{ type: 'off', qty: 1200 }, { type: 'bank', qty: 300 }], spaces: [{ id: 'a', name: '01', kind: 'mamam', area: 38 }] };
   const main = R.hgaCheckFloor(fl, 'main').lines[0];          // 3% × 1200 + 2% × 300 = 42
