@@ -158,6 +158,7 @@
     '.cx-chev{display:inline-block;transition:transform .15s;font-size:16px;line-height:1;color:var(--text-3)}',
     '[dir=rtl] .cx-chev{transform:scaleX(-1)}',
     '.cx-floor.open .cx-chev{transform:rotate(90deg)}',
+    '.cx-fgrp{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--text-3);white-space:nowrap}',
     '.cx-fchip{font-size:11.5px;padding:2px 8px;border-radius:10px;font-variant-numeric:tabular-nums;white-space:nowrap}',
     '.cx-fchip.ok{background:var(--ok-bg,#ecfdf5);color:var(--ok-fg,#047857)}',
     '.cx-fchip.bad{background:var(--danger-row,#FFF5F5);color:#b91c1c}',
@@ -638,8 +639,9 @@
       const flagged = l => l && !l.ok;
       const short = l => T('✗ חסר {n}', { n: cm(rm(l.need - l.have)) });
       const isOpen = open[fl.id || i] != null ? open[fl.id || i] : i === 0;
-      // provided / required, shown on the closed floor so its state reads without opening it
-      const sumChip = (label, l) => l && h('span', { className: 'cx-fchip ' + (l.ok ? 'ok' : 'bad') }, T(label, { h: cm(l.have), n: cm(l.need) }));
+      // the closed floor shows what is offered, one number per stair flight: green meets the requirement, red doesn't
+      const widthChip = (key, val, ok, title) => h('span', { key, className: 'cx-fchip ' + (ok ? 'ok' : 'bad'), title }, val);
+      const stairShort = flagged(stairSum) ? T('סך הגרמים {h} מול {n} ס"מ נדרש', { h: cm(stairSum.have), n: cm(stairSum.need) }) : null;
       return h('div', { key: fl.id || i, className: 'cx-blk cx-floor' + (isOpen ? ' open' : '') },
         h('button', { className: 'cx-blk-h cx-fold', 'aria-expanded': isOpen, onClick: () => setOpen(s => Object.assign({}, s, { [fl.id || i]: !isOpen })) },
           h('span', { className: 'cx-chev', 'aria-hidden': true }, '›'),
@@ -647,7 +649,10 @@
           h('span', { className: 'cx-rule' }, T('מפלס {n}', { n: fl.level || 0 })),
           h('span', { className: 'cx-tag' }, T('{n} איש', { n: f.occ })),
           h('span', { className: 'cx-sp', style: { flex: 1 } }),
-          sumChip('דלתות {h}/{n}', doorSum), sumChip('מדרגות {h}/{n}', stairSum), sumChip('פרוזדור {h}/{n}', corr),
+          (stairLines.length > 0 || stairSum) && h('span', { className: 'cx-fgrp' }, 'מדרגות',
+            stairLines.length ? stairLines.map((l, j) => widthChip(l.st.id || j, l.have ? cm(l.have) : '—', l.ok && !stairShort, stairShort || T('נדרש {a}', { a: cmT(l.need) })))
+              : widthChip('none', '—', false, stairShort)),
+          corr && h('span', { className: 'cx-fgrp' }, 'פרוזדור', widthChip('c', cm(corr.have), corr.ok, T('נדרש {a}', { a: cmT(corr.need) }))),
           okPill(o.bad === 0, '✓', T('✗ {n}', { n: o.bad }))),
 
         isOpen && h('div', { className: 'cx-ftools' },
