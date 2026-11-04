@@ -153,10 +153,11 @@
     '.cx-hsec{flex:0 0 270px;position:sticky;top:8px;border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--surface)}',
     '@container (max-width:960px){.cx-hrow{flex-direction:column-reverse;align-items:stretch}.cx-hsec{position:static;flex:none}}',
     '.cx-hsec-t{font-weight:700;font-size:13px;margin-bottom:8px}',
-    '.cx-ssec{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:12px;overflow:auto}',
-    '.cx-ssec .cx-sect{max-height:none;overflow:visible;justify-content:start;font-size:12px}',
-    '.cx-sec-i{justify-content:flex-start;padding:3px 8px;white-space:nowrap;font-variant-numeric:tabular-nums}',
-    '.cx-sec-th{font-size:11px;font-weight:700;color:var(--text-2);padding:0 8px 4px;align-self:end}',
+    '.cx-hsec.cx-hsaf{flex-basis:350px}',
+    '@container (max-width:960px){.cx-hsec.cx-hsaf{flex:none}}',
+    '.cx-hsaf .cx-fchip{padding:2px 6px}',
+    '.cx-sec-i{justify-content:flex-start;padding:3px 4px;white-space:nowrap;font-variant-numeric:tabular-nums}',
+    '.cx-sec-th{font-size:11px;font-weight:700;color:var(--text-2);padding:0 4px 4px;align-self:end}',
     '.cx-sec-hc{display:flex;flex-direction:column;align-items:center;gap:2px;padding-bottom:4px;align-self:end}',
     '.cx-sec-hc .cx-sec-h{margin:0}',
     '.cx-sec-hc .cx-tag{font-size:10px;padding:0 5px}',
@@ -191,7 +192,7 @@
     '.cx-chip button{border:none;background:none;color:inherit;cursor:pointer;font-size:12px;padding:0 3px}',
     '.cx-in.cx-addsys{width:auto;padding:2px 6px;font-size:12px}',
     '.cx-blk-h .cx-p-ok,.cx-blk-h .cx-p-bad{font-size:11px}',
-    '.cx-saf td,.cx-saf th{padding:5px 5px}',
+    '.cx-saf td,.cx-saf th{padding:5px 4px}',
     '.cx-chips{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center}',
     // safety floors: a closed floor is one bar with its totals; open, it shows its tools, table and notes
     '.cx-floor{border-color:var(--border-strong,var(--border));margin-bottom:14px}',
@@ -926,7 +927,7 @@
                 // one box for the room number and the zone; a number typed in the old separate box joins the name
                 h('td', null, h(Field, { value: [sp.no, sp.name].filter(Boolean).join(' '), skip: true, placeholder: '—', style: { width: 110 }, onSave: v => setSp(j, { no: null, name: v }) })),
                 h('td', { style: { textAlign: 'start' } },
-                  h('select', { className: 'cx-in', style: { minWidth: 150, maxWidth: 190 }, value: sp.use, onChange: e => setSp(j, { use: e.target.value, factor: null }) }, useOpts)),
+                  h('select', { className: 'cx-in', style: { minWidth: 130, maxWidth: 140 }, value: sp.use, onChange: e => setSp(j, { use: e.target.value, factor: null }) }, useOpts)),
                 // the occupancy factor sits beside the area, on the same line as the rest of the row
                 h('td', null, h('div', { className: 'cx-qty', style: { justifyContent: 'center' } }, u.none ? '—' : u.q ? h('div', { className: 'cx-qty' }, h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 66 }, value: sp.qty, onSave: v => setSp(j, { qty: v }) }),
                   h('span', { className: 'cx-rule' }, u.q === 'bench' ? 'מ\' ספסל' : u.q === 'seats' ? 'מושבים' : 'איש'))
@@ -1031,7 +1032,7 @@
       const lowest = k => lvl([...rows].reverse().find(r => r.cells[k]));
       const wall = k => (k === 0 ? ' ws' : '') + (k === n - 1 ? ' we' : '');
       return h(React.Fragment, null,
-        h('div', { className: 'cx-sect', style: { gridTemplateColumns: 'minmax(84px,auto) minmax(64px,auto) minmax(150px,auto)' + cols.map(() => ' minmax(68px,104px)').join(''), '--rh': '34px' } },
+        h('div', { className: 'cx-sect', style: { gridTemplateColumns: 'minmax(56px,auto) minmax(44px,auto) minmax(96px,auto)' + cols.map(() => ' minmax(42px,1fr)').join(''), '--rh': Math.max(24, Math.min(34, Math.round(420 / rows.length))) + 'px' } },
           h('span', { className: 'cx-sec-th' }, 'קומה'), h('span', { className: 'cx-sec-th' }, 'תפוסה'), h('span', { className: 'cx-sec-th' }, 'מוצאים בטוחים (ס"מ)'),
           cols.map((c, k) => h('div', { key: c.id, className: 'cx-sec-hc' },
             c.prot && h('span', { className: 'cx-tag warn' }, 'מוגן'),
@@ -1054,14 +1055,16 @@
 
     const floorsCard = Card(2, 'קומות, חללים ודרכי מוצא', null,
       h('div', { className: 'cx-card-b' },
-        h('div', { className: 'cx-ssec' }, h('div', { className: 'cx-hsec-t' }, 'חתך המבנה'), sectionView()),
         h('div', { className: 'cx-hint', style: { marginBottom: 10 } }, 'לחצו על קומה כדי לפתוח אותה. החללים קובעים את מספר האנשים, וממנו נגזרות הדרישות.'),
         // the whole list takes the drop, so the gap between two floors counts too: the nearest floor is the target
-        h('div', { onDragEnter: onFloorDrag, onDragOver: onFloorDrag, onDrop: e => { if (drag) { e.preventDefault(); moveFloor(drag.from, nearestFloor(e)); setDrag(null); } } },
-          chk.floors.map(floorBlock)),
-        h('div', { className: 'cx-fadd' },
-          h('button', { className: 'cx-btn', onClick: () => setCounts(counts.above + 1, counts.below) }, '+ קומה מעל'),
-          h('button', { className: 'cx-btn', onClick: () => setCounts(counts.above, counts.below + 1) }, '+ קומה מתחת'))));
+        h('div', { className: 'cx-hlay' }, h('div', { className: 'cx-hrow' },
+          h('div', { className: 'cx-hfl' },
+            h('div', { onDragEnter: onFloorDrag, onDragOver: onFloorDrag, onDrop: e => { if (drag) { e.preventDefault(); moveFloor(drag.from, nearestFloor(e)); setDrag(null); } } },
+              chk.floors.map(floorBlock)),
+            h('div', { className: 'cx-fadd' },
+              h('button', { className: 'cx-btn', onClick: () => setCounts(counts.above + 1, counts.below) }, '+ קומה מעל'),
+              h('button', { className: 'cx-btn', onClick: () => setCounts(counts.above, counts.below + 1) }, '+ קומה מתחת'))),
+          h('aside', { className: 'cx-hsec cx-hsaf' }, h('div', { className: 'cx-hsec-t' }, 'חתך המבנה'), sectionView())))));
 
     const rows = chk.floors.filter(o => o.f.occ > 0 || (o.fl.exits || []).length);
     const cmp = Card(3, 'נדרש מול מוצע — סיכום קומות', null, h('div', { className: 'cx-card-b' },
