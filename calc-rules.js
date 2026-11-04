@@ -926,6 +926,34 @@ function safRemoveFloor(floors, i) {
   });
 }
 
+/* Floors above ground count the ground floor; anything at level 0 or higher is above, below that is under ground */
+function safFloorCounts(floors) {
+  const below = floors.filter(f => (+f.level || 0) < 0).length;
+  return { above: floors.length - below, below };
+}
+/* Brings the list to these counts: the top and the deepest floors go first, new ones join at the ends. make(level) builds a floor */
+function safSetCounts(floors, above, below, make) {
+  const lv = f => +f.level || 0;
+  const sorted = floors.slice().sort((a, b) => lv(a) - lv(b));
+  const up = sorted.filter(f => lv(f) >= 0).slice(0, above), under = sorted.filter(f => lv(f) < 0);
+  under.splice(0, Math.max(0, under.length - below));
+  while (up.length < above) up.push(make(safNextLevel(up)));
+  while (under.length < below) under.unshift(make(under.length ? lv(under[0]) - 1 : -1));
+  return under.concat(up);
+}
+function safFloorHasData(fl) {
+  return (fl.spaces || []).length > 0 || (fl.exits || []).length > 0 || safStairs(fl).length > 0 || (fl.corridorW != null && fl.corridorW !== '');
+}
+/* Copies a floor's contents over other floors, which keep their own place and name. newId makes the copied rows their own */
+function safCopyFloor(floors, from, targets, newId) {
+  return floors.map((f, k) => {
+    if (!targets.includes(k)) return f;
+    const c = JSON.parse(JSON.stringify(floors[from]));
+    ['spaces', 'exits', 'stairs'].forEach(key => (c[key] || []).forEach(x => { x.id = newId(); }));
+    return Object.assign(c, { id: f.id, name: f.name, level: f.level });
+  });
+}
+
 /* The whole check: stairs take the largest requirement of the floors they serve on the way to the exit level */
 function safCheck(sh) {
   const floors = (sh.floors || []).map(fl => ({ fl, f: safFloor(fl, sh) }));
@@ -970,7 +998,7 @@ const api = {
   MEASURES, CATS, USES, BIKES, MOTOS, STATIONS, ZONES, FIX, FIX_ORDER, HLT, HLT_GENERAL, PCOLS, FLOOR_FX,
   haversine, stationsNear, zoneForStation, useById, ruleSet, ruleText, carRow, bikeRow, motoRow, parkingTotals, span,
   hltById, stepCount, stepText, hltRow, hltTotals, reqFor, planCheck, fill,
-  SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck, safFloorName, safFloorLabel, safNextLevel, safMoveFloor, safRemoveFloor,
+  SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck, safFloorName, safFloorLabel, safNextLevel, safFloorCounts, safSetCounts, safFloorHasData, safCopyFloor, safMoveFloor, safRemoveFloor,
   HGA_KINDS, HGA_GROUPS, HGA_USES, HGA_LIMITS, HGA_SYSTEMS, hgaById, hgaSpaceOf, hgaRow, hgaFloor, hgaCheckFloor, hgaTotals, hgaVent, hgaSuggest,
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;

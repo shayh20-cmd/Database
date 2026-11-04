@@ -200,3 +200,23 @@ test('safety floors: a copy is the next floor up; moving a floor renumbers the l
   assert.deepStrictEqual(low.map(f => f.level), [-1, 0, 1]);
   assert.deepStrictEqual(low.map(f => f.name), ['קומה -1', 'קומת קרקע', 'קומה 1']);
 });
+
+test('safety floors: counts above and below ground, and copying onto other floors', () => {
+  const make = level => ({ name: R.safFloorName(level), level });
+  const fl = [{ name: 'קומת קרקע', level: 0 }, { name: 'קומה 1', level: 1 }];
+  assert.deepStrictEqual(R.safFloorCounts(fl), { above: 2, below: 0 });
+  const more = R.safSetCounts(fl, 3, 2, make);
+  assert.deepStrictEqual(more.map(f => f.level), [-2, -1, 0, 1, 2]);
+  assert.strictEqual(more[3], fl[1]);                                       // a kept floor is the same floor
+  assert.deepStrictEqual(R.safFloorCounts(more), { above: 3, below: 2 });
+  assert.deepStrictEqual(R.safSetCounts(more, 1, 1, make).map(f => f.level), [-1, 0]);  // the top and the deepest go
+  assert.strictEqual(R.safFloorHasData({ spaces: [], exits: [] }), false);
+  assert.strictEqual(R.safFloorHasData({ corridorW: 1.5 }), true);
+  let id = 0;
+  const list = [{ id: 'a', name: 'א', level: 0, corridorW: 1.5, spaces: [{ id: 's', use: 'b41' }] }, { id: 'b', name: 'ב', level: 1, short30: true, spaces: [] }, { id: 'c', name: 'ג', level: 2 }];
+  const out = R.safCopyFloor(list, 0, [1], () => 'n' + (++id));
+  assert.deepStrictEqual([out[1].id, out[1].name, out[1].level, out[1].corridorW, out[1].short30], ['b', 'ב', 1, 1.5, undefined]);
+  assert.deepStrictEqual(out[1].spaces, [{ id: 'n1', use: 'b41' }]);
+  assert.strictEqual(list[0].spaces[0].id, 's');                            // the source is untouched
+  assert.strictEqual(out[2], list[2]);
+});

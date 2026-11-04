@@ -159,6 +159,9 @@
     '.cx-grip{cursor:grab;color:var(--text-3);padding-block:10px;padding-inline:10px 2px;font-size:14px;line-height:1;user-select:none}',
     '.cx-grip:active{cursor:grabbing}',
     '.cx-fdel{margin-inline-end:8px;flex:none}',
+    '.cx-copy{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:8px 12px;background:var(--surface-2);border-bottom:1px solid var(--border)}',
+    '.cx-copy .cx-btn:disabled{opacity:.5;cursor:default}',
+    '.cx-fadd{display:flex;gap:8px}',
     '.cx-drop-up{box-shadow:0 -3px 0 var(--accent)}',
     '.cx-drop-down{box-shadow:0 3px 0 var(--accent)}',
     '.cx-chev{display:inline-block;transition:transform .15s;font-size:16px;line-height:1;color:var(--text-3)}',
@@ -607,19 +610,22 @@
     const chk = R.safCheck(sh);
     const setFloors = fl => upd({ floors: fl });
     const setFloor = (i, p) => setFloors(floors.map((f, j) => j === i ? Object.assign({}, f, p) : f));
-    const setCount = n => {
-      n = Math.max(1, Math.min(80, +n || 1));
-      const fl = floors.slice(0, n);
-      while (fl.length < n) { const level = R.safNextLevel(fl); fl.push({ id: uid(), name: R.safFloorName(level), level, corridor: (floors[0] || {}).corridor || 'res', spaces: [], exits: [] }); }
-      setFloors(fl);
+    const counts = R.safFloorCounts(floors);
+    const setCounts = async (above, below) => {
+      setCountKey(k => k + 1);  // the boxes go back to the real counts if this is refused or cancelled
+      const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(+v) || 0));
+      const next = R.safSetCounts(floors, clamp(above, 1, 80), clamp(below, 0, 20), level => ({ id: uid(), name: R.safFloorName(level), level, corridor: (floors[0] || {}).corridor || 'res', spaces: [], exits: [] }));
+      const lost = floors.filter(f => !next.includes(f) && R.safFloorHasData(f));
+      if (lost.length && !await window.askConfirm(T('יימחקו קומות שיש בהן מידע: {n}. להמשיך?', { n: nameList(lost) }))) return;
+      setCopy(null); setFloors(next);
     };
-    const dupFloor = i => {
-      // the copy is always the next floor up, whichever floor it came from
-      const c = JSON.parse(JSON.stringify(floors[i])); c.id = uid(); c.level = R.safNextLevel(floors); c.name = R.safFloorName(c.level);
-      (c.spaces || []).forEach(x => { x.id = uid(); }); (c.exits || []).forEach(x => { x.id = uid(); }); (c.stairs || []).forEach(x => { x.id = uid(); });
-      setFloors(floors.concat([c]));
+    const nameList = list => '⁨' + list.map(f => R.safFloorLabel(f, T)).join(', ') + '⁩';
+    const applyCopy = async () => {
+      const full = copy.to.map(k => floors[k]).filter(R.safFloorHasData);
+      if (full.length && !await window.askConfirm(T('בקומות אלה כבר יש מידע: {n}. לדרוס אותו?', { n: nameList(full) }), { confirmLabel: 'דרוס' })) return;
+      setFloors(R.safCopyFloor(floors, copy.from, copy.to, uid)); setCopy(null);
     };
-    const moveFloor = (from, to) => { if (to !== from && to >= 0 && to < floors.length) setFloors(R.safMoveFloor(floors, from, to)); };
+    const moveFloor = (from, to) => { if (to !== from && to >= 0 && to < floors.length) { setCopy(null); setFloors(R.safMoveFloor(floors, from, to)); } };
     const nearestFloor = e => {
       const mid = el => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; };
       const els = [...e.currentTarget.children];
@@ -633,13 +639,13 @@
     };
     const delFloor = async i => {
       const ok = await window.askConfirm(T('למחוק את {n}? החללים ודרכי המוצא שלה יימחקו.', { n: '⁨' + R.safFloorLabel(floors[i], T) + '⁩' }));
-      if (ok) setFloors(R.safRemoveFloor(floors, i));
+      if (ok) { setCopy(null); setFloors(R.safRemoveFloor(floors, i)); }
     };
     const useOpts = Object.keys(R.SAF_GROUPS).map(g => h('optgroup', { key: g, label: T(R.SAF_GROUPS[g]) },
       R.SAF_USES.filter(u => u.g === g).map(u => h('option', { key: u.id, value: u.id }, u.n + ' · ' + T(u.name)))));
     const corrOpts = R.SAF_CORRIDOR.map(c => h('option', { key: c.id, value: c.id }, T(c.name) + ' — ' + c.w.toFixed(2)));
     const [open, setOpen] = useState({});
-    const [drag, setDrag] = useState(null);
+    const [drag, setDrag] = useState(null), [copy, setCopy] = useState(null), [countKey, setCountKey] = useState(0);
     const okPill = (ok, txtOk, txtBad) => h('span', { className: ok ? 'cx-p-ok' : 'cx-p-bad' }, ok ? (txtOk || '✓') : (txtBad || '✗'));
 
     const floorBlock = (o, i) => {
@@ -666,6 +672,7 @@
       // the closed floor shows what is offered, one number per stair flight: green meets the requirement, red doesn't
       const widthChip = (key, val, ok, title) => h('span', { key, className: 'cx-fchip ' + (ok ? 'ok' : 'bad'), title }, val);
       const stairShort = flagged(stairSum) ? T('סך הגרמים {h} מול {n} ס"מ נדרש', { h: cm(stairSum.have), n: cm(stairSum.need) }) : null;
+      const picking = copy && copy.from === i;
       const dropCls = drag && drag.over === i && drag.from !== i ? (i < drag.from ? ' cx-drop-up' : ' cx-drop-down') : '';
       return h('div', { key: fl.id || i, className: 'cx-blk cx-floor' + (isOpen ? ' open' : '') + dropCls },
         h('div', { className: 'cx-blk-h cx-fbar' },
@@ -693,7 +700,18 @@
           h('label', { className: 'cx-f' }, 'סוג פרוזדור',
             h('select', { className: 'cx-in', style: { width: 'auto', maxWidth: 260 }, value: fl.corridor || 'res', title: T('טבלה 3.2.12.5 — רוחב מינימלי של פרוזדור'), onChange: e => setFloor(i, { corridor: e.target.value }) }, corrOpts)),
           h('span', { className: 'cx-sp', style: { flex: 1 } }),
-          h('button', { className: 'cx-btn', onClick: () => dupFloor(i), title: 'שכפול הקומה עם החללים ודרכי המוצא' }, '⧉ שכפל')),
+          floors.length > 1 && h('button', { className: 'cx-btn', 'aria-expanded': !!picking, onClick: () => setCopy(picking ? null : { from: i, to: [] }), title: 'העתקת החללים ודרכי המוצא לקומות אחרות' }, '⧉ שכפל')),
+
+        // the copy goes onto floors that already exist: pick them here, floors holding data are marked and ask before they are overwritten
+        isOpen && picking && h('div', { className: 'cx-copy' },
+          h('b', null, 'העתקה לקומות:'),
+          h('label', { className: 'cx-rule' }, h('input', { type: 'checkbox', checked: copy.to.length === floors.length - 1, onChange: e => setCopy({ from: i, to: e.target.checked ? floors.map((_, k) => k).filter(k => k !== i) : [] }) }), ' ', 'כל הקומות'),
+          floors.map((t, k) => k !== i && h('label', { key: t.id || k, className: 'cx-rule' },
+            h('input', { type: 'checkbox', checked: copy.to.includes(k), onChange: e => setCopy({ from: i, to: e.target.checked ? copy.to.concat([k]) : copy.to.filter(x => x !== k) }) }), ' ',
+            h('span', SKIP, R.safFloorLabel(t, T)), R.safFloorHasData(t) && h('span', { className: 'cx-tag warn', style: { marginInlineStart: 4 } }, 'יש מידע'))),
+          h('span', { className: 'cx-sp', style: { flex: 1 } }),
+          h('button', { className: 'cx-btn', onClick: () => setCopy(null) }, 'ביטול'),
+          h('button', { className: 'cx-btn pri', disabled: !copy.to.length, onClick: applyCopy }, 'העתק')),
 
         isOpen && h('div', { className: 'cx-scroll' }, h('table', { className: 'cx-t c cx-saf' },
           h('thead', null,
@@ -801,16 +819,21 @@
         h('label', { className: 'cx-rule' }, h('input', { type: 'checkbox', checked: !!sh.residential, onChange: e => upd({ residential: e.target.checked }) }), ' ', 'בניין מגורים'),
         h('label', { className: 'cx-rule' }, h('input', { type: 'checkbox', checked: !!sh.twoDwellings, onChange: e => upd({ twoDwellings: e.target.checked }) }), ' ', 'עד 2 דירות (מדרגות 0.90)'),
         h('label', { className: 'cx-rule' }, h('input', { type: 'checkbox', checked: sh.sprinklers !== false, onChange: e => upd({ sprinklers: e.target.checked }) }), ' ', 'מערכת מתזים'),
+        h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 6 } }, 'קומות מעל הקרקע (כולל קרקע)',
+          h(Field, { key: 'a' + countKey, type: 'number', className: 'cx-n', style: { width: 58 }, min: 1, max: 80, value: counts.above, onSave: v => setCounts(v, counts.below) })),
+        h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 6 } }, 'קומות מתחת לקרקע',
+          h(Field, { key: 'b' + countKey, type: 'number', className: 'cx-n', style: { width: 58 }, min: 0, max: 20, value: counts.below, onSave: v => setCounts(counts.above, v) })),
         h('span', { className: 'cx-hint', style: { flex: 1, minWidth: 200 } }, 'גובה: הפרש בין מפלס הכניסה הקובעת לכניסה לקומה הגבוהה המאוכלסת (3.1.1.1).'))));
 
-    const floorsCard = Card(2, 'קומות, חללים ודרכי מוצא',
-      h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 8 } }, 'מספר קומות',
-        h(Field, { type: 'number', className: 'cx-n', style: { width: 64 }, min: 1, max: 80, value: floors.length, onSave: setCount })),
+    const floorsCard = Card(2, 'קומות, חללים ודרכי מוצא', null,
       h('div', { className: 'cx-card-b' },
         h('div', { className: 'cx-hint', style: { marginBottom: 10 } }, 'לחצו על קומה כדי לפתוח אותה. החללים קובעים את מספר האנשים, וממנו נגזרות הדרישות.'),
         // the whole list takes the drop, so the gap between two floors counts too: the nearest floor is the target
         h('div', { onDragEnter: onFloorDrag, onDragOver: onFloorDrag, onDrop: e => { if (drag) { e.preventDefault(); moveFloor(drag.from, nearestFloor(e)); setDrag(null); } } },
-          chk.floors.map(floorBlock))));
+          chk.floors.map(floorBlock)),
+        h('div', { className: 'cx-fadd' },
+          h('button', { className: 'cx-btn', onClick: () => setCounts(counts.above + 1, counts.below) }, '+ קומה מעל'),
+          h('button', { className: 'cx-btn', onClick: () => setCounts(counts.above, counts.below + 1) }, '+ קומה מתחת'))));
 
     const rows = chk.floors.filter(o => o.f.occ > 0 || (o.fl.exits || []).length);
     const cmp = Card(3, 'נדרש מול מוצע — סיכום קומות', null, h('div', { className: 'cx-card-b' },

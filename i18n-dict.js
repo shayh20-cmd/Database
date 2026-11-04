@@ -3841,7 +3841,6 @@ Object.assign(HE_EN, {
 "0 = קומת היציאה; חיובי מעליה, שלילי מתחתיה": "0 = the exit floor; positive above it, negative below",
 "מפלס": "Level",
 "טבלה 3.2.12.5 — רוחב מינימלי של פרוזדור": "Table 3.2.12.5 — minimum corridor width",
-"שכפול הקומה עם החללים ודרכי המוצא": "Duplicate the floor with its spaces and exits",
 "חללים ותפוסה": "Spaces and occupancy",
 "+ חלל": "+ Space",
 "חלל": "Space",
@@ -3932,6 +3931,16 @@ Object.assign(HE_EN, {
 "סך הגרמים {h} מול {n} ס\"מ נדרש": "Flights total {h} vs {n} cm required",
 "למחוק את {n}? החללים ודרכי המוצא שלה יימחקו.": "Delete {n}? Its spaces and exits will be deleted too.",
 "גררו כדי להזיז את הקומה": "Drag to move the floor",
+"קומות מעל הקרקע (כולל קרקע)": "Floors above ground (incl. ground)",
+"העתקת החללים ודרכי המוצא לקומות אחרות": "Copy the spaces and exits to other floors",
+"העתקה לקומות:": "Copy to floors:",
+"כל הקומות": "All floors",
+"יש מידע": "Has data",
+"דרוס": "Overwrite",
+"בקומות אלה כבר יש מידע: {n}. לדרוס אותו?": "These floors already have data: {n}. Overwrite it?",
+"יימחקו קומות שיש בהן מידע: {n}. להמשיך?": "Floors with data will be deleted: {n}. Continue?",
+"+ קומה מעל": "+ Floor above",
+"+ קומה מתחת": "+ Floor below",
 });
 
 window.I18N_HE_EN = HE_EN;
