@@ -707,19 +707,19 @@
           h('aside', { className: 'cx-hsec' }, h('div', { className: 'cx-hsec-t' }, 'חתך המבנה'), sectionView())))));
 
     const all = floors.flatMap((f, i) => checks[i].lines.map(l => ({ f, l })));
-    const bad = all.filter(o => !o.l.ok).length;
+    const bad = all.filter(o => !o.l.ok).length, showReq = all.some(o => o.l.reqCount > 0);  // only ממ"ד and ממ"ק name a number of spaces
     const cmpCard = Card(3, 'נדרש מול מוצע', null, h('div', { className: 'cx-card-b' },
       !all.length ? h('div', { className: 'cx-hint' }, 'הוסיפו שימושים כדי לחשב את הדרישה') : h(React.Fragment, null,
         h('div', { className: 'cx-verdict ' + (bad ? 'bad' : 'ok') }, bad ? T('✗ {n} פערים מול הדרישה', { n: bad }) : '✓ התכנית עומדת בדרישות המיגון'),
         h('div', { className: 'cx-scroll' }, h('table', { className: 'cx-t c' },
-          h('thead', null, h('tr', null, ['קומה', 'סוג מרחב', 'שטח נדרש', 'מרחבים נדרשים', 'שטח מוצע', 'מרחבים מוצעים', 'פער (מ"ר)', 'סטטוס'].map(x => h('th', { key: x }, x)))),
+          h('thead', null, h('tr', null, ['קומה', 'סוג מרחב', 'שטח נדרש', showReq && 'מרחבים נדרשים', 'שטח מוצע', 'מרחבים מוצעים', 'פער (מ"ר)', 'סטטוס'].filter(Boolean).map(x => h('th', { key: x }, x)))),
           h('tbody', null, all.map(({ f, l }, k) => h('tr', { key: k, className: l.ok ? '' : 'bad' },
             h('td', Object.assign({ className: 'gl' }, SKIP), R.safFloorLabel(f, T)), h('td', null, R.HGA_KINDS[l.kind]),
-            h('td', { className: 'n' }, l.reqArea), h('td', { className: 'n' }, l.reqCount || '—'), h('td', { className: 'n' }, l.area), h('td', { className: 'n' }, l.count),
+            h('td', { className: 'n' }, l.reqArea), showReq && h('td', { className: 'n' }, l.reqCount || '—'), h('td', { className: 'n' }, l.area), h('td', { className: 'n' }, l.count),
             h('td', { className: 'n ' + (l.gap >= 0 ? 'cx-ok' : 'cx-bad') }, sgn(r2(l.gap))),
             h('td', null, l.ok ? h('span', { className: 'cx-p-ok' }, '✓ תקין') : h('span', { className: 'cx-p-bad' }, '✗ לא תקין'))))),
           h('tfoot', null, h('tr', null, h('td', { className: 'gl', colSpan: 2 }, 'סה"כ'),
-            h('td', { className: 'n' }, r2(all.reduce((a, o) => a + o.l.reqArea, 0))), h('td', { className: 'n' }, all.reduce((a, o) => a + o.l.reqCount, 0)),
+            h('td', { className: 'n' }, r2(all.reduce((a, o) => a + o.l.reqArea, 0))), showReq && h('td', { className: 'n' }, all.reduce((a, o) => a + o.l.reqCount, 0)),
             h('td', { className: 'n' }, r2(all.reduce((a, o) => a + o.l.area, 0))), h('td', { className: 'n' }, all.reduce((a, o) => a + o.l.count, 0)),
             h('td', null), h('td', null))))))));
 
