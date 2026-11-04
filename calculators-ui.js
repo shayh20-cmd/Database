@@ -153,7 +153,7 @@
     '.cx-hsec{flex:0 0 270px;position:sticky;top:8px;border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--surface)}',
     '@container (max-width:960px){.cx-hrow{flex-direction:column-reverse;align-items:stretch}.cx-hsec{position:static;flex:none}}',
     '.cx-hsec-t{font-weight:700;font-size:13px;margin-bottom:8px}',
-    '.cx-hsec.cx-hsaf{flex-basis:350px}',
+    '.cx-hsec.cx-hsaf{flex-basis:328px}',
     '@container (max-width:960px){.cx-hsec.cx-hsaf{flex:none}}',
     '.cx-hsaf .cx-fchip{padding:2px 6px}',
     '.cx-sec-i{justify-content:flex-start;padding:3px 4px;white-space:nowrap;font-variant-numeric:tabular-nums}',
@@ -192,7 +192,7 @@
     '.cx-chip button{border:none;background:none;color:inherit;cursor:pointer;font-size:12px;padding:0 3px}',
     '.cx-in.cx-addsys{width:auto;padding:2px 6px;font-size:12px}',
     '.cx-blk-h .cx-p-ok,.cx-blk-h .cx-p-bad{font-size:11px}',
-    '.cx-saf td,.cx-saf th{padding:5px 4px}',
+    '.cx-saf td,.cx-saf th{padding:5px 3px}',
     '.cx-chips{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center}',
     // safety floors: a closed floor is one bar with its totals; open, it shows its tools, table and notes
     '.cx-floor{border-color:var(--border-strong,var(--border));margin-bottom:14px}',
