@@ -141,7 +141,10 @@
     '.cx-hk b{color:var(--text)}',
     '.cx-hk2{margin-top:4px}',
     '.cx-chip-diff{box-shadow:inset 0 0 0 1px rgba(217,119,6,.6);background:rgba(217,119,6,.14)}',
-    '.cx-twf{flex-basis:100%;display:grid;grid-template-columns:repeat(auto-fill,150px);gap:4px 14px}',
+    '.cx-twf{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px 32px;align-items:flex-start}',
+    '.cx-flight>.cx-hint{order:1;flex-basis:100%}.cx-flight>.cx-twf{order:2}',
+    '.cx-twc{width:150px;display:flex;flex-direction:column;gap:3px}',
+    '.cx-twh{font-size:12px;font-weight:700;color:var(--text-2);padding-bottom:3px;border-bottom:1px solid var(--border)}',
     '.cx-twr{display:flex;align-items:center;gap:6px;min-height:28px}',
     '.cx-twr label{flex:1;min-width:0}',
     '.cx-hlay{container-type:inline-size}',
@@ -659,10 +662,11 @@
           h('span', { className: 'cx-sp', style: { flex: 1 } }),
           h('button', { className: 'cx-btn', onClick: () => delTower(tower.id) }, 'מחיקת המגדל'),
           h('button', { className: 'cx-btn pri', onClick: () => setTwEdit(null) }, 'סגור'),
-          h('div', { className: 'cx-twf' }, floors.map((t, k) => { const s = (t.spaces || []).find(o => o.tower === tower.id);
+          // top floor first in each column, as in the section
+          h('div', { className: 'cx-twf' }, [['מעל הקרקע', floors.filter(t => (+t.level || 0) >= 0)], ['מתחת לקרקע', floors.filter(t => (+t.level || 0) < 0)]].filter(c => c[1].length).map(([head, list]) => h('div', { key: head, className: 'cx-twc' }, h('div', { className: 'cx-twh' }, head), list.slice().reverse().map(t => { const s = (t.spaces || []).find(o => o.tower === tower.id), k = floors.indexOf(t);
             return h('div', { key: t.id, className: 'cx-twr', 'data-fl': t.id },
               h('label', { className: 'cx-rule' }, h('input', { type: 'checkbox', checked: !!s, onChange: e => setFloors(R.hgaSetTowerFloor(floors, tower, t.id, e.target.checked, uid)) }), ' ', h('span', SKIP, R.safFloorLabel(t, T))),
-              s && h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 66 }, value: s.area, placeholder: tower.area == null ? '0' : String(tower.area), title: T('שטח שונה בקומה הזו'), onSave: v => setOwnArea(k, tower, v) })); }))));
+              s && h(Field, { type: 'number', className: 'cx-n cx-ns', style: { width: 66 }, value: s.area, placeholder: tower.area == null ? '0' : String(tower.area), title: T('שטח שונה בקומה הזו'), onSave: v => setOwnArea(k, tower, v) })); }))))));
     };
 
     // the building in section: one column per tower, a block per floor as wide as its area

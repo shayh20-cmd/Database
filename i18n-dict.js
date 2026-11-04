@@ -3982,6 +3982,8 @@ Object.assign(HE_EN, {
 "מגדל {n} · {f} · {a} מ\"ר": "Tower {n} · {f} · {a} m²",
 "לחצו על מספר מגדל כדי לערוך אותו, או על קובייה כדי לערוך את המרחב בקומה הזו.": "Click a tower number to edit the tower, or a block to edit the space on that floor.",
 "רוחב הקובייה יחסי לשטח. מסגרת כתומה: שטח שונה בקומה. אדום: לא עומד בדרישה.": "A block's width follows its area. Orange frame: a different area on that floor. Red: misses the requirement.",
+"מעל הקרקע": "Above ground",
+"מתחת לקרקע": "Below ground",
 });
 
 window.I18N_HE_EN = HE_EN;
