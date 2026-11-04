@@ -900,8 +900,100 @@ function safFloor(fl, sh) {
 }
 /* A floor's stair flights; older checks kept them on the exits (kind 'stair') */
 const safStairs = fl => fl.stairs || (fl.exits || []).filter(e => e.kind === 'stair').map(e => ({ id: e.id, w: e.stair }));
+/* A floor's default name follows its level and is stored in Hebrew, the source language; a name someone typed stays as typed */
+const SAF_AUTO_NAME = /^(קומה|Floor) -?\d+$|^(קומת קרקע|Ground floor)$/;
+function safFloorName(level) { return +level === 0 ? 'קומת קרקע' : 'קומה ' + (+level); }
+function safFloorLabel(fl, t) {
+  if (fl.name && !SAF_AUTO_NAME.test(fl.name)) return fl.name;
+  return +fl.level === 0 || !fl.level ? t('קומת קרקע') : t('קומה {n}', { n: +fl.level });
+}
+function safRename(f, level) { return Object.assign({}, f, { level, name: !f.name || SAF_AUTO_NAME.test(f.name) ? safFloorName(level) : f.name }); }
+function safNextLevel(floors) { return floors.length ? Math.max(...floors.map(f => +f.level || 0)) + 1 : 0; }
+/* A floor's number is its place in the list: the list runs from the lowest floor up, with level 0 after the floors under ground */
+function safRenumber(floors) {
+  const lv = f => +f.level || 0;
+  const below = floors.filter(f => lv(f) < 0).length;
+  return floors.slice().sort((a, b) => lv(a) - lv(b)).map((f, i) => safRename(f, i - below));
+}
+/* The name someone typed, or nothing when the floor just carries its number */
+function safFloorNick(fl) { return fl.name && !SAF_AUTO_NAME.test(fl.name) ? fl.name : ''; }
+/* Moves a floor in the list; the list runs from the lowest floor up, so each place takes the next level in order */
+function safMoveFloor(floors, from, to) {
+  const levels = floors.map(f => +f.level || 0).sort((a, b) => a - b);
+  const list = floors.slice();
+  list.splice(to, 0, list.splice(from, 1)[0]);
+  return list.map((f, i) => safRename(f, levels[i]));
+}
+
+/* Removes a floor and closes the gap: floors further from the exit level step one level towards it */
+function safRemoveFloor(floors, i) {
+  const L = +floors[i].level || 0;
+  return floors.filter((_, k) => k !== i).map(f => {
+    const M = +f.level || 0;
+    return safRename(f, L >= 0 && M > L ? M - 1 : L < 0 && M < L ? M + 1 : M);
+  });
+}
+
+/* Floors above ground count the ground floor; anything at level 0 or higher is above, below that is under ground */
+function safFloorCounts(floors) {
+  const below = floors.filter(f => (+f.level || 0) < 0).length;
+  return { above: floors.length - below, below };
+}
+/* Brings the list to these counts: the top and the deepest floors go first, new ones join at the ends. make(level) builds a floor */
+function safSetCounts(floors, above, below, make) {
+  const lv = f => +f.level || 0;
+  const sorted = floors.slice().sort((a, b) => lv(a) - lv(b));
+  const up = sorted.filter(f => lv(f) >= 0).slice(0, above), under = sorted.filter(f => lv(f) < 0);
+  under.splice(0, Math.max(0, under.length - below));
+  while (up.length < above) up.push(make(safNextLevel(up)));
+  while (under.length < below) under.unshift(make(under.length ? lv(under[0]) - 1 : -1));
+  return under.concat(up);
+}
+function safFloorHasData(fl) {
+  return (fl.spaces || []).length > 0 || (fl.exits || []).length > 0 || (fl.corridorW != null && fl.corridorW !== '');
+}
+/* Copies a floor's contents over other floors, which keep their own place and name. newId makes the copied rows their own */
+function safCopyFloor(floors, from, targets, newId) {
+  return floors.map((f, k) => {
+    if (!targets.includes(k)) return f;
+    const c = JSON.parse(JSON.stringify(floors[from]));
+    delete c.stairs;
+    ['spaces', 'exits'].forEach(key => (c[key] || []).forEach(x => { x.id = newId(); }));
+    return Object.assign(c, { id: f.id, name: f.name, level: f.level });
+  });
+}
+
+/* When the building needs protected stairs. The list is shown as a requirement: nothing here checks the stairs drawn */
+function safProtectedStairs(sh, below) {
+  const out = [];
+  if (sh.height === 'tower') out.push({ ref: '3.7.1.3', text: 'בניין רב-קומות: שני חדרי מדרגות מוגנים לפחות' });
+  if (sh.height === 'high') out.push({ ref: '3.7.1.2', text: 'בניין גבוה: חדר מדרגות מוגן', note: 'שניים, אלא אם הבניין למגורים, תפוסת כל קומה עד 30 איש, או מרחק ההליכה לדלת האש עד 30 מ\'' });
+  if (below > 0 && sh.deepBelow) out.push({ ref: '3.2.3.3', text: 'קומות תחתיות: חדרי המדרגות המחויבים שמשרתים אותן יהיו מוגנים' });
+  return out;
+}
+
+/* Stair flights belong to the building: each has one width and the levels it runs through.
+   Older sheets kept a list on each floor; the same place in the list at the same width is the same flight */
+function safFlights(sh) {
+  if (Array.isArray(sh.stairs)) return sh.stairs;
+  const out = [];
+  (sh.floors || []).forEach(fl => safStairs(fl).forEach((st, slot) => {
+    const L = +fl.level || 0, w = +st.w || 0;
+    const same = out.find(x => x.slot === slot && (+x.w || 0) === w);
+    if (same) same.levels.push(L);
+    else out.push({ id: st.id || 'st' + out.length, slot, w: st.w, levels: [L] });
+  }));
+  return out.map(({ slot, ...f }) => f);
+}
+/* After a floor goes: it leaves every flight, and the levels past it step towards the exit level as the floors do */
+function safFlightsWithout(flights, L) {
+  return flights.map(f => Object.assign({}, f, { levels: f.levels.filter(M => M !== L).map(M => L >= 0 && M > L ? M - 1 : L < 0 && M < L ? M + 1 : M) }))
+    .filter(f => f.levels.length);
+}
+
 /* The whole check: stairs take the largest requirement of the floors they serve on the way to the exit level */
 function safCheck(sh) {
+  const flights = safFlights(sh);
   const floors = (sh.floors || []).map(fl => ({ fl, f: safFloor(fl, sh) }));
   floors.forEach(o => {
     const L = +o.fl.level || 0;
@@ -926,7 +1018,7 @@ function safCheck(sh) {
       lines.push({ k: 'doorSum', need: o.f.horizTot, have: doors, ok: doors + 1e-9 >= o.f.horizTot });
     }
     // stairs: on a floor off the exit level they are required; at the exit level only when drawn
-    const stairs = safStairs(o.fl);
+    const stairs = flights.filter(st => st.levels.includes(L));
     o.stairs = stairs;
     stairs.forEach(st => lines.push({ k: 'stair', st, need: o.f.stairMin, have: +st.w || 0, ok: (+st.w || 0) + 1e-9 >= o.f.stairMin }));
     if ((stairs.length || L !== 0) && o.f.stairGov > 0) {
@@ -944,7 +1036,7 @@ const api = {
   MEASURES, CATS, USES, BIKES, MOTOS, STATIONS, ZONES, FIX, FIX_ORDER, HLT, HLT_GENERAL, PCOLS, FLOOR_FX,
   haversine, stationsNear, zoneForStation, useById, ruleSet, ruleText, carRow, bikeRow, motoRow, parkingTotals, span,
   hltById, stepCount, stepText, hltRow, hltTotals, reqFor, planCheck, fill,
-  SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck,
+  SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck, safFloorName, safFloorLabel, safFloorNick, safRenumber, safNextLevel, safFloorCounts, safSetCounts, safFloorHasData, safCopyFloor, safFlights, safFlightsWithout, safProtectedStairs, safMoveFloor, safRemoveFloor,
   HGA_KINDS, HGA_GROUPS, HGA_USES, HGA_LIMITS, HGA_SYSTEMS, hgaById, hgaSpaceOf, hgaRow, hgaFloor, hgaCheckFloor, hgaTotals, hgaVent, hgaSuggest,
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;

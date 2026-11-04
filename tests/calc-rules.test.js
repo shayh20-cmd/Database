@@ -175,3 +175,78 @@ test('בטיחות: the total width may be split unevenly; each exit keeps its m
   const ground = R.safCheck(SAF([{ name: '0', level: 0, spaces: [{ use: 'b41', area: 2000 }], exits: [{ kind: 'level', door: 0.6, panic: true }, { kind: 'level', door: 1.2, panic: true }] }])).floors[0];
   assert.deepStrictEqual(ground.lines.filter(l => !l.ok).map(l => l.k), ['exit']);            // 200 people: 1.00 m total, but 0.60 < 1.10
 });
+
+test('safety floors: a copy is the next floor up; moving a floor renumbers the list', () => {
+  const fl = [{ name: 'קומת קרקע', level: 0 }, { name: 'קומה 1', level: 1 }, { name: 'גג טכני', level: 2 }, { name: 'קומה 3', level: 3 }];
+  assert.strictEqual(R.safNextLevel(fl), 4);
+  assert.strictEqual(R.safNextLevel([{ level: -2 }, { level: -1 }]), 0);
+  assert.strictEqual(R.safFloorName(11), 'קומה 11');
+  const moved = R.safMoveFloor(fl, 3, 1);
+  assert.deepStrictEqual(moved.map(f => f.level), [0, 1, 2, 3]);
+  assert.deepStrictEqual(moved.map(f => f.name), ['קומת קרקע', 'קומה 1', 'קומה 2', 'גג טכני']);  // a typed name stays
+  const down = R.safMoveFloor(fl, 0, 1);
+  assert.deepStrictEqual(down.map(f => f.name), ['קומת קרקע', 'קומה 1', 'גג טכני', 'קומה 3']);
+  const gone = R.safRemoveFloor(fl, 1);
+  assert.deepStrictEqual(gone.map(f => f.level), [0, 1, 2]);
+  assert.deepStrictEqual(gone.map(f => f.name), ['קומת קרקע', 'גג טכני', 'קומה 2']);
+  assert.deepStrictEqual(R.safRemoveFloor([{ level: -2 }, { level: -1 }, { level: 0 }], 1).map(f => f.level), [-1, 0]);
+  // default names are stored in Hebrew and shown in the page's language
+  const en = (k, o) => ({ 'קומת קרקע': 'Ground floor', 'קומה {n}': 'Floor ' + (o && o.n) })[k];
+  assert.strictEqual(R.safFloorLabel({ name: 'קומה 2', level: 2 }, en), 'Floor 2');
+  assert.strictEqual(R.safFloorLabel({ name: 'Ground floor', level: 0 }, k => k), 'קומת קרקע');
+  assert.strictEqual(R.safFloorLabel({ name: 'גג טכני', level: 2 }, en), 'גג טכני');
+  // a basement keeps the list's levels: only the places change
+  const low = R.safMoveFloor([{ name: 'קומה -1', level: -1 }, { name: 'קומת קרקע', level: 0 }, { name: 'Floor 1', level: 1 }], 2, 0);
+  assert.deepStrictEqual(low.map(f => f.level), [-1, 0, 1]);
+  assert.deepStrictEqual(low.map(f => f.name), ['קומה -1', 'קומת קרקע', 'קומה 1']);
+});
+
+test('safety floors: counts above and below ground, and copying onto other floors', () => {
+  const make = level => ({ name: R.safFloorName(level), level });
+  const fl = [{ name: 'קומת קרקע', level: 0 }, { name: 'קומה 1', level: 1 }];
+  assert.deepStrictEqual(R.safFloorCounts(fl), { above: 2, below: 0 });
+  const more = R.safSetCounts(fl, 3, 2, make);
+  assert.deepStrictEqual(more.map(f => f.level), [-2, -1, 0, 1, 2]);
+  assert.strictEqual(more[3], fl[1]);                                       // a kept floor is the same floor
+  assert.deepStrictEqual(R.safFloorCounts(more), { above: 3, below: 2 });
+  assert.deepStrictEqual(R.safSetCounts(more, 1, 1, make).map(f => f.level), [-1, 0]);  // the top and the deepest go
+  assert.strictEqual(R.safFloorHasData({ spaces: [], exits: [] }), false);
+  assert.strictEqual(R.safFloorHasData({ corridorW: 1.5 }), true);
+  let id = 0;
+  const list = [{ id: 'a', name: 'א', level: 0, corridorW: 1.5, spaces: [{ id: 's', use: 'b41' }] }, { id: 'b', name: 'ב', level: 1, short30: true, spaces: [] }, { id: 'c', name: 'ג', level: 2 }];
+  const out = R.safCopyFloor(list, 0, [1], () => 'n' + (++id));
+  assert.deepStrictEqual([out[1].id, out[1].name, out[1].level, out[1].corridorW, out[1].short30], ['b', 'ב', 1, 1.5, undefined]);
+  assert.deepStrictEqual(out[1].spaces, [{ id: 'n1', use: 'b41' }]);
+  assert.strictEqual(list[0].spaces[0].id, 's');                            // the source is untouched
+  assert.strictEqual(out[2], list[2]);
+});
+
+test('safety: when protected stairs are required', () => {
+  const refs = (sh, below) => R.safProtectedStairs(sh, below).map(r => r.ref);
+  assert.deepStrictEqual(refs({ height: 'low' }, 0), []);
+  assert.deepStrictEqual(refs({ height: 'high' }, 0), ['3.7.1.2']);
+  assert.deepStrictEqual(refs({ height: 'tower' }, 0), ['3.7.1.3']);
+  assert.deepStrictEqual(refs({ height: 'low', deepBelow: true }, 1), ['3.2.3.3']);
+  assert.deepStrictEqual(refs({ height: 'low', deepBelow: true }, 0), []);          // the mark means nothing with no floors below ground
+  assert.deepStrictEqual(refs({ height: 'tower', deepBelow: true }, 2), ['3.7.1.3', '3.2.3.3']);
+});
+
+test('safety floors: the number comes from the place in the list', () => {
+  const list = R.safRenumber([{ name: 'קומה 5', level: 5 }, { name: 'גג טכני', level: 7 }, { name: 'קומת קרקע', level: 0 }, { name: 'קומה -2', level: -2 }]);
+  assert.deepStrictEqual(list.map(f => f.level), [-1, 0, 1, 2]);
+  assert.deepStrictEqual(list.map(f => f.name), ['קומה -1', 'קומת קרקע', 'קומה 1', 'גג טכני']);
+  assert.deepStrictEqual(R.safRenumber([{}, {}, {}]).map(f => f.level), [0, 1, 2]);  // no levels yet
+  assert.strictEqual(R.safFloorNick({ name: 'גג טכני' }), 'גג טכני');
+  assert.strictEqual(R.safFloorNick({ name: 'קומה 3', level: 2 }), '');             // a number typed as a name isn't a nickname
+});
+
+test('safety stairs: a flight belongs to the building', () => {
+  const old = { floors: [{ level: 0, stairs: [{ id: 'a', w: 1.5 }] }, { level: 1, stairs: [{ id: 'b', w: 1.5 }, { id: 'c', w: 1.2 }] }, { level: 2, stairs: [{ id: 'd', w: 1.1 }, { id: 'e', w: 1.2 }] }] };
+  assert.deepStrictEqual(R.safFlights(old), [{ id: 'a', w: 1.5, levels: [0, 1] }, { id: 'c', w: 1.2, levels: [1, 2] }, { id: 'd', w: 1.1, levels: [2] }]);  // same place and width: one flight
+  const sh = SAF([{ level: 0, spaces: [] }, { level: 1, spaces: [{ use: 'b41', area: 300 }] }]);
+  sh.stairs = [{ id: 'x', w: 1.5, levels: [0, 1] }, { id: 'y', w: 1.2, levels: [1] }];
+  const c = R.safCheck(sh);
+  assert.deepStrictEqual(c.floors.map(o => o.stairs.map(st => st.id)), [['x'], ['x', 'y']]);
+  assert.deepStrictEqual(R.safFlightsWithout([{ id: 'x', levels: [0, 1, 2] }, { id: 'y', levels: [1] }, { id: 'z', levels: [-2, -1] }], 1).map(f => f.levels), [[0, 1], [-2, -1]]);
+  assert.deepStrictEqual(R.safFlightsWithout([{ id: 'z', levels: [-2, -1, 0] }], -1).map(f => f.levels), [[-1, 0]]);
+});
