@@ -147,6 +147,15 @@
     '.cx-twh{font-size:12px;font-weight:700;color:var(--text-2);padding-bottom:3px;border-bottom:1px solid var(--border)}',
     '.cx-twr{display:flex;align-items:center;gap:6px;min-height:28px}',
     '.cx-twr label{flex:1;min-width:0}',
+    '.cx-tone .cx-card{border-color:color-mix(in srgb,var(--text) 17%,var(--surface))}',
+    '.cx-tone .cx-card-h{background:color-mix(in srgb,var(--text) 7%,var(--surface));border-bottom-color:color-mix(in srgb,var(--text) 15%,var(--surface))}',
+    '.cx-tone .cx-blk{border-color:color-mix(in srgb,var(--accent) 32%,var(--surface))}',
+    '.cx-tone .cx-blk-h{background:color-mix(in srgb,var(--accent) 14%,var(--surface));border-bottom-color:color-mix(in srgb,var(--accent) 32%,var(--surface))}',
+    '.cx-tone .cx-t th{background:color-mix(in srgb,var(--text) 4%,var(--surface));color:var(--text-2);border-bottom-color:color-mix(in srgb,var(--text) 15%,var(--surface))}',
+    '.cx-tone .cx-t tr.bld td{background:color-mix(in srgb,var(--text) 5%,var(--surface))}',
+    '.cx-tone .cx-t tfoot td{background:color-mix(in srgb,var(--accent) 10%,var(--surface));border-top:1px solid color-mix(in srgb,var(--accent) 32%,var(--surface))}',
+    '.cx-tone .cx-st-head{background:color-mix(in srgb,var(--text) 7%,var(--surface))}',
+    '.cx-tone .cx-zones{margin-top:14px;padding-top:12px;border-top:2px solid color-mix(in srgb,var(--text) 28%,var(--surface))}',
     '.cx-hlay{container-type:inline-size}',
     '.cx-hrow{display:flex;gap:14px;align-items:flex-start}',
     '.cx-hfl{flex:1;min-width:0}',
@@ -426,7 +435,7 @@
         st && st.planned && h('div', { className: 'cx-warn' }, '⚠ התחנה הקובעת עתידית — יש לבדוק מול תשריט אזורי החניה של הוועדה המקומית. החישוב כאן לפי אזור ג\'.'),
         h('div', { className: 'cx-hint', style: { marginTop: 8 } }, 'רשימת התחנות חלקית — ודאו את אזור החניה מול תשריט הוועדה המקומית.')));
 
-    return h(React.Fragment, null, SheetHead(1, sh, upd), zoneCard, usesCard, resultCard);
+    return h('div', { className: 'cx-tone' }, SheetHead(1, sh, upd), zoneCard, usesCard, resultCard);
   }
 
   /* ════════ הל"ת ════════ */
@@ -480,7 +489,7 @@
         R.HLT_GENERAL.map(([ref, q]) => h('div', { key: ref, className: 'cx-cite' }, h('b', null, T('סעיף {r}', { r: ref })), ' — ', h('span', Object.assign({ lang: 'he' }, SKIP), '“' + q + '”'))),
         h('div', { className: 'cx-warn' }, 'מספר האנשים במשרדים — אם אינו ידוע, מחשבים לפי מקדמי התפוסה (הערה 4 לטבלה 3.6.3.3). מקדמי התפוסה יגיעו ממחשבון הבטיחות.'))));
 
-    return h(React.Fragment, null, SheetHead(1, sh, upd), usesCard,
+    return h('div', { className: 'cx-tone' }, SheetHead(1, sh, upd), usesCard,
       Card(3, 'קבועות נדרשות לפי שימוש', null, h('div', { className: 'cx-card-b' }, sh.rows.length ? blocks : h('div', { className: 'cx-hint' }, 'אין עדיין שימושים'))),
       totalCard, h(PlanCard, { sh, upd, Tot }));
   }
