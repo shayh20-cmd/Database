@@ -139,13 +139,15 @@ test('הג"א section: top floor first, one column per tower, the problems marke
   const s = R.hgaSection({ basis: 'main', towers: [{ id: 'a', kind: 'mamam', area: 20 }, { id: 'b', kind: 'mamam', area: 18 }, { id: 'c', kind: 'mamam', area: 8 }],
     floors: [fl(0, 1000, [sp('a'), sp('b')]), fl(1, 2000, [sp('a'), sp('b')]), fl(2, 1000, [sp('a', 30), sp('c')])] }, undefined);
   assert.deepStrictEqual(s.rows.map(r => r.fl.level), [2, 1, 0]);
-  assert.deepStrictEqual(s.cols.map(c => [c.no, c.max, c.bad]), [[1, 30, true], [2, 18, true], [3, 10, true]]);
+  assert.deepStrictEqual(s.cols.map(c => [c.no, c.max, c.bad, c.ok]), [[1, 30, true, false], [2, 18, true, false], [3, 10, true, false]]);
   const [top, mid, low] = s.rows;
   assert.deepStrictEqual(top.cells.map(c => c && [c.area, c.own, c.size, c.short]), [[30, true, false, true], null, [8, false, true, false]]);  // c is under the 10 m² minimum, which fails the floor
   assert.deepStrictEqual(mid.cells.map(c => c && c.short), [true, true, null]);                       // 38 of 60: no one space is at fault
   assert.deepStrictEqual([mid.bad.length, low.bad.length], [1, 0]);
   assert.deepStrictEqual(low.cells.map(c => c && c.short), [false, false, null]);
   assert.deepStrictEqual([low.cells[0].ok, mid.cells[0].ok, top.cells[2].ok], [true, false, false]);
+  const one = R.hgaSection({ basis: 'main', towers: [{ id: 'a', kind: 'mamam', area: 20 }], floors: [fl(0, 200, [sp('a')]), fl(1, 300, [sp('a')])] }).cols[0];
+  assert.deepStrictEqual([one.ok, one.bad], [true, false]);
 });
 
 test('הג"א: institutional space by % of the floor area, switching with the basis', () => {

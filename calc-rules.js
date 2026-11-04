@@ -795,7 +795,7 @@ function hgaSection(sh, T) {
   }).reverse();
   const cols = towers.map((t, k) => {
     const cells = rows.map(r => r.cells[k]).filter(Boolean);
-    return { id: t.id, kind: t.kind, no: k + 1, max: Math.max(10, ...cells.map(c => c.area)), bad: cells.some(c => c.size || c.short) };
+    return { id: t.id, kind: t.kind, no: k + 1, max: Math.max(10, ...cells.map(c => c.area)), bad: cells.some(c => c.size || c.short), ok: cells.length > 0 && cells.every(c => c.ok) };
   });
   return { rows, cols };
 }
