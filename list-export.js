@@ -418,5 +418,5 @@ ${model.rows.length ? '' : `<div class="empty">${htmlEsc(model.emptyText || '')}
           h('button', { type: 'button', className: 'lx-btn pri', disabled: !onIds.length, onClick: go }, fmt === 'xlsx' ? 'הורד Excel' : 'הדפס ל־PDF')))), document.body);
   }
 
-  window.ListExport = { ...api, Dialog };
+  window.ListExport = { ...api, Dialog, download, printHtml };
 })();

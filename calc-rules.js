@@ -512,6 +512,65 @@ function stationsNear(lat, lng, radius) {
 }
 const zoneForStation = s => s.planned ? 'C' : s.d <= 300 ? 'A' : s.d <= 600 ? 'B' : 'C';
 
+/* ── רמת שירות בחניון ──
+   הנחיות לתכנון חניונים, משרד התחבורה — סעיפים 3.3–3.4, טבלה 2. 1 is the highest level: drivers who know the garage can
+   take a lower one, and a dense area served by transit accepts tighter dimensions. [row, use, A, B, C, note] */
+const LOS_TABLE = [
+  [1, 'מגורים', 3, 2, 1, 'משתמשים קבועים'], [2, 'חנויות ומסחר', 2, 1, 1], [3, 'מרכז קניות ובילוי', 2, 1, 1], [4, 'משרדים', 3, 2, 1, 'משתמשים קבועים'],
+  [5, 'בידור', 2, 1, 1], [6, 'מסעדה, בתי קפה', 2, 1, 1], [7, 'מלון', 3, 2, 1, 'חניה ממושכת'], [8, 'בית ספר על-יסודי, מקצועי', 2, 2, 1],
+  [9, 'אוניברסיטה, מכללה', 2, 2, 1], [10, 'ספריה, מוזיאון, מועדון, מתנ"ס', 2, 1, 1], [11, 'מרפאה, מרפאת חוץ בבית חולים', 2, 1, 1], [12, 'בית חולים', 2, 1, 1],
+  [13, 'תעשיה ומלאכה', 3, 2, 1], [14, 'אחסנה', 3, 2, 1], [15, 'תעשיה עתירת ידע', 3, 2, 1], [16, 'מסעדה או מזנון בתחנת תדלוק', 2, 1, 1],
+  [17, 'מתקן ספורט ציבורי, אצטדיון', 2, 1, 1], [18, 'מתקן ספורט לשימוש עצמי', 3, 2, 1], [19, 'פארק ציבורי, גן לאומי', 2, 1, 1], [20, 'בית עלמין', 2, 1, 1],
+  [21, 'חוף רחצה מוסדר', 2, 1, 1], [22, 'שדה תעופה', null, 1, 1], [23, 'בניין קיים', 3, 2, 1, 'אילוצים פיסיים'], [24, 'מקום שנועד לחניה כמטרה עיקרית', 2, 1, 1],
+].map(([n, name, A, B, C, note]) => ({ n, name, A, B, C, note: note || '' }));
+/* The parking standard's uses against table 2. Our reading, where the two lists don't name the same thing: garages as
+   workshops, a sports club as public, homes for the elderly and dormitories as housing */
+const LOS_BY_USE = { '1': 1, '2': 2, '3': 4, '4.1': 13, '4.5': 14, '5.1': 8, '5.2': 9, '5.3': 10, '6.1': 5, '6.2': 5, '6.3': 6, '6.4': 10, '6.5': 10,
+  '7.1': 11, '7.2': 12, '7.3': 12, '8.1': 17, '8.2': 17, '8.3': 20, '9': 7, '10.1': 13, '10.2': 16 };
+const losRowFor = id => { const c = String(id).replace(/[sa]$/, ''), n = LOS_BY_USE[c] || LOS_BY_USE[c.split('.')[0]]; return LOS_TABLE.find(r => r.n === n) || null; };
+/* The guidelines don't give a distance for A, B and C and leave the zones to the local authority. These are our working
+   figures, for the suggestion only: A within 600 m of a working mass-transit stop, B within 800 m or near a planned one */
+const LOS_NEAR = 600, LOS_FAR = 800;
+/* Main bus terminals, coordinates approximate. Kept apart from STATIONS, which decide the legal parking zone */
+const BUS_HUBS = [
+  ['התחנה המרכזית תל אביב', 32.0559, 34.7795], ['התחנה המרכזית ירושלים', 31.7892, 35.2030], ['מרכזית חוף הכרמל, חיפה', 32.7934, 34.9579], ['מרכזית המפרץ, חיפה', 32.7924, 35.0370],
+  ['התחנה המרכזית באר שבע', 31.2434, 34.7973], ['התחנה המרכזית נתניה', 32.3275, 34.8573], ['התחנה המרכזית פתח תקווה', 32.0911, 34.8860], ['התחנה המרכזית עפולה', 32.6071, 35.2872],
+  ['התחנה המרכזית אילת', 29.5577, 34.9519],
+];
+function busHubsNear(lat, lng, radius) {
+  return BUS_HUBS.map(([name, la, ln]) => ({ name, type: 'תחנה מרכזית', planned: false, d: Math.round(haversine(lat, lng, la, ln)) }))
+    .filter(s => s.d <= (radius || LOS_FAR)).sort((a, b) => a.d - b.d);
+}
+/* Where the garage stands in the city: the nearest mass-transit stop, of the stations found for the address and the terminals */
+function parkLocation(sh) {
+  if (!sh.loc) return { loc: null, by: null };
+  const near = (sh.stations || []).concat(busHubsNear(sh.loc.lat, sh.loc.lng)).sort((a, b) => a.d - b.d);
+  const live = near.find(s => !s.planned), by = live || near[0] || null;
+  return { loc: live && live.d <= LOS_NEAR ? 'A' : by && by.d <= LOS_FAR ? 'B' : 'C', by };
+}
+/* The level the garage needs. With several uses the one needing the highest level decides (3.4); with no location, or a zone
+   the plan set by hand to nothing, level 1, as 3.4 requires where the authority hasn't defined its zones */
+function parkLos(sh) {
+  const auto = parkLocation(sh), s = sh.supply || {}, loc = s.loc || auto.loc;
+  const seen = new Set(), rows = [];
+  (sh.rows || []).forEach(r => {
+    const row = losRowFor(r.type), u = useById(r.type);
+    if (!row || !u || seen.has(row.n)) return;
+    seen.add(row.n);
+    rows.push({ row, use: u, level: loc ? row[loc] || 1 : 1 });
+  });
+  const level = rows.length ? Math.min(...rows.map(r => r.level)) : null;
+  const designed = s.level != null && s.level !== '' ? +s.level : level;
+  return { loc, auto, manual: !!s.loc, rows, level, designed, decidedBy: rows.find(r => r.level === level) || null, ok: level == null || designed <= level };
+}
+/* What the project offers against what it needs. Accessible spaces come on top of the number the standard requires, so the cars are checked without them */
+function parkSupply(sh) {
+  const s = sh.supply || {}, rows = (s.floors || []).concat([s.outdoor || {}]), sum = k => rows.reduce((a, r) => a + (+r[k] || 0), 0);
+  const t = parkingTotals(sh), cars = sum('cars'), acc = sum('acc'), moto = sum('moto'), bike = sum('bike');
+  const carsOk = (t.noMin || cars >= t.min) && (t.noMax || cars <= t.max);
+  return { t, cars, acc, total: cars + acc, moto, bike, entered: rows.some(r => ['cars', 'acc', 'moto', 'bike'].some(k => +r[k] > 0)), carsOk, bikeOk: bike >= t.bikes, motoOk: moto >= t.mMin && moto <= t.mMax };
+}
+
 /* ── הל"ת ── */
 const hltById = id => HLT.find(u => u.id === id);
 /* One use row → { u, groups:[{g, n, fx:{key:{c, t}}}], extra:{key:{c, note}}, desc:{tpl, vars} }.
@@ -670,7 +729,7 @@ function hgaRow(row, basis, T) {
   const q = +row.qty || 0, out = { u, space: hgaSpaceOf(u), area: 0, count: 0, min: u.min || (u.g === 'inst' ? 10 : 0), text: '' };
   if (u.kind === 'pct') {
     const p = basis === 'total' ? u.total : u.main;
-    out.area = q * p / 100;
+    out.area = q * p / 100; out.rate = p + '%';
     out.text = T(u.m === 'gross' ? '{p}% משטח ברוטו של חדרי המגורים' : basis === 'total' ? '{p}% מהשטח הכולל בקומה' : '{p}% מהשטח העיקרי בקומה', { p });
   } else if (u.kind === 'per') {
     out.area = q * u.per; out.text = T('{a} מ"ר ל{u}', { a: u.per, u: T(u.unit) });
@@ -688,7 +747,8 @@ function hgaRow(row, basis, T) {
   return out;
 }
 /* A floor → required area and spaces by kind of protected space.
-   ממ"מ / education: the floor's uses add up; the minimum of the largest-minimum use applies; spaces = ceil(area / max).
+   ממ"מ / education: the floor's uses add up and the minimum of the largest-minimum use applies. How the area divides
+   into spaces is free: the proposed spaces must reach the total, each within the minimum and maximum size.
    ממ"ד: one per apartment, 9 m² each. ממ"ק: one per 4 apartments. */
 function hgaFloor(floor, basis, T) {
   const rows = (floor.uses || []).map(r => ({ r, x: hgaRow(r, basis, T) })).filter(o => o.x);
@@ -701,8 +761,6 @@ function hgaFloor(floor, basis, T) {
   });
   Object.values(req).forEach(o => {
     o.area = Math.round(Math.max(o.raw, o.raw > 0 ? o.min : 0) * 100) / 100;
-    const lim = HGA_LIMITS[o.kind] || {};
-    if (o.kind === 'mamam' || o.kind === 'edu') o.count = o.area > 0 ? Math.ceil(o.area / lim.max - 1e-9) : 0;
     o.minApplied = o.raw > 0 && o.raw < o.min;
   });
   return { rows, req };
@@ -716,16 +774,93 @@ function hgaCheckFloor(floor, basis, T) {
     const mine = spaces.filter(s => s.kind === k), area = mine.reduce((a, s) => a + (+s.area || 0), 0);
     const lim = HGA_LIMITS[k] || {};
     const tooBig = lim.max ? mine.filter(s => +s.area > lim.max).map(s => s.name) : [];
-    const tooSmall = lim.min ? mine.filter(s => +s.area < lim.min).map(s => s.name) : [];
+    const minEach = Math.max(lim.min || 0, rq.min || 0), maxEach = lim.max || 0;
+    const tooSmall = minEach ? mine.filter(s => +s.area < minEach).map(s => s.name) : [];
     const gap = Math.round((area - rq.area) * 100) / 100, cgap = mine.length - rq.count;
     const ok = gap >= -1e-9 && cgap >= 0 && !tooBig.length && !tooSmall.length;
-    return { kind: k, reqArea: rq.area, reqCount: rq.count, area: Math.round(area * 100) / 100, count: mine.length, gap, cgap, tooBig, tooSmall, ok };
+    return { kind: k, minEach, maxEach, reqArea: rq.area, reqCount: rq.count, area: Math.round(area * 100) / 100, count: mine.length, gap, cgap, tooBig, tooSmall, ok };
   });
   return { f, lines, bad: lines.filter(l => !l.ok).length };
 }
+/* A protected-space tower repeats through the floors, as a stair flight does: it has one kind and one area.
+   A floor is part of a tower when it holds a space pointing at it (space.tower). That space's own area is empty
+   unless this floor differs; each floor keeps its own space, so its ventilation systems stay its own.
+   Older sheets have spaces with no tower: the same place in the kind's list at the same area is the same tower. */
+function hgaTowers(sh) {
+  const towers = (Array.isArray(sh.towers) ? sh.towers : []).map(t => Object.assign({}, t));
+  const known = new Set(towers.map(t => t.id));
+  const floors = safRenumber(sh.floors || []).map((fl, i) => {
+    const slot = {};
+    const spaces = (fl.spaces || []).map(s => {
+      const n = slot[s.kind] = (slot[s.kind] || 0) + 1;
+      if (s.tower && known.has(s.tower)) return s;
+      const a = +s.area || 0;
+      let t = towers.find(o => o.kind === s.kind && o.slot === n && (+o.area || 0) === a);
+      if (!t) { t = { id: s.id || 'tw' + towers.length, kind: s.kind, area: s.area == null ? null : s.area, slot: n }; towers.push(t); }
+      return Object.assign({}, s, { tower: t.id, area: null });
+    });
+    return Object.assign({}, fl, { id: fl.id || 'fl' + i, spaces });
+  });
+  return { floors, towers: towers.map(({ slot, ...t }) => t) };
+}
+const hgaHasArea = s => s.area != null && s.area !== '';
+/* The floors with each space's real area filled in, for everything that checks or adds up areas */
+function hgaResolve(floors, towers) {
+  return floors.map(fl => Object.assign({}, fl, { spaces: (fl.spaces || []).map(s => {
+    if (hgaHasArea(s)) return s;
+    const t = towers.find(o => o.id === s.tower);
+    return Object.assign({}, s, { area: t ? t.area : s.area });
+  }) }));
+}
+function hgaSheet(sh) {
+  const { floors, towers } = hgaTowers(sh);
+  return { floors, towers, resolved: hgaResolve(floors, towers) };
+}
+/* Puts a floor in a tower or takes it out */
+function hgaSetTowerFloor(floors, tower, floorId, on, newId) {
+  return floors.map(fl => {
+    if (fl.id !== floorId) return fl;
+    const spaces = fl.spaces || [], has = spaces.some(s => s.tower === tower.id);
+    if (on) return has ? fl : Object.assign({}, fl, { spaces: spaces.concat([{ id: newId(), kind: tower.kind, tower: tower.id, area: null, systems: [] }]) });
+    return Object.assign({}, fl, { spaces: spaces.filter(s => s.tower !== tower.id) });
+  });
+}
+/* A tower no floor holds any more is gone */
+function hgaPruneTowers(towers, floors) {
+  return towers.filter(t => floors.some(fl => (fl.spaces || []).some(s => s.tower === t.id)));
+}
+function hgaFloorHasData(fl) { return (fl.uses || []).length > 0 || (fl.spaces || []).length > 0; }
+/* A new top floor with the same contents: its spaces carry on in the same towers */
+function hgaCopyFloorUp(floors, i, newId) {
+  const c = JSON.parse(JSON.stringify(floors[i])), level = safNextLevel(floors);
+  ['uses', 'spaces'].forEach(k => (c[k] || []).forEach(x => { x.id = newId(); }));
+  return floors.concat([Object.assign(c, { id: newId(), level, name: safFloorName(level) })]);
+}
+/* The building in section: rows from the top floor down, one column per tower. A cell is empty where the floor isn't in the tower.
+   size: this space is outside the minimum or maximum. short: the floor's spaces of this kind miss the requirement together.
+   ok: the floor meets the requirement and this space has an area. */
+function hgaSection(sh, T) {
+  const { floors, towers, resolved } = hgaSheet(sh);
+  const rows = resolved.map((fl, i) => {
+    const chk = hgaCheckFloor(fl, sh.basis, T);
+    const cells = towers.map(t => {
+      const s = fl.spaces.find(x => x.tower === t.id);
+      if (!s) return null;
+      const l = chk.lines.find(o => o.kind === t.kind), a = +s.area || 0;
+      const size = !!l && ((l.minEach > 0 && a < l.minEach) || (l.maxEach > 0 && a > l.maxEach));
+      return { area: a, own: hgaHasArea(floors[i].spaces.find(x => x.tower === t.id)), size, short: !!l && !l.ok && !size, ok: !!l && l.ok && a > 0, line: l };
+    });
+    return { fl, bad: chk.lines.filter(l => !l.ok), cells };
+  }).reverse();
+  const cols = towers.map((t, k) => {
+    const cells = rows.map(r => r.cells[k]).filter(Boolean);
+    return { id: t.id, kind: t.kind, no: k + 1, max: Math.max(10, ...cells.map(c => c.area)), bad: cells.some(c => c.size || c.short), ok: cells.length > 0 && cells.every(c => c.ok) };
+  });
+  return { rows, cols };
+}
 function hgaTotals(sh, T) {
   const t = { reqArea: 0, area: 0, bad: 0, floors: 0, byKind: {} };
-  (sh.floors || []).forEach(fl => {
+  hgaSheet(sh).resolved.forEach(fl => {
     const c = hgaCheckFloor(fl, sh.basis, T);
     if (c.lines.length) t.floors++;
     c.lines.forEach(l => {
@@ -1032,12 +1167,36 @@ function safCheck(sh) {
   return { floors, occ: floors.reduce((a, o) => a + o.f.occ, 0), bad: floors.reduce((a, o) => a + o.bad, 0) };
 }
 
+/* The building in section: rows from the top floor down with each floor's people and exits, one column per flight.
+   A cell is empty where the flight doesn't reach the floor. size: under the flight's minimum.
+   short: fine alone, but the floor's flights together miss the total width. */
+function safSection(sh) {
+  const floors = safRenumber(sh.floors || []), s = Object.assign({}, sh, { floors }), c = safCheck(s);
+  const flights = safFlights(s).filter(st => floors.some(f => st.levels.includes(+f.level || 0)));
+  const rows = c.floors.map(o => {
+    const line = k => o.lines.find(l => l.k === k), sum = line('stairSum'), doors = line('doorSum');
+    const cells = flights.map(st => {
+      const l = o.lines.find(x => x.k === 'stair' && x.st.id === st.id);
+      if (!l) return null;
+      return { w: l.have, need: l.need, size: !l.ok, short: l.ok && !!sum && !sum.ok, ok: l.ok && (!sum || sum.ok) && l.have > 0, sum };
+    });
+    return { fl: o.fl, occ: o.f.occ, exits: (o.fl.exits || []).map(e => +e.door || 0), exitsNeed: o.f.exits,
+      exitsOk: line('count').ok && (!doors || doors.ok) && o.lines.filter(l => l.k === 'exit').every(l => l.ok), bad: o.bad, cells };
+  }).reverse();
+  const cols = flights.map((st, k) => {
+    const cells = rows.map(r => r.cells[k]).filter(Boolean);
+    return { id: st.id, w: +st.w || 0, prot: !!st.prot, max: Math.max(1.1, ...cells.map(x => x.w)), bad: cells.some(x => x.size || x.short), ok: cells.length > 0 && cells.every(x => x.ok) };
+  });
+  const prot = safProtectedStairs(sh, safFloorCounts(floors).below);
+  return { rows, cols, protNeed: prot.reduce((a, r) => Math.max(a, r.n || 0), 0), protAny: prot.length > 0, protHave: cols.filter(x => x.prot).length };
+}
+
 const api = {
   MEASURES, CATS, USES, BIKES, MOTOS, STATIONS, ZONES, FIX, FIX_ORDER, HLT, HLT_GENERAL, PCOLS, FLOOR_FX,
-  haversine, stationsNear, zoneForStation, useById, ruleSet, ruleText, carRow, bikeRow, motoRow, parkingTotals, span,
+  haversine, stationsNear, zoneForStation, LOS_TABLE, LOS_NEAR, LOS_FAR, BUS_HUBS, losRowFor, busHubsNear, parkLocation, parkLos, parkSupply, useById, ruleSet, ruleText, carRow, bikeRow, motoRow, parkingTotals, span,
   hltById, stepCount, stepText, hltRow, hltTotals, reqFor, planCheck, fill,
-  SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck, safFloorName, safFloorLabel, safFloorNick, safRenumber, safNextLevel, safFloorCounts, safSetCounts, safFloorHasData, safCopyFloor, safFlights, safFlightsWithout, safProtectedStairs, safMoveFloor, safRemoveFloor,
-  HGA_KINDS, HGA_GROUPS, HGA_USES, HGA_LIMITS, HGA_SYSTEMS, hgaById, hgaSpaceOf, hgaRow, hgaFloor, hgaCheckFloor, hgaTotals, hgaVent, hgaSuggest,
+  SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck, safFloorName, safFloorLabel, safFloorNick, safRenumber, safNextLevel, safFloorCounts, safSetCounts, safFloorHasData, safCopyFloor, safFlights, safFlightsWithout, safProtectedStairs, safSection, safMoveFloor, safRemoveFloor,
+  HGA_KINDS, HGA_GROUPS, HGA_USES, HGA_LIMITS, HGA_SYSTEMS, hgaById, hgaSpaceOf, hgaRow, hgaFloor, hgaCheckFloor, hgaTowers, hgaResolve, hgaSheet, hgaSetTowerFloor, hgaPruneTowers, hgaFloorHasData, hgaCopyFloorUp, hgaSection, hgaTotals, hgaVent, hgaSuggest,
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 else root.CalcRules = api;
