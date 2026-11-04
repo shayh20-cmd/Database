@@ -909,6 +909,14 @@ function safFloorLabel(fl, t) {
 }
 function safRename(f, level) { return Object.assign({}, f, { level, name: !f.name || SAF_AUTO_NAME.test(f.name) ? safFloorName(level) : f.name }); }
 function safNextLevel(floors) { return floors.length ? Math.max(...floors.map(f => +f.level || 0)) + 1 : 0; }
+/* A floor's number is its place in the list: the list runs from the lowest floor up, with level 0 after the floors under ground */
+function safRenumber(floors) {
+  const lv = f => +f.level || 0;
+  const below = floors.filter(f => lv(f) < 0).length;
+  return floors.slice().sort((a, b) => lv(a) - lv(b)).map((f, i) => safRename(f, i - below));
+}
+/* The name someone typed, or nothing when the floor just carries its number */
+function safFloorNick(fl) { return fl.name && !SAF_AUTO_NAME.test(fl.name) ? fl.name : ''; }
 /* Moves a floor in the list; the list runs from the lowest floor up, so each place takes the next level in order */
 function safMoveFloor(floors, from, to) {
   const levels = floors.map(f => +f.level || 0).sort((a, b) => a - b);
@@ -1007,7 +1015,7 @@ const api = {
   MEASURES, CATS, USES, BIKES, MOTOS, STATIONS, ZONES, FIX, FIX_ORDER, HLT, HLT_GENERAL, PCOLS, FLOOR_FX,
   haversine, stationsNear, zoneForStation, useById, ruleSet, ruleText, carRow, bikeRow, motoRow, parkingTotals, span,
   hltById, stepCount, stepText, hltRow, hltTotals, reqFor, planCheck, fill,
-  SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck, safFloorName, safFloorLabel, safNextLevel, safFloorCounts, safSetCounts, safFloorHasData, safCopyFloor, safProtectedStairs, safMoveFloor, safRemoveFloor,
+  SAF_GROUPS, SAF_USES, SAF_WIDTH, SAF_CORRIDOR, SAF_HEIGHTS, safUse, safDoorMin, safSpace, safSpaceCheck, safFloor, safStairs, safCheck, safFloorName, safFloorLabel, safFloorNick, safRenumber, safNextLevel, safFloorCounts, safSetCounts, safFloorHasData, safCopyFloor, safProtectedStairs, safMoveFloor, safRemoveFloor,
   HGA_KINDS, HGA_GROUPS, HGA_USES, HGA_LIMITS, HGA_SYSTEMS, hgaById, hgaSpaceOf, hgaRow, hgaFloor, hgaCheckFloor, hgaTotals, hgaVent, hgaSuggest,
 };
 if (typeof module !== 'undefined' && module.exports) module.exports = api;

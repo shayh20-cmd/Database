@@ -608,8 +608,9 @@
   const cmT = m => T('{a} ס"מ', { a: cm(+m || 0) });
   const rm = n => Math.round(n * 10000) / 10000;
   function SafetyTab({ sh, upd }) {
-    const floors = sh.floors || [];
-    const chk = R.safCheck(sh);
+    // numbered by place in the list, so an old gap or a repeated level heals itself
+    const floors = R.safRenumber(sh.floors || []);
+    const chk = R.safCheck(Object.assign({}, sh, { floors }));
     const setFloors = fl => upd({ floors: fl });
     const setFloor = (i, p) => setFloors(floors.map((f, j) => j === i ? Object.assign({}, f, p) : f));
     const counts = R.safFloorCounts(floors);
@@ -696,9 +697,8 @@
         floors.length > 1 && h('button', { className: 'cx-x cx-fdel', title: 'הסרת הקומה', onClick: () => delFloor(i) }, '×')),
 
         isOpen && h('div', { className: 'cx-ftools' },
-          h('label', { className: 'cx-f' }, 'שם', h(Field, { value: R.safFloorLabel(fl, T), skip: true, style: { width: 120 }, onSave: v => setFloor(i, { name: v }) })),
-          h('label', { className: 'cx-f', title: T('0 = קומת היציאה; חיובי מעליה, שלילי מתחתיה') }, 'מפלס',
-            h(Field, { type: 'number', className: 'cx-n', style: { width: 52 }, value: fl.level || 0, onSave: v => setFloor(i, { level: v }) })),
+          h('label', { className: 'cx-f' }, 'כינוי לקומה', h(Field, { key: 'n' + countKey, value: R.safFloorNick(fl), placeholder: R.safFloorLabel(Object.assign({}, fl, { name: '' }), T), skip: true, style: { width: 120 },
+            onSave: v => { setCountKey(k => k + 1); setFloor(i, { name: (v || '').trim() }); } })),
           h('label', { className: 'cx-f' }, 'סוג פרוזדור',
             h('select', { className: 'cx-in', style: { width: 'auto', maxWidth: 260 }, value: fl.corridor || 'res', title: T('טבלה 3.2.12.5 — רוחב מינימלי של פרוזדור'), onChange: e => setFloor(i, { corridor: e.target.value }) }, corrOpts)),
           h('span', { className: 'cx-sp', style: { flex: 1 } }),
@@ -905,7 +905,7 @@
     } else hlt = h('button', { className: 'cx-sc', onClick: () => go('hlt') }, head('🚻', 'הל"ת', null, 0), h('div', { className: 'cx-hint' }, 'מספר אסלות, משתנות, כיורים — לפי שימוש ואוכלוסייה'));
     let safety;
     if (S) {
-      const c = R.safCheck(S), maxEx = c.floors.reduce((a, o) => Math.max(a, o.f.exits), 0), panicFl = c.floors.filter(o => o.f.panic).length;
+      const c = R.safCheck(Object.assign({}, S, { floors: R.safRenumber(S.floors || []) })), maxEx = c.floors.reduce((a, o) => Math.max(a, o.f.exits), 0), panicFl = c.floors.filter(o => o.f.panic).length;
       safety = h('button', { className: 'cx-sc', onClick: () => go('safety') }, head('🔥', 'בטיחות', S, cnt('safety')),
         h('div', { className: 'cx-sc-k' },
           h('div', null, h('span', null, 'תפוסה בבניין'), h('b', null, c.occ)),

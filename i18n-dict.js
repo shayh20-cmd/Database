@@ -3838,7 +3838,6 @@ Object.assign(HE_EN, {
 "בניין רב-קומות (מעל 29 מ')": "Tower (over 29 m)",
 "בניין מגורים שאינו רב-קומות — 3.2.13.3(א)(1)": "Residential building, not a tower — 3.2.13.3(a)(1)",
 "עד 30 איש ומרחק הליכה עד 30 מ' — 3.2.13.3(א)(2)": "Up to 30 people and up to 30 m of travel — 3.2.13.3(a)(2)",
-"0 = קומת היציאה; חיובי מעליה, שלילי מתחתיה": "0 = the exit floor; positive above it, negative below",
 "מפלס": "Level",
 "טבלה 3.2.12.5 — רוחב מינימלי של פרוזדור": "Table 3.2.12.5 — minimum corridor width",
 "חללים ותפוסה": "Spaces and occupancy",
@@ -3946,6 +3945,7 @@ Object.assign(HE_EN, {
 "בניין גבוה: חדר מדרגות מוגן": "High-rise building: a protected stairway",
 "שניים, אלא אם הבניין למגורים, תפוסת כל קומה עד 30 איש, או מרחק ההליכה לדלת האש עד 30 מ'": "Two, unless the building is residential, each floor holds up to 30 people, or the walk to the fire door is up to 30 m",
 "קומות תחתיות: חדרי המדרגות המחויבים שמשרתים אותן יהיו מוגנים": "Lower floors: the required stairways serving them must be protected",
+"כינוי לקומה": "Floor nickname",
 });
 
 window.I18N_HE_EN = HE_EN;

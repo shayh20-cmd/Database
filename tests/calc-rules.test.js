@@ -230,3 +230,12 @@ test('safety: when protected stairs are required', () => {
   assert.deepStrictEqual(refs({ height: 'low', deepBelow: true }, 0), []);          // the mark means nothing with no floors below ground
   assert.deepStrictEqual(refs({ height: 'tower', deepBelow: true }, 2), ['3.7.1.3', '3.2.3.3']);
 });
+
+test('safety floors: the number comes from the place in the list', () => {
+  const list = R.safRenumber([{ name: 'קומה 5', level: 5 }, { name: 'גג טכני', level: 7 }, { name: 'קומת קרקע', level: 0 }, { name: 'קומה -2', level: -2 }]);
+  assert.deepStrictEqual(list.map(f => f.level), [-1, 0, 1, 2]);
+  assert.deepStrictEqual(list.map(f => f.name), ['קומה -1', 'קומת קרקע', 'קומה 1', 'גג טכני']);
+  assert.deepStrictEqual(R.safRenumber([{}, {}, {}]).map(f => f.level), [0, 1, 2]);  // no levels yet
+  assert.strictEqual(R.safFloorNick({ name: 'גג טכני' }), 'גג טכני');
+  assert.strictEqual(R.safFloorNick({ name: 'קומה 3', level: 2 }), '');             // a number typed as a name isn't a nickname
+});
