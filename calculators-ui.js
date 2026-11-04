@@ -503,7 +503,7 @@
             h('select', { className: 'cx-in', style: { width: 'auto' }, value: sup.level || '', onChange: e => setSup({ level: e.target.value ? +e.target.value : null }) },
               h('option', { value: '' }, T('כמומלץ ({n})', { n: los.level })), [1, 2, 3].map(n => h('option', { key: n, value: n }, n)))),
           !los.ok && state(false, T('✗ נמוכה מהנדרש ({n})', { n: los.level }))),
-        h('div', { className: 'cx-rule', style: { margin: '8px 0' } }, by ? T('התחנה הקרובה: {s} ({t}), במרחק {n} מ\'', { s: '⁨' + by.name + '⁩', t: T(by.type), n: by.d }) : sh.loc ? T('אין תחנת הסעה המונית בטווח {n} מ\'', { n: R.LOS_FAR }) : T('הזינו כתובת בחלק 2 כדי להציע מיקום')),
+        h('div', { className: 'cx-rule', style: { margin: '8px 0' } }, by ? T('התחנה הקרובה: {s} ({t}), במרחק {n} מ\'', { s: '⁨' + by.name + '⁩', t: '⁨' + T(by.type) + '⁩', n: by.d }) : sh.loc ? T('אין תחנת הסעה המונית בטווח {n} מ\'', { n: R.LOS_FAR }) : T('הזינו כתובת בחלק 2 כדי להציע מיקום')),
         h('div', { className: 'cx-scroll' }, h('table', { className: 'cx-t c' },
           h('thead', null, h('tr', null, ['שימוש בפרויקט', 'שורה בטבלה 2', 'A', 'B', 'C', 'רמה'].map(x => h('th', { key: x }, x)))),
           h('tbody', null, los.rows.map(({ row, use, level }) => h('tr', { key: row.n },
