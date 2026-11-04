@@ -966,8 +966,8 @@ function safCopyFloor(floors, from, targets, newId) {
 /* When the building needs protected stairs. The list is shown as a requirement: nothing here checks the stairs drawn */
 function safProtectedStairs(sh, below) {
   const out = [];
-  if (sh.height === 'tower') out.push({ ref: '3.7.1.3', text: 'בניין רב-קומות: שני חדרי מדרגות מוגנים לפחות' });
-  if (sh.height === 'high') out.push({ ref: '3.7.1.2', text: 'בניין גבוה: חדר מדרגות מוגן', note: 'שניים, אלא אם הבניין למגורים, תפוסת כל קומה עד 30 איש, או מרחק ההליכה לדלת האש עד 30 מ\'' });
+  if (sh.height === 'tower') out.push({ ref: '3.7.1.3', n: 2, text: 'בניין רב-קומות: שני חדרי מדרגות מוגנים לפחות' });
+  if (sh.height === 'high') out.push({ ref: '3.7.1.2', n: 1, text: 'בניין גבוה: חדר מדרגות מוגן', note: 'שניים, אלא אם הבניין למגורים, תפוסת כל קומה עד 30 איש, או מרחק ההליכה לדלת האש עד 30 מ\'' });
   if (below > 0 && sh.deepBelow) out.push({ ref: '3.2.3.3', text: 'קומות תחתיות: חדרי המדרגות המחויבים שמשרתים אותן יהיו מוגנים' });
   return out;
 }

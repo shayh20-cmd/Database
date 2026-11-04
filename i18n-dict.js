@@ -3964,6 +3964,8 @@ Object.assign(HE_EN, {
 "כל גרם לפחות {a}": "Each flight at least {a}",
 "לא נדרש בקומת היציאה": "Not required on the exit level",
 "{a} מ\"ר": "{a} m²",
+"גרמים מוגנים נדרשים": "Protected flights required",
+"לא נדרש": "Not required",
 });
 
 window.I18N_HE_EN = HE_EN;
