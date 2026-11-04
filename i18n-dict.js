@@ -3926,11 +3926,13 @@ Object.assign(HE_EN, {
 "גרמי מדרגות (ס\"מ):": "Stair flights (cm):",
 "מפלס {n}": "Level {n}",
 "סוג פרוזדור": "Corridor type",
-"× הסרה": "× Remove",
 "מקדם תפוסה": "Occupancy factor",
 "פירוט ונימוקים מהתקנות": "Details and regulation references",
 "לחצו על קומה כדי לפתוח אותה. החללים קובעים את מספר האנשים, וממנו נגזרות הדרישות.": "Click a floor to open it. The spaces set the number of people, and the requirements follow from it.",
 "סך הגרמים {h} מול {n} ס\"מ נדרש": "Flights total {h} vs {n} cm required",
+"למחוק את {n}? החללים ודרכי המוצא שלה יימחקו.": "Delete {n}? Its spaces and exits will be deleted too.",
+"גררו כדי להזיז את הקומה": "Drag to move the floor",
+"הקומה": "the floor",
 });
 
 window.I18N_HE_EN = HE_EN;

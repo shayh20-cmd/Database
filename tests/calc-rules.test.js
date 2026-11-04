@@ -175,3 +175,24 @@ test('בטיחות: the total width may be split unevenly; each exit keeps its m
   const ground = R.safCheck(SAF([{ name: '0', level: 0, spaces: [{ use: 'b41', area: 2000 }], exits: [{ kind: 'level', door: 0.6, panic: true }, { kind: 'level', door: 1.2, panic: true }] }])).floors[0];
   assert.deepStrictEqual(ground.lines.filter(l => !l.ok).map(l => l.k), ['exit']);            // 200 people: 1.00 m total, but 0.60 < 1.10
 });
+
+test('safety floors: a copy is the next floor up; moving a floor renumbers the list', () => {
+  const t = (k, o) => k.replace('{n}', o ? o.n : '');
+  const fl = [{ name: 'קומת קרקע', level: 0 }, { name: 'קומה 1', level: 1 }, { name: 'גג טכני', level: 2 }, { name: 'קומה 3', level: 3 }];
+  assert.strictEqual(R.safNextLevel(fl), 4);
+  assert.strictEqual(R.safNextLevel([{ level: -2 }, { level: -1 }]), 0);
+  assert.strictEqual(R.safFloorName(11, t), 'קומה 11');
+  const moved = R.safMoveFloor(fl, 3, 1, t);
+  assert.deepStrictEqual(moved.map(f => f.level), [0, 1, 2, 3]);
+  assert.deepStrictEqual(moved.map(f => f.name), ['קומת קרקע', 'קומה 1', 'קומה 2', 'גג טכני']);  // a typed name stays
+  const down = R.safMoveFloor(fl, 0, 1, t);
+  assert.deepStrictEqual(down.map(f => f.name), ['קומת קרקע', 'קומה 1', 'גג טכני', 'קומה 3']);
+  const gone = R.safRemoveFloor(fl, 1, t);
+  assert.deepStrictEqual(gone.map(f => f.level), [0, 1, 2]);
+  assert.deepStrictEqual(gone.map(f => f.name), ['קומת קרקע', 'גג טכני', 'קומה 2']);
+  assert.deepStrictEqual(R.safRemoveFloor([{ level: -2 }, { level: -1 }, { level: 0 }], 1, t).map(f => f.level), [-1, 0]);
+  // a basement keeps the list's levels: only the places change
+  const low = R.safMoveFloor([{ name: 'קומה -1', level: -1 }, { name: 'קומת קרקע', level: 0 }, { name: 'Floor 1', level: 1 }], 2, 0, t);
+  assert.deepStrictEqual(low.map(f => f.level), [-1, 0, 1]);
+  assert.deepStrictEqual(low.map(f => f.name), ['קומה -1', 'קומת קרקע', 'קומה 1']);
+});
