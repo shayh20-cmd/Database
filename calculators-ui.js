@@ -38,6 +38,8 @@
     '.cx-sheet .cx-pick{margin:0;cursor:pointer;accent-color:var(--accent)}',
     '.cx-sheet-x{border:none;background:none;color:var(--text-3);cursor:pointer;font-size:13px;padding:0 2px}',
     '.cx-sheet-x.arm{color:#DC2626;font-weight:700;font-size:11px}',
+    '.cx-xp{margin-inline-start:auto;display:flex;align-items:center;gap:6px;padding:4px 0;white-space:nowrap}',
+    '.cx-xp span{font-size:12px;color:var(--text-2)}',
     '.cx-add{border:1px dashed var(--border-strong);background:none;border-top:none;border-radius:0 0 8px 8px;padding:6px 12px;cursor:pointer;color:var(--accent);font:inherit;font-size:12px;font-weight:600;white-space:nowrap}',
     '.cx-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg,12px);margin-bottom:14px;overflow:clip}',
     '.cx-card-h{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);font-weight:600;flex-wrap:wrap}',
@@ -156,6 +158,7 @@
     '.cx-t tfoot td{background:color-mix(in srgb,var(--accent) 10%,var(--surface));border-top:1px solid color-mix(in srgb,var(--accent) 32%,var(--surface))}',
     '.cx-tone .cx-st-head{background:color-mix(in srgb,var(--text) 7%,var(--surface))}',
     '.cx-tone .cx-zones{margin-top:14px;padding-top:12px;border-top:2px solid color-mix(in srgb,var(--text) 28%,var(--surface))}',
+    '.cx-sectog{display:inline-flex;align-items:center;gap:4px;cursor:pointer;color:var(--text);font-weight:500}',
     '.cx-hlay{container-type:inline-size}',
     '.cx-hrow{display:flex;gap:14px;align-items:flex-start}',
     '.cx-hfl{flex:1;min-width:0}',
@@ -278,6 +281,15 @@
     return h('input', Object.assign({ className: 'cx-in ' + (className || ''), type: type || 'text', step: type === 'number' ? 'any' : undefined, value: v, placeholder, min, max, style, title,
       onChange: e => setV(e.target.value), onBlur: commit, onKeyDown: e => { if (e.key === 'Enter') e.currentTarget.blur(); } }, skip ? SKIP : {}));
   }
+  // the building section's checkbox for part 2's header; each viewer's choice is kept in this browser
+  function useSectionToggle() {
+    const [on, setOn] = useState(() => { try { return localStorage.getItem('cx-section') !== '0'; } catch (e) { return true; } });
+    const toggle = h('label', { className: 'cx-rule cx-sectog' }, h('input', { type: 'checkbox', checked: on, onChange: e => {
+      setOn(e.target.checked);
+      try { localStorage.setItem('cx-section', e.target.checked ? '1' : '0'); } catch (x) {}
+    } }), ' ', 'חתך המבנה');
+    return [on, toggle];
+  }
   const Card = (n, title, extra, body) => h('div', { className: 'cx-card' },
     h('div', { className: 'cx-card-h' }, h('span', { className: 'cx-num' }, n), title, h('span', { className: 'cx-sp' }), extra), body);
 
@@ -306,9 +318,17 @@
     (base.floors || []).forEach(f => { f.id = uid(); ['uses', 'spaces', 'exits'].forEach(k => (f[k] || []).forEach(x => { x.id = uid(); })); });
     return base;
   }
+  // one check as a printed page or an Excel file, in the page's language
+  function exportSheet(kind, sh, project, how) {
+    const X = window.CalcExport;
+    const rep = X.reportFor(kind, sh, { R, T, project, dir: document.documentElement.dir === 'ltr' ? 'ltr' : 'rtl', L: { ZONE_INFO, BASES, G_LABEL, PCOL_LABEL, SPLIT_NOTE } });
+    const LX = window.ListExport, name = X.fileName(rep);
+    if (how === 'xlsx') LX.download(X.toXlsx(rep), name + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    else LX.printHtml(X.toHtml(rep), name);
+  }
   // the check the summary shows: the one ticked on its tab, else the latest
   const pickedSheet = c => { const s = (c && c.sheets) || []; return s.find(x => x.id === c.pick) || s[s.length - 1]; };
-  function SheetBar({ sheets, active, setActive, onAdd, onDelete, picked, onPick }) {
+  function SheetBar({ sheets, active, setActive, onAdd, onDelete, picked, onPick, onExport }) {
     const [arm, setArm] = useState(null);
     return h('div', { className: 'cx-sheets' },
       sheets.map(s => h('div', { key: s.id, className: 'cx-sheet' + (s.id === active ? ' on' : ''), onClick: () => setActive(s.id) },
@@ -318,7 +338,10 @@
         s.id === active && h('button', { className: 'cx-sheet-x' + (arm === s.id ? ' arm' : ''), title: 'מחיקת הבדיקה',
           onClick: e => { e.stopPropagation(); if (arm === s.id) { setArm(null); onDelete(s.id); } else setArm(s.id); },
           onMouseLeave: () => setArm(null) }, arm === s.id ? 'למחוק?' : '×'))),
-      h('button', { className: 'cx-add', onClick: onAdd, title: 'בדיקה חדשה — מעתיקה את האחרונה' }, '+ בדיקה נוספת'));
+      h('button', { className: 'cx-add', onClick: onAdd, title: 'בדיקה חדשה — מעתיקה את האחרונה' }, '+ בדיקה נוספת'),
+      onExport && h('div', { className: 'cx-xp' }, h('span', null, 'ייצוא'),
+        h('button', { className: 'cx-btn', title: 'הדפסה או שמירה כ-PDF, בגודל A4', onClick: () => onExport('pdf') }, 'PDF'),
+        h('button', { className: 'cx-btn', title: 'הורדה כקובץ Excel, מותאם להדפסה ב-A4', onClick: () => onExport('xlsx') }, 'Excel')));
   }
   function SheetHead(n, sh, upd, hints, extra) {
     return Card(n, 'פרטי הבדיקה', null, h('div', { className: 'cx-card-b' },
@@ -546,7 +569,7 @@
   function HgaTab({ sh, upd }) {
     // floors numbered and spaces in towers: an older sheet moves over with its next change
     const sheet = R.hgaSheet(sh), floors = sheet.floors, towers = sheet.towers, shown = sheet.resolved;
-    const [open, setOpen] = useState({}), [countKey, setCountKey] = useState(0), [twEdit, setTwEdit] = useState(null);
+    const [open, setOpen] = useState({}), [countKey, setCountKey] = useState(0), [twEdit, setTwEdit] = useState(null), [showSec, secToggle] = useSectionToggle();
     // a click in the section opens the tower's panel on that floor and lands on the box for what was clicked
     useEffect(() => {
       if (!twEdit || !twEdit.jump) return;
@@ -715,7 +738,7 @@
       h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 6 } }, 'קומות מתחת לקרקע',
         h(Field, { key: 'b' + countKey, type: 'number', className: 'cx-n', style: { width: 58 }, min: 0, max: 20, value: counts.below, onSave: v => setCounts(counts.above, v) })));
 
-    const floorsCard = Card(2, 'קומות, שימושים ומרחבים מוגנים', null,
+    const floorsCard = Card(2, 'קומות, שימושים ומרחבים מוגנים', secToggle,
       h('div', { className: 'cx-card-b' },
         h('div', { className: 'cx-hint', style: { marginBottom: 10 } }, 'לחצו על קומה כדי לפתוח אותה. מגדל הוא מרחב מוגן שחוזר בכמה קומות: קובעים לו שטח פעם אחת, ובכל קומה אפשר להחליט אם היא חלק ממנו ואם השטח בה שונה. ממ"מ ומרחב במוסד חינוך מחושבים לפי סך השימושים בקומה; ממ"ד — אחד לכל דירה; ממ"ק — אחד לכל 4 דירות.'),
         h('div', { className: 'cx-hlay' }, h('div', { className: 'cx-hrow' },
@@ -724,7 +747,7 @@
             h('div', { className: 'cx-fadd' },
               h('button', { className: 'cx-btn', onClick: () => setCounts(counts.above + 1, counts.below) }, '+ קומה מעל'),
               h('button', { className: 'cx-btn', onClick: () => setCounts(counts.above, counts.below + 1) }, '+ קומה מתחת'))),
-          h('aside', { className: 'cx-hsec' }, h('div', { className: 'cx-hsec-t' }, 'חתך המבנה'), sectionView())))));
+          showSec && h('aside', { className: 'cx-hsec' }, h('div', { className: 'cx-hsec-t' }, 'חתך המבנה'), sectionView())))));
 
     const all = floors.flatMap((f, i) => checks[i].lines.map(l => ({ f, l })));
     const bad = all.filter(o => !o.l.ok).length, showReq = all.some(o => o.l.reqCount > 0);  // only ממ"ד and ממ"ק name a number of spaces
@@ -836,7 +859,7 @@
       R.SAF_USES.filter(u => u.g === g).map(u => h('option', { key: u.id, value: u.id }, u.n + ' · ' + T(u.name)))));
     const corrOpts = R.SAF_CORRIDOR.map(c => h('option', { key: c.id, value: c.id }, T(c.name) + ' — ' + c.w.toFixed(2)));
     const [open, setOpen] = useState({});
-    const [drag, setDrag] = useState(null), [copy, setCopy] = useState(null), [countKey, setCountKey] = useState(0), [stEdit, setStEdit] = useState(null), [jump, setJump] = useState(null);
+    const [drag, setDrag] = useState(null), [copy, setCopy] = useState(null), [countKey, setCountKey] = useState(0), [stEdit, setStEdit] = useState(null), [jump, setJump] = useState(null), [showSec, secToggle] = useSectionToggle();
     // a click in the section opens the floor and lands on what was clicked
     useEffect(() => {
       if (!jump) return;
@@ -1062,7 +1085,7 @@
         h('div', { className: 'cx-hint' }, 'בכל גרם כתוב הרוחב בס"מ. ירוק: עומד בדרישה. אדום: לא עומד בדרישה. מסגרת כפולה: גרם מוגן.'));
     };
 
-    const floorsCard = Card(2, 'קומות, חללים ודרכי מוצא', null,
+    const floorsCard = Card(2, 'קומות, חללים ודרכי מוצא', secToggle,
       h('div', { className: 'cx-card-b' },
         h('div', { className: 'cx-hint', style: { marginBottom: 10 } }, 'לחצו על קומה כדי לפתוח אותה. החללים קובעים את מספר האנשים, וממנו נגזרות הדרישות.'),
         // the whole list takes the drop, so the gap between two floors counts too: the nearest floor is the target
@@ -1073,7 +1096,7 @@
             h('div', { className: 'cx-fadd' },
               h('button', { className: 'cx-btn', onClick: () => setCounts(counts.above + 1, counts.below) }, '+ קומה מעל'),
               h('button', { className: 'cx-btn', onClick: () => setCounts(counts.above, counts.below + 1) }, '+ קומה מתחת'))),
-          h('aside', { className: 'cx-hsec cx-hsaf' }, h('div', { className: 'cx-hsec-t' }, 'חתך המבנה'), sectionView())))));
+          showSec && h('aside', { className: 'cx-hsec cx-hsaf' }, h('div', { className: 'cx-hsec-t' }, 'חתך המבנה'), sectionView())))));
 
     const rows = chk.floors.filter(o => o.f.occ > 0 || (o.fl.exits || []).length);
     const cmp = Card(3, 'נדרש מול מוצע — סיכום קומות', null, h('div', { className: 'cx-card-b' },
@@ -1174,6 +1197,7 @@
     useEffect(() => { const on = () => setLangTick(x => x + 1); window.addEventListener('i18n:change', on); return () => window.removeEventListener('i18n:change', on); }, []);
     const [tab, setTab] = useState(() => { try { return localStorage.getItem('cx-tab') || 'summary'; } catch (e) { return 'summary'; } });
     const [active, setActive] = useState({});
+    const projectName = data.projectName || data.name || '';
     const go = t => { setTab(t); try { localStorage.setItem('cx-tab', t); } catch (e) {} };
     const calcs = data.calculators || {};
     const saveCalc = (key, fn) => save(Object.assign({}, data, { calculators: Object.assign({}, calcs, { [key]: fn(calcs[key] || { sheets: [] }) }) }));
@@ -1196,7 +1220,7 @@
         body = c.id === 'parking' ? h(ParkingTab, { key: sh.id, sh, upd, prev: idx > 0 ? sheets[idx - 1] : null })
           : c.id === 'hga' ? h(HgaTab, { key: sh.id, sh, upd }) : c.id === 'safety' ? h(SafetyTab, { key: sh.id, sh, upd }) : h(HltTab, { key: sh.id, sh, upd });
         sheetBar = h(SheetBar, { sheets, active: curId, setActive: id => setActive(a => Object.assign({}, a, { [c.id]: id })), onAdd: add, onDelete: del,
-          picked: (pickedSheet(calcs[c.id]) || {}).id, onPick: id => saveCalc(c.id, o => Object.assign({}, o, { pick: id })) });
+          picked: (pickedSheet(calcs[c.id]) || {}).id, onPick: id => saveCalc(c.id, o => Object.assign({}, o, { pick: id })), onExport: how => exportSheet(c.id, sh, projectName, how) });
       }
     }
     return h('div', { className: 'cx' },
