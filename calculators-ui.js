@@ -166,6 +166,9 @@
     '.cx-prot+.cx-prot{margin-top:4px}',
     '.cx-stno{font-size:10px!important;font-weight:700;padding:0 5px!important;min-width:16px}',
     '.cx-saf .cx-flight{background:none;border:0;padding:6px 0 2px}',
+    '.cx-fno{min-width:14px;height:14px;line-height:14px;border-radius:50%;background:rgba(0,0,0,.08);font-size:9.5px;text-align:center;margin-inline-end:4px}',
+    '.cx-fflights{display:flex;flex-wrap:wrap;gap:4px;justify-content:center}',
+    '.cx-fflights .cx-fchip{display:inline-flex;align-items:center}',
     '.cx-drop-up{box-shadow:0 -3px 0 var(--accent)}',
     '.cx-drop-down{box-shadow:0 3px 0 var(--accent)}',
     '.cx-chev{display:inline-block;transition:transform .15s;font-size:16px;line-height:1;color:var(--text-3)}',
@@ -664,6 +667,15 @@
     const [drag, setDrag] = useState(null), [copy, setCopy] = useState(null), [countKey, setCountKey] = useState(0), [stEdit, setStEdit] = useState(null);
     const okPill = (ok, txtOk, txtBad) => h('span', { className: ok ? 'cx-p-ok' : 'cx-p-bad' }, ok ? (txtOk || '✓') : (txtBad || '✗'));
 
+    // what a floor is offered, one chip per flight: green meets the requirement, red doesn't. A short total turns them all red
+    const widthChip = (key, val, ok, title, no) => h('span', { key, className: 'cx-fchip ' + (ok ? 'ok' : 'bad'), title }, no && h('small', { className: 'cx-fno' }, no), val);
+    const flightChips = (o, numbered) => {
+      const lines = o.lines.filter(l => l.k === 'stair'), sum = o.lines.find(l => l.k === 'stairSum');
+      const short = sum && !sum.ok ? T('סך הגרמים {h} מול {n} ס"מ נדרש', { h: cm(sum.have), n: cm(sum.need) }) : null;
+      return lines.length ? lines.map(l => widthChip(l.st.id, l.have ? cm(l.have) : '—', l.ok && !short, short || T('נדרש {a}', { a: cmT(l.need) }), numbered ? flightNo(l.st.id) : null))
+        : widthChip('none', '—', false, short);
+    };
+
     const floorBlock = (o, i) => {
       const fl = o.fl, f = o.f, spaces = fl.spaces || [], exits = fl.exits || [], stairs = o.stairs || [];
       const L = +fl.level || 0;
@@ -684,9 +696,6 @@
       const flagged = l => l && !l.ok;
       const short = l => T('✗ חסר {n}', { n: cm(rm(l.need - l.have)) });
       const isOpen = open[fl.id || i] != null ? open[fl.id || i] : i === 0;
-      // the closed floor shows what is offered, one number per stair flight: green meets the requirement, red doesn't
-      const widthChip = (key, val, ok, title) => h('span', { key, className: 'cx-fchip ' + (ok ? 'ok' : 'bad'), title }, val);
-      const stairShort = flagged(stairSum) ? T('סך הגרמים {h} מול {n} ס"מ נדרש', { h: cm(stairSum.have), n: cm(stairSum.need) }) : null;
       const picking = copy && copy.from === i;
       const flight = stEdit && stEdit.floor === i ? flights.find(x => x.id === stEdit.id) : null;
       const dropCls = drag && drag.over === i && drag.from !== i ? (i < drag.from ? ' cx-drop-up' : ' cx-drop-down') : '';
@@ -702,9 +711,7 @@
           h('span', { className: 'cx-rule' }, T('מפלס {n}', { n: fl.level || 0 })),
           h('span', { className: 'cx-tag' }, T('{n} איש', { n: f.occ })),
           h('span', { className: 'cx-sp', style: { flex: 1 } }),
-          (stairLines.length > 0 || stairSum) && h('span', { className: 'cx-fgrp' }, 'מדרגות',
-            stairLines.length ? stairLines.map((l, j) => widthChip(l.st.id || j, l.have ? cm(l.have) : '—', l.ok && !stairShort, stairShort || T('נדרש {a}', { a: cmT(l.need) })))
-              : widthChip('none', '—', false, stairShort)),
+          (stairLines.length > 0 || stairSum) && h('span', { className: 'cx-fgrp' }, 'מדרגות', flightChips(o)),
           corr && h('span', { className: 'cx-fgrp' }, 'פרוזדור', widthChip('c', cm(corr.have), corr.ok, T('נדרש {a}', { a: cmT(corr.need) }))),
           okPill(o.bad === 0, '✓', T('✗ {n}', { n: o.bad }))),
         floors.length > 1 && h('button', { className: 'cx-x cx-fdel', title: 'הסרת הקומה', onClick: () => delFloor(i) }, '×')),
@@ -872,20 +879,18 @@
       !rows.length ? h('div', { className: 'cx-hint' }, 'הוסיפו חללים כדי לחשב את הדרישה') : h(React.Fragment, null,
         h('div', { className: 'cx-verdict ' + (chk.bad ? 'bad' : 'ok') }, chk.bad ? T('✗ {n} פערים מול הדרישה', { n: chk.bad }) : '✓ דרכי המוצא עומדות בדרישות'),
         h('div', { className: 'cx-scroll' }, h('table', { className: 'cx-t c' },
-          h('thead', null, h('tr', null, ['קומה', 'מפלס', 'אנשים', 'דרכי מוצא', 'רוחב אופקי כולל (ס"מ)', 'מדרגות כולל (ס"מ)', 'פרוזדור (ס"מ)', 'בהלה', 'פערים'].map(x => h('th', { key: x }, x)))),
+          h('thead', null, h('tr', null, ['קומה', 'מפלס', 'אנשים', 'דרכי מוצא', 'גרמי מדרגות (ס"מ)', 'פרוזדור (ס"מ)', 'בהלה', 'פערים'].map(x => h('th', { key: x }, x)))),
           h('tbody', null, rows.map((o, k) => {
             const cnt = o.lines.find(l => l.k === 'count'), cr = o.lines.find(l => l.k === 'corridor');
-            const sumCell = (k, need) => { const l = o.lines.find(z => z.k === k);
-              return h('td', { className: 'n ' + (l && !l.ok ? 'cx-bad' : '') }, l ? `${cm(l.have)} / ${cm(l.need)}` : need ? cm(need) : '—'); };
             return h('tr', { key: k, className: o.bad ? 'bad' : '' },
               h('td', Object.assign({ className: 'gl' }, SKIP), R.safFloorLabel(o.fl, T)), h('td', { className: 'n' }, o.fl.level || 0), h('td', { className: 'n' }, o.f.occ),
               h('td', { className: 'n ' + (cnt.ok ? '' : 'cx-bad') }, `${cnt.have} / ${cnt.need}`),
-              sumCell('doorSum', o.f.horizTot), sumCell('stairSum', o.f.stairGov),
+              h('td', null, o.lines.some(l => l.k === 'stair' || l.k === 'stairSum') ? h('div', { className: 'cx-fflights' }, flightChips(o, true)) : '—'),
               h('td', { className: 'n ' + (cr && !cr.ok ? 'cx-bad' : '') }, (cr ? `${cm(cr.have)} / ${cm(cr.need)}` : cm(o.f.corrReq)) + (o.f.corrMin >= o.f.corrCalc ? ' *' : '')),
               h('td', null, o.f.panic ? h('span', { className: 'cx-tag warn' }, 'נדרש') : '—'),
               h('td', null, okPill(!o.bad, '✓', T('✗ {n}', { n: o.bad }))));
           })),
-          h('tfoot', null, h('tr', null, h('td', { className: 'gl', colSpan: 2 }, 'סה"כ בבניין'), h('td', { className: 'n' }, chk.occ), h('td', { colSpan: 6 }))))),
+          h('tfoot', null, h('tr', null, h('td', { className: 'gl', colSpan: 2 }, 'סה"כ בבניין'), h('td', { className: 'n' }, chk.occ), h('td', { colSpan: 5 }))))),
         rows.some(o => o.f.occ > 0 && o.f.corrMin >= o.f.corrCalc) && h('div', { className: 'cx-rule', style: { marginTop: 6 } }, '* הרוחב נקבע לפי המינימום בטבלה 3.2.12.5'))));
 
     const src = Card(4, 'מקורות', null, h('div', { className: 'cx-card-b' },

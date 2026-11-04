@@ -3910,8 +3910,6 @@ Object.assign(HE_EN, {
 "רוחב פרוזדור (ס\"מ)": "Corridor width (cm)",
 "+ מדרגות בקומה": "+ Stairs on the floor",
 "דלת יציאה: לפחות {a}": "Exit door: at least {a}",
-"רוחב אופקי כולל (ס\"מ)": "Total horizontal width (cm)",
-"מדרגות כולל (ס\"מ)": "Total stairs (cm)",
 "פרוזדור (ס\"מ)": "Corridor (cm)",
 "החלופה שמוצגת בסיכום": "The alternative shown in the summary",
 "נדרש {a}": "Required {a}",
@@ -3951,6 +3949,7 @@ Object.assign(HE_EN, {
 "מחיקת הגרם": "Delete the flight",
 "למחוק את גרם {n} מכל הקומות?": "Delete flight {n} from all floors?",
 "הסרה מהקומה הזו": "Remove from this floor",
+"גרמי מדרגות (ס\"מ)": "Stair flights (cm)",
 });
 
 window.I18N_HE_EN = HE_EN;
