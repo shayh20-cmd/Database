@@ -38,6 +38,8 @@
     '.cx-sheet .cx-pick{margin:0;cursor:pointer;accent-color:var(--accent)}',
     '.cx-sheet-x{border:none;background:none;color:var(--text-3);cursor:pointer;font-size:13px;padding:0 2px}',
     '.cx-sheet-x.arm{color:#DC2626;font-weight:700;font-size:11px}',
+    '.cx-xp{margin-inline-start:auto;display:flex;align-items:center;gap:6px;padding:4px 0;white-space:nowrap}',
+    '.cx-xp span{font-size:12px;color:var(--text-2)}',
     '.cx-add{border:1px dashed var(--border-strong);background:none;border-top:none;border-radius:0 0 8px 8px;padding:6px 12px;cursor:pointer;color:var(--accent);font:inherit;font-size:12px;font-weight:600;white-space:nowrap}',
     '.cx-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg,12px);margin-bottom:14px;overflow:clip}',
     '.cx-card-h{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);font-weight:600;flex-wrap:wrap}',
@@ -306,9 +308,17 @@
     (base.floors || []).forEach(f => { f.id = uid(); ['uses', 'spaces', 'exits'].forEach(k => (f[k] || []).forEach(x => { x.id = uid(); })); });
     return base;
   }
+  // one check as a printed page or an Excel file, in the page's language
+  function exportSheet(kind, sh, project, how) {
+    const X = window.CalcExport;
+    const rep = X.reportFor(kind, sh, { R, T, project, dir: document.documentElement.dir === 'ltr' ? 'ltr' : 'rtl', L: { ZONE_INFO, BASES, G_LABEL, PCOL_LABEL, SPLIT_NOTE } });
+    const LX = window.ListExport, name = X.fileName(rep);
+    if (how === 'xlsx') LX.download(X.toXlsx(rep), name + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    else LX.printHtml(X.toHtml(rep), name);
+  }
   // the check the summary shows: the one ticked on its tab, else the latest
   const pickedSheet = c => { const s = (c && c.sheets) || []; return s.find(x => x.id === c.pick) || s[s.length - 1]; };
-  function SheetBar({ sheets, active, setActive, onAdd, onDelete, picked, onPick }) {
+  function SheetBar({ sheets, active, setActive, onAdd, onDelete, picked, onPick, onExport }) {
     const [arm, setArm] = useState(null);
     return h('div', { className: 'cx-sheets' },
       sheets.map(s => h('div', { key: s.id, className: 'cx-sheet' + (s.id === active ? ' on' : ''), onClick: () => setActive(s.id) },
@@ -318,7 +328,10 @@
         s.id === active && h('button', { className: 'cx-sheet-x' + (arm === s.id ? ' arm' : ''), title: 'מחיקת הבדיקה',
           onClick: e => { e.stopPropagation(); if (arm === s.id) { setArm(null); onDelete(s.id); } else setArm(s.id); },
           onMouseLeave: () => setArm(null) }, arm === s.id ? 'למחוק?' : '×'))),
-      h('button', { className: 'cx-add', onClick: onAdd, title: 'בדיקה חדשה — מעתיקה את האחרונה' }, '+ בדיקה נוספת'));
+      h('button', { className: 'cx-add', onClick: onAdd, title: 'בדיקה חדשה — מעתיקה את האחרונה' }, '+ בדיקה נוספת'),
+      onExport && h('div', { className: 'cx-xp' }, h('span', null, 'ייצוא'),
+        h('button', { className: 'cx-btn', title: 'הדפסה או שמירה כ-PDF, בגודל A4', onClick: () => onExport('pdf') }, 'PDF'),
+        h('button', { className: 'cx-btn', title: 'הורדה כקובץ Excel, מותאם להדפסה ב-A4', onClick: () => onExport('xlsx') }, 'Excel')));
   }
   function SheetHead(n, sh, upd, hints, extra) {
     return Card(n, 'פרטי הבדיקה', null, h('div', { className: 'cx-card-b' },
@@ -1174,6 +1187,7 @@
     useEffect(() => { const on = () => setLangTick(x => x + 1); window.addEventListener('i18n:change', on); return () => window.removeEventListener('i18n:change', on); }, []);
     const [tab, setTab] = useState(() => { try { return localStorage.getItem('cx-tab') || 'summary'; } catch (e) { return 'summary'; } });
     const [active, setActive] = useState({});
+    const projectName = data.projectName || data.name || '';
     const go = t => { setTab(t); try { localStorage.setItem('cx-tab', t); } catch (e) {} };
     const calcs = data.calculators || {};
     const saveCalc = (key, fn) => save(Object.assign({}, data, { calculators: Object.assign({}, calcs, { [key]: fn(calcs[key] || { sheets: [] }) }) }));
@@ -1196,7 +1210,7 @@
         body = c.id === 'parking' ? h(ParkingTab, { key: sh.id, sh, upd, prev: idx > 0 ? sheets[idx - 1] : null })
           : c.id === 'hga' ? h(HgaTab, { key: sh.id, sh, upd }) : c.id === 'safety' ? h(SafetyTab, { key: sh.id, sh, upd }) : h(HltTab, { key: sh.id, sh, upd });
         sheetBar = h(SheetBar, { sheets, active: curId, setActive: id => setActive(a => Object.assign({}, a, { [c.id]: id })), onAdd: add, onDelete: del,
-          picked: (pickedSheet(calcs[c.id]) || {}).id, onPick: id => saveCalc(c.id, o => Object.assign({}, o, { pick: id })) });
+          picked: (pickedSheet(calcs[c.id]) || {}).id, onPick: id => saveCalc(c.id, o => Object.assign({}, o, { pick: id })), onExport: how => exportSheet(c.id, sh, projectName, how) });
       }
     }
     return h('div', { className: 'cx' },

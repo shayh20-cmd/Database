@@ -3993,6 +3993,18 @@ Object.assign(HE_EN, {
 "גרמים מוגנים: {h}": "Protected flights: {h}",
 "לחצו על מספר גרם כדי לבחור את הקומות שלו ולסמן אם הוא מוגן, על גרם בקומה כדי לערוך את הרוחב, או על המוצאים כדי לערוך אותם.": "Click a flight number to choose its floors and mark it protected, a flight on a floor to edit its width, or the exits to edit them.",
 "בכל גרם כתוב הרוחב בס\"מ. ירוק: עומד בדרישה. אדום: לא עומד בדרישה. מסגרת כפולה: גרם מוגן.": "Each flight shows its width in cm. Green: meets the requirement. Red: misses it. Double frame: a protected flight.",
+"יחידת מידה": "Unit",
+"כל חלק של מקום מעוגל כלפי מעלה, לכל שימוש — חלק א' סעיף 6": "Each part of a space rounds up, per use — Part A, section 6",
+"✓ התכנית עומדת בדרישות המינימום": "✓ The plan meets the minimum requirements",
+"קבועות מוצעות לפי קומה": "Proposed fixtures by floor",
+"מגדלי מרחב מוגן — נדרש מול מוצע": "Protected-space towers — required vs proposed",
+"מספר מגדלים": "Number of towers",
+"קומות ושימושים": "Floors and uses",
+"פרטי הבניין": "Building details",
+"דרכי מוצא: מוצע / נדרש. גרמי מדרגות: רוחב בס\"מ.": "Exits: proposed / required. Stair flights: width in cm.",
+"הדפסה או שמירה כ-PDF, בגודל A4": "Print or save as PDF, A4 size",
+"הורדה כקובץ Excel, מותאם להדפסה ב-A4": "Download as an Excel file, set up for A4 printing",
+"מוצע / נדרש": "Proposed / required",
 });
 
 window.I18N_HE_EN = HE_EN;
