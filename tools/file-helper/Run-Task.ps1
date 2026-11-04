@@ -38,6 +38,12 @@ function StatusOf($Err) { try { return [int]$Err.Exception.Response.StatusCode }
 function Show-FolderPicker([string]$Start, [string]$Suggested, [string]$Description, [switch]$NewFolder) {
   Add-Type -AssemblyName System.Windows.Forms, System.Drawing
   [Windows.Forms.Application]::EnableVisualStyles()
+  # the agent starts this process hidden, and Windows may apply that to the first window shown: a throwaway window
+  # takes it, so the owner and the dialog show
+  if (-not ('FileHelper.ShowState' -as [type])) { Add-Type -Name ShowState -Namespace FileHelper -MemberDefinition '[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);' }
+  $first = New-Object Windows.Forms.Form -Property @{ ShowInTaskbar = $false; Opacity = 0 }
+  [void][FileHelper.ShowState]::ShowWindow($first.Handle, 1)
+  $first.Dispose()
   $wa = [Windows.Forms.Screen]::PrimaryScreen.WorkingArea
   $at = New-Object Drawing.Point(([int]($wa.Left + $wa.Width / 2)), ([int]($wa.Top + $wa.Height / 2)))
   $owner = New-Object Windows.Forms.Form -Property @{ TopMost = $true; ShowInTaskbar = $false; FormBorderStyle = 'None'; Opacity = 0; StartPosition = 'Manual'; MinimumSize = (New-Object Drawing.Size(1, 1)); Size = (New-Object Drawing.Size(1, 1)); Location = $at }

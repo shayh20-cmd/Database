@@ -649,3 +649,16 @@ test('filing-plan: publishPlan v2 — a day folder\'s description needs a space 
   assert.deepStrictEqual(picked(LIB_PICKED, { tree, date: '2026-09-08' }).days, ['ערב']);
   assert.deepStrictEqual(paths(picked(LIB_PICKED, { tree, date: '2026-09-08', desc: '2' })), [[LIB_PDF_YEAR + '/LDLI-pub-PDF-2026,09,08 - 2']]);
 });
+
+test('filing-plan: publishPlan v2 — SENT together with day-first day folders (DD,MM,YYYY), its base the archive or its year folder', () => {
+  const B = 'LsSp-work/LsSp-publish/LsSp-pub-@sent', Y = B + '/LsSp-pub-sent-2026';
+  const tree = ['LsSp-work', 'LsSp-work/LsSp-publish', B, Y, Y + '/LsSp-pub-sent-01,07,2026- מסמכים ליועצת בטיחות', Y + '/LsSp-pub-sent-13,07,2026- מסמכים ליועץ', Y + '/LsSp-pub-sent-08,06,26- תוכניות'];
+  const run = (base, date, over) => plans.publishPlan({ layout: { sent: { base, byType: false, typeDirs: {}, typeAt: 'top', date }, updated: { base: '', byType: false, typeDirs: {} } }, types: L.OFFICE_TYPES, tree, code: 'LsSp', files: [{ n: 0, name: 'a.pdf' }], sent: true, updated: false, date: '2026-11-01', desc: 'תיאום', ...over });
+  const dest = r => r.plan.files[0].dests[0].path;
+  const want = Y + '/LsSp-pub-sent-01,11,2026 - תיאום';
+  assert.strictEqual(dest(run(B, 'year-day')), want, 'the archive');
+  assert.strictEqual(dest(run(Y, 'year-day')), want, 'its year folder: no second year folder inside it');
+  assert.strictEqual(dest(run(Y, 'day')), want, 'its year folder, days only');
+  assert.strictEqual(dest(run(Y, 'year-day', { date: '2027-01-05' })), B + '/LsSp-pub-sent-2027/LsSp-pub-sent-05,01,2027 - תיאום', 'another year next to it');
+  assert.deepStrictEqual(run(Y, 'year-day', { date: '2026-07-01' }).days, ['מסמכים ליועצת בטיחות'], 'that day\'s description offered');
+});

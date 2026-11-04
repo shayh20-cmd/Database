@@ -164,3 +164,11 @@ test('filing-layout: renameType — a folder name with another type in place of 
   assert.strictEqual(L.renameType('PDFS', 'PDF', 'DWG'), null, 'not a whole word');
   assert.strictEqual(L.renameType('misc', 'PDF', 'DWG'), null);
 });
+
+test('filing-layout: readName — a day folder written day first (DD,MM,YYYY) is a day, not a year', () => {
+  assert.deepStrictEqual(L.readName('LsSp-pub-sent-01,07,2026- מסמכים ליועצת בטיחות', []), { kind: 'day', pattern: 'LsSp-pub-sent-{dd},{mm},{yyyy}' });
+  assert.deepStrictEqual(L.readName('LsSp-pub-sent-2026', []), { kind: 'year', pattern: 'LsSp-pub-sent-{yyyy}' });
+  assert.deepStrictEqual(L.readName('LDLI-pub-PDF-2026,10,19 - חניה', ['PDF']), { kind: 'day', pattern: 'LDLI-pub-{type}-{yyyy},{mm},{dd}' });
+  assert.strictEqual(L.readName('X-pub-sent-08,06,26- a', []), null, 'a two-digit year is not read');
+  assert.strictEqual(L.readName('X-45,13,2026', []).kind, 'year', 'no month 13: not a date');
+});
