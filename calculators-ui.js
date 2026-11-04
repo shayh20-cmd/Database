@@ -458,7 +458,61 @@
         st && st.planned && h('div', { className: 'cx-warn' }, '⚠ התחנה הקובעת עתידית — יש לבדוק מול תשריט אזורי החניה של הוועדה המקומית. החישוב כאן לפי אזור ג\'.'),
         h('div', { className: 'cx-hint', style: { marginTop: 8 } }, 'רשימת התחנות חלקית — ודאו את אזור החניה מול תשריט הוועדה המקומית.')));
 
-    return h('div', { className: 'cx-tone' }, SheetHead(1, sh, upd), zoneCard, usesCard, resultCard);
+    // what the project offers, by parking floor and outside, against what the standard asks
+    const sup = sh.supply || {}, supFloors = sup.floors || [], sc = R.parkSupply(sh), los = R.parkLos(sh);
+    const setSup = p => upd({ supply: Object.assign({}, sup, p) });
+    const setSupCount = n => {
+      n = Math.max(0, Math.min(20, Math.round(+n) || 0));
+      const fl = supFloors.slice(0, n);
+      while (fl.length < n) fl.push({ id: uid(), name: R.safFloorName(-(fl.length + 1)) });
+      setSup({ floors: fl });
+    };
+    const KEYS = ['cars', 'acc', 'moto', 'bike'];
+    const numCells = (o, save) => KEYS.map(k => h('td', { key: k }, h(Field, { type: 'number', min: 0, placeholder: '0', value: o[k], onSave: v => save(k, v) })));
+    const state = (good, txt) => h('span', { className: good ? 'cx-p-ok' : 'cx-p-bad' }, txt);
+    const carState = !sc.entered ? '—' : state(sc.carsOk, sc.carsOk ? '✓' : sc.cars < sc.t.min ? T('✗ חסר {n}', { n: sc.t.min - sc.cars }) : T('✗ עודף {n}', { n: sc.cars - sc.t.max }));
+    const offerCard = Card(5, 'מוצע בפרויקט',
+      h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 8 } }, 'קומות חניה',
+        h(Field, { type: 'number', className: 'cx-n', style: { width: 64 }, min: 0, max: 20, value: supFloors.length, onSave: setSupCount })),
+      h(React.Fragment, null,
+        h('div', { className: 'cx-scroll' }, h('table', { className: 'cx-t c cx-plan' },
+          h('thead', null, h('tr', null, ['קומה', 'רכב', 'נכים (בנוסף)', 'אופנועים', 'אופניים'].map(x => h('th', { key: x }, x)))),
+          h('tbody', null,
+            supFloors.map((f, i) => h('tr', { key: f.id || i },
+              h('td', { className: 'gl' }, h(Field, { className: 'fl', value: f.name, skip: true, onSave: v => setSup({ floors: supFloors.map((x, j) => j === i ? Object.assign({}, x, { name: v }) : x) }) })),
+              numCells(f, (k, v) => setSup({ floors: supFloors.map((x, j) => j === i ? Object.assign({}, x, { [k]: v }) : x) })))),
+            h('tr', null, h('td', { className: 'gl' }, 'חניה חיצונית'), numCells(sup.outdoor || {}, (k, v) => setSup({ outdoor: Object.assign({}, sup.outdoor, { [k]: v }) })))),
+          h('tfoot', null,
+            h('tr', null, h('td', { className: 'gl' }, 'מוצע'), h('td', { className: 'n' }, sc.cars), h('td', { className: 'n' }, sc.acc), h('td', { className: 'n' }, sc.moto), h('td', { className: 'n' }, sc.bike)),
+            h('tr', null, h('td', { className: 'gl' }, 'נדרש'), h('td', { className: 'n' }, R.span(sc.t.min, sc.t.max, sc.t.noMin, sc.t.noMax, T)), h('td', { className: 'n' }, 'ממתין'), h('td', { className: 'n' }, R.span(sc.t.mMin, sc.t.mMax, false, false, T)), h('td', { className: 'n' }, sc.t.bikes + (sc.t.bikesMissing ? '+' : ''))),
+            h('tr', null, h('td', { className: 'gl' }, 'עומד'), h('td', { className: 'n' }, carState), h('td', { className: 'n' }, '—'),
+              h('td', { className: 'n' }, !sc.entered ? '—' : state(sc.motoOk, sc.motoOk ? '✓' : '✗')), h('td', { className: 'n' }, !sc.entered ? '—' : state(sc.bikeOk, sc.bikeOk ? '✓' : T('✗ חסר {n}', { n: sc.t.bikes - sc.bike }))))))),
+        h('div', { className: 'cx-card-b', style: { paddingTop: 8 } }, h('span', { className: 'cx-hint' }, 'חניות הנכים באות בנוסף למספר הנדרש בתקן, ולכן הן לא נספרות בבדיקת הרכב. מספר חניות הנכים הנדרש ממתין לטבלה בתקנות.'))));
+
+    const locLbl = l => l === 'A' ? 'A — נגישות גבוהה לתח"צ' : l === 'B' ? 'B — נגישות סבירה לתח"צ ולרכב פרטי' : 'C — נגישות גבוהה לרכב פרטי';
+    const by = los.auto.by;
+    const losCard = Card(6, 'רמת שירות בחניון', null, h('div', { className: 'cx-card-b' },
+      !los.rows.length ? h('div', { className: 'cx-hint' }, 'הוסיפו שימושים כדי לקבוע את רמת השירות') : h(React.Fragment, null,
+        h('div', { className: 'cx-verdict ' + (los.ok ? 'ok' : 'bad') }, T('רמת שירות מומלצת: {n}', { n: los.level }), los.decidedBy && los.rows.length > 1 ? ' · ' + T('נקבעת לפי {u}', { u: T(los.decidedBy.row.name) }) : ''),
+        h('div', { className: 'cx-basis', style: { marginTop: 10, paddingTop: 0, borderTop: 'none' } },
+          h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 6 } }, 'מיקום החניון בעיר',
+            h('select', { className: 'cx-in', style: { width: 'auto' }, value: sup.loc || '', onChange: e => setSup({ loc: e.target.value || null }) },
+              h('option', { value: '' }, los.auto.loc ? T('לפי הכתובת: {l}', { l: los.auto.loc }) : T('לא נקבע — רמה 1')),
+              ['A', 'B', 'C'].map(l => h('option', { key: l, value: l }, T(locLbl(l)))))),
+          h('label', { className: 'cx-f', style: { flexDirection: 'row', alignItems: 'center', gap: 6 } }, 'רמת שירות מתוכננת',
+            h('select', { className: 'cx-in', style: { width: 'auto' }, value: sup.level || '', onChange: e => setSup({ level: e.target.value ? +e.target.value : null }) },
+              h('option', { value: '' }, T('כמומלץ ({n})', { n: los.level })), [1, 2, 3].map(n => h('option', { key: n, value: n }, n)))),
+          !los.ok && state(false, T('✗ נמוכה מהנדרש ({n})', { n: los.level }))),
+        h('div', { className: 'cx-rule', style: { margin: '8px 0' } }, by ? T('התחנה הקרובה: {s} ({t}), במרחק {n} מ\'', { s: '⁨' + by.name + '⁩', t: '⁨' + T(by.type) + '⁩', n: by.d }) : sh.loc ? T('אין תחנת הסעה המונית בטווח {n} מ\'', { n: R.LOS_FAR }) : T('הזינו כתובת בחלק 2 כדי להציע מיקום')),
+        h('div', { className: 'cx-scroll' }, h('table', { className: 'cx-t c' },
+          h('thead', null, h('tr', null, ['שימוש בפרויקט', 'שורה בטבלה 2', 'A', 'B', 'C', 'רמה'].map(x => h('th', { key: x }, x)))),
+          h('tbody', null, los.rows.map(({ row, use, level }) => h('tr', { key: row.n },
+            h('td', { className: 'gl' }, T(row.name), row.note ? h('span', { className: 'cx-rule' }, ' (' + T(row.note) + ')') : null, h('div', { className: 'cx-rule' }, T(use.name))),
+            h('td', { className: 'n' }, row.n), ['A', 'B', 'C'].map(l => h('td', { key: l, className: 'n' + (l === los.loc ? ' cx-ok' : '') }, row[l] || '—')), h('td', { className: 'n' }, level)))))),
+        h('div', { className: 'cx-hint', style: { marginTop: 8 } }, 'רמה 1 היא הגבוהה ביותר. בחניון עם כמה שימושים קובע השימוש שמחייב את הרמה הגבוהה ביותר. המרחקים למיקום הם הצעה של המחשבון: A עד 600 מ\' מתחנה פעילה, B עד 800 מ\' או ליד תחנה מתוכננת. ההגדרה הקובעת היא של הרשות המקומית, ואם לא הגדירה אזורים נדרשת רמה 1.'),
+        h('div', { className: 'cx-cite' }, '📖 הנחיות לתכנון חניונים, משרד התחבורה — סעיפים 3.3–3.4, טבלה 2.'))));
+
+    return h('div', { className: 'cx-tone' }, SheetHead(1, sh, upd), zoneCard, usesCard, resultCard, offerCard, losCard);
   }
 
   /* ════════ הל"ת ════════ */

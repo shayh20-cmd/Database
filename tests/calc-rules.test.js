@@ -166,6 +166,42 @@ test('safety section: top floor first, flights by column, protected flights coun
   assert.deepStrictEqual([s.protNeed, s.protHave], [1, 1]);
 });
 
+test('parking service level: table 2 by use and location, the highest level deciding', () => {
+  const sh = (rows, loc, extra) => Object.assign({ rows: rows.map(type => ({ type, qty: 10 })), supply: { loc } }, extra);
+  assert.strictEqual(R.LOS_TABLE.length, 24);
+  assert.deepStrictEqual(['A', 'B', 'C'].map(l => R.parkLos(sh(['1.2'], l)).level), [3, 2, 1]);       // housing: regular users
+  assert.deepStrictEqual(['A', 'B', 'C'].map(l => R.parkLos(sh(['2.1'], l)).level), [2, 1, 1]);       // shops
+  assert.deepStrictEqual(['A', 'B', 'C'].map(l => R.parkLos(sh(['5.2'], l)).level), [2, 2, 1]);       // university
+  const mixed = R.parkLos(sh(['1.2', '2.1'], 'A'));
+  assert.deepStrictEqual([mixed.level, mixed.decidedBy.row.n], [2, 2]);                               // 3.4: the use needing more decides
+  assert.strictEqual(R.parkLos(sh(['1.2'], null)).level, 1);                                          // no zones known: level 1
+  assert.strictEqual(R.parkLos(sh(['1.2'], 'A', { supply: { loc: 'A', level: 2 } })).ok, true);       // better than needed
+  assert.strictEqual(R.parkLos(sh(['2.1'], 'A', { supply: { loc: 'A', level: 3 } })).ok, false);
+  for (const u of R.USES) assert.ok(R.losRowFor(u.id), u.id + ' has a row in table 2');
+});
+
+test('parking location: mass transit and terminals, keeping the legal zones apart', () => {
+  const at = (d, planned) => ({ loc: { lat: 31.95, lng: 34.9 }, stations: [{ name: 's', type: 't', d, planned }] });
+  assert.strictEqual(R.parkLocation({}).loc, null);
+  assert.strictEqual(R.parkLocation(at(500)).loc, 'A');
+  assert.strictEqual(R.parkLocation(at(750)).loc, 'B');
+  assert.strictEqual(R.parkLocation(at(300, true)).loc, 'B');
+  assert.strictEqual(R.parkLocation({ loc: { lat: 31.95, lng: 34.9 }, stations: [] }).loc, 'C');
+  const hub = R.parkLocation({ loc: { lat: 32.0559, lng: 34.7795 }, stations: [] });
+  assert.deepStrictEqual([hub.loc, hub.by.type], ['A', 'תחנה מרכזית']);
+  assert.ok(!R.stationsNear(32.0559, 34.7795, 100).some(s => s.type === 'תחנה מרכזית'));              // terminals don't touch the parking zone
+});
+
+test('parking supply: floors and outdoor add up, accessible spaces on top of the standard', () => {
+  const sh = { basis: 'main', zone: 'A', rows: [{ type: '1.2', qty: 20 }], supply: { floors: [{ cars: 13, acc: 2 }, { cars: 5 }], outdoor: { cars: 2, moto: 2, bike: 20 } } };
+  const c = R.parkSupply(sh);
+  assert.deepStrictEqual([c.t.min, c.t.max], [10, 20]);
+  assert.deepStrictEqual([c.cars, c.acc, c.total, c.carsOk], [20, 2, 22, true]);
+  assert.strictEqual(R.parkSupply({ ...sh, supply: { outdoor: { cars: 9 } } }).carsOk, false);
+  assert.strictEqual(R.parkSupply({ ...sh, supply: { outdoor: { cars: 30 } } }).carsOk, false);
+  assert.strictEqual(R.parkSupply({ ...sh, supply: undefined }).entered, false);
+});
+
 test('הג"א: institutional space by % of the floor area, switching with the basis', () => {
   const fl = { uses: [{ type: 'off', qty: 1200 }, { type: 'bank', qty: 300 }], spaces: [{ id: 'a', name: '01', kind: 'mamam', area: 38 }] };
   const main = R.hgaCheckFloor(fl, 'main').lines[0];          // 3% × 1200 + 2% × 300 = 42

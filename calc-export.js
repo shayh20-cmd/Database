@@ -39,7 +39,26 @@ function parkingSections(sh, { R, T, L }) {
       notes: [T('כל חלק של מקום מעוגל כלפי מעלה, לכל שימוש — חלק א\' סעיף 6')] },
     { title: T('תוצאה'), pairs: [[T('🚗 רכב פרטי'), R.span(t.min, t.max, t.noMin, t.noMax, T)], [T('♿ חניות נגישות'), T('ממתין')],
       [T('🚲 אופניים'), t.bikes + (t.bikesMissing ? '+' : '')], [T('🏍 אופנועים'), R.span(t.mMin, t.mMax, false, false, T)]] },
+    parkingOffer(sh, { R, T }), parkingLevel(sh, { R, T }),
   ];
+}
+
+function parkingOffer(sh, { R, T }) {
+  const s = sh.supply || {}, c = R.parkSupply(sh), row = (name, o) => [name, +o.cars || 0, +o.acc || 0, +o.moto || 0, +o.bike || 0];
+  const state = (good, txt) => (!c.entered ? '—' : mark(good, txt));
+  return { title: T('מוצע בפרויקט'), tables: [{ head: [T('קומה'), T('רכב'), T('נכים (בנוסף)'), T('אופנועים'), T('אופניים')],
+    rows: (s.floors || []).map(f => row(f.name, f)).concat([row(T('חניה חיצונית'), s.outdoor || {})],
+      [[T('מוצע'), c.cars, c.acc, c.moto, c.bike], [T('נדרש'), R.span(c.t.min, c.t.max, c.t.noMin, c.t.noMax, T), T('ממתין'), R.span(c.t.mMin, c.t.mMax, false, false, T), c.t.bikes + (c.t.bikesMissing ? '+' : '')]]),
+    foot: [T('עומד'), state(c.carsOk, c.carsOk ? '✓' : '✗'), '—', state(c.motoOk, c.motoOk ? '✓' : '✗'), state(c.bikeOk, c.bikeOk ? '✓' : '✗')] }],
+    notes: c.entered ? [T('חניות הנכים באות בנוסף למספר הנדרש בתקן, ולכן הן לא נספרות בבדיקת הרכב. מספר חניות הנכים הנדרש ממתין לטבלה בתקנות.')] : [] };
+}
+function parkingLevel(sh, { R, T }) {
+  const l = R.parkLos(sh);
+  if (!l.rows.length) return { title: T('רמת שירות בחניון') };
+  return { title: T('רמת שירות בחניון'), verdict: mark(l.ok, T('רמת שירות מומלצת: {n}', { n: l.level })),
+    pairs: [[T('מיקום החניון בעיר'), l.loc || T('לא נקבע — רמה 1')], [T('רמת שירות מתוכננת'), l.designed]],
+    tables: [{ head: [T('שימוש בפרויקט'), T('שורה בטבלה 2'), 'A', 'B', 'C', T('רמה')], rows: l.rows.map(({ row, level }) => [T(row.name), row.n, row.A || '—', row.B, row.C, level]) }],
+    notes: [T('הנחיות לתכנון חניונים, משרד התחבורה — סעיפים 3.3–3.4, טבלה 2.')] };
 }
 
 function hltSections(sh, { R, T, L }) {
