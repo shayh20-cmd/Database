@@ -713,7 +713,7 @@
             h('span', SKIP, R.safFloorLabel(t, T)), R.safFloorHasData(t) && h('span', { className: 'cx-tag warn', style: { marginInlineStart: 4 } }, 'יש מידע'))),
           h('span', { className: 'cx-sp', style: { flex: 1 } }),
           h('button', { className: 'cx-btn', onClick: () => setCopy(null) }, 'ביטול'),
-          h('button', { className: 'cx-btn pri', disabled: !copy.to.length, onClick: applyCopy }, 'העתק')),
+          h('button', { className: 'cx-btn pri', disabled: !copy.to.length, onClick: applyCopy }, 'הדבק')),
 
         isOpen && h('div', { className: 'cx-scroll' }, h('table', { className: 'cx-t c cx-saf' },
           h('thead', null,
