@@ -3955,7 +3955,6 @@ Object.assign(HE_EN, {
 "לא נדרש בקומת היציאה": "Not required on the exit level",
 "{a} מ\"ר": "{a} m²",
 "{n} מרחבים": "{n} spaces",
-"{a} מול {r}": "{a} of {r}",
 "מקדם": "Rate",
 "נדרש (מ\"ר)": "Required (m²)",
 "מרחבים מוצעים (מ\"ר נטו)": "Proposed spaces (net m²)",
@@ -3977,6 +3976,7 @@ Object.assign(HE_EN, {
 "למחוק את {n}? השימושים והמרחבים שלה יימחקו.": "Delete {n}? Its uses and spaces will be deleted.",
 "קומה נוספת למעלה, עם אותם שימושים ובאותם מגדלים": "Another floor on top, with the same uses and in the same towers",
 "לחצו על קומה כדי לפתוח אותה. מגדל הוא מרחב מוגן שחוזר בכמה קומות: קובעים לו שטח פעם אחת, ובכל קומה אפשר להחליט אם היא חלק ממנו ואם השטח בה שונה. ממ\"מ ומרחב במוסד חינוך מחושבים לפי סך השימושים בקומה; ממ\"ד — אחד לכל דירה; ממ\"ק — אחד לכל 4 דירות.": "Click a floor to open it. A tower is a protected space that repeats through several floors: set its area once, then decide on each floor whether it belongs to the tower and whether its area differs. Institutional and school spaces are worked out from all the uses on the floor; a mamad is one per apartment; a mamak is one per 4 apartments.",
+"סה\"כ {a} מ\"ר": "Total {a} m²",
 });
 
 window.I18N_HE_EN = HE_EN;
