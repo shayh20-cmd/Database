@@ -129,6 +129,7 @@
     '.cx-sc-k div{background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column}',
     '.cx-sc-k span{font-size:11px;color:var(--text-3)}.cx-sc-k b{font-size:16px;white-space:nowrap;font-variant-numeric:tabular-nums}',
     '.cx-sc-k .cx-sc-warn{background:rgba(217,119,6,.1);border-color:rgba(217,119,6,.35)}',
+    '.cx-sc-k .cx-sc-fl b{font-size:13.5px;line-height:21px}',
     '.cx-sc-r{display:flex;justify-content:space-between;gap:10px;color:var(--text-2);font-size:12.5px;padding:2px 0}',
     '.cx-sc-r b{color:var(--text)}',
     '.cx-gaps{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}',
@@ -932,21 +933,17 @@
     } else hlt = h('button', { className: 'cx-sc', onClick: () => go('hlt') }, head('🚻', 'הל"ת', null, 0), h('div', { className: 'cx-hint' }, 'מספר אסלות, משתנות, כיורים — לפי שימוש ואוכלוסייה'));
     let safety;
     if (S) {
-      const nums = Object.assign({}, S, { floors: R.safRenumber(S.floors || []) }), c = R.safCheck(nums), maxEx = c.floors.reduce((a, o) => Math.max(a, o.f.exits), 0), panicFl = c.floors.filter(o => o.f.panic).length;
+      const nums = Object.assign({}, S, { floors: R.safRenumber(S.floors || []) }), c = R.safCheck(nums);
       const fc = R.safFloorCounts(nums.floors), flightsN = R.safFlights(nums).filter(x => x.levels.some(L => nums.floors.some(t => (+t.level || 0) === L))).length;
       // the law's count where it names one; floors deep below ground protect every stairway serving them, with no number. What is drawn isn't marked yet
       const prot = R.safProtectedStairs(S, fc.below), protN = prot.reduce((a, r) => Math.max(a, r.n || 0), 0);
       safety = h('button', { className: 'cx-sc', onClick: () => go('safety') }, head('🔥', 'בטיחות', S, cnt('safety')),
         h('div', { className: 'cx-sc-k' },
           h('div', null, h('span', null, 'תפוסה בבניין'), h('b', null, c.occ)),
-          h('div', null, h('span', null, 'קומות'), h('b', null, c.floors.length)),
-          h('div', null, h('span', null, 'קומות מעל הקרקע'), h('b', null, fc.above)),
-          h('div', null, h('span', null, 'קומות מתחת לקרקע'), h('b', null, fc.below)),
-          h('div', null, h('span', null, 'דרכי מוצא (מקסימום)'), h('b', null, maxEx)),
+          h('div', { className: 'cx-sc-fl' }, h('span', null, 'קומות'), h('b', null, T('{a} מעל · {b} מתחת', { a: fc.above, b: fc.below }))),
           h('div', null, h('span', null, 'גרמי מדרגות'), h('b', null, flightsN)),
           h('div', { className: prot.length ? 'cx-sc-warn' : '', title: prot.map(r => T(r.text) + ' (' + r.ref + ')' + (r.note ? ' — ' + T(r.note) : '')).join('\n') || undefined },
-            h('span', null, 'גרמים מוגנים נדרשים'), h('b', null, protN || (prot.length ? 'נדרש' : 'לא נדרש'))),
-          h('div', null, h('span', null, 'קומות עם בהלה'), h('b', null, panicFl))),
+            h('span', null, 'גרמים מוגנים נדרשים'), h('b', null, protN || (prot.length ? 'נדרש' : 'לא נדרש')))),
         h('div', { className: 'cx-sc-r' }, h('span', null, 'נדרש מול מוצע'),
           h('b', null, c.bad ? h('span', { className: 'cx-p-bad' }, T('✗ {n} פערים', { n: c.bad })) : h('span', { className: 'cx-p-ok' }, '✓ עומד בדרישות'))),
         h('div', { className: 'cx-sc-r' }, h('span', null, 'גובה הבניין'), h('b', null, R.SAF_HEIGHTS[S.height || 'low'])));

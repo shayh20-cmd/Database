@@ -3892,8 +3892,6 @@ Object.assign(HE_EN, {
 "3.2.1.3 — רוחב דלת: הגדול מבין החישוב לפי התפוסה לבין טבלה 3.2.1.3. 3.2.1.21 — מנגנון בהלה בדלת יציאה מחלק בניין או קומה שתפוסתם מעל 100 איש. 3.2.2.2 — מדרגות 1.10 מ' לפחות; 1.00 בבניין שאינו גבוה; 0.90 בבניין מגורים עד 2 דירות.": "3.2.1.3 — door width: the larger of the occupancy calculation and table 3.2.1.3. 3.2.1.21 — panic hardware on an exit door from a part of a building or floor with more than 100 people. 3.2.2.2 — stairs at least 1.10 m; 1.00 in a building that is not high-rise; 0.90 in a residential building with up to 2 apartments.",
 "3.2.13.2 — יציאות מחדר: 2 מ-50 איש (או אחסון חומרים מסוכנים מעל 20 מ\"ר), 3 מעל 500, 4 מעל 1,000. 3.2.13.3 — דרכי מוצא מקומה: 2, למעט בניין מגורים שאינו רב-קומות או עד 30 איש ומרחק הליכה עד 30 מ'; 3 מעל 500, 4 מעל 1,000. 3.2.12.1(ג) — אין הפחתה במספר דרכי המוצא או ברוחבן בכיוון המילוט.": "3.2.13.2 — exits from a room: 2 from 50 people (or hazardous storage over 20 m²), 3 over 500, 4 over 1,000. 3.2.13.3 — exits from a floor: 2, except a residential building that is not a tower, or up to 30 people with up to 30 m of travel; 3 over 500, 4 over 1,000. 3.2.12.1(c) — exits do not decrease in number or width in the escape direction.",
 "תפוסה בבניין": "Building occupancy",
-"דרכי מוצא (מקסימום)": "Exits (maximum)",
-"קומות עם בהלה": "Floors with panic hardware",
 "תפוסה, מספר יציאות ורוחב יציאות, פרוזדורים ומדרגות": "Occupancy, number and width of exits, corridors and stairs",
 "טבלה 3.2.1.3 שורה {r}": "Table 3.2.1.3, row {r}",
 "טווח {a}–{b}": "Range {a}–{b}",
@@ -3966,6 +3964,7 @@ Object.assign(HE_EN, {
 "{a} מ\"ר": "{a} m²",
 "גרמים מוגנים נדרשים": "Protected flights required",
 "לא נדרש": "Not required",
+"{a} מעל · {b} מתחת": "{a} above · {b} below",
 });
 
 window.I18N_HE_EN = HE_EN;
