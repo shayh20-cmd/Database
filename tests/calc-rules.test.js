@@ -344,6 +344,8 @@ test('safety: when protected stairs are required', () => {
   assert.deepStrictEqual(refs({ height: 'low', deepBelow: true }, 1), ['3.2.3.3']);
   assert.deepStrictEqual(refs({ height: 'low', deepBelow: true }, 0), []);          // the mark means nothing with no floors below ground
   assert.deepStrictEqual(refs({ height: 'tower', deepBelow: true }, 2), ['3.7.1.3', '3.2.3.3']);
+  assert.deepStrictEqual(R.safProtectedStairs({ height: 'tower', deepBelow: true }, 2).map(r => r.n), [2, undefined]);  // the deep floors name no number
+  assert.strictEqual(R.safProtectedStairs({ height: 'high' }, 0)[0].n, 1);
 });
 
 test('safety floors: the number comes from the place in the list', () => {
